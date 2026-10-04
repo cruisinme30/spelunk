@@ -16,6 +16,9 @@ import (
 // written by another version is rebuilt rather than migrated.
 const shardFormatVersion = 1
 
+// progressEvery is how many files Build reads between progress reports.
+const progressEvery = 500
+
 // Doc is one indexed file.
 type Doc struct {
 	Path    string // slash-separated, relative to the repo root
@@ -45,12 +48,16 @@ func trigramAt(text []byte, i int) uint32 {
 	return uint32(foldASCII(text[i]))<<16 | uint32(foldASCII(text[i+1]))<<8 | uint32(foldASCII(text[i+2]))
 }
 
-// Build reads files from root and indexes them.
-func Build(ctx context.Context, root string, files []File) (*Shard, error) {
+// Build reads files from root and indexes them. progress, if not nil, is
+// called now and then with the fraction of files read so far.
+func Build(ctx context.Context, root string, files []File, progress func(float64)) (*Shard, error) {
 	s := &Shard{BuiltAt: time.Now(), postings: map[uint32][]uint32{}}
-	for _, file := range files {
+	for i, file := range files {
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
+		}
+		if progress != nil && i%progressEvery == 0 {
+			progress(float64(i) / float64(len(files)))
 		}
 		full := filepath.Join(root, filepath.FromSlash(file.Path))
 		content, err := os.ReadFile(full)
