@@ -105,3 +105,38 @@ the count.
 
 Totals at sign-off: 96 Go tests, 12 extension tests, 15 webview tests; spec coverage 70/110 (the rest belong to
 later milestones).
+
+## M2 · Workspace scope + discovery — done
+
+Exit gate: *mocks 4, 5, 12 and 17.* Scope: many repos; `repo:`, `lang:`, `type:`, `count:`; operator autocomplete,
+cheat sheet, help page; hidden-result notes with undo.
+
+| Scope item | Evidence |
+| --- | --- |
+| Many repos, `repo:`, `lang:`, `type:`, `count:` | Built in M1 and covered there (`trigram/engine_test.go`, `server/mocks_test.go`); M2 adds the repo menu (below) |
+| Repo menu ("All repos · 3") | `webview/test/discovery.test.mjs`: picking a repo writes `repo:web-checkout` into the query, the button names it, "All repos" removes it |
+| Operator autocomplete (mock 5) | Daemon: `complete_test.go` offers `since:` then `sym:` for `timeout s`. Webview: descriptions, example values, "Search for timeout and s as plain text", the results glimpse; Tab inserts at the cursor; Enter or Esc searches as typed. Host: `controller.test.ts` searches `timeout` while `s` is being completed, and `timeout s` once dismissed |
+| Cheat sheet (mock 4) | `webview.test.mjs`: recent queries in order and all 16 operators |
+| Help page (mock 17) | `discovery.test.mjs`: 16 operator rows and 5 examples; Try sends `help.try`, which `extension.ts` runs in the search panel. `extension/src/test/helpExamples.test.ts`: all 21 examples parse with no diagnostics against the real daemon, and every working-tree example finds results in the fixture workspace |
+| Hidden-result notes with undo (mock 12) | `server/mocks_test.go`: `type:file lang:python retry` returns 5 file names and a note whose count equals what `type:code lang:python retry` returns (17, test plan E12). Webview: "17 code matches for retry hidden by type:file · Show code too", and the undo removes `type:file` |
+
+Screenshots, rendered end to end by `scripts/screenshotPanel.mjs` over `testdata/workspace`:
+
+| Mock | Screenshot |
+| --- | --- |
+| 4 | [empty-box-recent-and-operators.png](proof/empty-box-recent-and-operators.png) |
+| 5 | [operator-suggestions.png](proof/operator-suggestions.png) |
+| 12 | [file-names-only.png](proof/file-names-only.png) |
+| 17 | [help-page.png](proof/help-page.png) |
+| Repo menu | [repo-menu.png](proof/repo-menu.png) |
+
+**Not yet:** five help examples need commit history (M3) or the symbol index (M4) before they find anything:
+`author:jane timeout`, `msg:"fix flaky"`, `sym:RetryPolicy`, and two worked examples. `since:2w timeout` uses file
+times until M4 brings Git's change dates, so it may find nothing on an old checkout. The mock 12 file rows show each
+file's last commit, which comes with history (M3). Opening the help page and running Try need a VS Code window (**not
+yet run**); everything under them is tested.
+
+**Protocol (Contract 2, additive, no version bump):** `query.changed` may carry `asTyped`, `parse.result` may carry
+`searchText`, and the help page sends `help.try`.
+
+Totals at sign-off: 98 Go tests, 15 extension tests, 22 webview tests; spec coverage 77/111.
