@@ -21,7 +21,10 @@ const HEADER_END = "\r\n\r\n";
 export class FrameDecoder {
   private buffered = Buffer.alloc(0);
 
-  /** Adds a chunk and returns every complete body it finished. Throws on a frame without Content-Length, after dropping it. */
+  /** `onBadFrame` hears about each header without a Content-Length; that header is skipped. */
+  constructor(private readonly onBadFrame: (header: string) => void = () => undefined) {}
+
+  /** Adds a chunk and returns every complete body it finished. */
   push(chunk: Buffer): string[] {
     this.buffered = Buffer.concat([this.buffered, chunk]);
     const bodies: string[] = [];
@@ -32,8 +35,9 @@ export class FrameDecoder {
       const bodyStart = headerEnd + HEADER_END.length;
       const lengthMatch = /content-length:\s*(\d+)/i.exec(header);
       if (!lengthMatch) {
-        this.buffered = this.buffered.subarray(bodyStart); // drop the bad header so the stream can recover
-        throw new Error("jsonrpc: frame without Content-Length");
+        this.buffered = this.buffered.subarray(bodyStart); // skip the bad header so the stream can recover
+        this.onBadFrame(header);
+        continue;
       }
       const bodyLength = Number(lengthMatch[1]);
       if (this.buffered.length < bodyStart + bodyLength) break;
@@ -95,17 +99,24 @@ interface WireMessage {
 export class Connection extends EventEmitter {
   private nextId = 1;
   private readonly pending = new Map<number, PendingRequest>();
-  private readonly decoder = new FrameDecoder();
+  private readonly decoder = new FrameDecoder((header) => {
+    this.emit("error", new Error(`jsonrpc: skipped a frame without Content-Length: ${JSON.stringify(header)}`));
+  });
   private closed = false;
 
+  /** Listen for "error" before any data arrives: EventEmitter throws an error nobody listens to. */
   constructor(
     input: Readable,
     private readonly output: Writable,
-    private readonly trace?: (direction: "send" | "recv", body: string) => void,
   ) {
     super();
     input.on("data", (chunk: Buffer) => this.onData(chunk));
     input.on("close", () => this.dispose(new Error("connection closed")));
+    // Writing to a process that just exited fails asynchronously (EPIPE).
+    output.on("error", (error) => {
+      this.emit("error", error);
+      this.dispose(error);
+    });
   }
 
   /** Sends a request. Cancelling `token` sends $/cancelRequest; the promise then rejects with RequestCancelled. */
@@ -144,24 +155,15 @@ export class Connection extends EventEmitter {
   }
 
   private onData(chunk: Buffer): void {
-    let bodies: string[];
-    try {
-      bodies = this.decoder.push(chunk);
-    } catch (error) {
-      this.emit("error", error);
-      return;
-    }
-    for (const body of bodies) this.receive(body);
+    if (this.closed) return; // a replaced daemon's last words: its searches are no longer wanted
+    for (const body of this.decoder.push(chunk)) this.receive(body);
   }
 
   private write(message: object): void {
-    const body = JSON.stringify(message);
-    this.trace?.("send", body);
-    this.output.write(encodeFrame(body));
+    this.output.write(encodeFrame(JSON.stringify(message)));
   }
 
   private receive(body: string): void {
-    this.trace?.("recv", body);
     let message: WireMessage;
     try {
       message = JSON.parse(body) as WireMessage;
