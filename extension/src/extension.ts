@@ -60,6 +60,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<unknow
     hidePanel: () => panel.hide(),
     openHelp: () => void vscode.commands.executeCommand("unifiedSearch.openHelp"),
     openSettings: () => void vscode.commands.executeCommand("workbench.action.openSettings", "@ext:unified-search.unified-search"),
+    restartDaemon: () => void d.restart().catch((e) => log.appendLine(`[daemon] restart failed: ${String(e)}`)),
     setContext: (key, value) => void vscode.commands.executeCommand("setContext", key, value),
     saveState: (s: PersistedState) => void context.globalState.update(STATE_KEY, s),
   };

@@ -42,5 +42,6 @@ export function uiSettings(c: ConfigReader): UiSettings {
     openTrigger: c.get<string>("open.trigger", "doubleClick") === "singleClick" ? "singleClick" : "doubleClick",
     preview: c.get("open.preview", true),
     showParsedQuery: c.get("ui.showParsedQuery", true),
+    caseSensitive: c.get("caseSensitive", DEFAULTS.caseSensitive),
   };
 }

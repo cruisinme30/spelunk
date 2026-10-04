@@ -407,6 +407,7 @@ export interface UiSettings {
   openTrigger: "doubleClick" | "singleClick";
   preview: boolean;
   showParsedQuery: boolean;
+  caseSensitive: boolean;
 }
 
 /** Daemon health banner (failure table): restarting, stopped, or cleared. */
@@ -448,6 +449,7 @@ export interface WebviewToHost {
   "help.open": Empty;
   "settings.open": Empty;
   "ready": Empty;
+  "daemon.restart": Empty;
 }
 
 /** Contract 2 messages, host->webview: type -> payload. */

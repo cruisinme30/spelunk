@@ -755,6 +755,7 @@ type UiSettings struct {
 	OpenTrigger     string `json:"openTrigger"`
 	Preview         bool   `json:"preview"`
 	ShowParsedQuery bool   `json:"showParsedQuery"`
+	CaseSensitive   bool   `json:"caseSensitive"`
 }
 
 // BannerMsg: Daemon health banner (failure table): restarting, stopped, or cleared.
@@ -792,6 +793,7 @@ const (
 	MsgHelpOpen      = "help.open"
 	MsgSettingsOpen  = "settings.open"
 	MsgReady         = "ready"
+	MsgDaemonRestart = "daemon.restart"
 	MsgParseResult   = "parse.result"
 	MsgSearchBatch   = "search.batch"
 	MsgSearchDone    = "search.done"
@@ -806,4 +808,4 @@ const (
 var SpecMethods = []string{"initialize", "workspace/setRoots", "workspace/didChangeFiles", "settings/update", "query/parse", "search/start", "search/batch", "$/cancelRequest", "preview/get", "open/resolve", "index/status", "index/progress", "index/rebuild", "shutdown", "exit"}
 
 // SpecMessages lists every Contract 2 message type, for spec coverage.
-var SpecMessages = []string{"query.changed", "result.select", "result.open", "results.more", "panel.close", "help.open", "settings.open", "ready", "parse.result", "search.batch", "search.done", "preview.result", "index.status", "state.restore", "banner", "focus"}
+var SpecMessages = []string{"query.changed", "result.select", "result.open", "results.more", "panel.close", "help.open", "settings.open", "ready", "daemon.restart", "parse.result", "search.batch", "search.done", "preview.result", "index.status", "state.restore", "banner", "focus"}

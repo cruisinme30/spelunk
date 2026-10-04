@@ -528,9 +528,10 @@
         "typingDelayMs": { "type": "integer" },
         "openTrigger": { "enum": ["doubleClick", "singleClick"] },
         "preview": { "type": "boolean" },
-        "showParsedQuery": { "type": "boolean" }
+        "showParsedQuery": { "type": "boolean" },
+        "caseSensitive": { "type": "boolean" }
       },
-      "required": ["typingDelayMs", "openTrigger", "preview", "showParsedQuery"]
+      "required": ["typingDelayMs", "openTrigger", "preview", "showParsedQuery", "caseSensitive"]
     },
     "BannerMsg": {
       "description": "Daemon health banner (failure table): restarting, stopped, or cleared.",
@@ -570,6 +571,7 @@
     "help.open":      { "direction": "webview->host", "payload": "Empty" },
     "settings.open":  { "direction": "webview->host", "payload": "Empty" },
     "ready":          { "direction": "webview->host", "payload": "Empty" },
+    "daemon.restart": { "direction": "webview->host", "payload": "Empty" },
     "parse.result":   { "direction": "host->webview", "payload": "ParseResultMsg" },
     "search.batch":   { "direction": "host->webview", "payload": "SearchBatchMsg" },
     "search.done":    { "direction": "host->webview", "payload": "SearchDoneMsg" },

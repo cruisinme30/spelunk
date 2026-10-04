@@ -22,6 +22,7 @@ export interface Ui {
   hidePanel(): void;
   openHelp(): void;
   openSettings(): void;
+  restartDaemon(): void;
   setContext(key: string, value: boolean): void;
   saveState(state: PersistedState): void;
 }
@@ -86,6 +87,9 @@ export class SearchController {
         return;
       case "settings.open":
         this.ui.openSettings();
+        return;
+      case "daemon.restart":
+        this.ui.restartDaemon();
         return;
     }
   }
