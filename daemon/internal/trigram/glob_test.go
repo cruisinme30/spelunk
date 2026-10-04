@@ -10,6 +10,8 @@ func TestGlobs(t *testing.T) {
 	}{
 		{"node_modules", "node_modules", true},
 		{"node_modules", "web/node_modules", true},
+		{"node_modules", "web/node_modules/react/index.js", true}, // a folder takes its contents
+		{"node_modules", "web/node_modules_old/index.js", false},
 		{"**/node_modules/**", "web/node_modules/react/index.js", true},
 		{"*.min.js", "dist/app.min.js", true},
 		{"*.min.js", "dist/app.js", false},

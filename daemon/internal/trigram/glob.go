@@ -7,7 +7,9 @@ import (
 
 // Glob matches slash-separated paths against an index.exclude pattern:
 // "**" spans directories, "*" and "?" stay within one, as in VS Code's
-// files.exclude. A pattern without a slash matches at any depth.
+// files.exclude. A pattern without a slash matches at any depth, and a
+// pattern that matches a folder also matches everything inside it.
+// Brace alternatives ({a,b}) are not supported: braces match themselves.
 type Glob struct{ re *regexp.Regexp }
 
 // CompileGlob turns a glob into a matcher.
@@ -33,7 +35,7 @@ func CompileGlob(pattern string) (Glob, error) {
 			b.WriteString(regexp.QuoteMeta(string(c)))
 		}
 	}
-	b.WriteString("$")
+	b.WriteString("(?:/.*)?$") // a matching folder takes its contents with it
 	re, err := regexp.Compile(b.String())
 	return Glob{re: re}, err
 }
