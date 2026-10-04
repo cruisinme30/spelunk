@@ -283,9 +283,9 @@ func TestNarrowUsesTrigramsOnlyWhereSound(t *testing.T) {
 	}
 	for _, tt := range tests {
 		plan := mustPlan(t, tt.query, defaultSettings, "")
-		ids := narrow(shard, plan.Pred, plan.CaseSensitive)
+		ids := narrowShard(shard, plan.Pred, plan.CaseSensitive)
 		if (ids != nil) != tt.narrows {
-			t.Errorf("narrow(%q) = %v, want narrowing %v", tt.query, ids, tt.narrows)
+			t.Errorf("narrowShard(%q) = %v, want narrowing %v", tt.query, ids, tt.narrows)
 		}
 	}
 }

@@ -47,11 +47,11 @@ func Preview(repo *Repo, ref Ref, plan *query.Plan, contextLines int) (protocol.
 	// text has nothing to mark.
 	if plan != nil && (!ref.IsFile() || plan.Kinds[query.KindLine]) {
 		doc := &Doc{Path: ref.Path, Lang: lang.Detect(ref.Path, content), ModTime: info.ModTime(), Content: content}
-		terms = query.Contributing(plan.Pred, contentLeaf(repo, doc, newLineMatcher(content, anchorCache{})))
+		terms = query.Contributing(plan.Pred, contentLeaf(repo, doc, newLineMatcher(content, termCache{})))
 	}
 	hits := []protocol.LineHits{}
 	for number := first; number <= last; number++ {
-		ranges := lineHits(lines[number-1], terms)
+		ranges := TermHits(lines[number-1], terms)
 		if number == ref.Line && len(ranges) == 0 {
 			ranges = []protocol.Hit{{Start: ref.Column, End: ref.Column + ref.Length}}
 		}
@@ -91,8 +91,9 @@ func splitLines(content []byte) []string {
 	return lines
 }
 
-// lineHits returns every non-empty match of terms in one line, by start.
-func lineHits(line string, terms []*query.Content) []protocol.Hit {
+// TermHits returns every non-empty match of terms in one line of text, by
+// start, in UTF-16 offsets. The history engine marks diff lines with it too.
+func TermHits(line string, terms []*query.Content) []protocol.Hit {
 	var hits []byteHit
 	for _, term := range terms {
 		for _, loc := range term.Re.FindAllStringIndex(line, -1) {
@@ -104,7 +105,7 @@ func lineHits(line string, terms []*query.Content) []protocol.Hit {
 	sortHits(hits)
 	out := make([]protocol.Hit, len(hits))
 	for i, h := range hits {
-		r := utf16Range(line, h.start, h.end)
+		r := UTF16Range(line, h.start, h.end)
 		out[i] = protocol.Hit{Start: r.Start, End: r.End, TermIndex: h.termIndex}
 	}
 	return out

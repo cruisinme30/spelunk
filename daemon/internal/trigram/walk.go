@@ -61,6 +61,45 @@ func ListFiles(ctx context.Context, root string, opts WalkOptions) ([]File, erro
 	return files, nil
 }
 
+// SelectFiles returns which of paths (slash-separated, relative to root)
+// ListFiles would index now: files that exist and are not excluded,
+// ignored by Git, binary or too big. It is how files saved since the last
+// build are re-read without listing the whole repo.
+func SelectFiles(ctx context.Context, root string, paths []string, opts WalkOptions) []File {
+	ignored := map[string]bool{}
+	if !opts.IncludeIgnored {
+		ignored = gitIgnored(ctx, root, paths)
+	}
+	var files []File
+	for _, path := range paths {
+		if ignored[path] || opts.Exclude.Excludes(path) || !filepath.IsLocal(filepath.FromSlash(path)) {
+			continue
+		}
+		full := filepath.Join(root, filepath.FromSlash(path))
+		info, err := os.Lstat(full)
+		if err != nil || !info.Mode().IsRegular() || opts.MaxFileBytes > 0 && info.Size() > opts.MaxFileBytes || isBinaryFile(full) {
+			continue
+		}
+		files = append(files, File{Path: path, Size: info.Size()})
+	}
+	sort.Slice(files, func(i, j int) bool { return files[i].Path < files[j].Path })
+	return files
+}
+
+// gitIgnored returns which of paths .gitignore excludes; none outside Git.
+func gitIgnored(ctx context.Context, root string, paths []string) map[string]bool {
+	ignored := map[string]bool{}
+	cmd := exec.CommandContext(ctx, "git", "-C", root, "check-ignore", "-z", "--stdin")
+	cmd.Stdin = strings.NewReader(strings.Join(paths, "\x00") + "\x00")
+	out, _ := cmd.Output() // exit status 1 means "none ignored"; outside Git there is no output
+	for _, path := range strings.Split(strings.TrimRight(string(out), "\x00"), "\x00") {
+		if path != "" {
+			ignored[path] = true
+		}
+	}
+	return ignored
+}
+
 // candidatePaths lists the files ListFiles then filters: what Git says the
 // repo holds (tracked files and untracked ones .gitignore doesn't exclude),
 // or every file when includeIgnored is set or root isn't a Git work tree.

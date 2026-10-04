@@ -18,12 +18,59 @@ import (
 // has, marked truncated.
 const SearchBudget = 2 * time.Second
 
-// Repo is a repo's published shard plus what results need to name it.
+// Repo is a repo's published index plus what results need to name it.
 type Repo struct {
 	ID    string
 	Name  string
 	Root  string // absolute path
 	Shard *Shard
+	// Overlay holds the files saved, created or deleted since Shard was
+	// built, read again: Shard's docs at Masked paths are out of date or
+	// gone, and Overlay has the current version of those that still exist.
+	// Both are nil when nothing changed.
+	Overlay *Shard
+	Masked  map[string]bool
+	// History says when each file last changed in Git; nil outside Git or
+	// before the history index is read.
+	History FileHistory
+}
+
+// FileHistory is what the working-tree engine needs from a repo's history:
+// for since: on current files and for the "Uncommitted changes" badge.
+type FileHistory interface {
+	// LastCommit returns the newest commit in the history window that
+	// changed path; ok is false when there is none.
+	LastCommit(path string) (commit protocol.LastCommit, at time.Time, ok bool)
+	// Dirty reports whether path has uncommitted changes.
+	Dirty(path string) bool
+}
+
+// shards returns the repo's shards: the built one, then the overlay.
+func (r *Repo) shards() []*Shard {
+	if r.Overlay == nil {
+		return []*Shard{r.Shard}
+	}
+	return []*Shard{r.Shard, r.Overlay}
+}
+
+// current reports whether a doc of shard is the file as it is now: the
+// overlay's docs always are, the built shard's unless masked.
+func (r *Repo) current(shard *Shard, doc *Doc) bool {
+	return shard != r.Shard || !r.Masked[doc.Path]
+}
+
+// changedSince reports whether a file changed after a time, for since: on
+// current files. In Git that is its newest commit, or now when it has
+// uncommitted changes; elsewhere it is the file's modification time.
+func (r *Repo) changedSince(doc *Doc, after time.Time) bool {
+	if r.History == nil {
+		return !doc.ModTime.Before(after)
+	}
+	if r.History.Dirty(doc.Path) {
+		return true
+	}
+	_, at, ok := r.History.LastCommit(doc.Path)
+	return ok && !at.Before(after)
 }
 
 // Stats describe one page of a search.
@@ -43,7 +90,7 @@ type Stats struct {
 func Search(ctx context.Context, plan *query.Plan, repos []Repo, planID int, emit func(protocol.ResultItem)) (Stats, error) {
 	ctx, cancel := context.WithTimeout(ctx, SearchBudget)
 	defer cancel()
-	s := &searcher{ctx: ctx, plan: plan, planID: planID, emit: emit, hidden: map[int]int{}, anchors: anchorCache{}}
+	s := &searcher{ctx: ctx, plan: plan, planID: planID, emit: emit, hidden: map[int]int{}, terms: termCache{}}
 	onlyFiles := plan.Kinds[query.KindFile] && !plan.Kinds[query.KindLine]
 
 	if plan.Kinds[query.KindFile] {
@@ -92,7 +139,7 @@ type searcher struct {
 	hiddenByKind int
 	// hiddenByCase counts results that differ only in case from case:yes.
 	hiddenByCase int
-	anchors      anchorCache
+	terms        termCache
 }
 
 // stopped reports whether the search should stop adding results: it ran
@@ -166,7 +213,7 @@ func docLeaf(p query.Pred, repo *Repo, doc *Doc) bool {
 	case *query.Lang:
 		return doc.Lang == p.Name
 	case *query.Since:
-		return !doc.ModTime.Before(p.After)
+		return repo.changedSince(doc, p.After)
 	default:
 		// sym: needs the symbol index; author: and msg: are history-only, and
 		// the parser keeps them out of working-tree plans.
@@ -190,29 +237,43 @@ func (s *searcher) addRepoFileNames(repo *Repo, countHidden bool) {
 	if s.repoExcluded(repo) {
 		return
 	}
-	for i := range repo.Shard.Docs {
-		if s.stopped() {
-			return
-		}
-		doc := &repo.Shard.Docs[i]
-		leaf := func(p query.Pred) bool {
-			if c, ok := p.(*query.Content); ok {
-				return c.Re.MatchString(doc.Path)
+	for _, shard := range repo.shards() {
+		for i := range shard.Docs {
+			if s.stopped() {
+				return
 			}
-			return docLeaf(p, repo, doc)
-		}
-		if !query.Eval(s.plan.Pred, leaf) {
-			if countHidden {
-				s.countHidden(leaf, func([]*query.Content) int { return 1 })
+			if doc := &shard.Docs[i]; repo.current(shard, doc) {
+				s.addFileName(repo, doc, countHidden)
 			}
-			continue
 		}
-		s.add(protocol.ResultItem{
-			Kind: query.KindFile, Ref: Ref{PlanID: s.planID, RepoID: repo.ID, Path: doc.Path}.String(),
-			RepoID: repo.ID, Path: doc.Path, NameHits: s.nameHits(doc.Path, query.Contributing(s.plan.Pred, leaf)),
-			Dirty: false,
-		})
 	}
+}
+
+// addFileName adds a file-name result for doc if its path satisfies the query.
+func (s *searcher) addFileName(repo *Repo, doc *Doc, countHidden bool) {
+	leaf := func(p query.Pred) bool {
+		if c, ok := p.(*query.Content); ok {
+			return c.Re.MatchString(doc.Path)
+		}
+		return docLeaf(p, repo, doc)
+	}
+	if !query.Eval(s.plan.Pred, leaf) {
+		if countHidden {
+			s.countHidden(leaf, func([]*query.Content) int { return 1 })
+		}
+		return
+	}
+	item := protocol.ResultItem{
+		Kind: query.KindFile, Ref: Ref{PlanID: s.planID, RepoID: repo.ID, Path: doc.Path}.String(),
+		RepoID: repo.ID, Path: doc.Path, NameHits: s.nameHits(doc.Path, query.Contributing(s.plan.Pred, leaf)),
+	}
+	if repo.History != nil {
+		item.Dirty = repo.History.Dirty(doc.Path)
+		if commit, _, ok := repo.History.LastCommit(doc.Path); ok {
+			item.LastCommit = &commit
+		}
+	}
+	s.add(item)
 }
 
 // nameHits highlights the matching text terms in a path; with no text
@@ -221,7 +282,7 @@ func (s *searcher) nameHits(path string, terms []*query.Content) []protocol.Rang
 	var ranges []protocol.Range
 	for _, term := range terms {
 		for _, loc := range term.Re.FindAllStringIndex(path, -1) {
-			ranges = append(ranges, utf16Range(path, loc[0], loc[1]))
+			ranges = append(ranges, UTF16Range(path, loc[0], loc[1]))
 		}
 	}
 	if len(s.plan.Terms) == 0 {
@@ -247,7 +308,7 @@ func pathFilterHit(filter *query.Path, path string) (protocol.Range, bool) {
 	if start < end && path[start] == '/' {
 		start++
 	}
-	return utf16Range(path, start, end), start < end
+	return UTF16Range(path, start, end), start < end
 }
 
 // countHidden credits a result that fails only one filter to that filter.
@@ -315,13 +376,18 @@ func (s *searcher) forEachCandidate(repo *Repo, visit func(doc *Doc, matcher *li
 	if s.repoExcluded(repo) {
 		return
 	}
-	for _, id := range s.candidateDocs(repo.Shard) {
-		if s.stopped() {
-			return
+	for _, shard := range repo.shards() {
+		for _, id := range s.candidateDocs(shard) {
+			if s.stopped() {
+				return
+			}
+			doc := &shard.Docs[id]
+			if !repo.current(shard, doc) {
+				continue
+			}
+			matcher := newLineMatcher(doc.Content, s.terms)
+			visit(doc, matcher, contentLeaf(repo, doc, matcher))
 		}
-		doc := &repo.Shard.Docs[id]
-		matcher := newLineMatcher(doc.Content, s.anchors)
-		visit(doc, matcher, contentLeaf(repo, doc, matcher))
 	}
 }
 
@@ -338,61 +404,20 @@ func contentLeaf(repo *Repo, doc *Doc, matcher *lineMatcher) func(query.Pred) bo
 
 // candidateDocs narrows the docs to search using trigrams, in path order.
 func (s *searcher) candidateDocs(shard *Shard) []uint32 {
-	if ids := narrow(shard, s.plan.Pred, s.plan.CaseSensitive); ids != nil {
+	if ids := narrowShard(shard, s.plan.Pred, s.plan.CaseSensitive); ids != nil {
 		return ids
 	}
 	return shard.allDocIDs()
 }
 
-// narrow returns the docs that can satisfy p, or nil for "any doc".
-func narrow(shard *Shard, p query.Pred, caseSensitive bool) []uint32 {
-	switch p := p.(type) {
-	case *query.And:
-		return narrowAll(shard, p.Kids, caseSensitive)
-	case *query.Or:
-		return narrowAny(shard, p.Kids, caseSensitive)
-	case *query.Content:
-		literal := p.Literal
-		if literal == "" {
-			literal = query.RequiredLiteral(p.Re)
+// narrowShard returns the docs that can satisfy p, or nil for "any doc".
+func narrowShard(shard *Shard, p query.Pred, caseSensitive bool) []uint32 {
+	return Narrow(p, func(leaf query.Pred) []uint32 {
+		if content, ok := leaf.(*query.Content); ok {
+			return shard.Candidates(ContentLiteral(content), caseSensitive)
 		}
-		return shard.Candidates(literal, caseSensitive)
-	default: // NOT, paths, languages…: any doc may qualify
-		return nil
-	}
-}
-
-// narrowAll returns the docs every narrowing kid allows; kids that can't
-// narrow (nil) don't limit the result. nil when none of them narrows.
-func narrowAll(shard *Shard, kids []query.Pred, caseSensitive bool) []uint32 {
-	var result []uint32
-	narrowed := false
-	for _, kid := range kids {
-		ids := narrow(shard, kid, caseSensitive)
-		switch {
-		case ids == nil:
-			continue
-		case !narrowed:
-			result, narrowed = ids, true
-		default:
-			result = intersect(result, ids)
-		}
-	}
-	return result
-}
-
-// narrowAny returns the docs any kid allows, or nil if one kid can't narrow
-// (then any doc may satisfy the OR).
-func narrowAny(shard *Shard, kids []query.Pred, caseSensitive bool) []uint32 {
-	result := []uint32{}
-	for _, kid := range kids {
-		ids := narrow(shard, kid, caseSensitive)
-		if ids == nil {
-			return nil
-		}
-		result = union(result, ids)
-	}
-	return result
+		return nil // paths, languages…: any doc may qualify
+	})
 }
 
 // lineResult builds a code result, clipping very long lines around the match.
@@ -425,30 +450,38 @@ type matchedLine struct {
 // lineMatcher finds, and remembers, which lines each term matches in one file.
 type lineMatcher struct {
 	content []byte
-	lowered []byte // content with ASCII lowercased, made on first use
-	anchors anchorCache
+	terms   termCache
 	cache   map[*query.Content][]matchedLine
 }
 
-func newLineMatcher(content []byte, anchors anchorCache) *lineMatcher {
-	return &lineMatcher{content: content, anchors: anchors, cache: map[*query.Content][]matchedLine{}}
+func newLineMatcher(content []byte, terms termCache) *lineMatcher {
+	return &lineMatcher{content: content, terms: terms, cache: map[*query.Content][]matchedLine{}}
 }
 
-// anchorCache remembers, per term, whether its regex uses ^, $, \A or \z.
-// Shared by every file of one search.
-type anchorCache map[*query.Content]bool
+// termCache holds what matching needs to know about each term, worked out
+// once per search and shared by every file it matches.
+type termCache map[*query.Content]*termFacts
 
-// canScanWholeText reports whether matching term against the whole file
-// finds every line that matches on its own. Anchors break that (^ means the
-// start of the file, not of a line), so anchored terms are matched line by
-// line.
-func (a anchorCache) canScanWholeText(term *query.Content) bool {
-	anchored, ok := a[term]
+// termFacts is what matching needs to know about one term.
+type termFacts struct {
+	// anchored means the regex uses ^, $, \A or \z. Matching it against a
+	// whole file would read ^ as the start of the file, not of a line, so
+	// anchored terms are matched line by line.
+	anchored bool
+	// literal finds where the term may match, when hasLiteral.
+	literal    literalFinder
+	hasLiteral bool
+}
+
+// facts returns what matching needs to know about term.
+func (c termCache) facts(term *query.Content) *termFacts {
+	facts, ok := c[term]
 	if !ok {
-		anchored = hasAnchors(term.Re)
-		a[term] = anchored
+		facts = &termFacts{anchored: hasAnchors(term.Re)}
+		facts.literal, facts.hasLiteral = newLiteralFinder(term)
+		c[term] = facts
 	}
-	return !anchored
+	return facts
 }
 
 // hasAnchors reports whether re asserts a line or text boundary.
@@ -480,7 +513,7 @@ func (m *lineMatcher) matches(term *query.Content) []matchedLine {
 		return found
 	}
 	var found []matchedLine
-	if m.anchors.canScanWholeText(term) {
+	if !m.terms.facts(term).anchored {
 		found = m.scanForLines(term)
 	} else {
 		found = m.everyLine(term)
@@ -526,11 +559,8 @@ func (m *lineMatcher) scanForLines(term *query.Content) []matchedLine {
 // where term may match: a fast literal search when that is sound, or the
 // regex itself.
 func (m *lineMatcher) finder(term *query.Content) func(from int) int {
-	if literal, ok := newLiteralFinder(term); ok && literal.usableOn(m.content) {
-		if literal.folded && m.lowered == nil {
-			m.lowered = lowerASCII(m.content)
-		}
-		return func(from int) int { return literal.index(m.content, m.lowered, from) }
+	if facts := m.terms.facts(term); facts.hasLiteral && facts.literal.usableOn(m.content) {
+		return func(from int) int { return facts.literal.index(m.content, from) }
 	}
 	return func(from int) int {
 		loc := term.Re.FindIndex(m.content[from:])
@@ -681,7 +711,8 @@ func utf16Len(text string) int {
 	return n
 }
 
-// utf16Range converts byte offsets in text to a UTF-16 Range.
-func utf16Range(text string, start, end int) protocol.Range {
+// UTF16Range converts byte offsets in text to a UTF-16 Range, the offsets
+// JavaScript and VS Code count in.
+func UTF16Range(text string, start, end int) protocol.Range {
 	return protocol.Range{Start: utf16Len(text[:start]), End: utf16Len(text[:end])}
 }

@@ -1,6 +1,7 @@
 package trigram
 
 import (
+	"bytes"
 	"reflect"
 	"testing"
 )
@@ -45,6 +46,39 @@ func TestLiteralFinderIsOnlyUsedWhereSound(t *testing.T) {
 		t.Errorf("case-sensitive finder = %+v, %v; want exact Size", f, ok)
 	}
 	if _, ok := newLiteralFinder(mustPlan(t, "/a.b/", defaultSettings, "").Terms[0]); ok {
-		t.Error("finder for a regex term = ok, want the regex")
+		t.Error("finder for a regex term without a 3-letter literal = ok, want the regex")
+	}
+	regex := mustPlan(t, "case:yes /Retry(Policy|Config)/", defaultSettings, "")
+	if f, ok := newLiteralFinder(regex.Terms[0]); !ok || !f.folded || string(f.needle) != "retry" {
+		t.Errorf("finder for /Retry(Policy|Config)/ = %+v, %v; want retry, ignoring case", f, ok)
+	}
+}
+
+func TestIndexFoldFindsEveryCaseOfTheNeedle(t *testing.T) {
+	// naive lowercases the text and searches it, the way the engine did
+	// before indexFold.
+	naive := func(text, needle []byte, from int) int {
+		i := bytes.Index(bytes.ToLower(text[from:]), needle)
+		if i < 0 {
+			return -1
+		}
+		return from + i
+	}
+	// Partial and run-together words on purpose:
+	// cspell:ignore eout timeouttimeout neout timeou
+	needles := []string{"timeout", "t", "tt", "_x9", "eout", "aaa"}
+	texts := []string{
+		"", "t", "TimeOut", "a TIMEOUT and a timeout", "timeouttimeout", "tttT", "TtTt tT", "aAaAaa", "x_X9_x9",
+		"tim\neout timeou", "TIMEOU", "no match here",
+	}
+	for _, needle := range needles {
+		for _, text := range texts {
+			for from := 0; from <= len(text); from++ {
+				got := indexFold([]byte(text), []byte(needle), from)
+				if want := naive([]byte(text), []byte(needle), from); got != want {
+					t.Errorf("indexFold(%q, %q, %d) = %d, want %d", text, needle, from, got, want)
+				}
+			}
+		}
 	}
 }

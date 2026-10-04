@@ -100,6 +100,16 @@ func Build(ctx context.Context, root string, files []File, progress func(float64
 	return s, nil
 }
 
+// NewShard indexes docs that are already read, keeping their order. The
+// indexer builds its overlay of re-read files with it.
+func NewShard(docs []Doc) *Shard {
+	s := &Shard{BuiltAt: time.Now(), postings: map[uint32][]uint32{}}
+	for _, doc := range docs {
+		s.add(doc)
+	}
+	return s
+}
+
 // allDocIDs returns the id of every doc, in path order.
 func (s *Shard) allDocIDs() []uint32 {
 	ids := make([]uint32, len(s.Docs))
@@ -113,11 +123,17 @@ func (s *Shard) allDocIDs() []uint32 {
 func (s *Shard) add(doc Doc) {
 	id := uint32(len(s.Docs)) //nolint:gosec // G115: Build keeps a shard under maxDocs docs
 	s.Docs = append(s.Docs, doc)
-	for i := 0; i+3 <= len(doc.Content); i++ {
-		key := trigramAt(doc.Content, i)
-		list := s.postings[key]
-		if n := len(list); n == 0 || list[n-1] != id { // once per doc
-			s.postings[key] = append(list, id)
+	addTrigrams(s.postings, id, doc.Content)
+}
+
+// addTrigrams records that text id contains each of text's trigrams. Ids
+// must arrive in ascending order, so every posting list stays sorted.
+func addTrigrams(postings map[uint32][]uint32, id uint32, text []byte) {
+	for i := 0; i+3 <= len(text); i++ {
+		key := trigramAt(text, i)
+		list := postings[key]
+		if n := len(list); n == 0 || list[n-1] != id { // once per text
+			postings[key] = append(list, id)
 		}
 	}
 }
@@ -130,13 +146,18 @@ func (s *Shard) add(doc Doc) {
 // matches "É"), and none with k or s, which also fold to the KELVIN SIGN
 // and LONG S.
 func (s *Shard) Candidates(literal string, caseSensitive bool) []uint32 {
+	return candidates(s.postings, literal, caseSensitive)
+}
+
+// candidates is Candidates over any posting lists.
+func candidates(postings map[uint32][]uint32, literal string, caseSensitive bool) []uint32 {
 	text := []byte(literal)
 	var lists [][]uint32
 	for i := 0; i+3 <= len(text); i++ {
 		if !caseSensitive && !allASCIIFoldable(text[i:i+3]) {
 			continue
 		}
-		list, ok := s.postings[trigramAt(text, i)]
+		list, ok := postings[trigramAt(text, i)]
 		if !ok {
 			return []uint32{} // a required trigram appears nowhere
 		}
