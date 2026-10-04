@@ -1,6 +1,6 @@
 // The search panel webview: drives the real panel bundle in Chromium with
 // recorded host messages and checks what it renders and sends.
-// @covers msg:ready msg:state.restore msg:query.changed msg:parse.result msg:search.batch msg:search.done msg:result.select msg:preview.result msg:index.status msg:banner msg:daemon.restart msg:panel.close msg:focus msg:result.open
+// @covers msg:ready msg:state.restore msg:query.changed msg:parse.result msg:search.batch msg:search.done msg:result.select msg:preview.result msg:index.status msg:banner msg:daemon.restart msg:result.open
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
@@ -35,6 +35,22 @@ test("typing sends query.changed with the text and a new seq", async (t) => {
   const message = await lastSent(page, "query.changed");
   assert.equal(message.text, "retry_policy");
   assert.equal(message.cursor, 12);
+});
+
+test("focus selects the box, and Esc with nothing else open asks to close the panel", async (t) => {
+  // @covers msg:focus msg:panel.close
+  const page = await openPanel(t);
+  await restore(page);
+  await page.fill('[data-testid="query"]', "retry");
+  await page.evaluate(() => document.activeElement.blur());
+  await fromHost(page, "focus", {});
+  const box = await page.evaluate(() => ({
+    testId: document.activeElement.dataset.testid,
+    selected: document.activeElement.selectionEnd - document.activeElement.selectionStart,
+  }));
+  assert.deepEqual(box, { testId: "query", selected: 5 });
+  await page.keyboard.press("Escape");
+  assert.equal((await sentMessages(page, "panel.close")).length, 1);
 });
 
 test("streamed results render in sections with a summary", async (t) => {

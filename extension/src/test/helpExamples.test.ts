@@ -1,6 +1,6 @@
 // Every example on the help page runs cleanly against the real daemon over
 // the fixture workspace.
-// @covers screen:help-page msg:help.try
+// @covers screen:help-page
 import assert from "node:assert/strict";
 import { existsSync, mkdtempSync, readdirSync } from "node:fs";
 import { tmpdir } from "node:os";

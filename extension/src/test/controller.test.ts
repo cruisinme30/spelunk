@@ -1,6 +1,6 @@
 // The search panel's host side. The round-trip test drives the real daemon binary;
 // the others use a scripted backend to pin down ordering rules.
-// @covers msg:query.changed msg:parse.result msg:search.batch msg:search.done msg:result.select msg:preview.result msg:result.open msg:panel.close
+// @covers msg:query.changed msg:parse.result msg:search.batch msg:search.done msg:result.select msg:preview.result msg:result.open
 import assert from "node:assert/strict";
 import { existsSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -190,6 +190,17 @@ test("recent queries are deduplicated, newest first, and capped", async () => {
   controller.rememberQuery();
   controller.restore();
   assert.deepEqual(host.posted.at(-1)!.payload.recent, ["c", "a"]);
+});
+
+test("closing the panel hides it and remembers the query", async () => {
+  // @covers msg:panel.close
+  const host = recordingUi();
+  const controller = newController(scriptedBackend().backend, host.ui);
+  await controller.handle({ v: 1, type: "query.changed", payload: { text: "timeout", cursor: 7, seq: 1 } });
+  await controller.handle({ v: 1, type: "panel.close", payload: {} });
+  assert.equal(host.closedPanels(), 1);
+  controller.restore();
+  assert.deepEqual(host.posted.at(-1)!.payload.recent, ["timeout"]);
 });
 
 test("a search typed while a repo was indexing runs again when the repo is ready", async () => {

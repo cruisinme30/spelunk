@@ -191,7 +191,7 @@ test("a type:file note counts the code matches for the query's words and offers 
 });
 
 test("the help page lists every operator with an example, and Try runs it", async (t) => {
-  // @covers screen:help-page command:openHelp
+  // @covers screen:help-page
   const page = await openHelp(t);
   assert.equal(await page.locator('[data-testid="operator-row"]').count(), 16);
   assert.equal(await page.locator('[data-testid="example"]').count(), 5);

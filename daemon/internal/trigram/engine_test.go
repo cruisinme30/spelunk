@@ -192,7 +192,7 @@ func TestTypeFileReturnsOnlyFileNames(t *testing.T) {
 }
 
 func TestFiltersReportWhatTheyHid(t *testing.T) {
-	// @covers screen:file-names-only
+	// @covers screen:path-scoped-search
 	_, stats := run(t, "timeout -f:vendor/", webRepo)
 	if len(stats.Hidden) != 1 {
 		t.Fatalf("hidden = %+v, want one note", stats.Hidden)
