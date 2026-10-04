@@ -182,3 +182,33 @@ and folded into the next build (`TestSavedFilesAreSearchableWithoutARebuild`,
 message) and `disk-full` (keeps serving from memory, with a warning).
 
 Totals at sign-off: spec coverage 89/114.
+
+## M4 · Freshness + symbols — done
+
+Exit gate: *mocks 9, 10 and 14; saves findable in 1 s.* Scope: dirty-file overlay, tombstones, compaction;
+`file_touch` and `since:` on current files; `sym:` through universal-ctags.
+
+universal-ctags can't be installed offline, so `daemon/internal/symbols` finds definitions with a few regexes per
+language, read line by line as ctags does for most languages. It covers Python, Go, TypeScript, JavaScript, Java, C#,
+Kotlin, Scala, Swift, Rust, Ruby, PHP, C and C++.
+
+| Scope item | Evidence |
+| --- | --- |
+| Overlay of saved files, masking their old copies | `indexer/freshness_test.go` `TestSavedFilesGoIntoTheOverlayUntilTheNextBuild`: a saved file, a new one and a deleted folder; the next build folds them in |
+| Compaction | The overlay is folded into a quiet rebuild after 500 files (`maxOverlayFiles`), and at every build |
+| Saves findable in 1 s | `server/history_test.go` `TestSavedFilesAreSearchableWithoutARebuild`: `workspace/didChangeFiles`, then the new text is found at once |
+| `since:` on current files (mock 10) | `TestSinceOnFilesUsesCommitDatesAndUncommittedEdits`: commit dates decide, and an uncommitted edit counts as now |
+| Definitions per language | `symbols/symbols_test.go`: classes, interfaces, types, functions and methods in 8 languages; minified lines skipped |
+| `sym:` (mock 9) | `server/symbols_test.go` `TestSymbolSearchFindsDefinitionsAndOffersTheTextSearch`: `sym:RetryPolicy` → 4 definitions in 3 repos with their kinds; the preview lists the class's members; "Search RetryPolicy as text" counts what running it finds |
+| No results while indexing (mock 14) | `TestEverySuggestionForNoResultsCountsWhatItFinds`: for `case:yes sym:retrypolicy`, every note's count equals what its undo finds. `webview/test/discovery.test.mjs`: the indexing banner, "No symbol is named retrypolicy", why, and the notes |
+| `sym:` suggestions | `query/values_test.go` `TestSymbolSuggestionsNameTheDefinitions` |
+
+Screenshots, rendered end to end by `scripts/screenshotPanel.mjs`:
+
+| Mock | Screenshot |
+| --- | --- |
+| 9 | [symbol-definitions.png](proof/symbol-definitions.png) |
+| 14 | [no-results.png](proof/no-results.png) (the indexing banner is in the webview test; a screenshot can't hold indexing at 64%) |
+
+**Changed from the plan:** `sym:RetryPolicy` matches names that contain RetryPolicy, as the mock shows
+(`RetryPolicyError`, `RetryPolicyConfig`), rather than only the exact name.

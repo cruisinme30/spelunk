@@ -40,11 +40,28 @@ func valueCandidates(op operator, fragment string, resolver Resolver, now time.T
 		return sinceCandidates(fragment, resolver.Files(), now)
 	case protocol.OpNameMsg:
 		return messageCandidates(resolver.MessageWords(fragment, maxValueCompletions+1), now)
+	case protocol.OpNameSym:
+		return symbolCandidates(resolver.Symbols(fragment, maxValueCompletions+1))
 	case protocol.OpNameType, protocol.OpNameCase, protocol.OpNameCount:
 		return fixedCandidates(fixedValues[op.name], fragment)
 	default:
-		return nil // sym: needs the symbol index
+		return nil
 	}
+}
+
+// ------------------------------------------------------------ sym:
+
+// symbolCandidates offers definition names: "class · 2 definitions ·
+// payments-api, web-checkout".
+func symbolCandidates(found []SymbolStat) []valueCandidate {
+	candidates := make([]valueCandidate, len(found))
+	for i, symbol := range found {
+		candidates[i] = valueCandidate{
+			value: symbol.Name, detail: symbol.Kind, context: plural(symbol.Definitions, "definition"),
+			note: strings.Join(symbol.Repos, ", "), group: "value",
+		}
+	}
+	return candidates
 }
 
 // ------------------------------------------------------------ msg:

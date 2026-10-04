@@ -1,5 +1,29 @@
 package query
 
+import (
+	"slices"
+	"strings"
+
+	"github.com/cruisinme30/unified-search/daemon/internal/protocol"
+)
+
+// ApplyFix applies a fix's edits, whose spans are UTF-16 offsets, to text.
+func ApplyFix(text string, fix protocol.Fix) string {
+	src := newSource(text)
+	var b strings.Builder
+	position := 0
+	// Edits in a fix never overlap; apply them in span order.
+	edits := slices.Clone(fix.Edits)
+	slices.SortFunc(edits, func(a, b protocol.TextEdit) int { return a.Span.Start - b.Span.Start })
+	for _, edit := range edits {
+		b.WriteString(src.slice(position, edit.Span.Start))
+		b.WriteString(edit.NewText)
+		position = edit.Span.End
+	}
+	b.WriteString(src.slice(position, src.length()))
+	return b.String()
+}
+
 // source is the query text indexed by rune, with each rune's UTF-16 offset,
 // so the lexer can work in runes while spans are reported in UTF-16.
 type source struct {

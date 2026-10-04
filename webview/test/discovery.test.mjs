@@ -263,3 +263,48 @@ test("the help page lists every operator with an example, and Try runs it", asyn
   await page.click('[data-testid="open-settings"]');
   assert.equal((await sentMessages(page, "settings.open")).length, 1);
 });
+
+test("a symbol search offers the text search, and no definitions say why", async (t) => {
+  // @covers screen:symbol-definitions screen:no-results-while-indexing
+  const page = await openPanel(t);
+  await restore(page);
+  await fromHost(page, "index.status", {
+    repos: [{ repoId: "web", name: "web-checkout", tree: "indexing", history: "queued", progress: 0.64 }],
+  });
+  const text = "case:yes sym:retrypolicy";
+  await page.fill('[data-testid="query"]', text);
+  const { seq } = await lastSent(page, "query.changed");
+  const caseNode = { kind: "op", op: "case", value: "yes", match: "literal", span: { start: 0, end: 8 } };
+  const sym = { kind: "op", op: "sym", value: "retrypolicy", match: "literal", span: { start: 9, end: 24 } };
+  const root = { kind: "and", children: [caseNode, sym], span: { start: 0, end: 24 } };
+  await fromHost(page, "parse.result", {
+    seq,
+    query: parsedQuery(text, root, { globals: { case: "yes", count: null, type: null } }),
+    completions: [],
+  });
+  const ignoreCase = { title: "Ignore case", edits: [{ span: { start: 0, end: 9 }, newText: "" }] };
+  const asText = {
+    title: "Search retrypolicy as text",
+    edits: [{ span: { start: 9, end: 24 }, newText: "retrypolicy" }],
+  };
+  await fromHost(page, "search.done", {
+    seq,
+    searchId: "s1",
+    total: 0,
+    truncated: false,
+    ms: 1,
+    hidden: [
+      { reason: "case", filter: "case:yes", count: 4, unit: "definitions", undo: ignoreCase },
+      { reason: "symbol", filter: "sym:retrypolicy", count: 6, unit: "matches", undo: asText },
+    ],
+  });
+  assert.match(await page.locator('[data-testid="indexing-banner"]').innerText(), /Indexing web-checkout · 64%/);
+  const none = page.locator('[data-testid="no-results"]');
+  assert.match(await none.innerText(), /No symbol is named retrypolicy/);
+  assert.match(await none.innerText(), /case:yes is on, so capital letters have to match/);
+  const notes = page.locator('[data-testid="hidden-notes"] .note');
+  assert.equal(await notes.nth(0).locator("span").first().innerText(), "4 definitions hidden by case:yes");
+  assert.equal(await notes.nth(1).locator('[data-testid="show-hidden"]').innerText(), "Search retrypolicy as text · 6");
+  await notes.nth(1).locator('[data-testid="show-hidden"]').click();
+  assert.equal(await page.inputValue('[data-testid="query"]'), "case:yes retrypolicy");
+});

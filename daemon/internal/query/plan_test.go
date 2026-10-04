@@ -38,7 +38,7 @@ func TestPlanLowersTheQuery(t *testing.T) {
 		{`f:.*test\.py$ timeout`, `and(path:/(?i).*test\.py$/ content#0:/(?i)timeout/)`},
 		{`"a.b" x`, `and(content#0:/(?i)a\.b/ content#1:/(?i)x/)`},
 		{"case:yes /Retry(Policy|Config)/ lang:py", "and(content#0:/Retry(Policy|Config)/ lang:python)"},
-		{"sym:RetryPolicy", "and(sym:/(?i)^RetryPolicy$/)"},
+		{"sym:RetryPolicy", "and(sym:/(?i)RetryPolicy/)"},
 		{"sym:/Retry.*/", "and(sym:/(?i)Retry.*/)"},
 		{`author:jane msg:"fix flaky" -f:vendor/`, `and(author:~"jane" msg:/(?i)fix flaky/ not(path:/(?i)vendor//))`},
 		{`author:"Jane Doe" x`, `and(author:="jane doe" content#0:/(?i)x/)`},
@@ -139,7 +139,7 @@ func TestFiltersThatCanHideResultsCarryAnUndo(t *testing.T) {
 	plan := mustPlan(t, text, defaultSettings)
 	var got []string
 	for _, f := range plan.Filters {
-		got = append(got, f.Reason+"@"+strconv.Itoa(f.Index)+":"+f.Text+"→"+applyFix(text, f.Undo))
+		got = append(got, f.Reason+"@"+strconv.Itoa(f.Index)+":"+f.Text+"→"+ApplyFix(text, f.Undo))
 	}
 	want := []string{
 		"pathFilter@2:-f:vendor/→author:jane (timeout OR retry) since:6m -flaky",
@@ -154,7 +154,7 @@ func TestFiltersThatCanHideResultsCarryAnUndo(t *testing.T) {
 func TestTypeIsAKindFilterWithAnUndo(t *testing.T) {
 	text := "type:file lang:python retry"
 	plan := mustPlan(t, text, defaultSettings)
-	if plan.KindFilter == nil || plan.KindFilter.Text != "type:file" || applyFix(text, plan.KindFilter.Undo) != "lang:python retry" {
+	if plan.KindFilter == nil || plan.KindFilter.Text != "type:file" || ApplyFix(text, plan.KindFilter.Undo) != "lang:python retry" {
 		t.Errorf("KindFilter = %+v, want type:file with an undo giving %q", plan.KindFilter, "lang:python retry")
 	}
 	if mustPlan(t, "retry", defaultSettings).KindFilter != nil {
@@ -166,7 +166,7 @@ func TestCaseYesIsACaseFilterThatCanBeIgnored(t *testing.T) {
 	text := "case:yes /Retry(Policy|Config)/ lang:python"
 	plan := mustPlan(t, text, defaultSettings)
 	f := plan.CaseFilter
-	if f == nil || f.Reason != "case" || f.Undo.Title != "Ignore case" || applyFix(text, f.Undo) != "/Retry(Policy|Config)/ lang:python" {
+	if f == nil || f.Reason != "case" || f.Undo.Title != "Ignore case" || ApplyFix(text, f.Undo) != "/Retry(Policy|Config)/ lang:python" {
 		t.Errorf("CaseFilter = %+v, want case:yes with an Ignore case undo", f)
 	}
 	if mustPlan(t, "case:no retry", defaultSettings).CaseFilter != nil {
@@ -263,5 +263,25 @@ func TestRequiredLiteral(t *testing.T) {
 func TestPlanRefusesQueriesWithErrors(t *testing.T) {
 	if _, _, err := NewPlan(Parse("sinse:6m", nil), defaultSettings, fixedNow, ""); err == nil {
 		t.Error("NewPlan of a query with errors: want an error")
+	}
+}
+
+func TestSymbolQueriesOfferToSearchTheNameAsText(t *testing.T) {
+	for _, tt := range []struct{ query, filter, title, text string }{
+		{"sym:RetryPolicy", "sym:RetryPolicy", "Search RetryPolicy as text", "RetryPolicy"},
+		{"case:yes sym:/Retry.*/ f:src/", "sym:/Retry.*/", "Search /Retry.*/ as text", "case:yes /Retry.*/ f:src/"},
+	} {
+		plan := mustPlan(t, tt.query, defaultSettings)
+		f := plan.SymbolFilter
+		if f == nil || f.Reason != "symbol" || f.Text != tt.filter || f.Undo.Title != tt.title {
+			t.Errorf("%s: symbol filter = %+v, want %s with %q", tt.query, f, tt.filter, tt.title)
+			continue
+		}
+		if got := ApplyFix(tt.query, f.Undo); got != tt.text {
+			t.Errorf("%s: undo gives %q, want %q", tt.query, got, tt.text)
+		}
+	}
+	if plan := mustPlan(t, "retry", defaultSettings); plan.SymbolFilter != nil {
+		t.Errorf("retry: symbol filter = %+v, want none", plan.SymbolFilter)
 	}
 }

@@ -48,6 +48,10 @@ type Plan struct {
 	// CaseFilter is set when the query says case:yes, so engines can count
 	// the matches that differ only in case ("1 match hidden by case:yes").
 	CaseFilter *Filter
+	// SymbolFilter is set when the query has sym:. Its undo searches the
+	// symbol names as text, and the server counts what that finds ("Search
+	// RetryPolicy as text · 23").
+	SymbolFilter *Filter
 	// Terms are the text terms in query order, for highlighting.
 	Terms []*Content
 }
@@ -57,7 +61,8 @@ type Plan struct {
 type Filter struct {
 	// Reason is the HiddenNote reason that names the kind of filter:
 	// "pathFilter" (-f:), "not" (any other negation), "since" (since:), and,
-	// for Plan.KindFilter and Plan.CaseFilter, "type" and "case".
+	// for Plan.KindFilter, Plan.CaseFilter and Plan.SymbolFilter, "type",
+	// "case" and "symbol".
 	Reason string
 	// Index is the position of the filter's conjunct in Plan.Pred.Kids, so
 	// an engine can tell which filter a result failed. It is -1 for
@@ -194,7 +199,30 @@ func NewPlan(q protocol.ParsedQuery, settings protocol.Settings, now time.Time, 
 		}
 		plan.Pred.Kids = append(plan.Pred.Kids, pred)
 	}
+	plan.SymbolFilter = symbolFilter(q.Root, src)
 	return plan, historyScanWarnings(plan), nil
+}
+
+// symbolFilter turns every sym: of the query into its value as text, or
+// returns nil when there is none.
+func symbolFilter(root *protocol.Node, src *source) *Filter {
+	var edits []protocol.TextEdit
+	var texts, values []string
+	walk(root, func(n *protocol.Node) {
+		if n.Kind != protocol.NodeKindOp || n.Op != protocol.OpNameSym {
+			return
+		}
+		value := src.slice(n.Span.Start, n.Span.End)[len("sym:"):] // as typed: quoted or /regex/
+		edits = append(edits, protocol.TextEdit{Span: n.Span, NewText: value})
+		texts, values = append(texts, src.slice(n.Span.Start, n.Span.End)), append(values, value)
+	})
+	if len(edits) == 0 {
+		return nil
+	}
+	return &Filter{
+		Reason: "symbol", Index: -1, Text: strings.Join(texts, " "),
+		Undo: protocol.Fix{Title: "Search " + strings.Join(values, " ") + " as text", Edits: edits},
+	}
 }
 
 // pageSize is how many results one page holds: count: if given (a number,
@@ -314,7 +342,7 @@ func (l *lowering) lowerOperator(node *protocol.Node) Pred {
 	case protocol.OpNameSym:
 		pattern := node.Value
 		if node.Match != protocol.MatchRegex {
-			pattern = "^" + regexp.QuoteMeta(node.Value) + "$" // a literal names the whole symbol
+			pattern = regexp.QuoteMeta(node.Value) // like text, a literal matches anywhere in the name
 		}
 		return &Symbol{Re: l.compile(pattern)}
 	case protocol.OpNameAuthor:

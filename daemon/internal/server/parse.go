@@ -125,6 +125,56 @@ func (r workspaceResolver) MessageWords(fragment string, limit int) []query.Word
 	return found[:min(len(found), limit)]
 }
 
+// Symbols returns the definition names in the published working-tree
+// indexes that contain fragment, exact names first, then most defined.
+func (r workspaceResolver) Symbols(fragment string, limit int) []query.SymbolStat {
+	found := r.symbolsContaining(fragment)
+	slices.SortFunc(found, func(a, b query.SymbolStat) int {
+		if aExact, bExact := strings.EqualFold(a.Name, fragment), strings.EqualFold(b.Name, fragment); aExact != bExact {
+			if aExact {
+				return -1
+			}
+			return 1
+		}
+		if a.Definitions != b.Definitions {
+			return b.Definitions - a.Definitions
+		}
+		return strings.Compare(a.Name, b.Name)
+	})
+	return found[:min(len(found), limit)]
+}
+
+// symbolsContaining counts the definitions of each name that contains
+// fragment, and the repos that define it.
+func (r workspaceResolver) symbolsContaining(fragment string) []query.SymbolStat {
+	byName := map[string]*query.SymbolStat{}
+	var order []*query.SymbolStat
+	for _, repo := range r.server.index.Repos() {
+		for i := range repo.Shard.Docs {
+			for _, symbol := range repo.Shard.Docs[i].Symbols {
+				if !strings.Contains(strings.ToLower(symbol.Name), fragment) {
+					continue
+				}
+				stat, ok := byName[symbol.Name]
+				if !ok {
+					stat = &query.SymbolStat{Name: symbol.Name, Kind: symbol.Kind}
+					byName[symbol.Name] = stat
+					order = append(order, stat)
+				}
+				stat.Definitions++
+				if !slices.Contains(stat.Repos, repo.Name) {
+					stat.Repos = append(stat.Repos, repo.Name)
+				}
+			}
+		}
+	}
+	found := make([]query.SymbolStat, len(order))
+	for i, stat := range order {
+		found[i] = *stat
+	}
+	return found
+}
+
 // Repos describes the open workspace roots with their index state.
 func (r workspaceResolver) Repos() []query.RepoStat {
 	fileCounts := map[string]int{}

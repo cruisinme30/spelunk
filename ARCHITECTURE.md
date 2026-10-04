@@ -39,6 +39,8 @@ Nothing else defines a cross-boundary type.
 - `internal/query` is the only query parser. It also produces diagnostics, fix-its and completions, and has the
   planner that turns a parsed query into a `Plan` for an engine.
 - `internal/lang` detects a file's language from its name and shebang, and resolves `lang:` values.
+- `internal/symbols` finds the definitions in a file (classes, interfaces, functions, methods, types) with a few
+  regexes per language, for `sym:` and for the outline under a file preview.
 - `internal/trigram` is the working-tree index and engine: it lists the files to index, builds and saves shards
   (trigram posting lists), runs a `Plan` over them, and previews and resolves its own results.
 - `internal/history` is the commit index and engine behind `author:`, `msg:` and `type:commit`. It reads first-parent
@@ -50,7 +52,6 @@ Nothing else defines a cross-boundary type.
   step. Working-tree builds and history reads have a worker each. Saved files arrive as `workspace/didChangeFiles`
   and are re-read into a small overlay shard that masks their old copies until the next build folds them in; HEAD
   is polled so new commits are searchable within seconds. It is the only writer to the index directory.
-- Not built yet: the symbol index behind `sym:`. Until it exists, `search/start` returns no results for `sym:`.
 
 ### `extension/` (TypeScript, VS Code extension host)
 

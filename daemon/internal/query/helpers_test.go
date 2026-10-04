@@ -3,7 +3,6 @@ package query
 // Test helpers shared by this package's test files.
 
 import (
-	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -28,6 +27,10 @@ var testResolver = fakeResolver{
 		{Name: "payments-api", Path: "/work/payments-api", Files: 7, State: protocol.IndexStateReady},
 		{Name: "web-checkout", Path: "/work/web-checkout", Files: 3, State: protocol.IndexStateReady},
 		{Name: "shared-libs", Path: "/work/shared-libs", Files: 4, State: protocol.IndexStateIndexing, Progress: 0.64},
+	},
+	symbols: []SymbolStat{
+		{Name: "RetryPolicy", Kind: protocol.SymbolKindClass, Definitions: 2, Repos: []string{"payments-api", "web-checkout"}},
+		{Name: "RetryPolicyConfig", Kind: protocol.SymbolKindClass, Definitions: 1, Repos: []string{"shared-libs"}},
 	},
 	words: []WordStat{
 		{Text: "fix flaky", Commits: 12, LastAt: fixedNow.AddDate(0, 0, -2)},
@@ -58,6 +61,7 @@ type fakeResolver struct {
 	repos   []RepoStat
 	files   []FileStat
 	words   []WordStat
+	symbols []SymbolStat
 }
 
 // Authors returns up to limit authors whose name or email contains fragment.
@@ -89,6 +93,17 @@ func (r fakeResolver) MessageWords(fragment string, limit int) []WordStat {
 	return found
 }
 
+// Symbols returns the symbols whose name contains fragment.
+func (r fakeResolver) Symbols(fragment string, limit int) []SymbolStat {
+	var found []SymbolStat
+	for _, s := range r.symbols {
+		if strings.Contains(strings.ToLower(s.Name), fragment) && len(found) < limit {
+			found = append(found, s)
+		}
+	}
+	return found
+}
+
 // codes lists the codes of diagnostics, in order.
 func codes(diagnostics []protocol.Diagnostic) []string {
 	list := []string{}
@@ -106,21 +121,4 @@ func mustParseCleanly(t *testing.T, text string) protocol.ParsedQuery {
 		t.Fatalf("Parse(%q) diagnostics = %v, want none", text, codes(q.Diagnostics))
 	}
 	return q
-}
-
-// applyFix applies a fix's edits (UTF-16 spans) to text.
-func applyFix(text string, fix protocol.Fix) string {
-	src := newSource(text)
-	var b strings.Builder
-	position := 0
-	// Edits in a fix never overlap; apply them in span order.
-	edits := slices.Clone(fix.Edits)
-	slices.SortFunc(edits, func(a, b protocol.TextEdit) int { return a.Span.Start - b.Span.Start })
-	for _, edit := range edits {
-		b.WriteString(src.slice(position, edit.Span.Start))
-		b.WriteString(edit.NewText)
-		position = edit.Span.End
-	}
-	b.WriteString(src.slice(position, src.length()))
-	return b.String()
 }

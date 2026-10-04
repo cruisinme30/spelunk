@@ -21,7 +21,7 @@ func TestCompletingOperatorsByPrefix(t *testing.T) {
 	if got := labels(text, len(text)); strings.Join(got, " ") != "since: sym:" {
 		t.Fatalf("Complete(%q) = %v, want [since: sym:]", text, got)
 	}
-	if got := applyFix(text, completions[0].Insert); got != "timeout since:" {
+	if got := ApplyFix(text, completions[0].Insert); got != "timeout since:" {
 		t.Errorf("accepting since: gives %q, want %q", got, "timeout since:")
 	}
 }
@@ -36,7 +36,7 @@ func TestCompletingAuthorsShowsCountsReposAndRecency(t *testing.T) {
 	if got, want := completions[0].Detail, "214 commits · payments-api, shared-libs · last 3 days ago"; got != want {
 		t.Errorf("Jane's detail = %q, want %q", got, want)
 	}
-	if got := applyFix(text, completions[0].Insert); got != `author:"Jane Doe" ` {
+	if got := ApplyFix(text, completions[0].Insert); got != `author:"Jane Doe" ` {
 		t.Errorf("accepting Jane gives %q, want %q", got, `author:"Jane Doe" `)
 	}
 }

@@ -11,9 +11,9 @@ removed `timeout` or `retry`. Drop `author:` and the same box searches current f
 
 ![The search panel showing code matches for retry_policy, with a preview](docs/dev/proof/search-panel-results-and-preview.png)
 
-> **Status: early development, no Marketplace release yet.** Searching current files and Git history works: file
-> names, code lines and commits, with the whole query language, previews and opening results. Symbol search (`sym:`)
-> is parsed and checked but returns no results until its index is built. See [progress](docs/dev/progress.md).
+> **Status: early development, no Marketplace release yet.** Searching current files, definitions and Git history
+> works: file names, code lines, `sym:` definitions and commits, with the whole query language, previews and opening
+> results. See [progress](docs/dev/progress.md).
 
 ## Features (planned for the first release)
 

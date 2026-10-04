@@ -78,7 +78,7 @@ func TestPathSuggestsFileTypesThenFolders(t *testing.T) {
 	if got := shown(Complete(text, len(text), testResolver, fixedNow)); got != want {
 		t.Errorf("Complete(%q) =\n%s\nwant\n%s", text, got, want)
 	}
-	if got := applyFix(text, Complete(text, len(text), testResolver, fixedNow)[0].Insert); got != "retry f:*.py " {
+	if got := ApplyFix(text, Complete(text, len(text), testResolver, fixedNow)[0].Insert); got != "retry f:*.py " {
 		t.Errorf("accepting *.py gives %q, want %q", got, "retry f:*.py ")
 	}
 }
@@ -145,7 +145,15 @@ func TestMessageSuggestionsOfferPhrasesThenWords(t *testing.T) {
 		t.Errorf("Complete(msg:) =\n%s\nwant\n%s", got, want)
 	}
 	completions := Complete("msg:", len("msg:"), testResolver, fixedNow)
-	if got := applyFix("msg:", completions[0].Insert); got != `msg:"fix flaky" ` {
+	if got := ApplyFix("msg:", completions[0].Insert); got != `msg:"fix flaky" ` {
 		t.Errorf("accepting a phrase gives %q, want it quoted", got)
+	}
+}
+
+func TestSymbolSuggestionsNameTheDefinitions(t *testing.T) {
+	want := "RetryPolicy | class | 2 definitions | payments-api, web-checkout\n" +
+		"RetryPolicyConfig | class | 1 definition | shared-libs"
+	if got := shown(Complete("sym:retry", len("sym:retry"), testResolver, fixedNow)); got != want {
+		t.Errorf("Complete(sym:retry) =\n%s\nwant\n%s", got, want)
 	}
 }

@@ -2,8 +2,8 @@
 
 One search box for file names, code and Git history, across every repo in your workspace.
 
-> **Early development.** Searching current files and Git history works: file names, code lines and commits, with the
-> whole query language, previews and opening results. Symbol search (`sym:`) is understood but returns no results yet.
+> **Early development.** Searching current files, definitions and Git history works: file names, code lines, `sym:`
+> definitions and commits, with the whole query language, previews and opening results.
 
 ## Getting started
 
@@ -34,6 +34,7 @@ Words are matched anywhere in file names and code. Combine them with operators:
 | `f:*.go`, `f:_test\.py$` | Keep files whose path matches a glob or a regex |
 | `repo:web`, `lang:python` | Keep one repo or one language |
 | `type:file` | Show file names only |
+| `sym:RetryPolicy` | Find where classes, functions and methods whose name contains RetryPolicy are defined |
 | `author:jane timeout` | Search the commits Jane wrote: their added and removed lines |
 | `msg:"fix flaky"`, `type:commit retry` | Search commit messages, or every commit's changes |
 | `since:today`, `since:2h`, `since:2w` | Keep files (or commits) changed today, in the last two hours, or in the last two weeks |
@@ -54,6 +55,7 @@ Search for "Unified Search" in Settings. The most useful ones:
 - `unifiedSearch.index.exclude`: glob patterns never indexed (by default `vendor`, `node_modules` and `*.min.js`).
   History keeps these files' line counts but not their lines.
 - `unifiedSearch.index.historyDepth`: how much Git history to index: `6m`, `2y` (the default) or `all`.
+- `unifiedSearch.index.symbols`: find definitions for `sym:` while indexing (on by default).
 - `unifiedSearch.open.closeOnOpen`: hide the panel after opening a result (on by default).
 
 Indexes stay on your machine. Nothing is sent anywhere.

@@ -261,11 +261,11 @@ export type Preview =
 
 /** HiddenNote counts results a filter removed, with a fix that removes the filter. */
 export interface HiddenNote {
-  reason: "not" | "since" | "case" | "type" | "pathFilter";
+  reason: "not" | "since" | "case" | "type" | "pathFilter" | "symbol";
   /** The filter as typed, e.g. -f:vendor/ */
   filter: string;
   count: number;
-  unit: "matches" | "files" | "commits";
+  unit: "matches" | "files" | "commits" | "definitions";
   undo: Fix;
 }
 

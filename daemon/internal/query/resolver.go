@@ -22,6 +22,18 @@ type Resolver interface {
 	// MessageWords returns up to limit words and two-word phrases of recent
 	// commit subjects that start with fragment (lowercase), most used first.
 	MessageWords(fragment string, limit int) []WordStat
+	// Symbols returns up to limit definition names that contain fragment
+	// (lowercase), best first.
+	Symbols(fragment string, limit int) []SymbolStat
+}
+
+// SymbolStat is one definition name and where it is defined.
+type SymbolStat struct {
+	Name string
+	// Kind is the kind of its first definition: a name is usually one kind.
+	Kind        protocol.SymbolKind
+	Definitions int
+	Repos       []string
 }
 
 // WordStat is a word or phrase of commit subjects, and how much it is used.
@@ -72,6 +84,9 @@ func (noResolver) Files() []FileStat { return nil }
 
 // MessageWords knows no commits.
 func (noResolver) MessageWords(string, int) []WordStat { return nil }
+
+// Symbols knows no definitions.
+func (noResolver) Symbols(string, int) []SymbolStat { return nil }
 
 // repoNames lists the display names of the open repos.
 func repoNames(resolver Resolver) []string {

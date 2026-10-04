@@ -70,7 +70,7 @@ func TestDiagnostics(t *testing.T) {
 			if len(found.Fixes) == 0 {
 				t.Fatalf("%s has no fix, want one giving %q", tt.code, tt.fixed)
 			}
-			if got := applyFix(tt.query, found.Fixes[0]); got != tt.fixed {
+			if got := ApplyFix(tt.query, found.Fixes[0]); got != tt.fixed {
 				t.Errorf("first fix %q gives %q, want %q", found.Fixes[0].Title, got, tt.fixed)
 			}
 		})
@@ -96,7 +96,7 @@ func TestEveryFixProducesAQueryWithoutThatDiagnostic(t *testing.T) {
 		q := Parse(query, testResolver)
 		for _, d := range q.Diagnostics {
 			for _, fix := range d.Fixes {
-				fixed := applyFix(query, fix)
+				fixed := ApplyFix(query, fix)
 				for _, after := range Parse(fixed, testResolver).Diagnostics {
 					if after.Code == d.Code {
 						t.Errorf("fix %q on %q gives %q with %s, want it gone", fix.Title, query, fixed, d.Code)
@@ -116,7 +116,7 @@ func TestSinceInMonthsThatLooksLikeMinutesWarns(t *testing.T) {
 	if d.Severity != protocol.SeverityWarning || d.Code != DiagBadValue {
 		t.Errorf("diagnostic = %s %s, want a bad_value warning", d.Severity, d.Code)
 	}
-	if got := applyFix("since:30m timeout", d.Fixes[0]); got != "since:30min timeout" {
+	if got := ApplyFix("since:30m timeout", d.Fixes[0]); got != "since:30min timeout" {
 		t.Errorf("fix gives %q, want %q", got, "since:30min timeout")
 	}
 	if q := Parse("since:6m timeout", testResolver); len(q.Diagnostics) != 0 {

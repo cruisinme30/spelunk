@@ -1,7 +1,7 @@
 // The result list: sections for file names, definitions, code and commits,
 // appended to as batches stream in, plus hidden-result notes and Load more.
 import { element, fileStat, highlight, plural, shortSha, termClass, timeAgo, trimIndent } from "../format";
-import { textNodes, textTerms } from "../parsedQuery";
+import { operatorNodes, textNodes, textTerms } from "../parsedQuery";
 import type { Fix, HiddenNote, ResultItem, SearchDoneMsg as SearchDoneMessage } from "../protocol.gen";
 import { repoName, type ViewState } from "../state";
 
@@ -11,7 +11,12 @@ type ItemOf<K extends ResultKind> = Extract<ResultItem, { kind: K }>;
 /** Changed files listed under a commit before "+N more". */
 const COMMIT_FILES_SHOWN = 2;
 
-const SINGULAR_UNIT: Record<HiddenNote["unit"], string> = { matches: "match", files: "file", commits: "commit" };
+const SINGULAR_UNIT: Record<HiddenNote["unit"], string> = {
+  matches: "match",
+  files: "file",
+  commits: "commit",
+  definitions: "definition",
+};
 
 /** What undoing a filter does, where "Show them" would mislead. */
 const UNDO_LABEL: Partial<Record<HiddenNote["reason"], string>> = {
@@ -171,22 +176,28 @@ export class ResultsView {
     if (done.error) {
       this.preview.replaceChildren(element("div", { class: "notice error" }, done.error));
     } else if (this.items.length === 0) {
-      this.showNoResults(done.hidden.some((note) => note.count > 0));
+      this.showNoResults(done.hidden.filter((note) => note.count > 0));
     }
     this.updateSectionCounts();
   }
 
-  private showNoResults(someHidden: boolean): void {
+  /**
+   * "No symbol is named retrypolicy", with why when case:yes is on, above
+   * the notes that say what each change would find.
+   */
+  private showNoResults(notes: HiddenNote[]): void {
     this.preview.replaceChildren();
     this.list.querySelector(".none")?.remove();
-    const hint = someHidden
-      ? "Some results are hidden by filters below."
-      : "Try fewer terms, or check the operators with ?";
+    const symbols = operatorNodes(this.state.parsed, "sym").map((node) => node.value);
+    const title = symbols.length > 0 ? `No symbol is named ${symbols.join(" or ")}` : "No results";
+    let hint = "Try fewer terms, or check the operators with ?";
+    if (notes.some((note) => note.reason === "case")) hint = "case:yes is on, so capital letters have to match.";
+    else if (notes.length > 0) hint = "Some results are hidden by filters below.";
     this.list.prepend(
       element(
         "div",
         { class: "none", "data-testid": "no-results" },
-        element("span", { class: "strong" }, "No results"),
+        element("span", { class: "strong" }, title),
         element("span", { class: "muted" }, hint),
       ),
     );
@@ -197,6 +208,7 @@ export class ResultsView {
    * retry hidden by type:file · Show code too".
    */
   private renderNote(note: HiddenNote): HTMLElement {
+    if (note.reason === "symbol") return this.renderTextSearchNote(note);
     const showThem = element(
       "button",
       { type: "button", class: "btn link", "data-testid": "show-hidden" },
@@ -210,6 +222,24 @@ export class ResultsView {
       { class: "note", "data-reason": note.reason },
       element("span", {}, `${this.hiddenWhat(note)} hidden by `, element("code", {}, note.filter)),
       showThem,
+    );
+  }
+
+  /** "Want every usage, not just definitions? · Search RetryPolicy as text · 23". */
+  private renderTextSearchNote(note: HiddenNote): HTMLElement {
+    const search = element(
+      "button",
+      { type: "button", class: "btn link", "data-testid": "show-hidden" },
+      `${note.undo.title} · ${note.count.toLocaleString("en-US")}`,
+    );
+    search.addEventListener("click", () => {
+      this.handlers.onApplyFix(note.undo);
+    });
+    return element(
+      "div",
+      { class: "note", "data-reason": note.reason },
+      element("span", {}, "Want every usage, not just definitions?"),
+      search,
     );
   }
 

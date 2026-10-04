@@ -35,6 +35,10 @@ All notable changes to this project are documented here. The format follows
 - `author:` lists the workspace's authors with their commit counts, and `msg:` suggests the words and phrases of
   recent commit subjects.
 - Saved, created and deleted files are searchable within a second, without rebuilding the index.
+- `sym:` finds definitions (classes, interfaces, functions, methods and types) in 14 languages, suggests the
+  workspace's names as you type, and offers to search a name as text with how many matches that finds. A file
+  preview lists the members of the class it shows.
+- When a search finds nothing, the panel says why (for example that `case:yes` is on) above what each filter hid.
 
 ### Removed
 

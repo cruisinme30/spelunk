@@ -102,12 +102,6 @@ func (s *Server) search(ctx context.Context, raw json.RawMessage) (any, error) {
 	if err != nil {
 		return nil, rpc.Errorf(protocol.CodeQueryInvalid, "%v", err)
 	}
-	if plan.Kinds[query.KindSymbol] {
-		// sym: needs the symbol index, which is not built yet, so it returns
-		// no results rather than wrong ones.
-		return protocol.SearchResult{Ms: int(time.Since(started).Milliseconds())}, nil
-	}
-
 	planID := s.plans.remember(plan)
 	batch := &batcher{conn: s.conn, searchID: params.SearchID}
 	var stats trigram.Stats
@@ -121,6 +115,11 @@ func (s *Server) search(ctx context.Context, raw json.RawMessage) (any, error) {
 		return nil, err
 	}
 	batch.flush()
+	if plan.SymbolFilter != nil {
+		if note, ok := s.symbolsAsText(ctx, params.Text, plan.SymbolFilter); ok {
+			stats.Hidden = append(stats.Hidden, note)
+		}
+	}
 	result := protocol.SearchResult{
 		Total: stats.Total, Truncated: stats.Truncated, Hidden: stats.Hidden,
 		Ms: int(time.Since(started).Milliseconds()),
@@ -129,4 +128,21 @@ func (s *Server) search(ctx context.Context, raw json.RawMessage) (any, error) {
 		result.NextCursor = strconv.Itoa(stats.NextOffset)
 	}
 	return result, nil
+}
+
+// symbolsAsText counts what the query finds with its sym: names searched as
+// text instead, for the "Search RetryPolicy as text" suggestion: the count
+// is what running the suggestion returns.
+func (s *Server) symbolsAsText(ctx context.Context, text string, filter *query.Filter) (protocol.HiddenNote, bool) {
+	parsed := query.Parse(query.ApplyFix(text, filter.Undo), s.resolver())
+	plan, _, err := query.NewPlan(parsed, s.Settings(), s.now(), "")
+	if err != nil || plan.Mode != protocol.ModeWorkingTree {
+		return protocol.HiddenNote{}, false
+	}
+	plan.Limit = 0 // count only
+	stats, err := trigram.Search(ctx, plan, s.index.Repos(), 0, func(protocol.ResultItem) {})
+	if err != nil {
+		return protocol.HiddenNote{}, false
+	}
+	return protocol.HiddenNote{Reason: filter.Reason, Filter: filter.Text, Count: stats.Total, Unit: "matches", Undo: filter.Undo}, true
 }
