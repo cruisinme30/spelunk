@@ -1,12 +1,12 @@
 // The suggestion list under the query box: operators or
 // values for the word at the cursor, the way out ("search as plain text"),
 // and a glimpse of the results, which keep updating without that word.
-import { el, highlight, plural, trimIndent } from "../format";
+import { element, highlight, plural, trimIndent } from "../format";
 import type { Layout } from "../layout";
+import { operatorEntry, toneForLabel } from "../operators";
+import { textTerms } from "../parsedQuery";
 import type { Completion, ResultItem } from "../protocol.gen";
-import { SHEET, toneForLabel, type SheetItem } from "../sheet";
 import type { ViewState } from "../state";
-import { textTerms } from "./results";
 
 /** Result lines shown under the suggestions. */
 const GLIMPSE_LINES = 2;
@@ -19,6 +19,7 @@ const GROUP_TITLE: Record<Completion["group"], string> = {
   value: "Values for",
 };
 
+/** What picking a suggestion, or dismissing them, does. */
 export interface CompletionHandlers {
   onPick(index: number): void;
   onSearchAsTyped(): void;
@@ -35,6 +36,7 @@ export function completionsVisible(state: ViewState, input: HTMLInputElement): b
   return state.completionsOpen && state.completions.length > 0 && document.activeElement === input;
 }
 
+/** Renders the suggestion list, or hides it when it shouldn't show. */
 export function renderCompletions(
   layout: Layout,
   state: ViewState,
@@ -53,7 +55,7 @@ export function renderCompletions(
   const group = first.group;
   const typed = typedWord(input.value, first);
   completions.append(
-    el("div", { class: "cgroup", role: "presentation" }, `${GROUP_TITLE[group]} “${typed}”`),
+    element("div", { class: "completion-group", role: "presentation" }, `${GROUP_TITLE[group]} “${typed}”`),
     ...state.completions.map((completion, index) => renderOption(completion, index, state.completionIndex, handlers)),
   );
   if (group === "operator") completions.append(renderSearchAsTyped(state, handlers));
@@ -73,26 +75,27 @@ function renderOption(
   handlers: CompletionHandlers,
 ): HTMLElement {
   const selected = index === selectedIndex;
-  const sheetItem = completion.group === "operator" ? sheetItemFor(completion.label) : undefined;
-  const values = selected && sheetItem ? exampleValues(sheetItem.label) : [];
-  const option = el(
+  // An operator suggestion borrows the reference's description and example values.
+  const entry = completion.group === "operator" ? operatorEntry(completion.label.replace(/:$/, "")) : undefined;
+  const values = selected && entry ? exampleValues(entry.label) : [];
+  const option = element(
     "div",
     {
-      class: selected ? "copt selected" : "copt",
+      class: selected ? "completion selected" : "completion",
       role: "option",
-      id: `c${index}`,
+      id: `completion-${index}`,
       "aria-selected": String(selected),
       "data-testid": "completion",
     },
-    el("code", { class: `op tone-${toneForLabel(completion.label)}` }, completion.label),
-    el(
+    element("code", { class: `completion-operator tone-${toneForLabel(completion.label)}` }, completion.label),
+    element(
       "span",
-      { class: "ctext" },
-      el("span", { class: "title" }, completion.detail),
-      sheetItem ? el("span", { class: "detail" }, sheetItem.detail) : null,
+      { class: "completion-text" },
+      element("span", { class: "title" }, completion.detail),
+      entry ? element("span", { class: "detail" }, entry.summary) : null,
     ),
-    ...values.map((value) => el("kbd", { class: "value" }, value)),
-    selected ? el("kbd", {}, "Tab") : null,
+    ...values.map((value) => element("kbd", { class: "value" }, value)),
+    selected ? element("kbd", {}, "Tab") : null,
   );
   // mousedown, not click: picking must not move focus out of the query box.
   option.addEventListener("mousedown", (event) => {
@@ -102,28 +105,28 @@ function renderOption(
   return option;
 }
 
-/** The operator's cheat-sheet entry, for its longer description and example values. "since:" → since's entry. */
-function sheetItemFor(label: string): SheetItem | undefined {
-  const operator = label.replace(/:$/, "");
-  return SHEET.flatMap((group) => group.items).find((item) => item.operator === operator);
-}
-
 /** "since:30d|2w|6m|1y" → ["30d", "2w", "6m", "1y"]; no list for a bare "f:". */
-function exampleValues(sheetLabel: string): string[] {
-  const values = sheetLabel.slice(sheetLabel.indexOf(":") + 1);
+function exampleValues(entryLabel: string): string[] {
+  const values = entryLabel.slice(entryLabel.indexOf(":") + 1);
   return values.includes("|") ? values.split("|") : [];
 }
 
 /** "Search for timeout and s as plain text ↵". */
 function renderSearchAsTyped(state: ViewState, handlers: CompletionHandlers): HTMLElement {
   const terms = textTerms(state.parsed);
-  const words = terms.length ? terms : [state.parsed?.raw ?? ""];
-  const phrase = words.flatMap((word, index) => (index ? [" and ", el("code", {}, word)] : [el("code", {}, word)]));
-  const row = el(
+  const words = terms.length > 0 ? terms : [state.parsed?.raw ?? ""];
+  const phrase = words.flatMap((word, index) =>
+    index ? [" and ", element("code", {}, word)] : [element("code", {}, word)],
+  );
+  const row = element(
     "div",
-    { class: "copt astyped", role: "option", "data-testid": "search-as-typed" },
-    el("span", { class: "ctext" }, el("span", { class: "title" }, "Search for ", ...phrase, " as plain text")),
-    el("kbd", {}, "↵"),
+    { class: "completion search-as-typed", role: "option", "data-testid": "search-as-typed" },
+    element(
+      "span",
+      { class: "completion-text" },
+      element("span", { class: "title" }, "Search for ", ...phrase, " as plain text"),
+    ),
+    element("kbd", {}, "↵"),
   );
   row.addEventListener("mousedown", (event) => {
     event.preventDefault();
@@ -134,23 +137,23 @@ function renderSearchAsTyped(state: ViewState, handlers: CompletionHandlers): HT
 
 /** "Results for timeout keep updating · 41 matches", and the first lines. */
 function renderGlimpse(searchText: string, glimpse: ResultsGlimpse): HTMLElement {
-  return el(
+  return element(
     "div",
     { class: "glimpse", "data-testid": "results-glimpse" },
-    el(
+    element(
       "div",
-      { class: "cgroup split" },
-      el("span", {}, "Results for ", el("code", {}, searchText), " keep updating"),
-      el("span", {}, plural(glimpse.total, "match", "matches")),
+      { class: "completion-group split" },
+      element("span", {}, "Results for ", element("code", {}, searchText), " keep updating"),
+      element("span", {}, plural(glimpse.total, "match", "matches")),
     ),
     ...glimpse.lines.slice(0, GLIMPSE_LINES).map((item) => {
       if (item.kind !== "line") return null;
       const shown = trimIndent(item.text, item.hits);
-      return el(
+      return element(
         "div",
         { class: "row line" },
-        el("span", { class: "ln" }, String(item.line)),
-        el("code", { class: "text" }, highlight(shown.text, shown.hits)),
+        element("span", { class: "line-number" }, String(item.line)),
+        element("code", { class: "text" }, highlight(shown.text, shown.hits)),
       );
     }),
   );

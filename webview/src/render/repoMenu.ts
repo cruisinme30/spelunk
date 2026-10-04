@@ -1,9 +1,10 @@
 // The repo menu behind the "All repos · 3" button: pick one repo to scope the
 // search to, or all of them. Picking edits the query's repo: operator, so
 // the query text always shows the scope.
-import { el } from "../format";
+import { element } from "../format";
 import type { RepoStatus } from "../protocol.gen";
 
+/** What picking a row of the repo menu does. */
 export interface RepoMenuHandlers {
   /** A repo name, or undefined for all repos. */
   onPick(repoName: string | undefined): void;
@@ -18,7 +19,7 @@ export function renderRepoMenu(
 ): void {
   const row = (label: string, detail: string, repoName: string | undefined) => {
     const checked = repoName === selected;
-    const item = el(
+    const item = element(
       "button",
       {
         type: "button",
@@ -27,9 +28,9 @@ export function renderRepoMenu(
         "aria-checked": String(checked),
         "data-testid": "repo-option",
       },
-      el("span", { class: "check", "aria-hidden": "true" }, checked ? "✓" : ""),
-      el("span", { class: "name" }, label),
-      el("span", { class: "muted" }, detail),
+      element("span", { class: "check", "aria-hidden": "true" }, checked ? "✓" : ""),
+      element("span", { class: "name" }, label),
+      element("span", { class: "muted" }, detail),
     );
     item.addEventListener("click", () => handlers.onPick(repoName));
     return item;

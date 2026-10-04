@@ -1,4 +1,6 @@
-/* Theme-aware: VS Code variables first, the mock palette as fallback. */
+/* Styles for the search panel and the help page. Colors come from VS Code's
+   theme variables, with a dark palette as the fallback outside VS Code (the
+   webview tests and screenshots). */
 /* The hidden attribute wins over any display rule below. */
 [hidden] {
   display: none !important;
@@ -31,19 +33,19 @@
   --tone-history: #f5b866;
   --tone-logic: var(--fg);
   --tone-output: var(--fg);
-  --t0: rgba(245, 184, 102, 0.35);
-  --t1: rgba(142, 195, 255, 0.35);
-  --t2: rgba(211, 188, 255, 0.35);
-  --t3: rgba(111, 207, 151, 0.35);
+  --term-color-0: rgba(245, 184, 102, 0.35);
+  --term-color-1: rgba(142, 195, 255, 0.35);
+  --term-color-2: rgba(211, 188, 255, 0.35);
+  --term-color-3: rgba(111, 207, 151, 0.35);
 }
 body.vscode-light {
   --tone-match: #6a3fb5;
   --tone-scope: #1f5fa8;
   --tone-history: #8a5300;
-  --t0: rgba(230, 150, 30, 0.35);
-  --t1: rgba(40, 120, 220, 0.25);
-  --t2: rgba(130, 80, 210, 0.25);
-  --t3: rgba(30, 150, 80, 0.25);
+  --term-color-0: rgba(230, 150, 30, 0.35);
+  --term-color-1: rgba(40, 120, 220, 0.25);
+  --term-color-2: rgba(130, 80, 210, 0.25);
+  --term-color-3: rgba(30, 150, 80, 0.25);
 }
 * {
   box-sizing: border-box;
@@ -61,7 +63,7 @@ body {
 }
 code,
 kbd,
-input#q {
+input#query {
   font-family: var(--mono);
 }
 button {
@@ -72,7 +74,7 @@ button {
   height: 100%;
   padding: 12px;
 }
-.us {
+.search-panel {
   max-width: 1280px;
   height: 100%;
   margin: 0 auto;
@@ -102,22 +104,22 @@ kbd {
   margin-right: 4px;
 }
 mark {
-  background: var(--t0);
+  background: var(--term-color-0);
   color: inherit;
   border-radius: 3px;
   padding: 0 1px;
 }
-mark.t1 {
-  background: var(--t1);
+mark.term-color-1 {
+  background: var(--term-color-1);
 }
-mark.t2 {
-  background: var(--t2);
+mark.term-color-2 {
+  background: var(--term-color-2);
 }
-mark.t3 {
-  background: var(--t3);
+mark.term-color-3 {
+  background: var(--term-color-3);
 }
 
-.bar {
+.search-bar {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -125,17 +127,17 @@ mark.t3 {
   padding: 10px 14px;
   border-bottom: 1px solid var(--line);
 }
-.us.has-errors .bar {
+.search-panel.has-errors .search-bar {
   border-bottom-color: var(--err);
 }
-.qlabel {
+.query-icon {
   display: flex;
   color: var(--muted);
 }
-.us.has-errors .qlabel {
+.search-panel.has-errors .query-icon {
   color: var(--err);
 }
-#q {
+#query {
   flex: 1 1 240px;
   min-width: 0;
   background: transparent;
@@ -175,7 +177,7 @@ mark.t3 {
 .toggle:focus-visible,
 .btn:focus-visible,
 .recent-row:focus-visible,
-.op:focus-visible {
+.sheet-entry:focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 1px;
 }
@@ -188,28 +190,29 @@ mark.t3 {
   color: var(--muted);
   border-bottom: 1px solid var(--line);
 }
-.dot {
+.status-dot {
   width: 8px;
   height: 8px;
   border-radius: 50%;
   background: var(--ok);
 }
-.dot.busy {
+.status-dot.busy {
   background: var(--warn);
 }
-.dot.err {
+.status-dot.error {
   background: var(--err);
 }
 
+/* The suggestion list under the search bar. While open it takes the place
+   of the chips and results (see .completing below). */
 #completions {
-  margin: 0 14px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--panel-2);
-  max-height: 280px;
+  flex: 0 0 auto;
   overflow: auto;
+  background: var(--panel-2);
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 4px;
 }
-.cgroup {
+.completion-group {
   padding: 6px 12px 2px;
   font-size: 11px;
   font-weight: 600;
@@ -217,15 +220,15 @@ mark.t3 {
   text-transform: uppercase;
   color: var(--muted);
 }
-.copt {
+.completion {
   display: flex;
   align-items: center;
   gap: 12px;
-  min-height: 32px;
-  padding: 4px 12px;
+  min-height: 44px;
+  padding: 6px 14px;
   cursor: pointer;
 }
-.copt.selected {
+.completion.selected {
   background: var(--sel);
   color: var(--sel-fg);
 }
@@ -261,12 +264,12 @@ mark.t3 {
   background: var(--warn);
 }
 
-#diag {
+#diagnostics {
   display: flex;
   flex-direction: column;
   gap: 1px;
 }
-.diag {
+.diagnostic {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-start;
@@ -274,17 +277,17 @@ mark.t3 {
   padding: 10px 14px;
   background: var(--err-bg);
 }
-.diag.warning {
+.diagnostic.warning {
   background: var(--warn-bg);
 }
-.dmain {
+.diagnostic-main {
   flex: 1 1 360px;
   min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 6px;
 }
-.dtitle {
+.diagnostic-message {
   font-weight: 600;
 }
 .snippet-wrap {
@@ -300,7 +303,7 @@ mark.t3 {
 .caret {
   color: var(--err);
 }
-.dfixes {
+.diagnostic-fixes {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
@@ -358,32 +361,32 @@ mark.t3 {
   border: 1px solid var(--border);
   background: var(--panel-2);
 }
-.chip .k {
+.chip .chip-label {
   color: var(--tone-logic);
 }
 .chip code {
   color: var(--fg);
 }
-.chip.tone-match .k {
+.chip.tone-match .chip-label {
   color: var(--tone-match);
 }
-.chip.tone-scope .k {
+.chip.tone-scope .chip-label {
   color: var(--tone-scope);
 }
-.chip.tone-history .k {
+.chip.tone-history .chip-label {
   color: var(--tone-history);
 }
-.chip.term.t0 {
-  box-shadow: inset 0 -2px 0 var(--t0);
+.chip.term.term-color-0 {
+  box-shadow: inset 0 -2px 0 var(--term-color-0);
 }
-.chip.term.t1 {
-  box-shadow: inset 0 -2px 0 var(--t1);
+.chip.term.term-color-1 {
+  box-shadow: inset 0 -2px 0 var(--term-color-1);
 }
-.chip.term.t2 {
-  box-shadow: inset 0 -2px 0 var(--t2);
+.chip.term.term-color-2 {
+  box-shadow: inset 0 -2px 0 var(--term-color-2);
 }
-.chip.term.t3 {
-  box-shadow: inset 0 -2px 0 var(--t3);
+.chip.term.term-color-3 {
+  box-shadow: inset 0 -2px 0 var(--term-color-3);
 }
 .resolved {
   color: var(--muted);
@@ -509,7 +512,7 @@ mark.t3 {
 .row.line {
   padding-left: 22px;
 }
-.row.line .ln {
+.row.line .line-number {
   width: 3.5em;
   text-align: right;
   color: var(--muted);
@@ -562,7 +565,7 @@ mark.t3 {
   gap: 4px;
   padding: 8px 14px;
 }
-.row.commit .line1 {
+.row.commit .commit-title {
   display: flex;
   gap: 8px;
   align-items: center;
@@ -572,13 +575,13 @@ mark.t3 {
   font-size: 13.5px;
   font-weight: 500;
 }
-.row.commit .line2 {
+.row.commit .commit-meta {
   display: flex;
   flex-wrap: wrap;
   gap: 4px 12px;
   font-size: 12px;
 }
-.row.commit .line3 {
+.row.commit .commit-files {
   display: flex;
   flex-wrap: wrap;
   gap: 4px 12px;
@@ -595,17 +598,17 @@ mark.t3 {
   font-size: 11px;
   padding: 0 6px;
   border-radius: 4px;
-  background: var(--t0);
+  background: var(--term-color-0);
   color: var(--fg);
 }
-.tag.t1 {
-  background: var(--t1);
+.tag.term-color-1 {
+  background: var(--term-color-1);
 }
-.tag.t2 {
-  background: var(--t2);
+.tag.term-color-2 {
+  background: var(--term-color-2);
 }
-.tag.t3 {
-  background: var(--t3);
+.tag.term-color-3 {
+  background: var(--term-color-3);
 }
 .add {
   color: var(--add);
@@ -651,7 +654,7 @@ mark.t3 {
   padding: 40px 20px;
   text-align: center;
 }
-.lastgood {
+.last-good {
   display: flex;
   flex-wrap: wrap;
   justify-content: space-between;
@@ -667,7 +670,7 @@ mark.t3 {
   color: var(--err);
 }
 
-.phead {
+.preview-header {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -675,15 +678,15 @@ mark.t3 {
   padding: 10px 14px;
   border-bottom: 1px solid var(--line);
 }
-.phead.commit {
+.preview-header.commit {
   flex-direction: column;
   align-items: stretch;
 }
-.phead .line1 {
+.preview-header .commit-title {
   display: flex;
   gap: 8px;
 }
-.ptitle {
+.preview-title {
   flex: 1;
   min-width: 0;
   font-weight: 500;
@@ -718,31 +721,31 @@ pre.body {
   font-size: 12.5px;
   line-height: 20px;
 }
-.cl {
+.code-line {
   display: flex;
   gap: 12px;
   padding: 0 14px;
   white-space: pre;
 }
-.cl .ln {
+.code-line .line-number {
   width: 3.5em;
   flex: none;
   text-align: right;
   color: var(--muted);
 }
-.cl.focus {
+.code-line.focus {
   background: var(--sel);
 }
-.cl.dirty .ln {
+.code-line.dirty .line-number {
   box-shadow: inset -2px 0 0 var(--warn);
 }
-.cl.add {
+.code-line.add {
   background: rgba(111, 207, 151, 0.1);
 }
-.cl.del {
+.code-line.del {
   background: rgba(255, 138, 128, 0.1);
 }
-.cl .sign {
+.code-line .sign {
   width: 1ch;
   color: var(--muted);
 }
@@ -825,11 +828,11 @@ pre.body {
   margin: 0;
   gap: 8px;
 }
-.gname {
+.card-title {
   font-size: 12px;
   font-weight: 600;
 }
-.op {
+.sheet-entry {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -841,20 +844,20 @@ pre.body {
   text-align: left;
   cursor: pointer;
 }
-.op:hover {
+.sheet-entry:hover {
   background: var(--hover);
 }
-.op code {
+.sheet-entry code {
   font-size: 12px;
   padding: 1px 6px;
   border-radius: 4px;
   border: 1px solid var(--border);
 }
-.op .muted {
+.sheet-entry .muted {
   font-size: 12px;
 }
 
-#keys {
+#key-hints {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -864,14 +867,14 @@ pre.body {
   font-size: 12px;
   color: var(--muted);
 }
-#keys .push {
+#key-hints .hint-at-end {
   margin-left: auto;
 }
 @media (max-width: 640px) {
   #app {
     padding: 0;
   }
-  .us {
+  .search-panel {
     border-radius: 0;
     border: 0;
   }
@@ -881,55 +884,42 @@ pre.body {
 }
 
 /* Suggestions take the place of the chips and results while open. */
-.us.completing #chips,
-.us.completing #body {
+.search-panel.completing #chips,
+.search-panel.completing #body {
   display: none;
 }
-.us.completing #completions {
+.search-panel.completing #completions {
   flex: 1 1 auto;
   overflow: auto;
 }
-#completions {
-  flex: 0 0 auto;
-  max-height: none;
-  margin: 0;
-  border: 0;
-  border-bottom: 1px solid var(--line);
-  border-radius: 0;
-  padding-bottom: 4px;
-}
-#completions .copt {
-  min-height: 44px;
-  padding: 6px 14px;
-}
-#completions .op {
+#completions .completion-operator {
   flex: 0 0 auto;
   padding: 2px 8px;
   border: 1px solid currentColor;
   border-radius: 5px;
   font-family: var(--mono);
 }
-.ctext {
+.completion-text {
   display: flex;
   flex: 1;
   flex-direction: column;
   min-width: 0;
 }
-.ctext .title {
+.completion-text .title {
   color: var(--fg);
 }
-.ctext .detail {
+.completion-text .detail {
   color: var(--muted);
   font-size: 12px;
 }
 #completions kbd.value {
   font-family: var(--mono);
 }
-.copt.astyped {
+.completion.search-as-typed {
   border-top: 1px solid var(--line);
   margin-top: 4px;
 }
-.copt.astyped code {
+.completion.search-as-typed code {
   font-family: var(--mono);
 }
 .glimpse {
@@ -938,17 +928,17 @@ pre.body {
   padding-top: 4px;
   opacity: 0.85;
 }
-.glimpse .cgroup.split {
+.glimpse .completion-group.split {
   display: flex;
   justify-content: space-between;
 }
-.glimpse .cgroup code {
+.glimpse .completion-group code {
   text-transform: none;
   font-family: var(--mono);
 }
 
 /* The repo menu under "All repos · 3". */
-.menuanchor {
+.repo-menu-anchor {
   position: relative;
   display: inline-flex;
 }
@@ -1043,22 +1033,22 @@ pre.body {
 .guide code {
   font-family: var(--mono);
 }
-.optable,
-.keytable {
+.operator-table,
+.key-table {
   width: 100%;
   border-collapse: collapse;
   border: 1px solid var(--border);
   border-radius: 8px;
 }
-.optable th,
-.optable td,
-.keytable td {
+.operator-table th,
+.operator-table td,
+.key-table td {
   padding: 8px 12px;
   text-align: left;
   border-top: 1px solid var(--line);
   vertical-align: middle;
 }
-.optable tr.opgroup th {
+.operator-table tr.operator-group th {
   font-size: 12px;
   padding-top: 12px;
 }
@@ -1083,13 +1073,4 @@ pre.body {
   .example {
     grid-template-columns: 1fr;
   }
-}
-.group-name.match {
-  color: var(--tone-match);
-}
-.group-name.scope {
-  color: var(--tone-scope);
-}
-.group-name.history {
-  color: var(--tone-history);
 }

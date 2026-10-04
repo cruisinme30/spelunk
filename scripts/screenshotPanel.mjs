@@ -2,7 +2,8 @@
 // Renders the search panel for a query, end to end, and saves a PNG: the
 // real daemon indexes a workspace, the real host controller relays every
 // message, and the real webview bundle draws the result in Chromium. Only
-// VS Code itself is missing. Use it to compare the panel with the mocks.
+// VS Code itself is missing. Use it to see how the panel looks for a query
+// without starting VS Code.
 //
 // Usage:
 //   node scripts/screenshotPanel.mjs --query 'retry_policy' --out panel.png
@@ -58,17 +59,12 @@ try {
 }
 
 async function main() {
-  await import(pathToFileURL(join(repoRoot, "webview/test/buildHarness.mjs")).href); // writes test/out/*.html
+  await import(pathToFileURL(join(repoRoot, "webview/test/buildHarness.mjs")).href); // writes webview/test/out/*.html
   if (args["help-page"]) return screenshotHelpPage();
   const host = await loadHost();
-
-  const roots = readdirSync(args.workspace)
-    .map((name) => join(args.workspace, name))
-    .filter((path) => statSync(path).isDirectory())
-    .map((path) => host.makeRoot(path));
   const daemon = new host.Daemon({
     binary: join(repoRoot, "daemon/bin/unified-search-daemon"),
-    roots: () => roots,
+    roots: () => workspaceRoots(host),
     settings: () => ({ ...host.DEFAULTS, exclude: [...host.DEFAULTS.exclude], location: join(scratch, "index") }),
   });
   await daemon.start();
@@ -76,78 +72,88 @@ async function main() {
   try {
     await untilIndexed(daemon);
     const page = await browser.newPage({ viewport: { width: Number(args.width), height: Number(args.height) } });
-    const posted = [];
-    const ui = {
-      post: (type, payload) => {
-        posted.push(type);
-        void page.evaluate(([t, p]) => window.__host(t, p), [type, payload]);
-      },
-      openTarget: async () => undefined,
-      hidePanel: () => undefined,
-      openHelp: () => undefined,
-      openSettings: () => undefined,
-      restartDaemon: () => undefined,
-      setContext: () => undefined,
-      saveState: () => undefined,
-    };
-    const uiSettings = {
-      typingDelayMs: 0,
-      openTrigger: "doubleClick",
-      preview: true,
-      showParsedQuery: true,
-      caseSensitive: false,
-    };
-    const controller = new host.SearchController(
-      daemon,
-      ui,
-      { recentLimit: () => 20, closeOnOpen: () => false, uiSettings: () => uiSettings },
-      { text: "", recent: args.recent },
-    );
-    daemon.on("progress", (progress) => ui.post("index.status", progress));
-
-    // Every message the webview sends goes to the controller, as in extension.ts.
-    await page.exposeBinding("__toHost", (_source, message) => controller.handle(message));
-    await page.addInitScript(() => {
-      let sent;
-      Object.defineProperty(window, "__sent", {
-        get: () => sent,
-        set: (list) => {
-          list.push = (message) => {
-            Array.prototype.push.call(list, message);
-            window.__toHost(message);
-            return list.length;
-          };
-          sent = list;
-        },
-      });
-    });
-    await page.goto(pathToFileURL(join(repoRoot, "webview/test/out/harness.html")).href);
-    ui.post("index.status", { repos: await daemon.request("index/status", {}).then((status) => status.repos) });
-
-    if (args.first) {
-      await page.fill('[data-testid="query"]', args.first);
-      await until("the first query's results", () => posted.includes("search.done"));
-      posted.length = 0;
-    }
-    if (args.query) {
-      await page.fill('[data-testid="query"]', args.query);
-      await until(
-        "search.done or parse errors",
-        () => posted.includes("search.done") || posted.includes("parse.result"),
-      );
-      await page.waitForTimeout(150); // a query with errors gets no search.done
-    }
-    for (const key of args.key) await page.keyboard.press(key);
-    for (const selector of args.click) await page.click(selector);
-    for (let i = 0; i < Number(args.select); i++) await page.keyboard.press("ArrowDown");
-    if (Number(args.select) > 0) await until("preview.result", () => posted.includes("preview.result"));
-    await page.waitForTimeout(100);
+    const posted = await connectPanel(page, host, daemon);
+    await page.goto(pathToFileURL(join(repoRoot, "webview/test/out/searchPanel.html")).href);
+    await postToPanel(page, "index.status", await daemon.request("index/status", {}));
+    await drivePanel(page, posted);
     await page.screenshot({ path: args.out });
     console.log(`saved ${args.out}`);
   } finally {
     await browser.close();
     await daemon.stop();
   }
+}
+
+/** One root per subfolder of --workspace. */
+function workspaceRoots(host) {
+  return readdirSync(args.workspace)
+    .map((name) => join(args.workspace, name))
+    .filter((path) => statSync(path).isDirectory())
+    .map((path) => host.makeRoot(path));
+}
+
+/** Plays a host message into the page, as the extension's panel would post it. */
+function postToPanel(page, type, payload) {
+  return page.evaluate(
+    ([messageType, messagePayload]) => window.__fromHost(messageType, messagePayload),
+    [type, payload],
+  );
+}
+
+/**
+ * Wires the page to a real SearchController, as extension.ts does: what the
+ * controller posts goes to the page, and what the page sends goes to the
+ * controller. Returns the list of message types posted so far, which the
+ * caller waits on.
+ */
+async function connectPanel(page, host, daemon) {
+  const posted = [];
+  const ui = {
+    post: (type, payload) => {
+      posted.push(type);
+      void postToPanel(page, type, payload);
+    },
+    openTarget: async () => undefined,
+    hidePanel: () => undefined,
+    openHelp: () => undefined,
+    openSettings: () => undefined,
+    restartDaemon: () => undefined,
+    setContext: () => undefined,
+    saveState: () => undefined,
+  };
+  // The extension's default settings, minus the typing delay, so each keystroke searches at once.
+  const defaultsOnly = { get: (_key, defaultValue) => defaultValue };
+  const uiSettings = { ...host.uiSettings(defaultsOnly), typingDelayMs: 0 };
+  const controller = new host.SearchController(
+    daemon,
+    ui,
+    { recentLimit: () => 20, closeOnOpen: () => false, uiSettings: () => uiSettings },
+    { text: "", recent: args.recent },
+  );
+  daemon.on("progress", (progress) => ui.post("index.status", progress));
+  // The test page passes every message it sends to window.__forwardToHost when that exists.
+  await page.exposeBinding("__forwardToHost", (_source, message) => controller.handle(message));
+  return posted;
+}
+
+/** Types --first and --query, presses --key, clicks --click and moves down --select rows. */
+async function drivePanel(page, posted) {
+  if (args.first) {
+    await page.fill('[data-testid="query"]', args.first);
+    await until("the first query's results", () => posted.includes("search.done"));
+    posted.length = 0;
+  }
+  if (args.query) {
+    await page.fill('[data-testid="query"]', args.query);
+    await until("search.done or parse errors", () => posted.includes("search.done") || posted.includes("parse.result"));
+    await page.waitForTimeout(150); // a query with errors gets no search.done
+  }
+  for (const key of args.key) await page.keyboard.press(key);
+  for (const selector of args.click) await page.click(selector);
+  const rowsDown = Number(args.select);
+  for (let row = 0; row < rowsDown; row++) await page.keyboard.press("ArrowDown");
+  if (rowsDown > 0) await until("preview.result", () => posted.includes("preview.result"));
+  await page.waitForTimeout(100); // let the last render settle
 }
 
 /** The help page needs no daemon: it is static until Try is clicked. */
@@ -173,7 +179,7 @@ async function loadHost() {
         'export { SearchController } from "./controller";',
         'export { Daemon } from "./daemon";',
         'export { makeRoot } from "./roots";',
-        'export { DEFAULTS } from "./settings";',
+        'export { DEFAULTS, uiSettings } from "./settings";',
       ].join("\n"),
       resolveDir: join(repoRoot, "extension/src"),
       loader: "ts",
@@ -187,6 +193,7 @@ async function loadHost() {
   return import(pathToFileURL(outfile).href);
 }
 
+/** Waits until the daemon has indexed every root, so the results are complete. */
 async function untilIndexed(daemon) {
   await until("every root indexed", async () => {
     const { repos } = await daemon.request("index/status", {});
@@ -194,6 +201,7 @@ async function untilIndexed(daemon) {
   });
 }
 
+/** Polls `condition` until it holds, failing after `timeoutMs`. */
 async function until(description, condition, timeoutMs = 10_000) {
   const deadline = Date.now() + timeoutMs;
   while (!(await condition())) {

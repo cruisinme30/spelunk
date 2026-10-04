@@ -3,19 +3,12 @@
 //
 // The panel is a pure view: it never parses. Fix-its, completions and the Aa / .*
 // toggles all edit the query text, then send an ordinary query.changed.
-import { clamp, el, plural, wrapIndex } from "./format";
+import { clamp, element, plural, wrapIndex } from "./format";
 import { type HostMessage, loadDraft, onHostMessage, saveDraft, send } from "./host";
-import { createLayout, type Layout } from "./layout";
-import type { Completion, Fix, OpenWhere, ParsedQuery, SearchDoneMsg } from "./protocol.gen";
-import {
-  applyEdits,
-  isCasePressed,
-  isRegexPressed,
-  scopedRepo,
-  scopeToRepo,
-  toggleCase,
-  toggleRegex,
-} from "./queryEdit";
+import { createLayout, type Layout, REPO_MENU_ANCHOR_CLASS } from "./layout";
+import { pathScope, scopedRepo } from "./parsedQuery";
+import type { Completion, Fix, OpenWhere, ParseResultMsg, SearchDoneMsg, StateRestoreMsg } from "./protocol.gen";
+import { applyEdits, isCasePressed, isRegexPressed, scopeToRepo, toggleCase, toggleRegex } from "./queryEdit";
 import {
   type FooterMode,
   renderBanners,
@@ -28,7 +21,7 @@ import { completionsVisible, renderCompletions, type ResultsGlimpse } from "./re
 import { renderEmptyState } from "./render/emptyState";
 import { renderRepoMenu } from "./render/repoMenu";
 import { renderPreview } from "./render/preview";
-import { pathScope, ResultsView } from "./render/results";
+import { ResultsView } from "./render/results";
 import { createViewState, hasErrors, type ViewState } from "./state";
 
 /** Cheat-sheet snippets that put the cursor between a pair: "|", /|/, (|). */
@@ -36,18 +29,21 @@ const PAIRED_SNIPPETS = new Set(['""', "//", "()"]);
 /** Holding ↓ shouldn't request a preview for every row it passes. */
 const PREVIEW_DEBOUNCE_MS = 30;
 
+/** The search panel's controller in the webview: one per page. */
 export class SearchPanel {
   private readonly state: ViewState = createViewState();
   private readonly layout: Layout;
-  private readonly summary = el("span", { class: "summary", "data-testid": "summary" });
+  private readonly summary = element("span", { class: "summary", "data-testid": "summary" });
   private results: ResultsView | undefined;
   private debounceTimer: ReturnType<typeof setTimeout> | undefined;
   private previewTimer: ReturnType<typeof setTimeout> | undefined;
 
+  /** Builds the panel's skeleton into `root`; start() brings it to life. */
   constructor(root: HTMLElement) {
     this.layout = createLayout(root);
   }
 
+  /** Binds events, restores the draft and tells the host the panel is ready. */
   start(): void {
     this.bindEvents();
     onHostMessage((message) => this.onHostMessage(message));
@@ -150,7 +146,7 @@ export class SearchPanel {
     // A click anywhere else closes the repo menu.
     document.addEventListener("mousedown", (event) => {
       const target = event.target as HTMLElement;
-      if (!target.closest(".menuanchor")) this.toggleRepoMenu(false);
+      if (!target.closest(`.${REPO_MENU_ANCHOR_CLASS}`)) this.toggleRepoMenu(false);
     });
 
     body.addEventListener("click", (event) => {
@@ -277,16 +273,16 @@ export class SearchPanel {
   }
 
   private moveRecentSelection(step: 1 | -1): void {
-    const rows = Array.from(this.layout.body.querySelectorAll<HTMLElement>("[data-recent]"));
-    if (!rows.length) return;
+    const rows = [...this.layout.body.querySelectorAll<HTMLElement>("[data-recent]")];
+    if (rows.length === 0) return;
     this.state.recentIndex = wrapIndex(this.state.recentIndex, step, rows.length);
-    rows.forEach((row, index) => row.classList.toggle("selected", index === this.state.recentIndex));
+    for (const [index, row] of rows.entries()) row.classList.toggle("selected", index === this.state.recentIndex);
   }
 
   /** Results don't wrap: ↓ on the last row stays there. */
   private moveResultSelection(step: 1 | -1): void {
     const rows = this.results?.rows() ?? [];
-    if (!rows.length) return;
+    if (rows.length === 0) return;
     const current = rows.findIndex((row) => row.dataset["ref"] === this.state.selectedRef);
     const next = current < 0 ? 0 : clamp(current + step, 0, rows.length - 1);
     const ref = rows[next]?.dataset["ref"];
@@ -316,15 +312,14 @@ export class SearchPanel {
     const state = this.state;
     switch (message.type) {
       case "state.restore":
-        this.onRestore(message.payload.text, message.payload.recent, message.payload.settings);
+        this.onRestore(message.payload);
         return;
       case "focus":
         this.layout.input.focus();
         this.layout.input.select();
         return;
       case "parse.result":
-        if (message.payload.seq === state.seq)
-          this.onParsed(message.payload.query, message.payload.completions, message.payload.searchText);
+        if (message.payload.seq === state.seq) this.onParsed(message.payload);
         return;
       case "search.batch":
         if (!this.isCurrent(message.payload.seq, message.payload.searchId)) return;
@@ -355,7 +350,8 @@ export class SearchPanel {
     }
   }
 
-  private onRestore(text: string, recent: string[], settings: ViewState["ui"] | undefined): void {
+  /** The host's saved box text, recent queries and settings: on opening, and after settings change. */
+  private onRestore({ text, recent, settings }: StateRestoreMsg): void {
     const { input } = this.layout;
     if (settings) this.state.ui = settings;
     this.state.recent = recent;
@@ -374,7 +370,8 @@ export class SearchPanel {
     return seq === this.state.seq || searchId === this.state.searchId;
   }
 
-  private onParsed(query: ParsedQuery, completions: Completion[], searchText: string | undefined): void {
+  /** The daemon's reading of the box: updates the toggles, suggestions, diagnostics and chips. */
+  private onParsed({ query, completions, searchText }: ParseResultMsg): void {
     const state = this.state;
     state.parsed = query;
     state.completions = completions;
@@ -408,8 +405,13 @@ export class SearchPanel {
     state.selectedRef = "";
     state.preview = undefined;
     const handlers = {
-      onApplyFix: (fix: Fix) => this.applyFix(fix),
-      onLoadMore: (id: string, cursor: string) => send("results.more", { searchId: id, cursor }),
+      onApplyFix: (fix: Fix) => {
+        this.applyFix(fix);
+      },
+      // Load more fetches the next page of this same search; its batches carry the same searchId.
+      onLoadMore: (id: string, cursor: string) => {
+        send("results.more", { searchId: id, cursor });
+      },
     };
     const errors = hasErrors(state);
     this.results = new ResultsView(this.layout.body, state, handlers, errors ? [] : pathScope(state.parsed));
@@ -460,15 +462,20 @@ export class SearchPanel {
   }
 
   private renderBanners(): void {
-    renderBanners(this.layout, this.state, () => send("daemon.restart", {}));
+    renderBanners(this.layout, this.state, () => {
+      send("daemon.restart", {});
+    });
   }
 
   private renderFooter(): void {
-    let mode: FooterMode = "results";
-    if (!this.layout.input.value) mode = "empty";
-    else if (this.completionsVisible) mode = this.state.completions[0]?.group === "operator" ? "operators" : "values";
-    else if (hasErrors(this.state)) mode = "errors";
-    renderFooter(this.layout, mode, this.state.parsed?.mode === "history");
+    renderFooter(this.layout, this.footerMode(), this.state.parsed?.mode === "history");
+  }
+
+  /** What the panel shows right now, which picks the key hints. */
+  private footerMode(): FooterMode {
+    if (!this.layout.input.value) return "empty";
+    if (this.completionsVisible) return this.state.completions[0]?.group === "operator" ? "operators" : "values";
+    return hasErrors(this.state) ? "errors" : "results";
   }
 
   private renderPreview(): void {

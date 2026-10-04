@@ -1,23 +1,29 @@
 // The search panel webview: drives the real panel bundle in Chromium with
-// recorded host messages and checks what it renders and sends.
+// host messages written as the extension host would send them, and checks
+// what it renders and sends.
 // @covers msg:ready msg:state.restore msg:query.changed msg:parse.result msg:search.batch msg:search.done msg:result.select msg:preview.result msg:index.status msg:banner msg:daemon.restart msg:result.open
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+  CODE_LINE_RESULT,
+  FILE_NAME_RESULT,
   fromHost,
   lastSent,
   openPanel,
   panelWithResults,
   parsedQuery,
-  RESULT_ITEMS,
   restore,
   sentMessages,
   textNode,
   typeAndParse,
   useBrowser,
+  waitForSent,
 } from "./harness.mjs";
 
 useBrowser();
+
+/** The query's error diagnostics as rendered, one element each. */
+const DIAGNOSTIC_ROWS = '[data-testid="diagnostics"] > *';
 
 test("an empty box shows recent queries and all 16 operators", async (t) => {
   // @covers screen:empty-box
@@ -61,10 +67,9 @@ test("streamed results render in sections with a summary", async (t) => {
 
 test("the first result is selected and previewed; ↓ moves the selection", async (t) => {
   const page = await panelWithResults(t);
-  await page.waitForFunction(() => window.__sent.some((m) => m.type === "result.select"));
-  assert.equal((await lastSent(page, "result.select")).ref, "f1");
+  assert.equal((await waitForSent(page, "result.select")).ref, "f1");
   await page.keyboard.press("ArrowDown");
-  await page.waitForFunction(() => window.__sent.filter((m) => m.type === "result.select").at(-1).payload.ref === "l1");
+  await waitForSent(page, "result.select", { ref: "l1" });
   await fromHost(page, "preview.result", {
     ref: "l1",
     preview: {
@@ -77,12 +82,12 @@ test("the first result is selected and previewed; ↓ moves the selection", asyn
       dirtyLines: [],
     },
   });
-  assert.equal(await page.locator("#preview mark").count(), 1);
+  assert.equal(await page.locator('[data-testid="preview"] mark').count(), 1);
 });
 
 test("Enter opens the selected result; ⌘Enter opens it to the side", async (t) => {
   const page = await panelWithResults(t);
-  await page.waitForFunction(() => window.__sent.some((m) => m.type === "result.select"));
+  await waitForSent(page, "result.select");
   await page.keyboard.press("Enter");
   assert.deepEqual(await lastSent(page, "result.open"), { ref: "f1", where: "current" });
   await page.keyboard.press("Control+Enter");
@@ -94,9 +99,7 @@ test("a single click selects a result and a double-click opens it", async (t) =>
   const page = await panelWithResults(t);
   const row = page.locator('[data-ref="l1"]');
   await row.click();
-  await page.waitForFunction(
-    () => window.__sent.filter((m) => m.type === "result.select").at(-1)?.payload.ref === "l1",
-  );
+  await waitForSent(page, "result.select", { ref: "l1" });
   assert.equal(await lastSent(page, "result.open"), undefined, "one click only selects");
   await row.dblclick();
   assert.deepEqual(await lastSent(page, "result.open"), { ref: "l1", where: "current" });
@@ -107,15 +110,15 @@ test("a parse result for an older seq is dropped and the newest one renders", as
   await restore(page);
   await page.fill('[data-testid="query"]', "a");
   await page.fill('[data-testid="query"]', "ab");
-  const [olderSeq, newestSeq] = (await sentMessages(page, "query.changed")).map((m) => m.payload.seq);
+  const [olderSeq, newestSeq] = (await sentMessages(page, "query.changed")).map((message) => message.payload.seq);
   const withError = (raw) =>
     parsedQuery(raw, null, {
       diagnostics: [{ severity: "error", code: "x", message: raw, span: { start: 0, end: 1 }, fixes: [] }],
     });
   await fromHost(page, "parse.result", { seq: olderSeq, query: withError("a"), completions: [] });
-  assert.equal(await page.locator('[data-testid="diagnostics"] .diag').count(), 0, "older seq ignored");
+  assert.equal(await page.locator(DIAGNOSTIC_ROWS).count(), 0, "older seq ignored");
   await fromHost(page, "parse.result", { seq: newestSeq, query: withError("ab"), completions: [] });
-  assert.equal(await page.locator('[data-testid="diagnostics"] .diag').count(), 1, "newest seq rendered");
+  assert.equal(await page.locator(DIAGNOSTIC_ROWS).count(), 1, "newest seq rendered");
 });
 
 test("⌘. applies the first fix as a text edit followed by query.changed", async (t) => {
@@ -232,7 +235,7 @@ test("a path-scoped search says which paths its code results come from", async (
   const path = { kind: "op", op: "f", value: ".*test\\.py$", match: "regex", span: { start: 0, end: 14 } };
   const root = { kind: "and", children: [path, textNode("timeout", 15)], span: { start: 0, end: 22 } };
   const seq = await typeAndParse(page, text, parsedQuery(text, root));
-  await fromHost(page, "search.batch", { seq, searchId: "s1", items: [RESULT_ITEMS[1]] });
+  await fromHost(page, "search.batch", { seq, searchId: "s1", items: [CODE_LINE_RESULT] });
   assert.match(
     await page.locator('[data-testid="section-code"] .section-title').innerText(),
     /Code in matching paths/i,
@@ -247,12 +250,12 @@ test("code rows drop the line's indentation and keep the highlight on the match"
   const page = await openPanel(t);
   await restore(page);
   const seq = await typeAndParse(page, "retry_policy", parsedQuery("retry_policy", textNode("retry_policy", 0)));
-  const item = {
-    ...RESULT_ITEMS[1],
+  const indented = {
+    ...CODE_LINE_RESULT,
     text: "        self.retry_policy = x",
     hits: [{ start: 13, end: 25, termIndex: 0 }],
   };
-  await fromHost(page, "search.batch", { seq, searchId: "s1", items: [item] });
+  await fromHost(page, "search.batch", { seq, searchId: "s1", items: [indented] });
   const code = page.locator('[data-kind="line"] code');
   assert.equal(await code.innerText(), "self.retry_policy = x");
   assert.equal(await code.locator("mark").innerText(), "retry_policy");
@@ -265,4 +268,22 @@ test("the stopped banner offers Restart and clears when the daemon is back", asy
   assert.equal((await sentMessages(page, "daemon.restart")).length, 1);
   await fromHost(page, "banner", { state: "ok" });
   assert.equal(await page.locator('[data-testid="restart"]').count(), 0);
+});
+
+test("Load more asks for the next page of the same search and appends it", async (t) => {
+  // @covers msg:results.more
+  const page = await openPanel(t);
+  await restore(page);
+  const seq = await typeAndParse(page, "retry_policy", parsedQuery("retry_policy", textNode("retry_policy", 0)));
+  await fromHost(page, "search.batch", { seq, searchId: "s1", items: [FILE_NAME_RESULT] });
+  const firstPage = { seq, searchId: "s1", total: 1, truncated: false, hidden: [], ms: 1 };
+  await fromHost(page, "search.done", { ...firstPage, nextCursor: "page-2" });
+
+  await page.click('[data-testid="load-more"]');
+  assert.deepEqual(await lastSent(page, "results.more"), { searchId: "s1", cursor: "page-2" });
+
+  await fromHost(page, "search.batch", { seq, searchId: "s1", items: [CODE_LINE_RESULT] });
+  await fromHost(page, "search.done", firstPage);
+  assert.equal(await page.locator('[data-testid="result"]').count(), 2, "the next page is appended");
+  assert.equal(await page.locator('[data-testid="load-more"]').count(), 0, "the last page has no Load more");
 });

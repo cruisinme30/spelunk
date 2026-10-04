@@ -17,12 +17,24 @@ import {
 
 useBrowser();
 
+/** An operator suggestion that replaces `start`..`end` with `label`. */
 const operatorCompletion = (label, detail, start, end) => ({
   label,
   detail,
   group: "operator",
   insert: { title: `Insert ${label}`, edits: [{ span: { start, end }, newText: label }] },
 });
+
+/** A code-line result for "timeout". */
+const TIMEOUT_LINE_RESULT = {
+  kind: "line",
+  ref: "l1",
+  repoId: "r1",
+  path: "a.py",
+  line: 43,
+  text: "self.timeout = 10",
+  hits: [{ start: 5, end: 12, termIndex: 0 }],
+};
 
 /** "timeout s" with since: and sym: offered for the "s", as the daemon answers it. */
 async function suggestingOperators(t) {
@@ -40,16 +52,7 @@ async function suggestingOperators(t) {
     ],
     searchText: "timeout",
   });
-  const line = {
-    kind: "line",
-    ref: "l1",
-    repoId: "r1",
-    path: "a.py",
-    line: 43,
-    text: "self.timeout = 10",
-    hits: [{ start: 5, end: 12, termIndex: 0 }],
-  };
-  await fromHost(page, "search.batch", { seq, searchId: "s1", items: [line] });
+  await fromHost(page, "search.batch", { seq, searchId: "s1", items: [TIMEOUT_LINE_RESULT] });
   await fromHost(page, "search.done", { seq, searchId: "s1", total: 41, truncated: false, hidden: [], ms: 2 });
   return { page, seq };
 }
@@ -59,7 +62,8 @@ test("operator suggestions explain each operator and keep the results in view", 
   const { page } = await suggestingOperators(t);
   const options = page.locator('[data-testid="completion"]');
   assert.equal(await options.count(), 2);
-  assert.match(await page.locator("#completions .cgroup").first().innerText(), /starting with “s”/i);
+  const groupTitle = page.locator('[data-testid="completions"] [role="presentation"]').first();
+  assert.match(await groupTitle.innerText(), /starting with “s”/i);
   const since = await options.first().innerText();
   assert.match(since, /since:/);
   assert.match(since, /30d/, "the selected operator shows its example values");
@@ -145,10 +149,10 @@ test("the repo menu scopes the query to one repo, or back to all", async (t) => 
     span: { start: 0, end: 17 },
     resolved: { label: "web-checkout" },
   };
-  const { seq: seq2 } = await lastSent(page, "query.changed");
+  const { seq: scopedSeq } = await lastSent(page, "query.changed");
   const root = { kind: "and", children: [scoped, textNode("timeout", 18)], span: { start: 0, end: 25 } };
   await fromHost(page, "parse.result", {
-    seq: seq2,
+    seq: scopedSeq,
     query: parsedQuery("repo:web-checkout timeout", root),
     completions: [],
   });

@@ -1,33 +1,39 @@
 // The panel chrome around the results: index status, health and indexing
 // banners, completions, query diagnostics, parsed-query chips and the key
 // hints footer.
-import { el, plural, termClass } from "../format";
+import { element, plural, termClass } from "../format";
 import type { Layout } from "../layout";
+import { OPERATOR_CHIP_LABEL, OPERATOR_TONE } from "../operators";
+import { scopedRepo } from "../parsedQuery";
 import type { BannerMsg, Diagnostic, Fix, IndexState, Mode, Node as QueryNode, RepoStatus } from "../protocol.gen";
-import { OP_LABEL, OP_TONE } from "../sheet";
-import { scopedRepo } from "../queryEdit";
 import { hasErrors, type ViewState } from "../state";
 
-const isBusy = (state: IndexState) => state === "indexing" || state === "queued";
+function isIndexing(state: IndexState): boolean {
+  return state === "indexing" || state === "queued";
+}
 
-/** The header dot and text: up to date, indexing, or a problem. */
-export function renderIndexStatus(layout: Layout, state: ViewState): void {
-  const repos = state.repos;
-  const busy = repos.filter((repo) => isBusy(repo.tree) || isBusy(repo.history));
+/** How the index is doing overall: the status dot's color class and the words beside it. */
+interface IndexHealth {
+  dotClass: "ok" | "busy" | "error";
+  text: string;
+}
+
+function indexHealth(repos: RepoStatus[]): IndexHealth {
   const failed = repos.filter((repo) => repo.tree === "error" || repo.history === "error");
-  let dot = "ok";
-  let text = repos.length ? "Index up to date" : "No folders open";
-  if (failed.length) {
-    dot = "err";
-    text = `Index problem in ${failed.map((repo) => repo.name).join(", ")}`;
-  } else if (busy.length) {
-    dot = "busy";
-    text = `Indexing ${busy.length} of ${plural(repos.length, "repo")}`;
+  if (failed.length > 0) {
+    return { dotClass: "error", text: `Index problem in ${failed.map((repo) => repo.name).join(", ")}` };
   }
-  layout.statusDot.className = `dot ${dot}`;
-  layout.statusText.textContent = text;
-  const scoped = scopedRepo(state.parsed);
-  layout.reposButton.textContent = scoped ?? `All repos · ${repos.length}`;
+  const busy = repos.filter((repo) => isIndexing(repo.tree) || isIndexing(repo.history));
+  if (busy.length > 0) return { dotClass: "busy", text: `Indexing ${busy.length} of ${plural(repos.length, "repo")}` };
+  return { dotClass: "ok", text: repos.length > 0 ? "Index up to date" : "No folders open" };
+}
+
+/** The header dot and text (up to date, indexing, or a problem), and the repos button's label. */
+export function renderIndexStatus(layout: Layout, state: ViewState): void {
+  const health = indexHealth(state.repos);
+  layout.statusDot.className = `status-dot ${health.dotClass}`;
+  layout.statusText.textContent = health.text;
+  layout.reposButton.textContent = scopedRepo(state.parsed) ?? `All repos · ${state.repos.length}`;
 }
 
 /** Daemon health (restarting, stopped) followed by one banner per repo still indexing. */
@@ -51,24 +57,34 @@ function healthTitle(banner: BannerMsg): string {
   }
 }
 
+function restartButton(onRestart: () => void): HTMLElement {
+  const button = element("button", { type: "button", class: "btn", "data-testid": "restart" }, "Restart");
+  button.addEventListener("click", onRestart);
+  return button;
+}
+
 function renderHealthBanner(banner: BannerMsg, onRestart: () => void): HTMLElement {
   const title = healthTitle(banner);
   const detail =
-    banner.message && banner.state !== "restarting" && banner.message !== title ? el("span", {}, banner.message) : null;
-  let restart: HTMLElement | null = null;
-  if (banner.state === "stopped") {
-    restart = el("button", { type: "button", class: "btn", "data-testid": "restart" }, "Restart");
-    restart.addEventListener("click", onRestart);
-  }
+    banner.message && banner.state !== "restarting" && banner.message !== title
+      ? element("span", {}, banner.message)
+      : null;
+  const restart = banner.state === "stopped" ? restartButton(onRestart) : null;
   const tone = banner.state === "restarting" ? "warn" : "error";
-  return el("div", { class: `banner ${tone}`, role: "alert" }, el("span", { class: "strong" }, title), detail, restart);
+  return element(
+    "div",
+    { class: `banner ${tone}`, role: "alert" },
+    element("span", { class: "strong" }, title),
+    detail,
+    restart,
+  );
 }
 
 function renderIndexingBanner(repo: RepoStatus): HTMLElement | null {
   const phase = repo.tree === "indexing" ? "files" : repo.history === "indexing" ? "history" : "";
   if (!phase) return null;
   const percent = Math.round((repo.progress ?? 0) * 100);
-  const bar = el(
+  const bar = element(
     "span",
     {
       class: "progress",
@@ -78,15 +94,15 @@ function renderIndexingBanner(repo: RepoStatus): HTMLElement | null {
       "aria-valuemax": 100,
       "aria-label": `${repo.name} ${phase} indexing`,
     },
-    el("span", { style: `width:${percent}%` }),
+    element("span", { style: `width:${percent}%` }),
   );
   const note = repo.message ?? "Results from this repo may be incomplete. Search keeps working while it finishes.";
-  return el(
+  return element(
     "div",
     { class: "banner index", "data-testid": "indexing-banner" },
-    el("span", { class: "strong" }, `Indexing ${repo.name} · ${percent}%`),
+    element("span", { class: "strong" }, `Indexing ${repo.name} · ${percent}%`),
     bar,
-    el("span", {}, note),
+    element("span", {}, note),
   );
 }
 
@@ -100,30 +116,30 @@ export function renderDiagnostics(layout: Layout, state: ViewState, onFix: (fix:
 function renderDiagnostic(raw: string, diagnostic: Diagnostic, onFix: (fix: Fix) => void): HTMLElement {
   const { start, end } = diagnostic.span;
   const offending = raw.slice(start, Math.max(end, start + 1)) || " ";
-  const snippet = el(
+  const snippet = element(
     "code",
     { class: "snippet" },
     raw.slice(0, start),
-    el("span", { class: "bad" }, offending),
+    element("span", { class: "bad" }, offending),
     raw.slice(end),
   );
-  const caret = el("code", { class: "caret" }, " ".repeat(start) + "^");
+  const caret = element("code", { class: "caret" }, " ".repeat(start) + "^");
   const fixes = diagnostic.fixes.map((fix, index) => {
-    const button = el("button", { type: "button", class: "btn fix", "data-testid": "fix" }, fix.title);
-    if (index === 0) button.append(el("kbd", {}, "⌘."));
+    const button = element("button", { type: "button", class: "btn fix", "data-testid": "fix" }, fix.title);
+    if (index === 0) button.append(element("kbd", {}, "⌘."));
     button.addEventListener("click", () => onFix(fix));
     return button;
   });
-  return el(
+  return element(
     "div",
-    { class: `diag ${diagnostic.severity}`, "data-code": diagnostic.code },
-    el(
+    { class: `diagnostic ${diagnostic.severity}`, "data-code": diagnostic.code },
+    element(
       "div",
-      { class: "dmain" },
-      el("span", { class: "dtitle" }, diagnostic.message),
-      el("div", { class: "snippet-wrap" }, snippet, el("br"), caret),
+      { class: "diagnostic-main" },
+      element("span", { class: "diagnostic-message" }, diagnostic.message),
+      element("div", { class: "snippet-wrap" }, snippet, element("br"), caret),
     ),
-    el("div", { class: "dfixes" }, ...fixes),
+    element("div", { class: "diagnostic-fixes" }, ...fixes),
   );
 }
 
@@ -134,14 +150,15 @@ export function renderChips(layout: Layout, state: ViewState, summary: HTMLEleme
   if (!state.ui.showParsedQuery || !query?.root || hasErrors(state)) return;
   const modeLabel = query.mode === "history" ? "Commit history" : "Working tree";
   layout.chips.append(
-    el("span", { class: "label" }, "Query"),
+    element("span", { class: "label" }, "Query"),
     ...chipsFor(query.root, { mode: query.mode, fileNamesOnly: query.globals.type === "file" }),
-    el("span", { class: `mode ${query.mode}`, "data-testid": "mode" }, modeLabel),
+    element("span", { class: `mode ${query.mode}`, "data-testid": "mode" }, modeLabel),
     summary,
   );
 }
 
-const joiner = (text: string, extraClass = "") => el("span", { class: `joiner ${extraClass}`.trim() }, text);
+/** A word between chips: AND, OR, NOT or a parenthesis. */
+const joiner = (text: string, extraClass = "") => element("span", { class: `joiner ${extraClass}`.trim() }, text);
 
 /** What a chip's wording depends on beyond its own node. */
 interface ChipContext {
@@ -178,37 +195,43 @@ function chipsFor(node: QueryNode, context: ChipContext): Node[] {
     case "text": {
       const label = textLabel(node, context);
       return [
-        el(
+        element(
           "span",
           { class: `chip term ${termClass(node.termIndex)}` },
-          el("span", { class: "k" }, label),
-          el("code", {}, node.value),
+          element("span", { class: "chip-label" }, label),
+          element("code", {}, node.value),
         ),
       ];
     }
     case "op": {
-      let value = node.value;
-      if (node.op === "case") value = node.value === "yes" ? "sensitive" : "insensitive";
-      if (node.op === "type") value = TYPE_LABEL[node.value] ?? node.value;
       return [
-        el(
+        element(
           "span",
-          { class: `chip tone-${OP_TONE[node.op]}` },
-          el("span", { class: "k" }, OP_LABEL[node.op]),
-          el("code", {}, value),
-          node.resolved ? el("span", { class: "resolved" }, `→ ${node.resolved.label}`) : null,
+          { class: `chip tone-${OPERATOR_TONE[node.op]}` },
+          element("span", { class: "chip-label" }, OPERATOR_CHIP_LABEL[node.op]),
+          element("code", {}, operatorChipValue(node)),
+          node.resolved ? element("span", { class: "resolved" }, `→ ${node.resolved.label}`) : null,
         ),
       ];
     }
   }
 }
 
+/** How an operator's value reads on its chip: case:yes reads "sensitive", type:file "file names only". */
+function operatorChipValue(node: Extract<QueryNode, { kind: "op" }>): string {
+  if (node.op === "case") return node.value === "yes" ? "sensitive" : "insensitive";
+  if (node.op === "type") return TYPE_LABEL[node.value] ?? node.value;
+  return node.value;
+}
+
+/** What the panel shows, which decides the key hints. */
 export type FooterMode = "empty" | "errors" | "results" | "operators" | "values";
 
 /** Key hints along the bottom, which change with what the panel shows. */
 export function renderFooter(layout: Layout, mode: FooterMode, isHistory: boolean): void {
-  const hint = (key: string, what: string) => el("span", {}, el("kbd", {}, key), what);
-  const hintAtEnd = (key: string, what: string) => el("span", { class: "push" }, el("kbd", {}, key), what);
+  const hint = (key: string, what: string) => element("span", {}, element("kbd", {}, key), what);
+  const hintAtEnd = (key: string, what: string) =>
+    element("span", { class: "hint-at-end" }, element("kbd", {}, key), what);
   const hints: Record<FooterMode, HTMLElement[]> = {
     empty: [hint("↑↓", "move"), hint("↵", "run recent query"), hintAtEnd("?", "opens this sheet anytime")],
     errors: [hint("⌘.", "apply first fix"), hint("Tab", "complete operator"), hintAtEnd("?", "all operators")],

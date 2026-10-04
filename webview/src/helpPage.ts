@@ -1,9 +1,10 @@
 // Entry point of the help page webview (bundled to dist/webview/help.js):
 // the search guide. Every example has a Try button that runs it in
 // the search panel.
-import { el } from "./format";
-import { BASICS, COMBINING, EXAMPLES, KEYS, OPERATOR_GROUPS, type OperatorGroup } from "./helpContent";
+import { element } from "./format";
+import { BASICS, COMBINING, EXAMPLES, KEYS } from "./helpContent";
 import { send } from "./host";
+import { OPERATOR_GROUPS, type OperatorGroup } from "./operators";
 
 const SECTIONS: [id: string, title: string][] = [
   ["basics", "Basics"],
@@ -18,131 +19,140 @@ const SECTIONS: [id: string, title: string][] = [
 function prose(text: string): Node[] {
   return text
     .split(/`([^`]+)`/)
-    .map((part, index) => (index % 2 ? el("code", {}, part) : document.createTextNode(part)));
+    .map((part, index) => (index % 2 ? element("code", {}, part) : document.createTextNode(part)));
+}
+
+function bulletList(lines: string[]): HTMLElement {
+  return element("ul", {}, ...lines.map((line) => element("li", {}, ...prose(line))));
 }
 
 function tryButton(query: string): HTMLElement {
-  const button = el("button", { type: "button", class: "btn", "data-testid": "try", "data-query": query }, "Try");
-  button.addEventListener("click", () => send("help.try", { query }));
+  const button = element("button", { type: "button", class: "btn", "data-testid": "try", "data-query": query }, "Try");
+  button.addEventListener("click", () => {
+    send("help.try", { query });
+  });
   return button;
 }
 
 function operatorTable(groups: OperatorGroup[]): HTMLElement {
-  const body = el("tbody");
+  const body = element("tbody");
   for (const group of groups) {
+    const tone = `tone-${group.tone}`;
     body.append(
-      el(
+      element(
         "tr",
-        { class: "opgroup" },
-        el("th", { colspan: 4 }, el("span", { class: `group-name ${group.tone}` }, group.name)),
+        { class: "operator-group" },
+        element("th", { colspan: 4 }, element("span", { class: tone }, group.name)),
       ),
     );
-    for (const row of group.rows) {
+    for (const entry of group.entries) {
       body.append(
-        el(
+        element(
           "tr",
           { "data-testid": "operator-row" },
-          el("td", {}, el("code", { class: `group-name ${group.tone}` }, row.operator)),
-          el("td", {}, row.what),
-          el("td", {}, el("code", {}, row.example)),
-          el("td", {}, tryButton(row.example)),
+          element("td", {}, element("code", { class: tone }, entry.label)),
+          element("td", {}, entry.description),
+          element("td", {}, element("code", {}, entry.example)),
+          element("td", {}, tryButton(entry.example)),
         ),
       );
     }
   }
-  return el(
-    "table",
-    { class: "optable" },
-    el(
-      "thead",
-      {},
-      el("tr", {}, el("th", {}, "Operator"), el("th", {}, "What it does"), el("th", {}, "Example"), el("th", {}, "")),
-    ),
-    body,
-  );
+  const headings = ["Operator", "What it does", "Example", ""].map((heading) => element("th", {}, heading));
+  return element("table", { class: "operator-table" }, element("thead", {}, element("tr", {}, ...headings)), body);
 }
 
 function section(id: string, title: string, ...children: (Node | null)[]): HTMLElement {
-  return el("section", { id, "aria-labelledby": `${id}-title` }, el("h2", { id: `${id}-title` }, title), ...children);
+  return element(
+    "section",
+    { id, "aria-labelledby": `${id}-title` },
+    element("h2", { id: `${id}-title` }, title),
+    ...children,
+  );
 }
 
-function render(root: HTMLElement): void {
-  const settingsLink = el(
+function tableOfContents(): HTMLElement {
+  return element(
+    "nav",
+    { class: "toc", "aria-label": "On this page" },
+    element("div", { class: "section-title" }, "On this page"),
+    ...SECTIONS.map(([id, title]) => element("a", { href: `#${id}` }, title)),
+  );
+}
+
+function operatorsSection(): HTMLElement {
+  return section(
+    "operators",
+    "Operators",
+    operatorTable(OPERATOR_GROUPS),
+    element(
+      "p",
+      { class: "muted" },
+      ...prose("Time windows for `since:` use a number and a unit: d days, w weeks, m months, y years."),
+    ),
+  );
+}
+
+function examplesSection(): HTMLElement {
+  const examples = EXAMPLES.map((example) =>
+    element(
+      "div",
+      { class: "example", "data-testid": "example" },
+      element("span", {}, example.title),
+      element("code", {}, example.query),
+      tryButton(example.query),
+    ),
+  );
+  return section("examples", "Examples", element("div", { class: "examples" }, ...examples));
+}
+
+function keysSection(): HTMLElement {
+  const rows = KEYS.map(([what, keys]) =>
+    element("tr", {}, element("td", {}, what), element("td", {}, element("kbd", {}, keys))),
+  );
+  return section("keys", "Keyboard and mouse", element("table", { class: "key-table" }, element("tbody", {}, ...rows)));
+}
+
+function settingsSection(): HTMLElement {
+  const openSettings = element(
     "button",
     { type: "button", class: "btn", "data-testid": "open-settings" },
     "Open search settings",
   );
-  settingsLink.addEventListener("click", () => send("settings.open", {}));
-  const nav = el(
-    "nav",
-    { class: "toc", "aria-label": "On this page" },
-    el("div", { class: "section-title" }, "On this page"),
-    ...SECTIONS.map(([id, title]) => el("a", { href: `#${id}` }, title)),
+  openSettings.addEventListener("click", () => {
+    send("settings.open", {});
+  });
+  return section(
+    "settings",
+    "Settings",
+    element(
+      "p",
+      {},
+      "Every option lives in VS Code’s Settings under Unified Search, so it syncs with your other settings and can be set per workspace.",
+    ),
+    openSettings,
   );
-  const article = el(
+}
+
+function render(root: HTMLElement): void {
+  const article = element(
     "article",
     { class: "guide" },
-    el("h1", {}, "Search guide"),
-    el(
+    element("h1", {}, "Search guide"),
+    element(
       "p",
       { class: "lead" },
       "One box searches file names, code and Git history across every repo in your workspace. Type words to search, then add operators to narrow it down.",
     ),
-    section("basics", "Basics", el("ul", {}, ...BASICS.map((line) => el("li", {}, ...prose(line))))),
-    section(
-      "operators",
-      "Operators",
-      operatorTable(OPERATOR_GROUPS),
-      el(
-        "p",
-        { class: "muted" },
-        ...prose("Time windows for `since:` use a number and a unit: d days, w weeks, m months, y years."),
-      ),
-    ),
-    section("combining", "Combining", el("ul", {}, ...COMBINING.map((line) => el("li", {}, ...prose(line))))),
-    section(
-      "examples",
-      "Examples",
-      el(
-        "div",
-        { class: "examples" },
-        ...EXAMPLES.map((example) =>
-          el(
-            "div",
-            { class: "example", "data-testid": "example" },
-            el("span", {}, example.title),
-            el("code", {}, example.query),
-            tryButton(example.query),
-          ),
-        ),
-      ),
-    ),
-    section(
-      "keys",
-      "Keyboard and mouse",
-      el(
-        "table",
-        { class: "keytable" },
-        el(
-          "tbody",
-          {},
-          ...KEYS.map(([what, keys]) => el("tr", {}, el("td", {}, what), el("td", {}, el("kbd", {}, keys)))),
-        ),
-      ),
-    ),
-    section(
-      "settings",
-      "Settings",
-      el(
-        "p",
-        {},
-        "Every option lives in VS Code’s Settings under Unified Search, so it syncs with your other settings and can be set per workspace.",
-      ),
-      settingsLink,
-    ),
+    section("basics", "Basics", bulletList(BASICS)),
+    operatorsSection(),
+    section("combining", "Combining", bulletList(COMBINING)),
+    examplesSection(),
+    keysSection(),
+    settingsSection(),
   );
-  root.replaceChildren(el("div", { class: "help" }, nav, article));
+  root.replaceChildren(element("div", { class: "help" }, tableOfContents(), article));
 }
 
-const root = document.getElementById("app");
+const root = document.querySelector<HTMLElement>("#app");
 if (root) render(root);

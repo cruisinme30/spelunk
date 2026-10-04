@@ -1,6 +1,7 @@
 // The panel's fixed skeleton, built once. Regions are filled by render/*.
-import { el } from "./format";
+import { element } from "./format";
 
+/** The panel's regions and controls, from top to bottom. */
 export interface Layout {
   shell: HTMLElement;
   input: HTMLInputElement;
@@ -18,12 +19,15 @@ export interface Layout {
   footer: HTMLElement;
 }
 
+/** The class of the element that holds the repos button and its menu; a click outside it closes the menu. */
+export const REPO_MENU_ANCHOR_CLASS = "repo-menu-anchor";
+
 const SEARCH_ICON =
   '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>';
 
-export function createLayout(root: HTMLElement): Layout {
-  const input = el("input", {
-    id: "q",
+function createQueryInput(): HTMLInputElement {
+  return element("input", {
+    id: "query",
     type: "text",
     spellcheck: "false",
     autocomplete: "off",
@@ -35,31 +39,55 @@ export function createLayout(root: HTMLElement): Layout {
     "aria-controls": "results",
     "aria-autocomplete": "list",
   });
-  const caseButton = el(
+}
+
+/** How one of the Aa and .* buttons beside the box reads. */
+interface ToggleLabels {
+  text: string;
+  label: string;
+  title: string;
+  testId: string;
+  monospace?: boolean;
+}
+
+function createToggle({ text, label, title, testId, monospace }: ToggleLabels): HTMLButtonElement {
+  return element(
     "button",
     {
       type: "button",
-      class: "toggle",
-      "aria-label": "Match case",
+      class: monospace ? "toggle mono" : "toggle",
+      "aria-label": label,
       "aria-pressed": "false",
-      "data-testid": "toggle-case",
-      title: "Match case (case:yes)",
+      "data-testid": testId,
+      title,
     },
-    "Aa",
+    text,
   );
-  const regexButton = el(
-    "button",
-    {
-      type: "button",
-      class: "toggle mono",
-      "aria-label": "Regular expression",
-      "aria-pressed": "false",
-      "data-testid": "toggle-regex",
-      title: "Regular expression (/…/)",
-    },
-    ".*",
-  );
-  const reposButton = el(
+}
+
+function createSearchIcon(): HTMLElement {
+  const icon = element("span", { class: "icon", "aria-hidden": "true" });
+  icon.innerHTML = SEARCH_ICON;
+  return element("label", { for: "query", class: "query-icon" }, icon);
+}
+
+/** Builds the skeleton into `root` and returns its parts. */
+export function createLayout(root: HTMLElement): Layout {
+  const input = createQueryInput();
+  const caseButton = createToggle({
+    text: "Aa",
+    label: "Match case",
+    title: "Match case (case:yes)",
+    testId: "toggle-case",
+  });
+  const regexButton = createToggle({
+    text: ".*",
+    label: "Regular expression",
+    title: "Regular expression (/…/)",
+    testId: "toggle-regex",
+    monospace: true,
+  });
+  const reposButton = element(
     "button",
     {
       type: "button",
@@ -70,64 +98,44 @@ export function createLayout(root: HTMLElement): Layout {
     },
     "All repos",
   );
-  const repoMenu = el("div", { class: "menu", role: "menu", "data-testid": "repo-menu", hidden: true });
-  const icon = el("span", { class: "icon", "aria-hidden": "true" });
-  icon.innerHTML = SEARCH_ICON;
-
-  const statusDot = el("span", { class: "dot", "aria-hidden": "true" });
-  const statusText = el("span", { class: "status-text", "data-testid": "index-status" });
-  const completions = el("div", {
-    id: "completions",
-    role: "listbox",
-    "aria-label": "Suggestions",
-    "data-testid": "completions",
-    hidden: true,
-  });
-  const banner = el("div", { id: "banner", "data-testid": "banner" });
-  const diagnostics = el("div", { id: "diag", "data-testid": "diagnostics" });
-  const chips = el("div", { id: "chips", "data-testid": "chips" });
-  const body = el("div", { id: "body" });
-  const footer = el("div", { id: "keys", "data-testid": "keys" });
-
-  const shell = el(
-    "section",
-    { class: "us", "aria-label": "Unified search" },
-    el(
+  const repoMenu = element("div", { class: "menu", role: "menu", "data-testid": "repo-menu", hidden: true });
+  const statusDot = element("span", { class: "status-dot", "aria-hidden": "true" });
+  const statusText = element("span", { class: "status-text", "data-testid": "index-status" });
+  // The regions under the search bar, in display order.
+  const regions = {
+    completions: element("div", {
+      id: "completions",
+      role: "listbox",
+      "aria-label": "Suggestions",
+      "data-testid": "completions",
+      hidden: true,
+    }),
+    banner: element("div", { id: "banner", "data-testid": "banner" }),
+    diagnostics: element("div", { id: "diagnostics", "data-testid": "diagnostics" }),
+    chips: element("div", { id: "chips", "data-testid": "chips" }),
+    body: element("div", { id: "body" }),
+    footer: element("div", { id: "key-hints", "data-testid": "keys" }),
+  };
+  const searchBar = element(
+    "div",
+    { class: "search-bar" },
+    createSearchIcon(),
+    input,
+    element(
       "div",
-      { class: "bar" },
-      el("label", { for: "q", class: "qlabel" }, icon),
-      input,
-      el(
-        "div",
-        { class: "tools" },
-        caseButton,
-        regexButton,
-        el("span", { class: "menuanchor" }, reposButton, repoMenu),
-      ),
+      { class: "tools" },
+      caseButton,
+      regexButton,
+      element("span", { class: REPO_MENU_ANCHOR_CLASS }, reposButton, repoMenu),
     ),
-    el("div", { class: "status", role: "status" }, statusDot, statusText),
-    completions,
-    banner,
-    diagnostics,
-    chips,
-    body,
-    footer,
+  );
+  const shell = element(
+    "section",
+    { class: "search-panel", "aria-label": "Unified search" },
+    searchBar,
+    element("div", { class: "status", role: "status" }, statusDot, statusText),
+    ...Object.values(regions),
   );
   root.append(shell);
-  return {
-    shell,
-    input,
-    caseButton,
-    regexButton,
-    reposButton,
-    repoMenu,
-    statusDot,
-    statusText,
-    completions,
-    banner,
-    diagnostics,
-    chips,
-    body,
-    footer,
-  };
+  return { shell, input, caseButton, regexButton, reposButton, repoMenu, statusDot, statusText, ...regions };
 }

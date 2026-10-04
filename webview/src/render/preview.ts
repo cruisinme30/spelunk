@@ -1,5 +1,5 @@
 // The preview pane: a file excerpt around the match, or a commit's diff.
-import { el, fileStat, highlight, plural, shortSha, timeAgo } from "../format";
+import { element, fileStat, highlight, plural, shortSha, timeAgo } from "../format";
 import type { OpenWhere, Preview } from "../protocol.gen";
 import { repoName, type ViewState } from "../state";
 
@@ -10,6 +10,7 @@ type CommitPreview = Extract<Preview, { kind: "commit" }>;
 const MAX_OUTLINE_SYMBOLS = 8;
 const DIFF_SIGN = { add: "+", del: "−", ctx: " " } as const;
 
+/** What the preview's buttons do. */
 export interface PreviewHandlers {
   onOpen(ref: string, where: OpenWhere): void;
   onShowHiddenFiles(): void;
@@ -26,71 +27,84 @@ export function renderPreview(
   const current = state.preview;
   if (!current) return;
   if (!current.preview) {
-    container.append(el("div", { class: "notice" }, current.stale ? "No longer exists" : "No preview available"));
+    container.append(element("div", { class: "notice" }, current.stale ? "No longer exists" : "No preview available"));
     return;
   }
   const preview = current.preview;
-  const actions = el(
+  const actions = element(
     "div",
     { class: "actions" },
-    el(
+    element(
       "button",
       { type: "button", class: "btn", "data-where": "current" },
       preview.kind === "commit" ? "Open diff ↵" : "Open ↵",
     ),
-    el("button", { type: "button", class: "btn", "data-where": "side" }, "Open to side ⌘↵"),
+    element("button", { type: "button", class: "btn", "data-where": "side" }, "Open to side ⌘↵"),
   );
+  // One listener for both buttons: each says where it opens in data-where.
   actions.addEventListener("click", (event) => {
     const where = (event.target as HTMLElement).closest<HTMLElement>("[data-where]")?.dataset["where"];
     if (where === "current" || where === "side") handlers.onOpen(current.ref, where);
   });
-  const repo = repoId ? repoName(state, repoId) : "";
+  const header = { repo: repoId ? repoName(state, repoId) : "", actions };
   if (preview.kind === "file") {
-    renderFilePreview(container, preview, repo, actions);
+    renderFilePreview(container, preview, header);
   } else {
-    renderCommitPreview(container, preview, repo, actions, {
+    renderCommitPreview(container, preview, header, {
       showHiddenFiles: state.showHiddenFiles,
       onShowHiddenFiles: handlers.onShowHiddenFiles,
     });
   }
 }
 
-function renderFilePreview(container: HTMLElement, preview: FilePreview, repo: string, actions: HTMLElement): void {
+/** What every preview header shows besides the title: the repo name and the Open buttons. */
+interface PreviewHeader {
+  repo: string;
+  actions: HTMLElement;
+}
+
+function renderFilePreview(container: HTMLElement, preview: FilePreview, { repo, actions }: PreviewHeader): void {
   container.append(
-    el(
+    element(
       "div",
-      { class: "phead" },
-      el("span", { class: "ptitle" }, el("span", { class: "muted" }, repo ? `${repo} / ` : ""), preview.path),
-      el("span", { class: "muted" }, `line ${preview.focusLine}`),
+      { class: "preview-header" },
+      element(
+        "span",
+        { class: "preview-title" },
+        element("span", { class: "muted" }, repo ? `${repo} / ` : ""),
+        preview.path,
+      ),
+      element("span", { class: "muted" }, `line ${preview.focusLine}`),
       actions,
     ),
   );
   const hitsByLine = new Map(preview.hits.map((hits) => [hits.line, hits.ranges]));
   const dirtyLines = new Set(preview.dirtyLines);
-  const code = el("div", { class: "code" });
-  preview.lines.forEach((text, index) => {
+  const code = element("div", { class: "code" });
+  for (const [index, text] of preview.lines.entries()) {
     const lineNumber = preview.firstLine + index;
-    const classes = ["cl"];
+    const classes = ["code-line"];
     if (lineNumber === preview.focusLine) classes.push("focus");
     if (dirtyLines.has(lineNumber)) classes.push("dirty");
     code.append(
-      el(
+      element(
         "div",
         { class: classes.join(" ") },
-        el("span", { class: "ln" }, String(lineNumber)),
-        el("code", {}, highlight(text, hitsByLine.get(lineNumber) ?? [])),
+        element("span", { class: "line-number" }, String(lineNumber)),
+        element("code", {}, highlight(text, hitsByLine.get(lineNumber) ?? [])),
       ),
     );
-  });
+  }
   container.append(code);
   code.querySelector(".focus")?.scrollIntoView({ block: "center" });
-  if (preview.symbols?.length) {
-    const names = preview.symbols.slice(0, MAX_OUTLINE_SYMBOLS).map((symbol) => el("code", {}, symbol.name));
-    container.append(el("div", { class: "outline muted" }, "In this file: ", ...names));
+  if (preview.symbols && preview.symbols.length > 0) {
+    const names = preview.symbols.slice(0, MAX_OUTLINE_SYMBOLS).map((symbol) => element("code", {}, symbol.name));
+    container.append(element("div", { class: "outline muted" }, "In this file: ", ...names));
   }
 }
 
-interface HiddenFilesOptions {
+/** Whether a commit preview lists the files an f: filter hid, and how to ask for them. */
+interface HiddenFilesToggle {
   showHiddenFiles: boolean;
   onShowHiddenFiles(): void;
 }
@@ -98,58 +112,65 @@ interface HiddenFilesOptions {
 function renderCommitPreview(
   container: HTMLElement,
   preview: CommitPreview,
-  repo: string,
-  actions: HTMLElement,
-  hidden: HiddenFilesOptions,
+  { repo, actions }: PreviewHeader,
+  { showHiddenFiles, onShowHiddenFiles }: HiddenFilesToggle,
 ): void {
   container.append(
-    el(
+    element(
       "div",
-      { class: "phead commit" },
-      el(
+      { class: "preview-header commit" },
+      element(
         "div",
-        { class: "line1" },
-        el("span", { class: "ptitle" }, preview.subject),
-        el("code", { class: "sha" }, shortSha(preview.sha)),
+        { class: "commit-title" },
+        element("span", { class: "preview-title" }, preview.subject),
+        element("code", { class: "sha" }, shortSha(preview.sha)),
       ),
-      el("div", { class: "muted" }, `${preview.author} committed ${timeAgo(preview.at)}${repo ? " · " + repo : ""}`),
+      element(
+        "div",
+        { class: "muted" },
+        `${preview.author} committed ${timeAgo(preview.at)}${repo ? " · " + repo : ""}`,
+      ),
       actions,
     ),
   );
-  if (preview.body.trim()) container.append(el("pre", { class: "body" }, preview.body.trim()));
+  if (preview.body.trim()) container.append(element("pre", { class: "body" }, preview.body.trim()));
 
   // Files outside an f: filter stay hidden until "Show all".
   const hiddenFiles = preview.files.filter((file) => file.hiddenByFilter);
-  const shownFiles = preview.files.filter((file) => !file.hiddenByFilter || hidden.showHiddenFiles);
-  const files = el(
+  const shownFiles = preview.files.filter((file) => !file.hiddenByFilter || showHiddenFiles);
+  const files = element(
     "div",
     { class: "files" },
     ...shownFiles.map((file) => fileStat(file.path, file.added, file.removed)),
   );
-  if (hiddenFiles.length && !hidden.showHiddenFiles) {
-    const showAll = el("button", { type: "button", class: "btn link", "data-testid": "show-all-files" }, "Show all");
-    showAll.addEventListener("click", hidden.onShowHiddenFiles);
+  if (hiddenFiles.length > 0 && !showHiddenFiles) {
+    const showAll = element(
+      "button",
+      { type: "button", class: "btn link", "data-testid": "show-all-files" },
+      "Show all",
+    );
+    showAll.addEventListener("click", onShowHiddenFiles);
     files.append(
-      el("span", { class: "muted" }, `${plural(hiddenFiles.length, "other changed file")} hidden by f:`),
+      element("span", { class: "muted" }, `${plural(hiddenFiles.length, "other changed file")} hidden by f:`),
       showAll,
     );
   }
   container.append(files);
 
   const hiddenPaths = new Set(hiddenFiles.map((file) => file.path));
-  const code = el("div", { class: "code diff" });
+  const code = element("div", { class: "code diff" });
   for (const hunk of preview.hunks) {
-    if (hiddenPaths.has(hunk.path) && !hidden.showHiddenFiles) continue;
-    code.append(el("div", { class: "hunk" }, el("span", { class: "muted" }, `${hunk.path}  ${hunk.header}`)));
+    if (hiddenPaths.has(hunk.path) && !showHiddenFiles) continue;
+    code.append(element("div", { class: "hunk" }, element("span", { class: "muted" }, `${hunk.path}  ${hunk.header}`)));
     for (const line of hunk.lines) {
       const lineNumber = line.kind === "del" ? line.oldNo : line.newNo;
       code.append(
-        el(
+        element(
           "div",
-          { class: `cl ${line.kind}` },
-          el("span", { class: "ln" }, String(lineNumber ?? "")),
-          el("span", { class: "sign" }, DIFF_SIGN[line.kind]),
-          el("code", {}, highlight(line.text, line.hits)),
+          { class: `code-line ${line.kind}` },
+          element("span", { class: "line-number" }, String(lineNumber ?? "")),
+          element("span", { class: "sign" }, DIFF_SIGN[line.kind]),
+          element("code", {}, highlight(line.text, line.hits)),
         ),
       );
     }
