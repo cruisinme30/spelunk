@@ -59,6 +59,14 @@ func TestCompletingValuesOfFixedOperators(t *testing.T) {
 	}
 }
 
+func TestNoCompletionForAValueTypedInFull(t *testing.T) {
+	for _, text := range []string{"lang:python", "lang:Python", "case:yes", "repo:web-checkout"} {
+		if got := Complete(text, len(text), testResolver, fixedNow); len(got) != 0 {
+			t.Errorf("Complete(%q) = %+v, want nothing", text, got)
+		}
+	}
+}
+
 func TestNoCompletionsInsideTermsOrRegexes(t *testing.T) {
 	for _, text := range []string{"", "timeout ", "/regex", `"phrase`, "f:/abc", "xyz"} {
 		if got := labels(text, len(text)); len(got) != 0 {

@@ -66,6 +66,9 @@ func valueCompletions(t token, resolver Resolver, now time.Time) []protocol.Comp
 	fragment := strings.ToLower(t.value)
 	completions := []protocol.Completion{}
 	add := func(value, detail, group string) {
+		if strings.EqualFold(value, t.value) {
+			return // already typed in full: nothing to complete
+		}
 		written := op.name + ":" + quoteIfNeeded(value)
 		completions = append(completions, protocol.Completion{
 			Label:  value,
@@ -94,7 +97,7 @@ func valueCompletions(t token, resolver Resolver, now time.Time) []protocol.Comp
 	default:
 		for _, example := range op.examples {
 			value := strings.TrimPrefix(example, op.name+":")
-			if strings.HasPrefix(value, fragment) && value != t.value {
+			if strings.HasPrefix(value, fragment) {
 				add(value, op.summary, "value")
 			}
 		}
