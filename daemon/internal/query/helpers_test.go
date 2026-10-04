@@ -24,13 +24,34 @@ var testResolver = fakeResolver{
 		{Name: "Jason Kim", Emails: []string{"jason@checkout.example"}, Commits: 88, Repos: []string{"web-checkout"}, LastAt: "2026-09-26T10:00:00Z"},
 		{Name: "Marta Ruiz", Emails: []string{"jamarta@libs.example"}, Commits: 12, Repos: []string{"shared-libs"}, LastAt: "2026-08-03T10:00:00Z"},
 	},
-	repos: []string{"payments-api", "web-checkout", "shared-libs"},
+	repos: []RepoStat{
+		{Name: "payments-api", Path: "/work/payments-api", Files: 7, State: protocol.IndexStateReady},
+		{Name: "web-checkout", Path: "/work/web-checkout", Files: 3, State: protocol.IndexStateReady},
+		{Name: "shared-libs", Path: "/work/shared-libs", Files: 4, State: protocol.IndexStateIndexing, Progress: 0.64},
+	},
+	files: []FileStat{
+		{Repo: "payments-api", Path: "src/payments/client.py", Lang: "python", ModTime: fixedNow.Add(-20 * time.Minute)},
+		{Repo: "payments-api", Path: "src/payments/retry_policy.py", Lang: "python", ModTime: fixedNow.Add(-3 * time.Hour)},
+		{Repo: "payments-api", Path: "src/payments/errors.py", Lang: "python", ModTime: fixedNow.AddDate(0, 0, -10)},
+		{Repo: "payments-api", Path: "tests/payments/client_test.py", Lang: "python", ModTime: fixedNow.AddDate(0, -2, 0)},
+		{Repo: "payments-api", Path: "tests/payments/retry_policy_test.py", Lang: "python", ModTime: fixedNow.AddDate(0, -2, 0)},
+		{Repo: "payments-api", Path: "scripts/retry_failed_webhooks.py", Lang: "python", ModTime: fixedNow.AddDate(-2, 0, 0)},
+		{Repo: "payments-api", Path: "README.md", Lang: "markdown", ModTime: fixedNow.AddDate(-2, 0, 0)},
+		{Repo: "web-checkout", Path: "src/api/checkout.ts", Lang: "typescript", ModTime: fixedNow.AddDate(0, 0, -1)},
+		{Repo: "web-checkout", Path: "e2e/checkout_test.py", Lang: "python", ModTime: fixedNow.AddDate(0, 0, -20)},
+		{Repo: "web-checkout", Path: "package.json", Lang: "json", ModTime: fixedNow.AddDate(0, -8, 0)},
+		{Repo: "shared-libs", Path: "http/retry.py", Lang: "python", ModTime: fixedNow.AddDate(0, 0, -3)},
+		{Repo: "shared-libs", Path: "http/config.py", Lang: "python", ModTime: fixedNow.AddDate(0, 0, -3)},
+		{Repo: "shared-libs", Path: "http/config.yaml", Lang: "yaml", ModTime: fixedNow.AddDate(0, -1, -5)},
+		{Repo: "shared-libs", Path: "docs/retry_policy.md", Lang: "markdown", ModTime: fixedNow.AddDate(0, -7, 0)},
+	},
 }
 
-// fakeResolver answers from fixed lists of authors and repos.
+// fakeResolver answers from fixed lists of authors, repos and files.
 type fakeResolver struct {
 	authors []AuthorStat
-	repos   []string
+	repos   []RepoStat
+	files   []FileStat
 }
 
 // Authors returns up to limit authors whose name or email contains fragment.
@@ -45,8 +66,11 @@ func (r fakeResolver) Authors(fragment string, limit int) []AuthorStat {
 	return found
 }
 
-// RepoNames returns every repo name.
-func (r fakeResolver) RepoNames() []string { return r.repos }
+// Repos returns every repo.
+func (r fakeResolver) Repos() []RepoStat { return r.repos }
+
+// Files returns every file.
+func (r fakeResolver) Files() []FileStat { return r.files }
 
 // codes lists the codes of diagnostics, in order.
 func codes(diagnostics []protocol.Diagnostic) []string {

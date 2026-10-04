@@ -46,7 +46,7 @@ func TestCompletingValuesOfFixedOperators(t *testing.T) {
 		"type:":    "file code commit",
 		"type:c":   "code commit",
 		"case:":    "yes no",
-		"since:":   "30d 2w 6m 1y today yesterday 2h",
+		"since:":   "today yesterday 30min 2h 2w 30d 6m 1y",
 		"lang:ty":  "typescript",
 		"repo:web": "web-checkout",
 	}

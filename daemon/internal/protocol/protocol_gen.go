@@ -517,10 +517,17 @@ type HiddenNote struct {
 
 // Completion is an autocomplete suggestion; accepting it applies its edit.
 type Completion struct {
-	Label  string `json:"label"`
+	Label string `json:"label"`
+	// Detail is what the suggestion means, in a few words: "Last 2 hours", "Python files".
 	Detail string `json:"detail"`
-	Insert Fix    `json:"insert"`
-	Group  string `json:"group"`
+	// Context is facts that help choose it, on a second line: "Since 08:04", "14 files · payments-api, web-checkout".
+	Context string `json:"context,omitempty"`
+	// Note is a short status shown at the end of the row: "5 files changed", "Indexing 64%".
+	Note string `json:"note,omitempty"`
+	// Section is a heading shown above this suggestion; the suggestions after it, up to the next section, belong under it.
+	Section string `json:"section,omitempty"`
+	Insert  Fix    `json:"insert"`
+	Group   string `json:"group"`
 }
 
 // IndexState is where one index of a repo stands.

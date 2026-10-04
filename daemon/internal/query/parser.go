@@ -319,7 +319,7 @@ func (p *parser) resolve(op protocol.OpName, value string) *protocol.Resolved {
 		}
 	case protocol.OpNameRepo:
 		var matches []string
-		for _, name := range p.resolver.RepoNames() {
+		for _, name := range repoNames(p.resolver) {
 			if strings.Contains(strings.ToLower(name), strings.ToLower(value)) {
 				matches = append(matches, name)
 			}

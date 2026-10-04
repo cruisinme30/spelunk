@@ -5,12 +5,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cruisinme30/unified-search/daemon/internal/lang"
 	"github.com/cruisinme30/unified-search/daemon/internal/protocol"
 )
 
-// maxValueCompletions caps value suggestions (authors, repos, languages).
-const maxValueCompletions = 8
+// maxValueCompletions caps value suggestions: f: offers up to five file
+// types and five folders.
+const maxValueCompletions = 10
 
 // Complete suggests operators or operator values for the word at cursor
 // (a UTF-16 offset): "s" offers since: and sym:; "author:ja" offers
@@ -75,66 +75,16 @@ func valueCompletions(t token, resolver Resolver, now time.Time) []protocol.Comp
 		}
 		written := op.name + ":" + quoteIfNeeded(candidate.value)
 		completions = append(completions, protocol.Completion{
-			Label:  candidate.value,
-			Detail: candidate.detail,
-			Insert: replaceFix("Insert "+written, whole, written+" "),
-			Group:  candidate.group,
+			Label:   candidate.value,
+			Detail:  candidate.detail,
+			Context: candidate.context,
+			Note:    candidate.note,
+			Section: candidate.section,
+			Insert:  replaceFix("Insert "+written, whole, written+" "),
+			Group:   candidate.group,
 		})
 	}
 	return completions
-}
-
-// valueCandidate is a value an operator could take, with how to show it.
-type valueCandidate struct {
-	value  string
-	detail string
-	group  string // a protocol.Completion group
-}
-
-// valueCandidates lists the values of op that match fragment (lowercase):
-// authors and repos found in the workspace, languages, or the operator's
-// own example values.
-func valueCandidates(op operator, fragment string, resolver Resolver, now time.Time) []valueCandidate {
-	var candidates []valueCandidate
-	switch op.name {
-	case protocol.OpNameAuthor:
-		// One more than fits: valueCompletions skips a value already typed
-		// in full, and the list should still be full after that.
-		for _, author := range resolver.Authors(fragment, maxValueCompletions+1) {
-			candidates = append(candidates, valueCandidate{author.Name, authorDetail(author, now), "author"})
-		}
-	case protocol.OpNameRepo:
-		for _, name := range resolver.RepoNames() {
-			if strings.Contains(strings.ToLower(name), fragment) {
-				candidates = append(candidates, valueCandidate{name, "repo", "repo"})
-			}
-		}
-	case protocol.OpNameLang:
-		for _, name := range lang.Names() {
-			if strings.HasPrefix(name, fragment) {
-				candidates = append(candidates, valueCandidate{name, "language", "lang"})
-			}
-		}
-	default:
-		for _, example := range op.examples {
-			if value := strings.TrimPrefix(example, op.name+":"); strings.HasPrefix(value, fragment) {
-				candidates = append(candidates, valueCandidate{value, op.summary, "value"})
-			}
-		}
-	}
-	return candidates
-}
-
-// authorDetail reads like "214 commits · payments-api, shared-libs · last 3 days ago".
-func authorDetail(author AuthorStat, now time.Time) string {
-	parts := []string{plural(author.Commits, "commit")}
-	if len(author.Repos) > 0 {
-		parts = append(parts, strings.Join(author.Repos, ", "))
-	}
-	if last, err := time.Parse(time.RFC3339, author.LastAt); err == nil {
-		parts = append(parts, "last "+timeAgo(now.Sub(last)))
-	}
-	return strings.Join(parts, " · ")
 }
 
 // plural renders a count with its unit: "1 commit", "214 commits".

@@ -272,7 +272,14 @@ export interface HiddenNote {
 /** Completion is an autocomplete suggestion; accepting it applies its edit. */
 export interface Completion {
   label: string;
+  /** What the suggestion means, in a few words: "Last 2 hours", "Python files". */
   detail: string;
+  /** Facts that help choose it, on a second line: "Since 08:04", "14 files · payments-api, web-checkout". */
+  context?: string;
+  /** A short status shown at the end of the row: "5 files changed", "Indexing 64%". */
+  note?: string;
+  /** A heading shown above this suggestion; the suggestions after it, up to the next section, belong under it. */
+  section?: string;
   insert: Fix;
   group: "operator" | "author" | "repo" | "lang" | "value";
 }

@@ -26,3 +26,7 @@ covered.
 | 16 | Double-click opens the file at the match | `opened-file` | `OpenedFile` | M5 |
 | 17 | Help guide | `help-page` | `Help` | M2 |
 | 18 | Settings in VS Code | `settings` | `Settings` | M5 |
+| 19 | Values — every author for `author:` | `author-values` | `AuthorValues` | M3 |
+| 20 | Values — time windows for `since:` | `since-values` | `SinceValues` | M2 |
+| 21 | Values — file types and folders for `f:` | `path-values` | `PathValues` | M2 |
+| 22 | Values — `repo:`, `lang:`, `type:`, `case:`, `count:`, `sym:`, `msg:` | `other-values` | `OtherValues` | M2 |

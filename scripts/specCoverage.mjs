@@ -38,6 +38,10 @@ const SCREENS = [
   "opened-file",
   "help-page",
   "settings",
+  "author-values",
+  "since-values",
+  "path-values",
+  "other-values",
 ];
 /** What can go wrong, and must be handled visibly: each needs a test tagged failure:<name>. */
 const FAILURE_MODES = ["daemon-crash", "index-corrupt", "repo-indexing", "no-git", "ref-stale", "disk-full"];

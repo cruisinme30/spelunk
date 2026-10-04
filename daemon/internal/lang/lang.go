@@ -12,6 +12,7 @@ import (
 // Language is one entry in the table.
 type Language struct {
 	Name       string   // canonical, lowercase: the value shown in completions
+	Title      string   // how people write it: "TypeScript", "C#"
 	Aliases    []string // other accepted lang: values
 	Extensions []string // with the dot, lowercase
 	Filenames  []string // exact base names (Makefile, Dockerfile)
@@ -19,39 +20,39 @@ type Language struct {
 }
 
 var table = []Language{
-	{Name: "python", Aliases: []string{"py"}, Extensions: []string{".py", ".pyi", ".pyw"}, Shebangs: []string{"python", "python3", "python2"}},
-	{Name: "typescript", Aliases: []string{"ts", "tsx"}, Extensions: []string{".ts", ".tsx", ".mts", ".cts"}, Shebangs: []string{"ts-node", "deno"}},
-	{Name: "javascript", Aliases: []string{"js", "jsx"}, Extensions: []string{".js", ".jsx", ".mjs", ".cjs"}, Shebangs: []string{"node"}},
-	{Name: "go", Aliases: []string{"golang"}, Extensions: []string{".go"}},
-	{Name: "c++", Aliases: []string{"cpp", "cxx", "cc"}, Extensions: []string{".cc", ".cpp", ".cxx", ".c++", ".hh", ".hpp", ".hxx", ".h++", ".ipp", ".tpp"}},
-	{Name: "c", Extensions: []string{".c", ".h"}},
-	{Name: "rust", Aliases: []string{"rs"}, Extensions: []string{".rs"}},
-	{Name: "java", Extensions: []string{".java"}},
-	{Name: "kotlin", Aliases: []string{"kt"}, Extensions: []string{".kt", ".kts"}},
-	{Name: "csharp", Aliases: []string{"c#", "cs"}, Extensions: []string{".cs"}},
-	{Name: "ruby", Aliases: []string{"rb"}, Extensions: []string{".rb"}, Filenames: []string{"Gemfile", "Rakefile"}, Shebangs: []string{"ruby"}},
-	{Name: "php", Extensions: []string{".php"}, Shebangs: []string{"php"}},
-	{Name: "swift", Extensions: []string{".swift"}},
-	{Name: "scala", Extensions: []string{".scala", ".sc"}},
-	{Name: "shell", Aliases: []string{"sh", "bash", "zsh"}, Extensions: []string{".sh", ".bash", ".zsh"}, Shebangs: []string{"sh", "bash", "zsh"}},
-	{Name: "sql", Extensions: []string{".sql"}},
-	{Name: "html", Extensions: []string{".html", ".htm"}},
-	{Name: "css", Aliases: []string{"scss", "less"}, Extensions: []string{".css", ".scss", ".less"}},
-	{Name: "json", Extensions: []string{".json", ".jsonc"}},
-	{Name: "yaml", Aliases: []string{"yml"}, Extensions: []string{".yaml", ".yml"}},
-	{Name: "toml", Extensions: []string{".toml"}},
-	{Name: "markdown", Aliases: []string{"md"}, Extensions: []string{".md", ".markdown"}},
-	{Name: "protobuf", Aliases: []string{"proto"}, Extensions: []string{".proto"}},
-	{Name: "make", Aliases: []string{"makefile"}, Extensions: []string{".mk"}, Filenames: []string{"Makefile", "GNUmakefile"}},
-	{Name: "docker", Aliases: []string{"dockerfile"}, Filenames: []string{"Dockerfile"}},
-	{Name: "cmake", Extensions: []string{".cmake"}, Filenames: []string{"CMakeLists.txt"}},
-	{Name: "lua", Extensions: []string{".lua"}, Shebangs: []string{"lua"}},
-	{Name: "perl", Aliases: []string{"pl"}, Extensions: []string{".pl", ".pm"}, Shebangs: []string{"perl"}},
-	{Name: "r", Extensions: []string{".r"}},
-	{Name: "dart", Extensions: []string{".dart"}},
-	{Name: "elixir", Aliases: []string{"ex"}, Extensions: []string{".ex", ".exs"}},
-	{Name: "haskell", Aliases: []string{"hs"}, Extensions: []string{".hs"}},
-	{Name: "text", Aliases: []string{"txt"}, Extensions: []string{".txt"}},
+	{Name: "python", Title: "Python", Aliases: []string{"py"}, Extensions: []string{".py", ".pyi", ".pyw"}, Shebangs: []string{"python", "python3", "python2"}},
+	{Name: "typescript", Title: "TypeScript", Aliases: []string{"ts", "tsx"}, Extensions: []string{".ts", ".tsx", ".mts", ".cts"}, Shebangs: []string{"ts-node", "deno"}},
+	{Name: "javascript", Title: "JavaScript", Aliases: []string{"js", "jsx"}, Extensions: []string{".js", ".jsx", ".mjs", ".cjs"}, Shebangs: []string{"node"}},
+	{Name: "go", Title: "Go", Aliases: []string{"golang"}, Extensions: []string{".go"}},
+	{Name: "c++", Title: "C++", Aliases: []string{"cpp", "cxx", "cc"}, Extensions: []string{".cc", ".cpp", ".cxx", ".c++", ".hh", ".hpp", ".hxx", ".h++", ".ipp", ".tpp"}},
+	{Name: "c", Title: "C", Extensions: []string{".c", ".h"}},
+	{Name: "rust", Title: "Rust", Aliases: []string{"rs"}, Extensions: []string{".rs"}},
+	{Name: "java", Title: "Java", Extensions: []string{".java"}},
+	{Name: "kotlin", Title: "Kotlin", Aliases: []string{"kt"}, Extensions: []string{".kt", ".kts"}},
+	{Name: "csharp", Title: "C#", Aliases: []string{"c#", "cs"}, Extensions: []string{".cs"}},
+	{Name: "ruby", Title: "Ruby", Aliases: []string{"rb"}, Extensions: []string{".rb"}, Filenames: []string{"Gemfile", "Rakefile"}, Shebangs: []string{"ruby"}},
+	{Name: "php", Title: "PHP", Extensions: []string{".php"}, Shebangs: []string{"php"}},
+	{Name: "swift", Title: "Swift", Extensions: []string{".swift"}},
+	{Name: "scala", Title: "Scala", Extensions: []string{".scala", ".sc"}},
+	{Name: "shell", Title: "Shell", Aliases: []string{"sh", "bash", "zsh"}, Extensions: []string{".sh", ".bash", ".zsh"}, Shebangs: []string{"sh", "bash", "zsh"}},
+	{Name: "sql", Title: "SQL", Extensions: []string{".sql"}},
+	{Name: "html", Title: "HTML", Extensions: []string{".html", ".htm"}},
+	{Name: "css", Title: "CSS", Aliases: []string{"scss", "less"}, Extensions: []string{".css", ".scss", ".less"}},
+	{Name: "json", Title: "JSON", Extensions: []string{".json", ".jsonc"}},
+	{Name: "yaml", Title: "YAML", Aliases: []string{"yml"}, Extensions: []string{".yaml", ".yml"}},
+	{Name: "toml", Title: "TOML", Extensions: []string{".toml"}},
+	{Name: "markdown", Title: "Markdown", Aliases: []string{"md"}, Extensions: []string{".md", ".markdown"}},
+	{Name: "protobuf", Title: "Protocol Buffers", Aliases: []string{"proto"}, Extensions: []string{".proto"}},
+	{Name: "make", Title: "Makefile", Aliases: []string{"makefile"}, Extensions: []string{".mk"}, Filenames: []string{"Makefile", "GNUmakefile"}},
+	{Name: "docker", Title: "Dockerfile", Aliases: []string{"dockerfile"}, Filenames: []string{"Dockerfile"}},
+	{Name: "cmake", Title: "CMake", Extensions: []string{".cmake"}, Filenames: []string{"CMakeLists.txt"}},
+	{Name: "lua", Title: "Lua", Extensions: []string{".lua"}, Shebangs: []string{"lua"}},
+	{Name: "perl", Title: "Perl", Aliases: []string{"pl"}, Extensions: []string{".pl", ".pm"}, Shebangs: []string{"perl"}},
+	{Name: "r", Title: "R", Extensions: []string{".r"}},
+	{Name: "dart", Title: "Dart", Extensions: []string{".dart"}},
+	{Name: "elixir", Title: "Elixir", Aliases: []string{"ex"}, Extensions: []string{".ex", ".exs"}},
+	{Name: "haskell", Title: "Haskell", Aliases: []string{"hs"}, Extensions: []string{".hs"}},
+	{Name: "text", Title: "Plain text", Aliases: []string{"txt"}, Extensions: []string{".txt"}},
 }
 
 var (
@@ -62,7 +63,8 @@ var (
 )
 
 func init() {
-	for _, l := range table {
+	for i := range table {
+		l := &table[i]
 		byValue[l.Name] = l.Name
 		for _, a := range l.Aliases {
 			byValue[a] = l.Name
@@ -86,10 +88,23 @@ func Resolve(value string) (string, bool) {
 	return n, ok
 }
 
+// Title returns how people write a language's canonical name ("TypeScript"
+// for typescript), or name itself when it isn't one.
+func Title(name string) string {
+	for i := range table {
+		l := &table[i]
+		if l.Name == name {
+			return l.Title
+		}
+	}
+	return name
+}
+
 // Names lists canonical names, sorted.
 func Names() []string {
 	out := make([]string, 0, len(table))
-	for _, l := range table {
+	for i := range table {
+		l := &table[i]
 		out = append(out, l.Name)
 	}
 	sort.Strings(out)

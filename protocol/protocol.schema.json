@@ -747,6 +747,19 @@
           "type": "string"
         },
         "detail": {
+          "description": "What the suggestion means, in a few words: \"Last 2 hours\", \"Python files\".",
+          "type": "string"
+        },
+        "context": {
+          "description": "Facts that help choose it, on a second line: \"Since 08:04\", \"14 files · payments-api, web-checkout\".",
+          "type": "string"
+        },
+        "note": {
+          "description": "A short status shown at the end of the row: \"5 files changed\", \"Indexing 64%\".",
+          "type": "string"
+        },
+        "section": {
+          "description": "A heading shown above this suggestion; the suggestions after it, up to the next section, belong under it.",
           "type": "string"
         },
         "insert": {
