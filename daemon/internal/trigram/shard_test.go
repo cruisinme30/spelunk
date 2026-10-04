@@ -51,6 +51,8 @@ func TestCandidates(t *testing.T) {
 		{"café", false, []uint32{3}}, // ASCII trigrams "caf" narrow it
 		{"é au", false, []uint32{3}}, // only " au" is ASCII
 		{"éé", false, nil},           // no ASCII trigram: any doc
+		{"desk", false, nil},         // k and s also match the KELVIN SIGN and LONG S: any doc
+		{"desk", true, []uint32{}},   // matched exactly, so "des" narrows
 		{"lait", true, []uint32{3}},
 	}
 	for _, tt := range tests {

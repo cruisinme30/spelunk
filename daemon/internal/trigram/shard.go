@@ -44,6 +44,16 @@ func foldASCII(b byte) byte {
 	return b
 }
 
+// asciiFoldable reports whether every character that ignore-case matching
+// equates with b is ASCII, so folding ASCII letters finds them all.
+func asciiFoldable(b byte) bool {
+	switch foldASCII(b) {
+	case 'k', 's':
+		return false
+	}
+	return b < 0x80
+}
+
 func trigramAt(text []byte, i int) uint32 {
 	return uint32(foldASCII(text[i]))<<16 | uint32(foldASCII(text[i+1]))<<8 | uint32(foldASCII(text[i+2]))
 }
@@ -89,15 +99,15 @@ func (s *Shard) add(doc Doc) {
 // Candidates returns the ids of docs that may contain literal, or nil when
 // every doc may (the literal is too short to narrow anything).
 //
-// Case-insensitive searches only use trigrams of ASCII bytes: folding is
-// ASCII-only, and RE2's Unicode folding means a literal "é" can also match
-// "É". (A few ASCII letters fold to rare non-ASCII ones, such as k to the
-// Kelvin sign; those matches can be missed.)
+// Case-insensitive searches only use trigrams that ASCII folding fully
+// covers: none with a non-ASCII byte (RE2's Unicode folding means "é" also
+// matches "É"), and none with k or s, which also fold to the KELVIN SIGN
+// and LONG S.
 func (s *Shard) Candidates(literal string, caseSensitive bool) []uint32 {
 	text := []byte(literal)
 	var lists [][]uint32
 	for i := 0; i+3 <= len(text); i++ {
-		if !caseSensitive && (text[i] >= 0x80 || text[i+1] >= 0x80 || text[i+2] >= 0x80) {
+		if !caseSensitive && !(asciiFoldable(text[i]) && asciiFoldable(text[i+1]) && asciiFoldable(text[i+2])) {
 			continue
 		}
 		list, ok := s.postings[trigramAt(text, i)]

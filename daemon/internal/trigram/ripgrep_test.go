@@ -22,7 +22,7 @@ func TestMatchesRipgrep(t *testing.T) {
 	if err != nil {
 		t.Skip("ripgrep not installed")
 	}
-	words := []string{"retry", "Retry", "RETRY", "policy", "timeout", "Timeout", "café", "CAFÉ", "naïve", "ab", "xyz", "foo_bar", "fooBar", "😀", "{", "}", "\t"}
+	words := []string{"retry", "Retry", "RETRY", "policy", "timeout", "Timeout", "café", "CAFÉ", "naïve", "ab", "xyz", "foo_bar", "fooBar", "kelvin", "\u212aelvin", "\u017ftop", "stop", "😀", "{", "}", "\t"}
 	random := rand.New(rand.NewSource(1))
 	files := map[string]string{}
 	for f := 0; f < 60; f++ {
@@ -53,6 +53,8 @@ func TestMatchesRipgrep(t *testing.T) {
 		{`/re?try\s+pol/`, []string{"-i"}, `re?try\s+pol`},
 		{`case:yes /^RETRY/`, []string{"-s"}, `^RETRY`},
 		{"naïve", []string{"-i", "-F"}, "naïve"},
+		{"kelvin", []string{"-i", "-F"}, "kelvin"},
+		{"stop", []string{"-i", "-F"}, "stop"},
 	}
 	settings := protocol.Settings{DefaultCount: query.MaxResults}
 	for _, q := range queries {
