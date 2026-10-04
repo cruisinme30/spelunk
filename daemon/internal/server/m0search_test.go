@@ -12,7 +12,7 @@ import (
 
 // M0 exit gate: one hard-coded search round-trips, and opening a result
 // resolves to the file, line and column of the match.
-// @covers rpc:search/start rpc:search/batch rpc:preview/get rpc:open/resolve
+// @covers rpc:search/start rpc:search/batch rpc:preview/get rpc:open/resolve failure:ref-stale
 func TestM0SearchRoundTrip(t *testing.T) {
 	dir := t.TempDir()
 	src := "import logging\n\nclass Client:\n    def __init__(self):\n        self.retry_policy = RetryPolicy(max_attempts=3)\n"

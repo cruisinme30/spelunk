@@ -43,4 +43,7 @@ step "webview: typecheck + Playwright contract tests"
   node --test "test/*.test.mjs"
 )
 
+step "spec coverage (report only until release; see CONTRIBUTING.md)"
+node scripts/specCoverage.mjs | head -10
+
 printf '\nAll layers passed.\n'

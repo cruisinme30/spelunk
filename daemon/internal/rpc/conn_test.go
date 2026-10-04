@@ -74,6 +74,7 @@ func TestCallAndNotify(t *testing.T) {
 	}
 }
 
+// @covers rpc:$/cancelRequest
 func TestCancel(t *testing.T) {
 	server, client, stop := pipePair(t)
 	defer stop()

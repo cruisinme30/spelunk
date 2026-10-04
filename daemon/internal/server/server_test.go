@@ -40,6 +40,7 @@ func (h *harness) call(method string, params, out any) error {
 	return h.client.Call(ctx, method, params, out)
 }
 
+// @covers rpc:initialize rpc:shutdown rpc:exit
 func TestLifecycle(t *testing.T) {
 	h := newHarness(t, Options{})
 	var res protocol.InitializeResult
@@ -71,6 +72,7 @@ func TestLifecycle(t *testing.T) {
 	}
 }
 
+// @covers rpc:exit
 func TestExitWithoutShutdownIsError(t *testing.T) {
 	h := newHarness(t, Options{})
 	_ = h.client.Notify(protocol.MethodExit, nil)

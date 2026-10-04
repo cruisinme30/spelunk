@@ -1,4 +1,5 @@
 // Runs the real daemon binary (built by `go build` into daemon/bin).
+// @covers rpc:initialize failure:daemon-crash
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, mkdtempSync } from "node:fs";
