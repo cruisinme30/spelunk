@@ -1,0 +1,47 @@
+# Every push and pull request runs the whole suite: generated-code check,
+# formatting, every linter, and all test layers (scripts/test-all.sh).
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: daemon/go.mod
+          cache-dependency-path: daemon/go.mod
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install golangci-lint
+        uses: golangci/golangci-lint-action@v8
+        with:
+          version: v2.5.0
+          working-directory: daemon
+          install-only: true
+
+      - name: Install Node dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Install Chromium for the webview tests
+        run: npx playwright install --with-deps chromium
+
+      - name: Lint and test
+        run: npm test
