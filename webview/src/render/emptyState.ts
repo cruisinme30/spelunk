@@ -9,8 +9,8 @@ const CLOCK_ICON =
 
 /** What clicking a recent query or a cheat-sheet entry does. */
 export interface EmptyStateHandlers {
-  onRunRecent(query: string): void;
-  onInsert(snippet: string): void;
+  onRunRecent: (query: string) => void;
+  onInsert: (snippet: string) => void;
 }
 
 /** Fills `body` with the recent queries and the operator cheat sheet. */

@@ -17,7 +17,7 @@ export function renderRepoMenu(
   selected: string | undefined,
   handlers: RepoMenuHandlers,
 ): void {
-  const row = (label: string, detail: string, repoName: string | undefined) => {
+  const row = (label: string, detail: string, repoName?: string) => {
     const checked = repoName === selected;
     const item = element(
       "button",
@@ -32,11 +32,13 @@ export function renderRepoMenu(
       element("span", { class: "name" }, label),
       element("span", { class: "muted" }, detail),
     );
-    item.addEventListener("click", () => handlers.onPick(repoName));
+    item.addEventListener("click", () => {
+      handlers.onPick(repoName);
+    });
     return item;
   };
   menu.replaceChildren(
-    row("All repos", `${repos.length}`, undefined),
+    row("All repos", `${repos.length}`),
     ...repos.map((repo) => row(repo.name, repo.tree === "ready" ? "" : repo.tree, repo.name)),
   );
 }

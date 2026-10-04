@@ -1,17 +1,17 @@
 // Everything the panel knows. Only SearchPanel (panel.ts) changes it;
 // render functions read it.
 import type {
-  BannerMsg,
+  BannerMsg as BannerMessage,
   Completion,
   ParsedQuery,
   Preview,
   RepoStatus,
-  SearchDoneMsg,
+  SearchDoneMsg as SearchDoneMessage,
   UiSettings,
 } from "./protocol.gen";
 
 /** The preview pane's content: the host's answer for the selected result. */
-export interface PreviewState {
+interface PreviewState {
   ref: string;
   preview: Preview | null;
   stale?: boolean;
@@ -31,7 +31,7 @@ export interface ViewState {
   completionsOpen: boolean;
   /** The search whose results are on screen ("" when none). */
   searchId: string;
-  done: SearchDoneMsg | undefined;
+  done: SearchDoneMessage | undefined;
   /** Raw text of the last query that parsed without errors; its results stay while the box has errors. */
   lastGoodText: string;
   /** The selected result's ref ("" when none). */
@@ -45,7 +45,7 @@ export interface ViewState {
   ui: UiSettings;
   repos: RepoStatus[];
   /** Daemon health; undefined while it is healthy. */
-  banner: BannerMsg | undefined;
+  banner: BannerMessage | undefined;
   /** Whether ? opened the operator cheat sheet over the empty box. */
   sheetOpen: boolean;
 }

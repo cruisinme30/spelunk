@@ -2,7 +2,7 @@
 // appended to as batches stream in, plus hidden-result notes and Load more.
 import { element, fileStat, highlight, plural, shortSha, termClass, timeAgo, trimIndent } from "../format";
 import { textNodes, textTerms } from "../parsedQuery";
-import type { Fix, HiddenNote, ResultItem, SearchDoneMsg } from "../protocol.gen";
+import type { Fix, HiddenNote, ResultItem, SearchDoneMsg as SearchDoneMessage } from "../protocol.gen";
 import { repoName, type ViewState } from "../state";
 
 type ResultKind = ResultItem["kind"];
@@ -47,7 +47,7 @@ export interface ResultCounts extends Record<ResultKind, number> {
  * so two different refs never share an id.
  */
 function rowId(ref: string): string {
-  return "r-" + ref.replace(/[^A-Za-z0-9-]/gu, (character) => `_${(character.codePointAt(0) ?? 0).toString(16)}_`);
+  return "r-" + ref.replaceAll(/[^A-Za-z0-9-]/gu, (character) => `_${(character.codePointAt(0) ?? 0).toString(16)}_`);
 }
 
 /** Identifies a result's file across repos; code lines with the same key share a header. */
@@ -93,7 +93,7 @@ export class ResultsView {
     this.sections = {
       file: makeSection("File names", "section-files"),
       symbol: makeSection("Definitions", "section-symbols"),
-      line: makeSection(scope.length ? "Code in matching paths" : "Code", "section-code"),
+      line: makeSection(scope.length > 0 ? "Code in matching paths" : "Code", "section-code"),
       commit: makeSection("Commits · newest first", "section-commits"),
     };
     if (scope.length > 0) this.sections.line.list.before(pathScopeNote(scope));
@@ -156,7 +156,7 @@ export class ResultsView {
   }
 
   /** Renders hidden-result notes, Load more, an error, or the empty result. */
-  finish(done: SearchDoneMsg): void {
+  finish(done: SearchDoneMessage): void {
     this.notes.replaceChildren(...done.hidden.filter((note) => note.count > 0).map((note) => this.renderNote(note)));
     this.loadMore.replaceChildren();
     // The daemon sends a cursor when there are more pages; Load more asks for the next one.
@@ -233,14 +233,18 @@ export class ResultsView {
 
   private renderItem(item: ResultItem): HTMLElement {
     switch (item.kind) {
-      case "file":
+      case "file": {
         return this.renderFileRow(item);
-      case "line":
+      }
+      case "line": {
         return this.renderCodeRow(item);
-      case "symbol":
+      }
+      case "symbol": {
         return this.renderSymbolRow(item);
-      case "commit":
+      }
+      case "commit": {
         return this.renderCommitRow(item);
+      }
     }
   }
 

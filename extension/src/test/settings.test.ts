@@ -13,13 +13,15 @@ test("root ids are the first 12 hex digits of sha256(path)", () => {
 });
 
 test("daemon settings clamp counts and reject unknown history depths", () => {
-  const settings = daemonSettings(configWith({ defaultCount: 999999, "index.historyDepth": "bogus" }), "/home/u");
-  assert.equal(settings.defaultCount, 50000);
+  const settings = daemonSettings(configWith({ defaultCount: 999_999, "index.historyDepth": "bogus" }), "/home/u");
+  assert.equal(settings.defaultCount, 50_000);
   assert.equal(settings.historyDepth, "2y");
 });
 
+/** The index location the daemon gets for an index.location setting, with /home/u as home. */
+const location = (value: string) => daemonSettings(configWith({ "index.location": value }), "/home/u").location;
+
 test("the index location expands ~ and ~/ but not ~user", () => {
-  const location = (value: string) => daemonSettings(configWith({ "index.location": value }), "/home/u").location;
   assert.equal(location("~/idx"), "/home/u/idx");
   assert.equal(location("~"), "/home/u");
   assert.equal(location("~alice/idx"), "~alice/idx");

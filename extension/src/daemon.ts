@@ -113,7 +113,11 @@ export class Daemon extends EventEmitter {
       this.setState("stopped");
       return;
     }
-    const exited = new Promise<void>((resolve) => child.once("exit", () => resolve()));
+    const exited = new Promise<void>((resolve) =>
+      child.once("exit", () => {
+        resolve();
+      }),
+    );
     try {
       await Promise.race([connection.request("shutdown", {}), delay(SHUTDOWN_GRACE_MS)]);
       connection.notify("exit", {});
@@ -145,7 +149,7 @@ export class Daemon extends EventEmitter {
 
   /** Forwards file changes VS Code saw, so the index catches up before the daemon's own watcher would. */
   didChangeFiles(changes: FileChange[]): void {
-    if (changes.length) this.connection?.notify("workspace/didChangeFiles", { changes });
+    if (changes.length > 0) this.connection?.notify("workspace/didChangeFiles", { changes });
   }
 
   /** The daemon's process id, for tests. */
@@ -173,16 +177,22 @@ export class Daemon extends EventEmitter {
     this.connection = connection;
     connection.onNotification("search/batch", (batch) => this.emit("batch", batch));
     connection.onNotification("index/progress", (progress) => this.emit("progress", progress));
-    connection.on("error", (error) => this.log(`[rpc] ${String(error)}`));
+    connection.on("error", (error) => {
+      this.log(`[rpc] ${String(error)}`);
+    });
 
     const exited = new Promise<number | null>((resolve) => {
-      child.on("exit", (code) => resolve(code));
+      child.on("exit", (code) => {
+        resolve(code);
+      });
       child.on("error", (error) => {
         this.log(`[daemon] failed to start: ${error.message}`);
         resolve(-1);
       });
     });
-    void exited.then((code) => this.onExit(child, code));
+    void exited.then((code) => {
+      this.onExit(child, code);
+    });
 
     const initialized = connection.request("initialize", {
       protocol: PROTOCOL_VERSION,
@@ -221,7 +231,9 @@ export class Daemon extends EventEmitter {
       stdio: ["pipe", "pipe", "pipe"],
     });
     this.child = child;
-    child.stderr.on("data", (data: Buffer) => this.log(`[daemon] ${data.toString().trimEnd()}`));
+    child.stderr.on("data", (data: Buffer) => {
+      this.log(`[daemon] ${data.toString().trimEnd()}`);
+    });
     return child;
   }
 
@@ -248,7 +260,7 @@ export class Daemon extends EventEmitter {
     this.setState("restarting");
     this.restartTimer = setTimeout(() => {
       this.restartTimer = undefined;
-      if (!this.stopping) this.start().catch(() => undefined);
+      if (!this.stopping) this.start().catch(() => {});
     }, this.options.restartDelayMs ?? DEFAULT_RESTART_DELAY_MS);
   }
 
@@ -262,7 +274,7 @@ export class Daemon extends EventEmitter {
     this.child = undefined;
     this.connection?.dispose();
     this.connection = undefined;
-    if (child && child.exitCode === null) child.kill("SIGKILL");
+    if (child?.exitCode === null) child.kill("SIGKILL");
   }
 
   /** The connection once the daemon is ready, waiting through a restart. */

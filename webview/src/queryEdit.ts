@@ -87,8 +87,8 @@ export function toggleRegex(text: string, query: ParsedQuery | undefined): Edite
  * .* off searches for that exact text.
  */
 function unescapeRegexTerm(value: string): string {
-  const isRealPattern = REGEX_SPECIAL.test(value.replace(/\\./g, ""));
-  return isRealPattern ? value : value.replace(/\\(.)/g, "$1");
+  const isRealPattern = REGEX_SPECIAL.test(value.replaceAll(/\\./g, ""));
+  return isRealPattern ? value : value.replaceAll(/\\(.)/g, "$1");
 }
 
 /** Backslash-escapes every character `special` (a global regex) matches. */
@@ -98,7 +98,7 @@ function escapeRegex(text: string, special: RegExp): string {
 
 /** Quotes a literal that would otherwise split into several terms. */
 function quoteIfNeeded(literal: string): string {
-  return /[\s"()]/.test(literal) ? `"${literal.replace(/"/g, String.raw`\"`)}"` : literal;
+  return /[\s"()]/.test(literal) ? `"${literal.replaceAll('"', String.raw`\"`)}"` : literal;
 }
 
 /**

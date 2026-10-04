@@ -23,7 +23,7 @@ export class FrameDecoder {
   private buffered = Buffer.alloc(0);
 
   /** `onBadFrame` hears about each header without a Content-Length; that header is skipped. */
-  constructor(private readonly onBadFrame: (header: string) => void = () => undefined) {}
+  constructor(private readonly onBadFrame: (header: string) => void = () => {}) {}
 
   /** Adds a chunk and returns every complete body it finished. */
   push(chunk: Buffer): string[] {
@@ -31,7 +31,7 @@ export class FrameDecoder {
     const bodies: string[] = [];
     for (;;) {
       const headerEnd = this.buffered.indexOf(HEADER_END);
-      if (headerEnd < 0) break;
+      if (headerEnd === -1) break;
       const header = this.buffered.subarray(0, headerEnd).toString("ascii");
       const bodyStart = headerEnd + HEADER_END.length;
       const lengthMatch = /content-length:\s*(\d+)/i.exec(header);
@@ -102,9 +102,7 @@ interface WireMessage {
 export class Connection extends EventEmitter {
   private nextId = 1;
   private readonly pending = new Map<number, PendingRequest>();
-  private readonly decoder = new FrameDecoder((header) => {
-    this.emit("error", new Error(`jsonrpc: skipped a frame without Content-Length: ${JSON.stringify(header)}`));
-  });
+  private readonly decoder: FrameDecoder;
   private closed = false;
 
   /** Listen for "error" before any data arrives: EventEmitter throws an error nobody listens to. */
@@ -113,8 +111,15 @@ export class Connection extends EventEmitter {
     private readonly output: Writable,
   ) {
     super();
-    input.on("data", (chunk: Buffer) => this.onData(chunk));
-    input.on("close", () => this.dispose(new Error("connection closed")));
+    this.decoder = new FrameDecoder((header) => {
+      this.reportBadFrame(header);
+    });
+    input.on("data", (chunk: Buffer) => {
+      this.onData(chunk);
+    });
+    input.on("close", () => {
+      this.dispose(new Error("connection closed"));
+    });
     // Writing to a process that just exited fails asynchronously (EPIPE).
     output.on("error", (error) => {
       this.emit("error", error);
@@ -131,7 +136,7 @@ export class Connection extends EventEmitter {
     if (this.closed) return Promise.reject(new Error("connection closed"));
     const id = this.nextId++;
     const response = new Promise<RpcRequests[M][1]>((resolve, reject) => {
-      this.pending.set(id, { resolve: resolve as (result: unknown) => void, reject });
+      this.pending.set(id, { resolve, reject });
     });
     this.write({ jsonrpc: "2.0", id, method, params });
     token?.onCancel(() => {
@@ -157,6 +162,10 @@ export class Connection extends EventEmitter {
     for (const request of this.pending.values()) request.reject(reason);
     this.pending.clear();
     this.emit("close");
+  }
+
+  private reportBadFrame(header: string): void {
+    this.emit("error", new Error(`jsonrpc: skipped a frame without Content-Length: ${JSON.stringify(header)}`));
   }
 
   private onData(chunk: Buffer): void {

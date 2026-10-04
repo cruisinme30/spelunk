@@ -29,7 +29,7 @@ export interface Example {
 export const EXAMPLES: Example[] = [
   {
     title: "Tests Jane changed this month that mention a timeout",
-    query: "author:jane since:30d f:_test\\.py$ timeout",
+    query: String.raw`author:jane since:30d f:_test\.py$ timeout`,
   },
   { title: "Where is RetryPolicy defined?", query: "sym:RetryPolicy" },
   { title: "Python files with “retry” in the name", query: "type:file lang:python retry" },

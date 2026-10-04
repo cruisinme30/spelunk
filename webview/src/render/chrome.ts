@@ -5,7 +5,15 @@ import { element, plural, termClass } from "../format";
 import type { Layout } from "../layout";
 import { OPERATOR_CHIP_LABEL, OPERATOR_TONE } from "../operators";
 import { scopedRepo } from "../parsedQuery";
-import type { BannerMsg, Diagnostic, Fix, IndexState, Mode, Node as QueryNode, RepoStatus } from "../protocol.gen";
+import type {
+  BannerMsg as BannerMessage,
+  Diagnostic,
+  Fix,
+  IndexState,
+  Mode,
+  Node as QueryNode,
+  RepoStatus,
+} from "../protocol.gen";
 import { hasErrors, type ViewState } from "../state";
 
 function isIndexing(state: IndexState): boolean {
@@ -46,14 +54,18 @@ export function renderBanners(layout: Layout, state: ViewState, onRestart: () =>
   }
 }
 
-function healthTitle(banner: BannerMsg): string {
+function healthTitle(banner: BannerMessage): string {
   switch (banner.state) {
-    case "restarting":
+    case "restarting": {
       return "Search restarting…";
-    case "stopped":
+    }
+    case "stopped": {
       return "Search stopped";
-    default:
+    }
+    case "ok":
+    case "protocolMismatch": {
       return banner.message ?? "Search unavailable";
+    }
   }
 }
 
@@ -63,7 +75,7 @@ function restartButton(onRestart: () => void): HTMLElement {
   return button;
 }
 
-function renderHealthBanner(banner: BannerMsg, onRestart: () => void): HTMLElement {
+function renderHealthBanner(banner: BannerMessage, onRestart: () => void): HTMLElement {
   const title = healthTitle(banner);
   const detail =
     banner.message && banner.state !== "restarting" && banner.message !== title
@@ -127,7 +139,9 @@ function renderDiagnostic(raw: string, diagnostic: Diagnostic, onFix: (fix: Fix)
   const fixes = diagnostic.fixes.map((fix, index) => {
     const button = element("button", { type: "button", class: "btn fix", "data-testid": "fix" }, fix.title);
     if (index === 0) button.append(element("kbd", {}, "⌘."));
-    button.addEventListener("click", () => onFix(fix));
+    button.addEventListener("click", () => {
+      onFix(fix);
+    });
     return button;
   });
   return element(
@@ -186,12 +200,15 @@ function textLabel(node: Extract<QueryNode, { kind: "text" }>, context: ChipCont
 
 function chipsFor(node: QueryNode, context: ChipContext): Node[] {
   switch (node.kind) {
-    case "and":
+    case "and": {
       return joinChips(node.children, "AND", context);
-    case "or":
+    }
+    case "or": {
       return [joiner("("), ...joinChips(node.children, "OR", context), joiner(")")];
-    case "not":
+    }
+    case "not": {
       return [joiner("NOT", "not"), ...chipsFor(node.child, context)];
+    }
     case "text": {
       const label = textLabel(node, context);
       return [
@@ -224,14 +241,17 @@ function operatorChipValue(node: Extract<QueryNode, { kind: "op" }>): string {
   return node.value;
 }
 
+/** One key hint: the key, then what it does. */
+const hint = (key: string, what: string) => element("span", {}, element("kbd", {}, key), what);
+/** A key hint pushed to the right end of the footer. */
+const hintAtEnd = (key: string, what: string) =>
+  element("span", { class: "hint-at-end" }, element("kbd", {}, key), what);
+
 /** What the panel shows, which decides the key hints. */
 export type FooterMode = "empty" | "errors" | "results" | "operators" | "values";
 
 /** Key hints along the bottom, which change with what the panel shows. */
 export function renderFooter(layout: Layout, mode: FooterMode, isHistory: boolean): void {
-  const hint = (key: string, what: string) => element("span", {}, element("kbd", {}, key), what);
-  const hintAtEnd = (key: string, what: string) =>
-    element("span", { class: "hint-at-end" }, element("kbd", {}, key), what);
   const hints: Record<FooterMode, HTMLElement[]> = {
     empty: [hint("↑↓", "move"), hint("↵", "run recent query"), hintAtEnd("?", "opens this sheet anytime")],
     errors: [hint("⌘.", "apply first fix"), hint("Tab", "complete operator"), hintAtEnd("?", "all operators")],

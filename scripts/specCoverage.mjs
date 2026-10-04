@@ -59,7 +59,10 @@ add("op", schema.$defs.OpName.enum);
 add("syntax", SYNTAX);
 add("rpc", Object.keys(schema["x-rpc-methods"]));
 add("msg", Object.keys(schema["x-webview-messages"]));
-add("setting", Object.keys(manifest.contributes.configuration.properties).map(withoutPrefix));
+add(
+  "setting",
+  Object.keys(manifest.contributes.configuration.properties).map((key) => withoutPrefix(key)),
+);
 add(
   "command",
   manifest.contributes.commands.map((command) => withoutPrefix(command.command)),
@@ -104,12 +107,12 @@ for (const id of required) {
 
 console.log(`Spec coverage: ${required.size - missing.length}/${required.size}`);
 for (const [kind, group] of groups) console.log(`  ${kind.padEnd(8)} ${String(group.done).padStart(3)}/${group.total}`);
-if (missing.length) console.log(`Uncovered: ${missing.join(" ")}`);
-if (unknown.length) {
+if (missing.length > 0) console.log(`Uncovered: ${missing.join(" ")}`);
+if (unknown.length > 0) {
   console.log(`Unknown @covers ids (typo or stale): ${unknown.join(" ")}`);
   process.exitCode = 1;
 }
-if (process.argv.includes("--strict") && missing.length) process.exitCode = 1;
+if (process.argv.includes("--strict") && missing.length > 0) process.exitCode = 1;
 
 /** The names in `directory`, or none if it doesn't exist (a checkout without the daemon). */
 function filesInOrNone(directory) {

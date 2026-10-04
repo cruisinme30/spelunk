@@ -41,7 +41,7 @@ async function openPage(testContext, file) {
 
 /** Every message of `type` the page has sent so far, oldest first. */
 export const sentMessages = (page, type) =>
-  page.evaluate((wantedType) => window.__sent.filter((message) => message.type === wantedType), type);
+  page.evaluate((wantedType) => globalThis.__sent.filter((message) => message.type === wantedType), type);
 
 /** The payload of the newest message of `type` the page sent, or undefined. */
 export const lastSent = async (page, type) => (await sentMessages(page, type)).at(-1)?.payload;
@@ -54,7 +54,7 @@ export const lastSent = async (page, type) => (await sentMessages(page, type)).a
 export async function waitForSent(page, type, fields = {}) {
   await page.waitForFunction(
     ([wantedType, wantedFields]) => {
-      const payload = window.__sent.filter((message) => message.type === wantedType).at(-1)?.payload;
+      const payload = globalThis.__sent.findLast((message) => message.type === wantedType)?.payload;
       return (
         payload !== undefined &&
         Object.entries(wantedFields).every(([key, value]) => JSON.stringify(payload[key]) === JSON.stringify(value))
@@ -67,7 +67,7 @@ export async function waitForSent(page, type, fields = {}) {
 
 /** Plays a message from the host into the page. */
 export const fromHost = (page, type, payload) =>
-  page.evaluate(([messageType, messagePayload]) => window.__fromHost(messageType, messagePayload), [type, payload]);
+  page.evaluate(([messageType, messagePayload]) => globalThis.__fromHost(messageType, messagePayload), [type, payload]);
 
 /** The host's first message to a new panel: an empty box, `recent` queries and UI_SETTINGS. */
 export const restore = (page, recent = []) =>

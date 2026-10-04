@@ -104,7 +104,7 @@ export const OPERATOR_GROUPS: OperatorGroup[] = [
         insert: "f:",
         summary: "Regex on the full file path.",
         description: "Regex on the full file path.",
-        example: "f:.*test\\.py$ timeout",
+        example: String.raw`f:.*test\.py$ timeout`,
       },
       {
         operator: "repo",

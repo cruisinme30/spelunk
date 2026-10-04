@@ -95,7 +95,7 @@ function workspaceRoots(host) {
 /** Plays a host message into the page, as the extension's panel would post it. */
 function postToPanel(page, type, payload) {
   return page.evaluate(
-    ([messageType, messagePayload]) => window.__fromHost(messageType, messagePayload),
+    ([messageType, messagePayload]) => globalThis.__fromHost(messageType, messagePayload),
     [type, payload],
   );
 }
@@ -113,13 +113,13 @@ async function connectPanel(page, host, daemon) {
       posted.push(type);
       void postToPanel(page, type, payload);
     },
-    openTarget: async () => undefined,
-    hidePanel: () => undefined,
-    openHelp: () => undefined,
-    openSettings: () => undefined,
-    restartDaemon: () => undefined,
-    setContext: () => undefined,
-    saveState: () => undefined,
+    openTarget: async () => {},
+    hidePanel: () => {},
+    openHelp: () => {},
+    openSettings: () => {},
+    restartDaemon: () => {},
+    setContext: () => {},
+    saveState: () => {},
   };
   // The extension's default settings, minus the typing delay, so each keystroke searches at once.
   const defaultsOnly = { get: (_key, defaultValue) => defaultValue };

@@ -22,7 +22,7 @@ const NOT_YET_SEARCHABLE = new Set([
   "sym:RetryPolicy",
   "author:jane timeout",
   'msg:"fix flaky"',
-  "author:jane since:30d f:_test\\.py$ timeout",
+  String.raw`author:jane since:30d f:_test\.py$ timeout`,
   'msg:"fix flaky" repo:web',
 ]);
 

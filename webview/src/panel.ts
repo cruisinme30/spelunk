@@ -7,7 +7,16 @@ import { clamp, element, plural, wrapIndex } from "./format";
 import { type HostMessage, loadDraft, onHostMessage, saveDraft, send } from "./host";
 import { createLayout, type Layout, REPO_MENU_ANCHOR_CLASS } from "./layout";
 import { pathScope, scopedRepo } from "./parsedQuery";
-import type { Completion, Fix, OpenWhere, ParseResultMsg, SearchDoneMsg, StateRestoreMsg } from "./protocol.gen";
+import type {
+  Completion,
+  Fix,
+  OpenWhere,
+  ParseResultMsg as ParseResultMessage,
+  PreviewResultMsg as PreviewResultMessage,
+  SearchBatchMsg as SearchBatchMessage,
+  SearchDoneMsg as SearchDoneMessage,
+  StateRestoreMsg as StateRestoreMessage,
+} from "./protocol.gen";
 import { applyEdits, isCasePressed, isRegexPressed, scopeToRepo, toggleCase, toggleRegex } from "./queryEdit";
 import {
   type FooterMode,
@@ -46,7 +55,9 @@ export class SearchPanel {
   /** Binds events, restores the draft and tells the host the panel is ready. */
   start(): void {
     this.bindEvents();
-    onHostMessage((message) => this.onHostMessage(message));
+    onHostMessage((message) => {
+      this.onHostMessage(message);
+    });
     renderIndexStatus(this.layout, this.state);
     this.showEmptyState();
     const draft = loadDraft();
@@ -129,10 +140,18 @@ export class SearchPanel {
       this.queryChanged();
       if (!input.value) this.showEmptyState();
     });
-    input.addEventListener("keydown", (event) => this.onKeyDown(event));
-    input.addEventListener("focus", () => this.renderCompletions());
+    input.addEventListener("keydown", (event) => {
+      this.onKeyDown(event);
+    });
+    input.addEventListener("focus", () => {
+      this.renderCompletions();
+    });
     // On blur, wait a tick: activeElement is still the input during the event.
-    input.addEventListener("blur", () => setTimeout(() => this.renderCompletions(), 0));
+    input.addEventListener("blur", () =>
+      setTimeout(() => {
+        this.renderCompletions();
+      }, 0),
+    );
 
     caseButton.addEventListener("click", () => {
       const edited = toggleCase(input.value, this.state.parsed, this.state.ui.caseSensitive);
@@ -142,7 +161,9 @@ export class SearchPanel {
       const edited = toggleRegex(input.value, this.state.parsed);
       this.setQuery(edited.text, edited.cursor);
     });
-    reposButton.addEventListener("click", () => this.toggleRepoMenu());
+    reposButton.addEventListener("click", () => {
+      this.toggleRepoMenu();
+    });
     // A click anywhere else closes the repo menu.
     document.addEventListener("mousedown", (event) => {
       const target = event.target as HTMLElement;
@@ -150,13 +171,13 @@ export class SearchPanel {
     });
 
     body.addEventListener("click", (event) => {
-      const ref = rowRef(event);
+      const ref = rowReference(event);
       if (!ref) return;
       this.select(ref);
       if (this.state.ui.openTrigger === "singleClick") this.open(ref, event);
     });
     body.addEventListener("dblclick", (event) => {
-      const ref = rowRef(event);
+      const ref = rowReference(event);
       if (ref && this.state.ui.openTrigger === "doubleClick") this.open(ref, event);
     });
   }
@@ -204,7 +225,7 @@ export class SearchPanel {
   private handleKey(event: KeyboardEvent): boolean {
     const modifier = event.metaKey || event.ctrlKey;
     switch (event.key) {
-      case "?":
+      case "?": {
         if (this.completionsVisible) {
           send("help.open", {}); // every operator, explained
           return true;
@@ -213,26 +234,33 @@ export class SearchPanel {
         this.state.sheetOpen = !this.state.sheetOpen;
         this.showEmptyState();
         return true;
-      case ".":
+      }
+      case ".": {
         if (!modifier) return false;
         this.applyFirstFix();
         return true;
-      case "Tab":
+      }
+      case "Tab": {
         if (!this.completionsVisible) return false;
         this.acceptCompletion(this.state.completionIndex);
         return true;
-      case "Escape":
+      }
+      case "Escape": {
         this.onEscape();
         return true;
+      }
       case "ArrowDown":
-      case "ArrowUp":
+      case "ArrowUp": {
         this.onArrow(event.key === "ArrowDown" ? 1 : -1);
         return true;
-      case "Enter":
+      }
+      case "Enter": {
         this.onEnter(event, modifier);
         return true;
-      default:
+      }
+      default: {
         return false;
+      }
     }
   }
 
@@ -254,10 +282,10 @@ export class SearchPanel {
     if (this.completionsVisible) {
       this.state.completionIndex = wrapIndex(this.state.completionIndex, step, this.state.completions.length);
       this.renderCompletions();
-    } else if (!this.layout.input.value) {
-      this.moveRecentSelection(step);
-    } else {
+    } else if (this.layout.input.value) {
       this.moveResultSelection(step);
+    } else {
+      this.moveRecentSelection(step);
     }
   }
 
@@ -284,7 +312,7 @@ export class SearchPanel {
     const rows = this.results?.rows() ?? [];
     if (rows.length === 0) return;
     const current = rows.findIndex((row) => row.dataset["ref"] === this.state.selectedRef);
-    const next = current < 0 ? 0 : clamp(current + step, 0, rows.length - 1);
+    const next = current === -1 ? 0 : clamp(current + step, 0, rows.length - 1);
     const ref = rows[next]?.dataset["ref"];
     if (ref) this.select(ref);
   }
@@ -303,7 +331,9 @@ export class SearchPanel {
       }
     }
     clearTimeout(this.previewTimer);
-    this.previewTimer = setTimeout(() => send("result.select", { ref }), PREVIEW_DEBOUNCE_MS);
+    this.previewTimer = setTimeout(() => {
+      send("result.select", { ref });
+    }, PREVIEW_DEBOUNCE_MS);
   }
 
   // ------------------------------------------------------------ host messages
@@ -311,47 +341,65 @@ export class SearchPanel {
   private onHostMessage(message: HostMessage): void {
     const state = this.state;
     switch (message.type) {
-      case "state.restore":
+      case "state.restore": {
         this.onRestore(message.payload);
         return;
-      case "focus":
+      }
+      case "focus": {
         this.layout.input.focus();
         this.layout.input.select();
         return;
-      case "parse.result":
+      }
+      case "parse.result": {
         if (message.payload.seq === state.seq) this.onParsed(message.payload);
         return;
-      case "search.batch":
-        if (!this.isCurrent(message.payload.seq, message.payload.searchId)) return;
-        this.resultsFor(message.payload.searchId).append(message.payload.items);
-        this.renderSummary();
-        this.selectFirstRow();
-        if (this.completionsVisible) this.renderCompletions(); // the results glimpse
+      }
+      case "search.batch": {
+        this.onSearchBatch(message.payload);
         return;
-      case "search.done":
+      }
+      case "search.done": {
         if (this.isCurrent(message.payload.seq, message.payload.searchId)) this.onSearchDone(message.payload);
         return;
-      case "preview.result":
-        if (message.payload.ref !== state.selectedRef) return;
-        state.preview = message.payload;
-        state.showHiddenFiles = false;
-        this.renderPreview();
-        if (message.payload.stale) this.results?.markStale(message.payload.ref);
+      }
+      case "preview.result": {
+        this.onPreviewResult(message.payload);
         return;
-      case "index.status":
+      }
+      case "index.status": {
         state.repos = message.payload.repos;
         renderIndexStatus(this.layout, state);
         this.renderBanners();
         return;
-      case "banner":
+      }
+      case "banner": {
         state.banner = message.payload.state === "ok" ? undefined : message.payload;
         this.renderBanners();
         return;
+      }
     }
   }
 
+  /** A batch of results for the current search: appended, and the first one selected. */
+  private onSearchBatch({ seq, searchId, items }: SearchBatchMessage): void {
+    if (!this.isCurrent(seq, searchId)) return;
+    this.resultsFor(searchId).append(items);
+    this.renderSummary();
+    this.selectFirstRow();
+    if (this.completionsVisible) this.renderCompletions(); // the results glimpse
+  }
+
+  /** The preview of the selected result; a stale result is greyed out in the list too. */
+  private onPreviewResult(preview: PreviewResultMessage): void {
+    if (preview.ref !== this.state.selectedRef) return;
+    this.state.preview = preview;
+    this.state.showHiddenFiles = false;
+    this.renderPreview();
+    if (preview.stale) this.results?.markStale(preview.ref);
+  }
+
   /** The host's saved box text, recent queries and settings: on opening, and after settings change. */
-  private onRestore({ text, recent, settings }: StateRestoreMsg): void {
+  private onRestore({ text, recent, settings }: StateRestoreMessage): void {
     const { input } = this.layout;
     if (settings) this.state.ui = settings;
     this.state.recent = recent;
@@ -371,7 +419,7 @@ export class SearchPanel {
   }
 
   /** The daemon's reading of the box: updates the toggles, suggestions, diagnostics and chips. */
-  private onParsed({ query, completions, searchText }: ParseResultMsg): void {
+  private onParsed({ query, completions, searchText }: ParseResultMessage): void {
     const state = this.state;
     state.parsed = query;
     state.completions = completions;
@@ -388,7 +436,9 @@ export class SearchPanel {
 
     this.renderCompletions();
     renderIndexStatus(this.layout, state); // the repos button names the scoped repo
-    renderDiagnostics(this.layout, state, (fix) => this.applyFix(fix));
+    renderDiagnostics(this.layout, state, (fix) => {
+      this.applyFix(fix);
+    });
     this.results?.showLastGood(errors && state.lastGoodText ? state.lastGoodText : undefined);
     renderChips(this.layout, state, this.summary);
     this.renderSummary();
@@ -425,7 +475,7 @@ export class SearchPanel {
     if (first) this.select(first);
   }
 
-  private onSearchDone(done: SearchDoneMsg): void {
+  private onSearchDone(done: SearchDoneMessage): void {
     this.state.done = done;
     this.resultsFor(done.searchId).finish(done);
     this.renderSummary();
@@ -443,8 +493,12 @@ export class SearchPanel {
     this.layout.chips.replaceChildren();
     this.layout.diagnostics.replaceChildren();
     renderEmptyState(this.layout.body, state, {
-      onRunRecent: (query) => this.runRecent(query),
-      onInsert: (snippet) => this.insertAtCursor(snippet),
+      onRunRecent: (query) => {
+        this.runRecent(query);
+      },
+      onInsert: (snippet) => {
+        this.insertAtCursor(snippet);
+      },
     });
     this.renderFooter();
   }
@@ -455,8 +509,12 @@ export class SearchPanel {
       ? { total: this.state.done?.total ?? items.length, lines: items.filter((item) => item.kind === "line") }
       : undefined;
     renderCompletions(this.layout, this.state, glimpse, {
-      onPick: (index) => this.acceptCompletion(index),
-      onSearchAsTyped: () => this.searchAsTyped(),
+      onPick: (index) => {
+        this.acceptCompletion(index);
+      },
+      onSearchAsTyped: () => {
+        this.searchAsTyped();
+      },
     });
     this.renderFooter();
   }
@@ -482,7 +540,9 @@ export class SearchPanel {
     if (!this.results) return;
     const item = this.results.items.find((result) => result.ref === this.state.preview?.ref);
     renderPreview(this.results.preview, this.state, item?.repoId, {
-      onOpen: (ref, where) => send("result.open", { ref, where }),
+      onOpen: (ref, where) => {
+        send("result.open", { ref, where });
+      },
       onShowHiddenFiles: () => {
         this.state.showHiddenFiles = true;
         this.renderPreview();
@@ -508,6 +568,6 @@ export class SearchPanel {
 }
 
 /** The ref of the result row an event happened in, if any. */
-function rowRef(event: Event): string | undefined {
+function rowReference(event: Event): string | undefined {
   return (event.target as HTMLElement).closest<HTMLElement>("[data-ref]")?.dataset["ref"];
 }

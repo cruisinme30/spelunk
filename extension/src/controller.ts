@@ -11,7 +11,7 @@ import {
   type OpenTarget,
   type OpenWhere,
   type ParsedQuery,
-  type QueryChangedMsg,
+  type QueryChangedMsg as QueryChangedMessage,
   type ResultItem,
   type RpcRequests,
   type SearchBatchParams,
@@ -152,38 +152,49 @@ export class SearchController {
   /** Handles one message from the search panel. */
   async handle(message: WebviewMessage): Promise<void> {
     switch (message.type) {
-      case "ready":
+      case "ready": {
         // A new webview counts seq from zero again.
         this.latestSeq = 0;
         this.restore();
         return;
-      case "query.changed":
+      }
+      case "query.changed": {
         await this.onQueryChanged(message.payload);
         return;
-      case "result.select":
+      }
+      case "result.select": {
         await this.onSelect(message.payload.ref);
         return;
-      case "result.open":
+      }
+      case "result.open": {
         await this.onOpen(message.payload.ref, message.payload.where);
         return;
-      case "results.more":
+      }
+      case "results.more": {
         await this.onLoadMore(message.payload.searchId, message.payload.cursor);
         return;
-      case "panel.close":
+      }
+      case "panel.close": {
         this.rememberQuery();
         this.ui.hidePanel();
         return;
-      case "help.try": // sent by the help page, which extension.ts routes to the open command
+      }
+      case "help.try": {
+        // sent by the help page, which extension.ts routes to the open command
         return;
-      case "help.open":
+      }
+      case "help.open": {
         this.ui.openHelp();
         return;
-      case "settings.open":
+      }
+      case "settings.open": {
         this.ui.openSettings();
         return;
-      case "daemon.restart":
+      }
+      case "daemon.restart": {
         this.ui.restartDaemon();
         return;
+      }
     }
   }
 
@@ -205,7 +216,7 @@ export class SearchController {
   }
 
   /** Parses the box, posts the parse, then searches it unless it has errors or is empty. */
-  private async onQueryChanged(change: QueryChangedMsg): Promise<void> {
+  private async onQueryChanged(change: QueryChangedMessage): Promise<void> {
     if (change.seq < this.latestSeq) return;
     this.latestSeq = change.seq;
     this.state.text = change.text;
@@ -231,7 +242,7 @@ export class SearchController {
   }
 
   /** Parses the box; on failure posts the error as the search's outcome and returns undefined. */
-  private async parseForSearch(change: QueryChangedMsg): Promise<ParsedForSearch | undefined> {
+  private async parseForSearch(change: QueryChangedMessage): Promise<ParsedForSearch | undefined> {
     const { text, cursor, seq } = change;
     try {
       const { query, completions } = await this.backend.request("query/parse", { text, cursor });
@@ -319,7 +330,7 @@ export class SearchController {
   /** Relays a batch of the current search to the panel and remembers its items for F4. */
   private onBatch(batch: SearchBatchParams): void {
     const search = this.search;
-    if (!search || batch.searchId !== search.id || search.cancel.cancelled) return;
+    if (batch.searchId !== search?.id || search.cancel.cancelled) return;
     this.results.push(...batch.items);
     this.ui.setContext("unifiedSearch.hasResults", this.results.length > 0);
     this.ui.post("search.batch", { seq: search.seq, searchId: search.id, items: batch.items });

@@ -105,16 +105,18 @@ test("a single click selects a result and a double-click opens it", async (t) =>
   assert.deepEqual(await lastSent(page, "result.open"), { ref: "l1", where: "current" });
 });
 
+/** A parsed query for `raw` with one error. */
+const withError = (raw) =>
+  parsedQuery(raw, null, {
+    diagnostics: [{ severity: "error", code: "x", message: raw, span: { start: 0, end: 1 }, fixes: [] }],
+  });
+
 test("a parse result for an older seq is dropped and the newest one renders", async (t) => {
   const page = await openPanel(t);
   await restore(page);
   await page.fill('[data-testid="query"]', "a");
   await page.fill('[data-testid="query"]', "ab");
   const [olderSeq, newestSeq] = (await sentMessages(page, "query.changed")).map((message) => message.payload.seq);
-  const withError = (raw) =>
-    parsedQuery(raw, null, {
-      diagnostics: [{ severity: "error", code: "x", message: raw, span: { start: 0, end: 1 }, fixes: [] }],
-    });
   await fromHost(page, "parse.result", { seq: olderSeq, query: withError("a"), completions: [] });
   assert.equal(await page.locator(DIAGNOSTIC_ROWS).count(), 0, "older seq ignored");
   await fromHost(page, "parse.result", { seq: newestSeq, query: withError("ab"), completions: [] });
@@ -231,8 +233,8 @@ test("a query with errors keeps the last results and says which query they are f
 test("a path-scoped search says which paths its code results come from", async (t) => {
   const page = await openPanel(t);
   await restore(page);
-  const text = "f:.*test\\.py$ timeout";
-  const path = { kind: "op", op: "f", value: ".*test\\.py$", match: "regex", span: { start: 0, end: 14 } };
+  const text = String.raw`f:.*test\.py$ timeout`;
+  const path = { kind: "op", op: "f", value: String.raw`.*test\.py$`, match: "regex", span: { start: 0, end: 14 } };
   const root = { kind: "and", children: [path, textNode("timeout", 15)], span: { start: 0, end: 22 } };
   const seq = await typeAndParse(page, text, parsedQuery(text, root));
   await fromHost(page, "search.batch", { seq, searchId: "s1", items: [CODE_LINE_RESULT] });
@@ -242,7 +244,7 @@ test("a path-scoped search says which paths its code results come from", async (
   );
   assert.equal(
     await page.locator('[data-testid="path-scope"]').innerText(),
-    "Only files whose full path matches .*test\\.py$ are searched.",
+    String.raw`Only files whose full path matches .*test\.py$ are searched.`,
   );
 });
 

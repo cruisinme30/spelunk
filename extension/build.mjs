@@ -33,7 +33,7 @@ if (existsSync(join(webview, "src/main.ts"))) {
       bundle: true,
       platform: "browser",
       format: "iife",
-      target: "es2020",
+      target: "es2022",
       outfile: join(here, "dist/webview", out),
       sourcemap: false,
       logLevel: "warning",

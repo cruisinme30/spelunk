@@ -147,7 +147,7 @@ interface UiParts {
   daemon: Daemon;
   commitDocuments: CommitDocuments;
   globalState: vscode.Memento;
-  logError(source: string): (error: unknown) => void;
+  logError: (source: string) => (error: unknown) => void;
 }
 
 /** The controller's view of VS Code. */
@@ -172,15 +172,19 @@ function createUi({ panel, daemon, commitDocuments, globalState, logError }: UiP
 /** The status bar text for each daemon state. */
 function statusText(state: DaemonState): string {
   switch (state) {
-    case "ok":
+    case "ok": {
       return READY_STATUS;
+    }
     case "starting":
-    case "restarting":
+    case "restarting": {
       return "$(sync~spin) Search starting";
-    case "stopped":
+    }
+    case "stopped": {
       return "$(error) Search stopped";
-    case "protocolMismatch":
+    }
+    case "protocolMismatch": {
       return "$(error) Search needs reinstalling";
+    }
   }
 }
 

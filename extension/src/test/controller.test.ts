@@ -56,12 +56,14 @@ function recordingUi() {
       opened.push({ target, where });
       return Promise.resolve();
     },
-    hidePanel: () => void closedPanels++,
-    openHelp: () => undefined,
-    openSettings: () => undefined,
-    restartDaemon: () => undefined,
+    hidePanel: () => {
+      closedPanels++;
+    },
+    openHelp: () => {},
+    openSettings: () => {},
+    restartDaemon: () => {},
     setContext: (key, value) => void (contextKeys[key] = value),
-    saveState: () => undefined,
+    saveState: () => {},
   };
   /** The payloads of every posted message of `type`, oldest first. */
   const payloads = <T extends keyof HostToWebview>(type: T) =>
@@ -137,6 +139,9 @@ const queryChanged = (text: string, seq: number, asTyped?: true): WebviewMessage
   type: "query.changed",
   payload: { text, cursor: text.length, seq, ...(asTyped ? { asTyped } : {}) },
 });
+
+/** Lets queued callbacks (such as a re-run search) run before the test continues. */
+const nextTurn = () => new Promise((resolve) => setImmediate(resolve));
 
 test("a query round-trips to results, preview and open through the real daemon", { skip }, async () => {
   const workspace = mkdtempSync(join(tmpdir(), "us-ws-"));
@@ -242,7 +247,6 @@ test("a search typed while a repo was indexing runs again when the repo is ready
   const progress = (tree: IndexState) => {
     listeners.get("progress")?.({ repos: [{ repoId: "r1", name: "r", tree, history: "off" }] });
   };
-  const nextTurn = () => new Promise((resolve) => setImmediate(resolve));
 
   progress("indexing");
   await controller.handle(queryChanged("retry", 1));
@@ -258,8 +262,10 @@ test("a search typed while a repo was indexing runs again when the repo is ready
   assert.equal(searches.length, 2, "no re-run when nothing new became ready");
 });
 
+/** The since: suggestion for the word at start..end, as the only completion. */
+const since = (start: number, end: number) => [sinceCompletion(start, end)];
+
 test("the word being completed is left out of the text to search", () => {
-  const since = (start: number, end: number) => [sinceCompletion(start, end)];
   assert.equal(textWithoutCompletedWord("timeout s", 9, since(8, 9)), "timeout");
   assert.equal(textWithoutCompletedWord("author:ja timeout", 9, since(0, 9)), "timeout");
   assert.equal(textWithoutCompletedWord("a s b", 3, since(2, 3)), "a b");

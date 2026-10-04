@@ -13,7 +13,7 @@ const DIFF_SIGN = { add: "+", del: "−", ctx: " " } as const;
 /** What the preview's buttons do. */
 export interface PreviewHandlers {
   onOpen(ref: string, where: OpenWhere): void;
-  onShowHiddenFiles(): void;
+  onShowHiddenFiles: () => void;
 }
 
 /** Fills `container` with the preview in `state.preview`, if any. */
@@ -106,7 +106,7 @@ function renderFilePreview(container: HTMLElement, preview: FilePreview, { repo,
 /** Whether a commit preview lists the files an f: filter hid, and how to ask for them. */
 interface HiddenFilesToggle {
   showHiddenFiles: boolean;
-  onShowHiddenFiles(): void;
+  onShowHiddenFiles: () => void;
 }
 
 function renderCommitPreview(

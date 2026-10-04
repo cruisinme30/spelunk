@@ -39,7 +39,7 @@ async function buildPage(entry, name) {
     entryPoints: [join(here, "../src", entry)],
     bundle: true,
     format: "iife",
-    target: "es2020",
+    target: "es2022",
     write: false,
   });
   const script = result.outputFiles[0].text;

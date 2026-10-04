@@ -135,7 +135,7 @@ test("the repo menu scopes the query to one repo, or back to all", async (t) => 
 
   await page.click('[data-testid="repos"]');
   const options = page.locator('[data-testid="repo-option"]');
-  const labels = (await options.allInnerTexts()).map((text) => text.replace(/\s+/g, " ").trim());
+  const labels = (await options.allInnerTexts()).map((text) => text.replaceAll(/\s+/g, " ").trim());
   assert.deepEqual(labels, ["✓ All repos 2", "payments-api", "web-checkout"]);
   await options.nth(2).click();
   assert.equal(await page.inputValue('[data-testid="query"]'), "repo:web-checkout timeout");
