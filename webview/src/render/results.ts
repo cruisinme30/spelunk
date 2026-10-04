@@ -15,7 +15,7 @@ const SINGULAR_UNIT: Record<HiddenNote["unit"], string> = { matches: "match", fi
 
 /** What undoing a filter does, where "Show them" would mislead. */
 const UNDO_LABEL: Partial<Record<HiddenNote["reason"], string>> = {
-  // Undoing case:yes changes how text matches rather than showing hidden rows (mock 8).
+  // Undoing case:yes changes how text matches rather than showing hidden rows.
   case: "Ignore case",
   type: "Show code too",
 };
@@ -50,7 +50,7 @@ export interface ResultCounts extends Record<ResultKind, number> {
 
 /**
  * The path patterns that scope a search: the values of top-level positive
- * f: operators. Code results then come only from matching paths (mock 2).
+ * f: operators. Code results then come only from matching paths.
  */
 export function pathScope(query: ParsedQuery | undefined): string[] {
   const root = query?.root;
@@ -127,7 +127,7 @@ export class ResultsView {
 
   /**
    * While the query box has errors, says which query the results on screen
-   * are for (mock 13); undefined hides the line again.
+   * are for; undefined hides the line again.
    */
   showLastGood(text: string | undefined): void {
     this.lastGood.hidden = text === undefined;
@@ -205,8 +205,8 @@ export class ResultsView {
   }
 
   /**
-   * "3 commits hidden by -f:vendor/ · Show them" (mock 7), "38 code matches
-   * for retry hidden by type:file · Show code too" (mock 12).
+   * "3 commits hidden by -f:vendor/ · Show them", or "38 code matches for
+   * retry hidden by type:file · Show code too".
    */
   private renderNote(note: HiddenNote): HTMLElement {
     const unit = note.count === 1 ? SINGULAR_UNIT[note.unit] : note.unit;
@@ -318,7 +318,7 @@ export class ResultsView {
   }
 
   private renderCommitRow(item: ItemOf<"commit">): HTMLElement {
-    // Each commit is tagged with the OR terms it matched, in their colors (mock 7).
+    // Each commit is tagged with the OR terms it matched, in their colors.
     const terms = textNodes(this.state.parsed);
     const tags = item.matchedTerms.map((termIndex) => {
       const term = terms.find((t) => t.termIndex === termIndex);

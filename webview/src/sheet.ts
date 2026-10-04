@@ -1,4 +1,4 @@
-// The operator cheat sheet (mock 4): 16 operators in five groups, plus the
+// The operator cheat sheet: 16 operators in five groups, plus the
 // labels and color tones the chips and completions use for each operator.
 import type { OpName } from "./protocol.gen";
 export interface SheetItem {

@@ -1,6 +1,6 @@
 // Every example on the help page runs cleanly against the real daemon over
-// the fixture workspace (test plan E17, mock 17).
-// @covers mock:17 msg:help.try
+// the fixture workspace.
+// @covers screen:help-page msg:help.try
 import assert from "node:assert/strict";
 import { existsSync, mkdtempSync, readdirSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -15,11 +15,12 @@ const DAEMON_BINARY = process.env.UNIFIED_SEARCH_DAEMON ?? join(__dirname, "../.
 const WORKSPACE = join(__dirname, "../../testdata/workspace");
 
 /**
- * Examples that may find nothing yet: they need commit history (M3), the
- * symbol index (M4), or Git's change dates for since: on files (M4; until
- * then it uses file times, which depend on when the fixture was checked out).
+ * Examples that may find nothing yet because the daemon can't answer them:
+ * history search (author:, msg:) and symbol definitions (sym:) aren't built,
+ * and since: on files uses file times until it reads Git's change dates, so
+ * it depends on when the fixture was checked out.
  */
-const NEEDS_LATER_MILESTONE = new Set([
+const NOT_YET_SEARCHABLE = new Set([
   "since:2w timeout",
   "sym:RetryPolicy",
   "author:jane timeout",
@@ -61,7 +62,7 @@ test(
         const result = await daemon.request("search/start", { searchId: `e${index}`, text });
         if (result.total === 0) withoutResults.push(text);
       }
-      const unexpected = withoutResults.filter((text) => !NEEDS_LATER_MILESTONE.has(text));
+      const unexpected = withoutResults.filter((text) => !NOT_YET_SEARCHABLE.has(text));
       assert.deepEqual(unexpected, [], "examples that should find results but found none");
     } finally {
       await daemon.stop();

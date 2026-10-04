@@ -1,4 +1,4 @@
-// The help page (mock 17): the search guide in its own editor tab. Its Try
+// The help page: the search guide in its own editor tab. Its Try
 // buttons run an example in the search panel.
 import * as vscode from "vscode";
 import type { WebviewMessage } from "./controller";

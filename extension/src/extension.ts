@@ -174,7 +174,7 @@ function registerCommands(
       if (pick) await daemon.request("index/rebuild", pick.repoId ? { repoId: pick.repoId } : {});
     },
   };
-  // Test-only: panel state, last results and the active editor (test plan, "Test-only hooks").
+  // Test-only: panel state, last results and the active editor, for end-to-end tests in VS Code.
   if (process.env.UNIFIED_SEARCH_TEST) {
     commands["unifiedSearch._testState"] = () => {
       const editor = vscode.window.activeTextEditor;

@@ -5,7 +5,7 @@ import type { Hit, Range } from "./protocol.gen";
 /** Distinct highlight colors for text terms; term N uses color N mod this. */
 export const TERM_COLOR_COUNT = 4;
 
-/** The CSS class that colors text term `termIndex` (mock 7: each OR branch its own color). */
+/** The CSS class that colors text term `termIndex`: each term, and so each OR branch, has its own color. */
 export function termClass(termIndex: number): string {
   return `t${termIndex % TERM_COLOR_COUNT}`;
 }

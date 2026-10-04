@@ -27,7 +27,7 @@ const (
 	KindCommit ResultKind = "commit"
 )
 
-// Plan is what an engine runs (Contract 4). Engines never see query text.
+// Plan is what a search engine runs. Engines never see query text.
 type Plan struct {
 	Mode  protocol.Mode
 	Kinds map[ResultKind]bool
@@ -43,10 +43,10 @@ type Plan struct {
 	// count what each one hid ("3 commits hidden by -f:vendor/").
 	Filters []Filter
 	// KindFilter is set when type: narrows the result kinds, so engines can
-	// count what it hid ("code matches hidden", mock 12).
+	// count what it hid ("17 code matches hidden by type:file").
 	KindFilter *Filter
 	// CaseFilter is set when the query says case:yes, so engines can count
-	// the matches that differ only in case (mock 8).
+	// the matches that differ only in case ("1 match hidden by case:yes").
 	CaseFilter *Filter
 	// Terms are the text terms in query order, for highlighting.
 	Terms []*Content
@@ -352,8 +352,8 @@ func since(now time.Time, value string) time.Time {
 
 // filterReason says whether a top-level conjunct can hide results, and
 // how the hidden-results note describes it ("" if it can't). A positive f:
-// is the search's scope rather than a filter (mock 2 explains it instead
-// of counting what lies outside it).
+// is the search's scope rather than a filter: the panel explains the scope
+// instead of counting everything outside it.
 func filterReason(node *protocol.Node) string {
 	switch {
 	case node.Kind == "not" && node.Child.Kind == "op" && node.Child.Op == protocol.OpNameF:

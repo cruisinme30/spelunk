@@ -61,7 +61,7 @@ Commit. The template asks for test evidence.
 ### Naming, everywhere
 
 Name files, types, functions and tests for **what they do**, in words that stay true as the code grows: `search.go`,
-`lineRef`, `TestSearchPreviewAndOpenRoundTrip`. Never name them after the milestone, ticket or person that introduced
+`lineRef`, `TestSearchPreviewAndOpenRoundTrip`. Never name them after the plan stage, ticket or person that introduced
 them (`m0search.go`, `handleM1`, `newJaneParser`), and don't use version or sequence suffixes (`parser2.go`). A comment
 can say what is temporary and what replaces it; the name shouldn't.
 

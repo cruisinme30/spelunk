@@ -1,4 +1,4 @@
-// Host side of Contract 2. The round-trip test drives the real daemon binary;
+// The search panel's host side. The round-trip test drives the real daemon binary;
 // the others use a scripted backend to pin down ordering rules.
 // @covers msg:query.changed msg:parse.result msg:search.batch msg:search.done msg:result.select msg:preview.result msg:result.open msg:panel.close
 import assert from "node:assert/strict";
@@ -241,7 +241,7 @@ test("the word being completed is left out of the text to search", () => {
 });
 
 test("while a word is being completed the search runs without it, and Esc searches it as typed", async () => {
-  // @covers mock:5
+  // @covers screen:operator-suggestions
   const host = recordingUi();
   const searched: string[] = [];
   const backend: Backend = {

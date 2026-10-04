@@ -8,7 +8,7 @@ import (
 	"github.com/cruisinme30/unified-search/daemon/internal/protocol"
 )
 
-// testResolver knows the fixture workspace's authors and repos (test plan, "Fixture workspace").
+// testResolver knows a small workspace's authors and repos.
 var testResolver = fakeResolver{
 	authors: []AuthorStat{
 		{Name: "Jane Doe", Emails: []string{"jane@payments.example", "jdoe@old.example"}, Commits: 214, Repos: []string{"payments-api", "shared-libs"}, LastAt: "2026-09-30T10:00:00Z"},

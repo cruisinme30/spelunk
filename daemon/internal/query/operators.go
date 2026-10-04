@@ -18,7 +18,7 @@ const (
 	scopeWorkingTreeOnly
 )
 
-// operator is one row of the operator table (Contract 1, "Operator semantics").
+// operator is one row of the operator table (docs/dev/implementation-plan.md, "Operator semantics").
 type operator struct {
 	name protocol.OpName
 	// global operators apply to the whole query and may appear once, at the top level.
@@ -33,7 +33,7 @@ type operator struct {
 }
 
 // operators lists every operator in completion order: most used first, so
-// "s" offers since: before sym: (mock 5).
+// "s" offers since: before sym:.
 var operators = []operator{
 	{name: protocol.OpNameF, summary: "File path, as a regex", examples: []string{`f:\.py$`, "f:src/", "f:test"}, interpret: asPathRegex},
 	{name: protocol.OpNameAuthor, scope: scopeHistoryOnly, summary: "Commits by this person", interpret: asName},

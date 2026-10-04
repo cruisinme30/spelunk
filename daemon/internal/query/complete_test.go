@@ -17,7 +17,7 @@ func labels(text string, cursor int) []string {
 }
 
 func TestCompletingOperatorsByPrefix(t *testing.T) {
-	// Mock 5 / E05: "timeout s" offers since: then sym:, and Tab inserts since:.
+	// "timeout s" offers since: then sym:, and accepting inserts since:.
 	text := "timeout s"
 	completions := Complete(text, len(text), testResolver, fixedNow)
 	if got := labels(text, len(text)); strings.Join(got, " ") != "since: sym:" {
@@ -29,7 +29,7 @@ func TestCompletingOperatorsByPrefix(t *testing.T) {
 }
 
 func TestCompletingAuthorsShowsCountsReposAndRecency(t *testing.T) {
-	// Mock 6 / E06: "author:ja" lists Jane first and inserts author:"Jane Doe".
+	// "author:ja" lists Jane first and inserts author:"Jane Doe".
 	text := "author:ja"
 	completions := Complete(text, len(text), testResolver, fixedNow)
 	if got := labels(text, len(text)); strings.Join(got, ",") != "Jane Doe,Jason Kim,Marta Ruiz" {

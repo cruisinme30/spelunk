@@ -1,6 +1,6 @@
 // Unified-search-daemon is the search back end of the Unified Search VS Code
 // extension. The extension host starts one per window and talks to it with
-// JSON-RPC 2.0 on stdin and stdout (Contract 3 in docs/dev/implementation-plan.md).
+// JSON-RPC 2.0 on stdin and stdout; the methods are defined in protocol/protocol.schema.json.
 //
 // Usage:
 //

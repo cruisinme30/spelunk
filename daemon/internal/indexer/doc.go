@@ -1,5 +1,5 @@
 // Package indexer keeps one trigram shard per workspace root up to date
-// and publishes it to the engine (Contract 4's Indexer).
+// and publishes it to the search engine.
 //
 // Builds run one at a time on a background worker. A search only ever
 // sees a complete, published shard: a new build replaces the old shard in

@@ -1,6 +1,6 @@
 // Pure edits of the query text. Fix-its, completions and the Aa / .*
 // toggles are all text edits followed by an ordinary query.changed, so the
-// daemon stays the only parser (Contract 2). Spans come from the parsed
+// daemon stays the only parser. Spans come from the parsed
 // query; nothing here scans the raw text.
 import type { Node, ParsedQuery, Span, TextEdit } from "./protocol.gen";
 

@@ -13,7 +13,7 @@ import (
 )
 
 // shutdownGrace is how long shutdown waits for index work to stop
-// (Contract 3 lifecycle: flush within 2 seconds).
+// (the shutdown request promises to finish within 2 seconds).
 const shutdownGrace = 2 * time.Second
 
 func (s *Server) registerIndex() {

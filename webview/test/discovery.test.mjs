@@ -1,5 +1,5 @@
-// Discovery in the search panel (M2): operator suggestions (mock 5), the
-// repo menu, the type:file note (mock 12) and the help page (mock 17).
+// Discovering the query language: operator suggestions, the repo menu, the
+// type:file note and the help page.
 // @covers msg:help.open msg:help.try msg:settings.open
 import assert from "node:assert/strict";
 import { test } from "node:test";
@@ -55,7 +55,7 @@ async function suggestingOperators(t) {
 }
 
 test("operator suggestions explain each operator and keep the results in view", async (t) => {
-  // @covers mock:5
+  // @covers screen:operator-suggestions
   const { page } = await suggestingOperators(t);
   const options = page.locator('[data-testid="completion"]');
   assert.equal(await options.count(), 2);
@@ -74,7 +74,7 @@ test("operator suggestions explain each operator and keep the results in view", 
 });
 
 test("Tab inserts the suggested operator at the cursor", async (t) => {
-  // @covers mock:5
+  // @covers screen:operator-suggestions
   const { page } = await suggestingOperators(t);
   await page.keyboard.press("Tab");
   assert.equal(await page.inputValue('[data-testid="query"]'), "timeout since:");
@@ -145,7 +145,7 @@ test("the repo menu scopes the query to one repo, or back to all", async (t) => 
 });
 
 test("a type:file note counts the code matches for the query's words and offers them", async (t) => {
-  // @covers mock:12
+  // @covers screen:file-names-only
   const page = await openPanel(t);
   await restore(page);
   await page.fill('[data-testid="query"]', "type:file retry");
@@ -176,7 +176,7 @@ test("a type:file note counts the code matches for the query's words and offers 
 });
 
 test("the help page lists every operator with an example, and Try runs it", async (t) => {
-  // @covers mock:17 command:openHelp
+  // @covers screen:help-page command:openHelp
   const page = await openHelp(t);
   assert.equal(await page.locator('[data-testid="operator-row"]').count(), 16);
   assert.equal(await page.locator('[data-testid="example"]').count(), 5);

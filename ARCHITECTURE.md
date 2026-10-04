@@ -25,7 +25,8 @@ streams results back in batches along the same path. Only the daemon touches fil
 ### `protocol/`
 
 `protocol.schema.json` is the single source of truth for every message that crosses a process boundary: the parsed
-query (Contract 1), webview ↔ host messages (Contract 2) and host ↔ daemon methods (Contract 3). `gen.mjs` writes
+query, the search panel messages (webview ↔ extension host) and the daemon's JSON-RPC methods (extension host ↔
+daemon). `gen.mjs` writes
 `extension/src/protocol.gen.ts`, `webview/src/protocol.gen.ts` and `daemon/internal/protocol/protocol_gen.go`.
 Nothing else defines a cross-boundary type.
 
@@ -36,7 +37,7 @@ Nothing else defines a cross-boundary type.
 - `internal/server` maps each RPC method to the parts below: search IDs, batching and request lifecycle. It never
   reads an index.
 - `internal/query` is the only query parser. It also produces diagnostics, fix-its and completions, and has the
-  planner that turns a parsed query into a `Plan` (Contract 4).
+  planner that turns a parsed query into a `Plan` for an engine.
 - `internal/lang` detects a file's language from its name and shebang, and resolves `lang:` values.
 - `internal/trigram` is the working-tree index and engine: it lists the files to index, builds and saves shards
   (trigram posting lists), runs a `Plan` over them, and previews and resolves its own results.
@@ -48,8 +49,8 @@ Nothing else defines a cross-boundary type.
 
 - `src/extension.ts` is the VS Code glue: commands, context keys, settings, the status bar, opening editors.
 - `src/daemon.ts` spawns the daemon and supervises it (handshake, crash restarts, graceful stop).
-- `src/jsonRpc.ts` is the client side of Contract 3.
-- `src/controller.ts` is the host side of Contract 2: it turns panel messages into daemon calls. It has no `vscode`
+- `src/jsonRpc.ts` is the JSON-RPC client that talks to the daemon.
+- `src/controller.ts` is the host side of the search panel: it turns panel messages into daemon calls. It has no `vscode`
   import, so it is tested against the real daemon in plain Node.
 - `src/panel.ts` hosts the search panel webview and `src/helpPanel.ts` the help page; both use the page shell in
   `src/webviewPage.ts`. `src/commitDocuments.ts` shows commits as read-only diffs.
@@ -82,8 +83,8 @@ These rules must always hold. Each one keeps a whole class of bugs out.
 - **One writer.** Only the indexer writes to the index directory. Engines read published snapshots, so a search
   never sees a half-written index.
 - **Engines build results; nobody else changes them.** The RPC layer forwards `ResultItem`s unchanged.
-- **Protocol changes start in the schema.** After Contracts 1–3 freeze (end of M1), any change bumps the protocol
-  version.
+- **Protocol changes start in the schema.** Additive changes (a new optional field or message) keep the protocol
+  version; anything an older peer would misread bumps it.
 
 ## Cross-cutting concerns
 

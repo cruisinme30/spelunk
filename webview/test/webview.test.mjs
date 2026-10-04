@@ -1,4 +1,4 @@
-// Contract 2, webview side: drives the real panel bundle in Chromium with
+// The search panel webview: drives the real panel bundle in Chromium with
 // recorded host messages and checks what it renders and sends.
 // @covers msg:ready msg:state.restore msg:query.changed msg:parse.result msg:search.batch msg:search.done msg:result.select msg:preview.result msg:index.status msg:banner msg:daemon.restart msg:panel.close msg:focus msg:result.open
 import assert from "node:assert/strict";
@@ -20,7 +20,7 @@ import {
 useBrowser();
 
 test("an empty box shows recent queries and all 16 operators", async (t) => {
-  // @covers mock:4
+  // @covers screen:empty-box
   const page = await openPanel(t);
   assert.equal((await sentMessages(page, "ready")).length, 1);
   await restore(page, ["sym:RetryPolicy", "since:2w timeout"]);
@@ -187,7 +187,7 @@ test("a case:yes note offers to ignore case", async (t) => {
 });
 
 test("a query with errors keeps the last results and says which query they are for", async (t) => {
-  // @covers mock:13
+  // @covers screen:query-errors
   const page = await panelWithResults(t);
   const lastGood = page.locator('[data-testid="last-good"]');
   assert.equal(await lastGood.isVisible(), false);

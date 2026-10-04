@@ -1,4 +1,4 @@
-// Messaging with the extension host (Contract 2). The only place that
+// Messaging with the extension host. The only place that
 // touches acquireVsCodeApi, so everything else is plain DOM code.
 import type { HostToWebview, WebviewToHost } from "./protocol.gen";
 
@@ -16,7 +16,7 @@ export type HostMessage = {
   [K in keyof HostToWebview]: { v: 1; type: K; payload: HostToWebview[K] };
 }[keyof HostToWebview];
 
-/** Sends a Contract 2 message to the extension host. */
+/** Sends a message to the extension host. */
 export function send<T extends keyof WebviewToHost>(type: T, payload: WebviewToHost[T]): void {
   vscode.postMessage({ v: 1, type, payload });
 }

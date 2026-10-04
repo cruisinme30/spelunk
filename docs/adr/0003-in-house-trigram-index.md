@@ -7,11 +7,12 @@
 
 The plan proposed Zoekt shards for the working-tree index. The project is being built where neither the Go module
 proxy nor GitHub is reachable, so third-party Go modules can't be added. The engine sits behind the `TreeEngine`
-interface (Contract 4), so what's behind it can change without touching the rest of the daemon.
+interface (`trigram.Search` running a `query.Plan`), so what's behind it can change without touching the rest of the
+daemon.
 
 ## Options considered
 
-1. **Wait for network access to add Zoekt.** This blocks M1 and everything after it.
+1. **Wait for network access to add Zoekt.** This blocks working-tree search and everything built on it.
 2. **A trigram index written for this project** (Go standard library only). Index lowercase trigrams per file, narrow
    candidates by intersecting posting lists, then verify with RE2. Store shards in a simple binary format, with an
    in-memory overlay for unsaved changes.
@@ -25,7 +26,7 @@ shards plus an overlay) at about a tenth of the code, because we only need what 
 
 ## Consequences
 
-- The differential tests against ripgrep (test plan) become the main guard on correctness.
+- The differential tests against ripgrep become the main guard on correctness.
 - Performance budgets are measured on our own index. If the nightly benchmark misses them, swapping Zoekt in behind
   `TreeEngine` is the planned fallback.
 - No Apache-2.0 dependency to track for now.

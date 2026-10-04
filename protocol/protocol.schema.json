@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "unified-search/protocol",
   "title": "Unified Search protocol",
-  "description": "Single source of truth for every type that crosses a process boundary: Contract 1 output (ParsedQuery), Contract 2 (webview <-> extension host) and Contract 3 (extension host <-> daemon). Run `node protocol/gen.mjs` after editing.",
+  "description": "Single source of truth for every type that crosses a process boundary: the parsed query (ParsedQuery), the messages between the search panel webview and the extension host, and the JSON-RPC methods between the extension host and the daemon. Run `node protocol/gen.mjs` after editing.",
   "x-protocol-version": 1,
   "$defs": {
     "Span": {
@@ -256,7 +256,7 @@
       "required": ["case", "count", "type"]
     },
     "ParsedQuery": {
-      "description": "ParsedQuery is the parser's output (Contract 1).",
+      "description": "ParsedQuery is the parser's output: the query tree, its global operators and its diagnostics.",
       "type": "object",
       "properties": {
         "version": {
@@ -307,7 +307,7 @@
       "required": ["id", "path", "name"]
     },
     "Settings": {
-      "description": "Settings are the unifiedSearch.* settings the daemon needs (Contract 5).",
+      "description": "Settings are the unifiedSearch.* settings the daemon needs.",
       "type": "object",
       "properties": {
         "caseSensitive": {
@@ -1038,7 +1038,7 @@
       "required": []
     },
     "Envelope": {
-      "description": "Envelope wraps every Contract 2 message in both directions.",
+      "description": "Envelope wraps every message between the webview and the extension host, in both directions.",
       "type": "object",
       "properties": {
         "v": {
@@ -1142,7 +1142,7 @@
         },
         "searchText": {
           "type": "string",
-          "description": "The text the search runs on when it leaves out the word being completed (mocks 5 and 6). Absent when the whole box is searched."
+          "description": "The text the search runs on when it leaves out the word being completed (\"Results for timeout keep updating\"). Absent when the whole box is searched."
         }
       },
       "required": ["seq", "query", "completions"]
@@ -1278,7 +1278,7 @@
       "required": ["typingDelayMs", "openTrigger", "preview", "showParsedQuery", "caseSensitive"]
     },
     "BannerMsg": {
-      "description": "BannerMsg reports daemon health (failure table): restarting, stopped or cleared.",
+      "description": "BannerMsg reports daemon health: restarting, stopped or cleared.",
       "type": "object",
       "properties": {
         "state": {

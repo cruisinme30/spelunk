@@ -880,7 +880,7 @@ pre.body {
   }
 }
 
-/* Suggestions take the place of the chips and results while open (mocks 5 and 6). */
+/* Suggestions take the place of the chips and results while open. */
 .us.completing #chips,
 .us.completing #body {
   display: none;
@@ -995,7 +995,7 @@ pre.body {
   flex: 1;
 }
 
-/* The help page (mock 17). */
+/* The help page. */
 .help {
   display: flex;
   min-height: 100%;

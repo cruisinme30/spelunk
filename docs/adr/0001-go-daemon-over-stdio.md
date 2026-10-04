@@ -21,7 +21,7 @@ other extensions. The extension has to work the same way in desktop VS Code and 
 ## Decision
 
 Option 2. The extension host spawns one daemon per window and speaks JSON-RPC 2.0 with LSP-style Content-Length
-framing on stdin/stdout (Contract 3).
+framing on stdin/stdout.
 
 ## Consequences
 

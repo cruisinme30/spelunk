@@ -30,7 +30,7 @@ export function renderIndexStatus(layout: Layout, state: ViewState): void {
   layout.reposButton.textContent = scoped ?? `All repos · ${repos.length}`;
 }
 
-/** Daemon health (failure table) followed by one banner per indexing repo (mock 14). */
+/** Daemon health (restarting, stopped) followed by one banner per repo still indexing. */
 export function renderBanners(layout: Layout, state: ViewState, onRestart: () => void): void {
   layout.banner.replaceChildren();
   if (state.banner) layout.banner.append(renderHealthBanner(state.banner, onRestart));
@@ -90,7 +90,7 @@ function renderIndexingBanner(repo: RepoStatus): HTMLElement | null {
   );
 }
 
-/** Query errors and warnings with their fix-it buttons (mock 13). */
+/** Query errors and warnings with their fix-it buttons. */
 export function renderDiagnostics(layout: Layout, state: ViewState, onFix: (fix: Fix) => void): void {
   const raw = state.parsed?.raw ?? "";
   const diagnostics = state.parsed?.diagnostics ?? [];
@@ -127,7 +127,7 @@ function renderDiagnostic(raw: string, diagnostic: Diagnostic, onFix: (fix: Fix)
   );
 }
 
-/** The parsed query as chips, with the mode and the result summary (mocks 1-3). */
+/** The parsed query as chips, with the mode and the result summary. */
 export function renderChips(layout: Layout, state: ViewState, summary: HTMLElement): void {
   layout.chips.replaceChildren();
   const query = state.parsed;
@@ -146,7 +146,7 @@ const joiner = (text: string, extraClass = "") => el("span", { class: `joiner ${
 /** What a chip's wording depends on beyond its own node. */
 interface ChipContext {
   mode: Mode;
-  /** type:file: text terms match file names only (mock 12). */
+  /** type:file: text terms match file names only. */
   fileNamesOnly: boolean;
 }
 

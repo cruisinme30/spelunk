@@ -1,7 +1,7 @@
 // SearchPanel ties the webview together: it owns the state, reacts to the
 // user and to host messages, and calls the render functions.
 //
-// The panel is a pure view (Contract 2). Fix-its, completions and the Aa / .*
+// The panel is a pure view: it never parses. Fix-its, completions and the Aa / .*
 // toggles all edit the query text, then send an ordinary query.changed.
 import { clamp, el, plural, wrapIndex } from "./format";
 import { type HostMessage, loadDraft, onHostMessage, saveDraft, send } from "./host";

@@ -1,4 +1,4 @@
-// Host side of Contract 2: turns panel messages into daemon calls and streams
+// Host side of the search panel: turns panel messages into daemon calls and streams
 // results back. No vscode import; extension.ts supplies the Ui, and tests
 // drive it against the real daemon.
 import { CancelSource, RpcError } from "./jsonRpc";
@@ -16,7 +16,7 @@ import {
   type WebviewToHost,
 } from "./protocol.gen";
 
-/** Lines of context around the match in a file preview (mock 1 shows ±7). */
+/** Lines of context above and below the match in a file preview. */
 const DEFAULT_PREVIEW_CONTEXT_LINES = 7;
 
 /**
@@ -69,7 +69,7 @@ export interface ControllerOptions {
   previewContextLines?: number;
 }
 
-/** A Contract 2 message from the webview, discriminated by `type`. */
+/** A message from the search panel webview, discriminated by `type`. */
 export type WebviewMessage = {
   [K in keyof WebviewToHost]: { v: 1; type: K; payload: WebviewToHost[K] };
 }[keyof WebviewToHost];
@@ -185,7 +185,7 @@ export class SearchController {
     }
     if (seq !== this.latestSeq) return; // a newer keystroke arrived while parsing
     this.ui.post("parse.result", { seq, query: parsed.query, completions: parsed.completions, searchText });
-    // With errors, keep showing the last good results (mock 13).
+    // With errors, keep showing the last good results.
     if (parsed.query.diagnostics.some((diagnostic) => diagnostic.severity === "error")) return;
     this.search?.cancel.cancel();
     if (parsed.query.root === null) {
@@ -199,7 +199,7 @@ export class SearchController {
   /**
    * While suggestions are offered for the word at the cursor, the search
    * leaves that half-typed word out, so the results stay on what is already
-   * complete (mocks 5 and 6: "Results for timeout keep updating"). Returns
+   * complete ("Results for timeout keep updating"). Returns
    * undefined to search the whole box: nothing is being completed, or the
    * rest would not be a query on its own.
    */

@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	// batchSize is the most items one search/batch carries (Contract 3).
+	// batchSize is the most items one search/batch notification carries.
 	batchSize = 200
 	// batchDelay is the longest a result waits for its batch to fill, so the
 	// first results show while a long search continues.

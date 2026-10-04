@@ -1,4 +1,4 @@
-// JSON-RPC 2.0 client with LSP-style Content-Length framing (Contract 3).
+// JSON-RPC 2.0 client for the daemon, with LSP-style Content-Length framing.
 // Pure Node, no vscode import, so it is tested against the real daemon.
 import { EventEmitter } from "node:events";
 import type { Readable, Writable } from "node:stream";

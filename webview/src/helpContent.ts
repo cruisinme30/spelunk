@@ -1,4 +1,4 @@
-// The words of the help page (mock 17). Kept as data, apart from the page
+// The words of the help page. Kept as data, apart from the page
 // that renders it, so tests can run every example against the real daemon.
 import type { OpName } from "./protocol.gen";
 import type { Tone } from "./sheet";

@@ -176,7 +176,7 @@ func (p *parser) parseGroup() *protocol.Node {
 
 // reportUnclosedParen offers to close the group where it most likely ends.
 // After an OR, a group usually ends with the operand that follows it, so
-// "(timeout OR retry -f:vendor/" closes after retry (mock 13).
+// "(timeout OR retry -f:vendor/" closes after retry.
 func (p *parser) reportUnclosedParen(open token, inner *protocol.Node) {
 	var fixes []protocol.Fix
 	if inner != nil {

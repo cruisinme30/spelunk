@@ -16,17 +16,17 @@ var update = flag.Bool("update", false, "rewrite the golden files in testdata/pa
 // fixes) that the webview receives. Refresh with go test -update, then
 // review the diff.
 var goldenQueries = []struct{ name, query string }{
-	{"mock01_plain_text", "retry_policy"},
-	{"mock02_path_and_text", `f:.*test\.py$ timeout`},
-	{"mock03_author_path_text", `author:jane f:.*test\.py$ timeout`},
-	{"mock07_boolean_history", "author:jane (timeout OR retry) -f:vendor/ since:6m"},
-	{"mock08_case_regex_lang", "case:yes /Retry(Policy|Config)/ lang:python"},
-	{"mock09_symbols", "sym:RetryPolicy"},
-	{"mock10_since_files", "since:2w timeout"},
-	{"mock11_msg_repo_count", `msg:"fix flaky" repo:web count:20`},
-	{"mock12_type_file", "type:file lang:python retry"},
-	{"mock13_two_errors", "author:jane (timeout OR retry -f:vendor/ sinse:6m"},
-	{"mock14_case_symbol", "case:yes sym:retrypolicy"},
+	{"plain_text", "retry_policy"},
+	{"path_and_text", `f:.*test\.py$ timeout`},
+	{"author_path_text", `author:jane f:.*test\.py$ timeout`},
+	{"boolean_history", "author:jane (timeout OR retry) -f:vendor/ since:6m"},
+	{"case_regex_lang", "case:yes /Retry(Policy|Config)/ lang:python"},
+	{"symbols", "sym:RetryPolicy"},
+	{"since_files", "since:2w timeout"},
+	{"msg_repo_count", `msg:"fix flaky" repo:web count:20`},
+	{"type_file", "type:file lang:python retry"},
+	{"two_errors", "author:jane (timeout OR retry -f:vendor/ sinse:6m"},
+	{"case_symbol", "case:yes sym:retrypolicy"},
 }
 
 func TestParseGolden(t *testing.T) {

@@ -3,7 +3,7 @@
 
 export const PROTOCOL_VERSION = 1;
 
-/** Application error codes carried in JSON-RPC error.code (Contract 3). */
+/** Application error codes carried in JSON-RPC error.code. */
 export const ErrorCodes = {
   /** A newer keystroke cancelled this request. */
   RequestCancelled: -32800,
@@ -111,7 +111,7 @@ export interface Globals {
   type: "file" | "code" | "commit" | null;
 }
 
-/** ParsedQuery is the parser's output (Contract 1). */
+/** ParsedQuery is the parser's output: the query tree, its global operators and its diagnostics. */
 export interface ParsedQuery {
   version: 1;
   raw: string;
@@ -128,7 +128,7 @@ export interface Root {
   name: string;
 }
 
-/** Settings are the unifiedSearch.* settings the daemon needs (Contract 5). */
+/** Settings are the unifiedSearch.* settings the daemon needs. */
 export interface Settings {
   caseSensitive: boolean;
   defaultCount: number;
@@ -395,7 +395,7 @@ export interface RebuildParams {
 /** Empty is a message with no fields. */
 export type Empty = Record<string, never>;
 
-/** Envelope wraps every Contract 2 message in both directions. */
+/** Envelope wraps every message between the webview and the extension host, in both directions. */
 export interface Envelope {
   v: 1;
   type: string;
@@ -439,7 +439,7 @@ export interface ParseResultMsg {
   seq: number;
   query: ParsedQuery;
   completions: Completion[];
-  /** The text the search runs on when it leaves out the word being completed (mocks 5 and 6). Absent when the whole box is searched. */
+  /** The text the search runs on when it leaves out the word being completed ("Results for timeout keep updating"). Absent when the whole box is searched. */
   searchText?: string;
 }
 
@@ -490,13 +490,13 @@ export interface UiSettings {
   caseSensitive: boolean;
 }
 
-/** BannerMsg reports daemon health (failure table): restarting, stopped or cleared. */
+/** BannerMsg reports daemon health: restarting, stopped or cleared. */
 export interface BannerMsg {
   state: "ok" | "restarting" | "stopped" | "protocolMismatch";
   message?: string;
 }
 
-/** Contract 3 requests: method -> [params, result]. */
+/** Daemon JSON-RPC requests: method -> [params, result]. */
 export interface RpcRequests {
   "initialize": [InitializeParams, InitializeResult];
   "query/parse": [ParseParams, ParseResult];
@@ -508,7 +508,7 @@ export interface RpcRequests {
   "shutdown": [Empty, Empty];
 }
 
-/** Contract 3 notifications: method -> params. */
+/** Daemon JSON-RPC notifications: method -> params. */
 export interface RpcNotifications {
   "workspace/setRoots": SetRootsParams;
   "workspace/didChangeFiles": DidChangeFilesParams;
@@ -519,7 +519,7 @@ export interface RpcNotifications {
   "exit": Empty;
 }
 
-/** Contract 2 messages, webview->host: type -> payload. */
+/** Search panel messages, webview->host: type -> payload. */
 export interface WebviewToHost {
   "query.changed": QueryChangedMsg;
   "result.select": ResultSelectMsg;
@@ -533,7 +533,7 @@ export interface WebviewToHost {
   "daemon.restart": Empty;
 }
 
-/** Contract 2 messages, host->webview: type -> payload. */
+/** Search panel messages, host->webview: type -> payload. */
 export interface HostToWebview {
   "parse.result": ParseResultMsg;
   "search.batch": SearchBatchMsg;

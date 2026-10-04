@@ -1,4 +1,4 @@
-// Package query owns the only parser of the query language (Contract 1 in
+// Package query owns the only parser of the query language (specified in
 // docs/dev/implementation-plan.md): Parse turns the search box into a
 // protocol.ParsedQuery with diagnostics and fix-its, and Complete suggests
 // operators and values at the cursor.

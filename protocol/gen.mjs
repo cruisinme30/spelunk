@@ -100,7 +100,7 @@ function generateTypeScript() {
     "",
     `export const PROTOCOL_VERSION = ${protocolVersion};`,
     "",
-    "/** Application error codes carried in JSON-RPC error.code (Contract 3). */",
+    "/** Application error codes carried in JSON-RPC error.code. */",
     "export const ErrorCodes = {",
     ...Object.entries(errorCodes).map(([name, { code, when }]) => `  /** ${when}. */\n  ${name}: ${code},`),
     "} as const;",
@@ -120,11 +120,11 @@ function generateTypeScript() {
     }
     lines.push("");
   }
-  lines.push("/** Contract 3 requests: method -> [params, result]. */", "export interface RpcRequests {");
+  lines.push("/** Daemon JSON-RPC requests: method -> [params, result]. */", "export interface RpcRequests {");
   for (const [method, entry] of Object.entries(rpcMethods)) {
     if (entry.kind === "request") lines.push(`  ${JSON.stringify(method)}: [${entry.params}, ${entry.result}];`);
   }
-  lines.push("}", "", "/** Contract 3 notifications: method -> params. */", "export interface RpcNotifications {");
+  lines.push("}", "", "/** Daemon JSON-RPC notifications: method -> params. */", "export interface RpcNotifications {");
   for (const [method, entry] of Object.entries(rpcMethods)) {
     if (entry.kind === "notification") lines.push(`  ${JSON.stringify(method)}: ${entry.params};`);
   }
@@ -133,7 +133,7 @@ function generateTypeScript() {
     ["webview->host", "WebviewToHost"],
     ["host->webview", "HostToWebview"],
   ]) {
-    lines.push(`/** Contract 2 messages, ${direction}: type -> payload. */`, `export interface ${interfaceName} {`);
+    lines.push(`/** Search panel messages, ${direction}: type -> payload. */`, `export interface ${interfaceName} {`);
     for (const [type, entry] of Object.entries(webviewMessages)) {
       if (entry.direction === direction) lines.push(`  ${JSON.stringify(type)}: ${entry.payload};`);
     }
@@ -305,7 +305,7 @@ function generateGo() {
     `// Version is the protocol version exchanged in initialize.`,
     `const Version = ${protocolVersion}`,
     "",
-    "// Application error codes carried in JSON-RPC error.code (Contract 3).",
+    "// Application error codes carried in JSON-RPC error.code.",
     "const (",
     ...Object.entries(errorCodes).map(
       ([name, { code, when }]) => `\t// Code${name}: ${when}.\n\tCode${name} = ${code}`,
@@ -321,10 +321,10 @@ function generateGo() {
     else if (node.enum && node.type === "string") lines.push(...generateGoEnum(name, node));
     else lines.push(goDocComment(node.description), `type ${name} = ${goType(node)}`, "");
   }
-  lines.push("// Contract 3 method names.", "const (");
+  lines.push("// Daemon JSON-RPC method names.", "const (");
   for (const method of Object.keys(rpcMethods))
     lines.push(`\tMethod${pascalCase(method.replace("$/", "Dollar/"))} = ${JSON.stringify(method)}`);
-  lines.push(")", "", "// Contract 2 message types.", "const (");
+  lines.push(")", "", "// Search panel message types (webview <-> extension host).", "const (");
   for (const type of Object.keys(webviewMessages)) lines.push(`\tMsg${pascalCase(type)} = ${JSON.stringify(type)}`);
   lines.push(")", "");
   return lines.join("\n");

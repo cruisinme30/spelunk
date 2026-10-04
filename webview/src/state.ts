@@ -21,14 +21,14 @@ export interface ViewState {
   seq: number;
   parsed?: ParsedQuery;
   completions: Completion[];
-  /** The text the search runs on while a word is being completed (mocks 5 and 6). */
+  /** The text the search runs on while a word is being completed ("Results for timeout keep updating"). */
   searchText?: string;
   completionIndex: number;
   completionsOpen: boolean;
   /** The search whose results are on screen ("" when none). */
   searchId: string;
   done?: SearchDoneMsg;
-  /** Raw text of the last query that parsed without errors (mock 13). */
+  /** Raw text of the last query that parsed without errors; its results stay while the box has errors. */
   lastGoodText: string;
   selectedRef: string;
   preview?: PreviewState;

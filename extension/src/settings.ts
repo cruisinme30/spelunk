@@ -1,4 +1,4 @@
-// Maps the unifiedSearch.* configuration (Contract 5) to protocol types.
+// Maps the unifiedSearch.* configuration to protocol types.
 import type { Settings, UiSettings } from "./protocol.gen";
 
 /** Anything shaped like VS Code's WorkspaceConfiguration.get. */
@@ -24,7 +24,7 @@ export const DEFAULTS = {
   recentQueries: 20,
 } as const;
 
-const MAX_DEFAULT_COUNT = 50_000; // the hard cap on results (plan: Hard limits)
+const MAX_DEFAULT_COUNT = 50_000; // the hard cap on results, as in the daemon
 const MAX_TYPING_DELAY_MS = 1000;
 
 function clamp(value: number, min: number, max: number): number {

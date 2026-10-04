@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-// parseBudget is the M1 exit gate: query/parse answers within 15 ms.
+// parseBudget is how fast query/parse must answer, so chips and errors keep up with typing.
 const parseBudget = 15 * time.Millisecond
 
 // speedQueries are the mocks' queries plus the longest query allowed.

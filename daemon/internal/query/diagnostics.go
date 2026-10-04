@@ -6,7 +6,7 @@ import (
 	"github.com/cruisinme30/unified-search/daemon/internal/protocol"
 )
 
-// Diagnostic codes (the plan's table, plus the syntax errors it implies).
+// Diagnostic codes, one per kind of problem a query can have.
 // scripts/specCoverage.mjs reads these constants: every code needs a test.
 const (
 	DiagUnclosedParen   = "unclosed_paren"
@@ -28,7 +28,7 @@ const (
 )
 
 const (
-	// maxQueryLength is in UTF-16 units (plan: "Hard limits").
+	// maxQueryLength is in UTF-16 units.
 	maxQueryLength = 1000
 	// maxEditDistanceToFix is how far a typo may be from a name for us to offer that name.
 	maxEditDistanceToFix = 2

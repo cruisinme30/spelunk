@@ -1,5 +1,5 @@
 // Spawns and supervises the search daemon: handshake, protocol check, crash
-// restarts and graceful stop (Contract 3 lifecycle, plan failure table).
+// restarts and graceful stop.
 // Pure Node; the vscode glue lives in extension.ts.
 import { spawn as nodeSpawn, type ChildProcess } from "node:child_process";
 import { EventEmitter } from "node:events";
@@ -21,7 +21,7 @@ const CRASH_WINDOW_MS = 60_000;
 /** Failure table: "restarts it, up to 3 times per minute". */
 const DEFAULT_MAX_RESTARTS_PER_MINUTE = 3;
 const DEFAULT_RESTART_DELAY_MS = 200;
-/** Contract 3: after shutdown the daemon must flush within 2 seconds. */
+/** After a shutdown request the daemon finishes its work within 2 seconds. */
 const SHUTDOWN_GRACE_MS = 2000;
 /** How long a request waits for a restarting daemon before failing. */
 const CONNECTION_WAIT_MS = 5000;

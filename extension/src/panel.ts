@@ -1,4 +1,4 @@
-// The search panel: a webview panel that hosts webview/ (Contract 2) under
+// The search panel: a webview panel that hosts webview/ under
 // a strict content security policy.
 import * as vscode from "vscode";
 import type { WebviewMessage } from "./controller";

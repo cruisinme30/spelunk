@@ -7,7 +7,7 @@ import "encoding/json"
 // Version is the protocol version exchanged in initialize.
 const Version = 1
 
-// Application error codes carried in JSON-RPC error.code (Contract 3).
+// Application error codes carried in JSON-RPC error.code.
 const (
 	// CodeRequestCancelled: A newer keystroke cancelled this request.
 	CodeRequestCancelled = -32800
@@ -184,7 +184,7 @@ type Globals struct {
 	Type  *string `json:"type"`
 }
 
-// ParsedQuery is the parser's output (Contract 1).
+// ParsedQuery is the parser's output: the query tree, its global operators and its diagnostics.
 type ParsedQuery struct {
 	Version     int          `json:"version"`
 	Raw         string       `json:"raw"`
@@ -211,7 +211,7 @@ type Root struct {
 	Name string `json:"name"`
 }
 
-// Settings are the unifiedSearch.* settings the daemon needs (Contract 5).
+// Settings are the unifiedSearch.* settings the daemon needs.
 type Settings struct {
 	CaseSensitive  bool     `json:"caseSensitive"`
 	DefaultCount   int      `json:"defaultCount"`
@@ -703,7 +703,7 @@ type RebuildParams struct {
 type Empty struct {
 }
 
-// Envelope wraps every Contract 2 message in both directions.
+// Envelope wraps every message between the webview and the extension host, in both directions.
 type Envelope struct {
 	V       int             `json:"v"`
 	Type    string          `json:"type"`
@@ -747,7 +747,7 @@ type ParseResultMsg struct {
 	Seq         int          `json:"seq"`
 	Query       ParsedQuery  `json:"query"`
 	Completions []Completion `json:"completions"`
-	// SearchText is the text the search runs on when it leaves out the word being completed (mocks 5 and 6). Absent when the whole box is searched.
+	// SearchText is the text the search runs on when it leaves out the word being completed ("Results for timeout keep updating"). Absent when the whole box is searched.
 	SearchText string `json:"searchText,omitempty"`
 }
 
@@ -848,13 +848,13 @@ type UiSettings struct {
 	CaseSensitive   bool   `json:"caseSensitive"`
 }
 
-// BannerMsg reports daemon health (failure table): restarting, stopped or cleared.
+// BannerMsg reports daemon health: restarting, stopped or cleared.
 type BannerMsg struct {
 	State   string `json:"state"`
 	Message string `json:"message,omitempty"`
 }
 
-// Contract 3 method names.
+// Daemon JSON-RPC method names.
 const (
 	MethodInitialize              = "initialize"
 	MethodWorkspaceSetRoots       = "workspace/setRoots"
@@ -873,7 +873,7 @@ const (
 	MethodExit                    = "exit"
 )
 
-// Contract 2 message types.
+// Search panel message types (webview <-> extension host).
 const (
 	MsgQueryChanged  = "query.changed"
 	MsgResultSelect  = "result.select"

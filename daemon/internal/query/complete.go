@@ -13,8 +13,8 @@ import (
 const maxValueCompletions = 8
 
 // Complete suggests operators or operator values for the word at cursor
-// (a UTF-16 offset): "s" offers since: and sym: (mock 5); "author:ja"
-// offers matching authors (mock 6). Accepting a suggestion applies its
+// (a UTF-16 offset): "s" offers since: and sym:; "author:ja" offers
+// matching authors. Accepting a suggestion applies its
 // insert edit. now is used to say how long ago an author last committed.
 func Complete(text string, cursor int, resolver Resolver, now time.Time) []protocol.Completion {
 	if resolver == nil {

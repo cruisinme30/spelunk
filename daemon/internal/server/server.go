@@ -39,7 +39,7 @@ type Options struct {
 	Now func() time.Time
 }
 
-// New returns a Server with every Contract 3 handler registered on conn.
+// New returns a Server with a handler for every daemon method registered on conn.
 func New(conn *rpc.Conn, opts Options) *Server {
 	s := &Server{conn: conn, now: opts.Now, exitCode: make(chan int, 1), settings: DefaultSettings()}
 	if s.now == nil {

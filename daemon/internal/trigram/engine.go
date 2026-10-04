@@ -13,7 +13,7 @@ import (
 )
 
 // SearchBudget is how long one search may run before it returns what it
-// has, marked truncated (plan: "Hard limits").
+// has, marked truncated.
 const SearchBudget = 2 * time.Second
 
 // Repo is a repo's published shard plus what results need to name it.
@@ -166,7 +166,7 @@ func docLeaf(p query.Pred, repo *Repo, doc *Doc) bool {
 }
 
 // fileNames adds a result for each file whose path satisfies the query,
-// with text terms matched against the path (mock 1: "File names").
+// with text terms matched against the path (the "File names" section).
 func (s *searcher) fileNames(repo *Repo, countHidden bool) {
 	if s.repoExcluded(repo) {
 		return

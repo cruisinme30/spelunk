@@ -3,8 +3,8 @@
 //
 // Spec IDs come straight from the sources of truth: protocol/protocol.schema.json
 // (operators, RPC methods, webview messages), extension/package.json (settings,
-// commands, shortcut presets), the daemon's diagnostic codes, the 18 mocks and
-// the failure table. Tests declare what they prove with `@covers <id> ...`.
+// commands, shortcut presets), the daemon's diagnostic codes, the screens of
+// the design mockups and the failure cases. Tests declare what they prove with `@covers <id> ...`.
 //
 // Usage: node scripts/specCoverage.mjs [--strict]
 //   --strict exits non-zero when anything is uncovered (the release gate).
@@ -13,9 +13,28 @@ import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
-/** Mocks 1-18 in docs/dev/mocks.md. */
-const MOCK_COUNT = 18;
-/** Rows of the failure table in docs/dev/implementation-plan.md. */
+/** The design mockups' screens, as named in docs/dev/mocks.md. */
+const SCREENS = [
+  "plain-text-search",
+  "path-scoped-search",
+  "author-history",
+  "empty-box",
+  "operator-suggestions",
+  "value-suggestions",
+  "boolean-history",
+  "case-regex-language",
+  "symbol-definitions",
+  "since-on-files",
+  "message-repo-count",
+  "file-names-only",
+  "query-errors",
+  "no-results-while-indexing",
+  "first-run",
+  "opened-file",
+  "help-page",
+  "settings",
+];
+/** The failure cases in docs/dev/implementation-plan.md, "Failure handling". */
 const FAILURE_ROWS = ["daemon-crash", "index-corrupt", "repo-indexing", "no-git", "ref-stale", "disk-full"];
 const read = (path) => readFileSync(join(root, path), "utf8");
 const schema = JSON.parse(read("protocol/protocol.schema.json"));
@@ -52,12 +71,12 @@ add(
   "package.json commands",
 );
 add(
-  Array.from({ length: MOCK_COUNT }, (_, i) => `mock:${i + 1}`),
+  SCREENS.map((screen) => `screen:${screen}`),
   "docs/dev/mocks.md",
 );
 add(
   FAILURE_ROWS.map((row) => `failure:${row}`),
-  "failure table",
+  "failure cases",
 );
 
 // Diagnostic codes are declared as `Diag… = "code"` constants in the query package.

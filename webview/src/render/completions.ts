@@ -1,4 +1,4 @@
-// The suggestion list under the query box (mocks 5 and 6): operators or
+// The suggestion list under the query box: operators or
 // values for the word at the cursor, the way out ("search as plain text"),
 // and a glimpse of the results, which keep updating without that word.
 import { el, highlight, plural, trimIndent } from "../format";

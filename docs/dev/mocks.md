@@ -2,25 +2,27 @@
 
 The interactive mocks live on the design canvas: https://claude.ai/artifact/GaBrpZJxgp9ZkJPKZqdq7F
 
-Mock numbers are referenced throughout the implementation plan, the test plan (E01–E18) and milestone exit gates.
+Planning docs refer to the mockups by number (and the test plan's E01–E18 scenarios follow the same order). Tests
+refer to them by screen id, as in `@covers screen:file-names-only`; `scripts/specCoverage.mjs` checks every screen is
+covered.
 
-| # | Mock | Canvas board | Milestone |
-| --- | --- | --- | --- |
-| 1 | Plain text — names + contents | `Main` | M1 |
-| 2 | `f:` path regex + text | `PathScoped` | M1 |
-| 3 | `author:` + `f:` + text → commit diffs | `AuthorHistory` | M3 |
-| 4 | Empty box — recent queries + operator sheet | `EmptyState` | M2 |
-| 5 | Autocomplete — operators | `OperatorSuggest` | M2 |
-| 6 | Autocomplete — author values | `ValueSuggest` | M3 |
-| 7 | AND / OR / ( ) / - / `since:` in history | `BooleanLogic` | M3 |
-| 8 | `case:` + `/regex/` + `lang:` | `Matching` | M1 |
-| 9 | `sym:` definitions | `Symbols` | M4 |
-| 10 | `since:` on current files | `SinceWorkingTree` | M4 |
-| 11 | `msg:"phrase"` + `repo:` + `count:` | `MessageCount` | M3 |
-| 12 | `type:file` + `lang:` | `TypeFile` | M2 |
-| 13 | Query errors with fixes | `ParseError` | M1 |
-| 14 | No results while indexing | `NoResults` | M4 |
-| 15 | First run — pick a shortcut, index repos | `FirstRun` | M5 |
-| 16 | Double-click opens the file at the match | `OpenedFile` | M5 |
-| 17 | Help guide | `Help` | M2 |
-| 18 | Settings in VS Code | `Settings` | M5 |
+| # | Mock | Screen id | Canvas board | Milestone |
+| --- | --- | --- | --- | --- |
+| 1 | Plain text — names + contents | `plain-text-search` | `Main` | M1 |
+| 2 | `f:` path regex + text | `path-scoped-search` | `PathScoped` | M1 |
+| 3 | `author:` + `f:` + text → commit diffs | `author-history` | `AuthorHistory` | M3 |
+| 4 | Empty box — recent queries + operator sheet | `empty-box` | `EmptyState` | M2 |
+| 5 | Autocomplete — operators | `operator-suggestions` | `OperatorSuggest` | M2 |
+| 6 | Autocomplete — author values | `value-suggestions` | `ValueSuggest` | M3 |
+| 7 | AND / OR / ( ) / - / `since:` in history | `boolean-history` | `BooleanLogic` | M3 |
+| 8 | `case:` + `/regex/` + `lang:` | `case-regex-language` | `Matching` | M1 |
+| 9 | `sym:` definitions | `symbol-definitions` | `Symbols` | M4 |
+| 10 | `since:` on current files | `since-on-files` | `SinceWorkingTree` | M4 |
+| 11 | `msg:"phrase"` + `repo:` + `count:` | `message-repo-count` | `MessageCount` | M3 |
+| 12 | `type:file` + `lang:` | `file-names-only` | `TypeFile` | M2 |
+| 13 | Query errors with fixes | `query-errors` | `ParseError` | M1 |
+| 14 | No results while indexing | `no-results-while-indexing` | `NoResults` | M4 |
+| 15 | First run — pick a shortcut, index repos | `first-run` | `FirstRun` | M5 |
+| 16 | Double-click opens the file at the match | `opened-file` | `OpenedFile` | M5 |
+| 17 | Help guide | `help-page` | `Help` | M2 |
+| 18 | Settings in VS Code | `settings` | `Settings` | M5 |

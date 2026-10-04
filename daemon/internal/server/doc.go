@@ -1,4 +1,4 @@
-// Package server wires the Contract 3 methods (initialize, query/parse,
+// Package server wires the daemon's JSON-RPC methods (initialize, query/parse,
 // search/start, preview/get, open/resolve, index/*) to the daemon's
 // parser, planner, engines and indexer.
 //

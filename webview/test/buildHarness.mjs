@@ -1,7 +1,7 @@
 // Builds test/out/harness.html (the search panel) and test/out/help.html
 // (the help page): the real webview bundles with a fake
 // acquireVsCodeApi that records outbound messages and lets tests play
-// recorded host messages (Contract 2 contract tests, test plan L2).
+// recorded host messages.
 import { build } from "esbuild";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";

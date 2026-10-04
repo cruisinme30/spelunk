@@ -1,5 +1,5 @@
 // Entry point of the help page webview (bundled to dist/webview/help.js):
-// the search guide (mock 17). Every example has a Try button that runs it in
+// the search guide. Every example has a Try button that runs it in
 // the search panel.
 import { el } from "./format";
 import { BASICS, COMBINING, EXAMPLES, KEYS, OPERATOR_GROUPS, type OperatorGroup } from "./helpContent";

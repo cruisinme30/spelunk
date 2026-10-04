@@ -192,7 +192,7 @@ func TestTypeFileReturnsOnlyFileNames(t *testing.T) {
 }
 
 func TestFiltersReportWhatTheyHid(t *testing.T) {
-	// @covers mock:12
+	// @covers screen:file-names-only
 	_, stats := run(t, "timeout -f:vendor/", webRepo)
 	if len(stats.Hidden) != 1 {
 		t.Fatalf("hidden = %+v, want one note", stats.Hidden)
@@ -207,7 +207,7 @@ func TestFiltersReportWhatTheyHid(t *testing.T) {
 }
 
 func TestCaseYesReportsMatchesThatDifferOnlyInCase(t *testing.T) {
-	// @covers mock:8
+	// @covers screen:case-regex-language
 	repo := repoOf("r", map[string]string{
 		"policy.py": "class RetryPolicy:\n    pass\nretry_policy = RetryPolicy()\n# retrypolicy and RETRYPOLICY\n",
 	})

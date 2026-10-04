@@ -10,7 +10,7 @@ import (
 )
 
 // fixtureRoots are the three repos of testdata/workspace, whose contents
-// match the mocks.
+// match the design mockups (docs/dev/mocks.md).
 func fixtureRoots(t *testing.T) []protocol.Root {
 	t.Helper()
 	workspace, err := filepath.Abs("../../../testdata/workspace")
@@ -37,16 +37,17 @@ func resultLines(items []protocol.ResultItem) []string {
 	return lines
 }
 
-// The mocks' working-tree queries return exactly what the mocks show.
-func TestMockQueriesOverTheFixtureWorkspace(t *testing.T) {
+// The working-tree queries from the design mockups (docs/dev/mocks.md)
+// return exactly the results the designs show.
+func TestDesignQueriesFindWhatTheDesignsShow(t *testing.T) {
 	tests := []struct {
-		mock, query string
-		want        []string
-		hidden      []string // reason:filter:count
+		screen, query string
+		want          []string
+		hidden        []string // reason:filter:count
 	}{
 		{
-			// @covers mock:1
-			mock: "1", query: "retry_policy",
+			// @covers screen:plain-text-search
+			screen: "plain-text-search", query: "retry_policy",
 			want: []string{
 				"file payments-api/src/payments/retry_policy.py",
 				"file payments-api/tests/payments/retry_policy_test.py",
@@ -59,8 +60,8 @@ func TestMockQueriesOverTheFixtureWorkspace(t *testing.T) {
 			},
 		},
 		{
-			// @covers mock:2
-			mock: "2", query: `f:.*test\.py$ timeout`,
+			// @covers screen:path-scoped-search
+			screen: "path-scoped-search", query: `f:.*test\.py$ timeout`,
 			want: []string{
 				"payments-api/tests/payments/client_test.py:18",
 				"payments-api/tests/payments/client_test.py:21",
@@ -75,8 +76,8 @@ func TestMockQueriesOverTheFixtureWorkspace(t *testing.T) {
 			},
 		},
 		{
-			// @covers mock:8
-			mock: "8", query: "case:yes /Retry(Policy|Config)/ lang:python",
+			// @covers screen:case-regex-language
+			screen: "case-regex-language", query: "case:yes /Retry(Policy|Config)/ lang:python",
 			want: []string{
 				"payments-api/src/payments/client.py:2",
 				"payments-api/src/payments/client.py:42",
@@ -89,8 +90,8 @@ func TestMockQueriesOverTheFixtureWorkspace(t *testing.T) {
 			hidden: []string{"case:case:yes:1"},
 		},
 		{
-			// @covers mock:12
-			mock: "12", query: "type:file lang:python retry",
+			// @covers screen:file-names-only
+			screen: "file-names-only", query: "type:file lang:python retry",
 			want: []string{
 				"file payments-api/scripts/retry_failed_webhooks.py",
 				"file payments-api/src/payments/retry_policy.py",
@@ -105,7 +106,7 @@ func TestMockQueriesOverTheFixtureWorkspace(t *testing.T) {
 	batches := collectBatches(client)
 	client.mustInitialize(t, fixtureRoots(t)...)
 	for i, tt := range tests {
-		t.Run("mock "+tt.mock, func(t *testing.T) {
+		t.Run(tt.screen, func(t *testing.T) {
 			var result protocol.SearchResult
 			searchID := fmt.Sprintf("s%d", i)
 			if err := client.call(protocol.MethodSearchStart, protocol.SearchStartParams{SearchID: searchID, Text: tt.query}, &result); err != nil {
@@ -131,8 +132,8 @@ func TestMockQueriesOverTheFixtureWorkspace(t *testing.T) {
 	}
 }
 
-// Mock 12's "code matches hidden" count is what the same query returns as
-// code (test plan E12).
+// The "N code matches hidden by type:file" count is exactly what the same
+// query returns as code.
 func TestTypeFileHidesExactlyWhatTypeCodeFinds(t *testing.T) {
 	client := newTestClient(t)
 	client.mustInitialize(t, fixtureRoots(t)...)

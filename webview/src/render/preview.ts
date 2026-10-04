@@ -118,7 +118,7 @@ function renderCommitPreview(
   );
   if (preview.body.trim()) container.append(el("pre", { class: "body" }, preview.body.trim()));
 
-  // Files outside an f: filter stay hidden until "Show all" (mock 3).
+  // Files outside an f: filter stay hidden until "Show all".
   const hiddenFiles = preview.files.filter((file) => file.hiddenByFilter);
   const shownFiles = preview.files.filter((file) => !file.hiddenByFilter || hidden.showHiddenFiles);
   const files = el(

@@ -38,7 +38,7 @@ func TestDiagnostics(t *testing.T) {
 		spanText    string
 		fixed       string
 	}{
-		{"unclosed paren closes after the OR operand (mock 13)", "author:jane (timeout OR retry -f:vendor/", DiagUnclosedParen, "(", "author:jane (timeout OR retry) -f:vendor/"},
+		{"unclosed paren closes after the OR operand", "author:jane (timeout OR retry -f:vendor/", DiagUnclosedParen, "(", "author:jane (timeout OR retry) -f:vendor/"},
 		{"unclosed paren without OR closes at the end", "x (a b", DiagUnclosedParen, "(", "x (a b)"},
 		{"stray closing paren", "a ) b", DiagUnmatchedParen, ")", "a b"},
 		{"empty parentheses", "a () b", DiagEmptyGroup, "()", "a b"},
@@ -47,7 +47,7 @@ func TestDiagnostics(t *testing.T) {
 		{"AND with nothing after it", "a AND", DiagMissingOperand, "AND", "a"},
 		{"unclosed quote", `x "abc`, DiagUnclosedQuote, `"abc`, `x "abc"`},
 		{"unclosed regex", "x /abc", DiagUnclosedRegex, "/abc", "x /abc/"},
-		{"unknown operator offers the nearest (mock 13)", "sinse:6m timeout", DiagUnknownOperator, "sinse:", "since:6m timeout"},
+		{"unknown operator offers the nearest", "sinse:6m timeout", DiagUnknownOperator, "sinse:", "since:6m timeout"},
 		{"unknown operator far from any name offers quoting", "wibble:x y", DiagUnknownOperator, "wibble:", `"wibble:x" y`},
 		{"since: with a bad unit", "since:6x a", DiagBadValue, "since:6x", "since:30d a"},
 		{"count: below one", "count:-1 a", DiagBadValue, "count:-1", "count:50 a"},
@@ -98,7 +98,7 @@ func TestDiagnostics(t *testing.T) {
 	}
 }
 
-func TestMock13ReportsBothProblemsInOrder(t *testing.T) {
+func TestTwoProblemsAreReportedInTextOrder(t *testing.T) {
 	q := Parse("author:jane (timeout OR retry -f:vendor/ sinse:6m", testResolver)
 	if got := strings.Join(codes(q.Diagnostics), " "); got != "unclosed_paren unknown_operator" {
 		t.Fatalf("diagnostics = %s, want unclosed_paren unknown_operator", got)
