@@ -1,3 +1,6 @@
+<!-- A pull request description: sections start at level 2, below the PR title. -->
+<!-- markdownlint-disable-file MD041 -->
+
 ## What and why
 
 <!-- One or two sentences. Link the issue: Fixes #123 -->

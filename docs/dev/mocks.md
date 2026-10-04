@@ -1,6 +1,6 @@
 # Mocks
 
-The interactive mocks live on the design canvas: https://claude.ai/artifact/GaBrpZJxgp9ZkJPKZqdq7F
+The interactive mocks live on the design canvas: <https://claude.ai/artifact/GaBrpZJxgp9ZkJPKZqdq7F>
 
 Planning docs refer to the mockups by number (and the test plan's E01–E18 scenarios follow the same order). Tests
 refer to them by screen id, as in `@covers screen:file-names-only`; `scripts/specCoverage.mjs` checks every screen is

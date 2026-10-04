@@ -4,6 +4,7 @@ Each milestone closes only when its exit gate from the [implementation plan](imp
 is demonstrated by tests that ran green. Run everything with `npm test` (which runs `scripts/test-all.sh`).
 
 **Environment note.** This build happens offline: there's no npm, Go module proxy or GitHub access. So:
+
 - VS Code itself can't be launched (`@vscode/test-electron` isn't installed). L4 end-to-end tests inside a real
   VS Code window are listed as **not yet run** wherever they apply. Everything below VS Code (daemon, extension
   host logic, webview) is tested for real.

@@ -4,27 +4,34 @@ Oct 3, 2026 · @Gourav Mittal
 
 ## Scope
 
-v1 is a VS Code extension plus a local search daemon that answers one query language over current files and Git history, across every repo in the workspace, as you type. It runs the same way in desktop VS Code and in code-server.
+v1 is a VS Code extension plus a local search daemon that answers one query language over current files and Git history,
+across every repo in the workspace, as you type. It runs the same way in desktop VS Code and in code-server.
 
-**In v1**
+### In v1
 
-- One search box (mocks 1–14): blended file-name and code results, a parsed-query chip row, a preview pane, autocomplete, the operator sheet, error fix-its and empty states.
-- Operators: `case:` `"…"` `/…/` `AND` `OR` `( )` `-` `f:` `repo:` `lang:` `type:` `sym:` `author:` `msg:` `since:` `count:`.
-- Two indexes per repo: a working-tree index (trigram + symbols) and a history index (commit diffs, messages, authors, dates).
-- Opening results: click previews, double-click or Enter opens at the line, ⌘Enter opens to the side, F4 steps through results.
+- One search box (mocks 1–14): blended file-name and code results, a parsed-query chip row, a preview pane,
+  autocomplete, the operator sheet, error fix-its and empty states.
+- Operators: `case:` `"…"` `/…/` `AND` `OR` `( )` `-` `f:` `repo:` `lang:` `type:` `sym:` `author:` `msg:` `since:`
+  `count:`.
+- Two indexes per repo: a working-tree index (trigram + symbols) and a history index (commit diffs, messages, authors,
+  dates).
+- Opening results: click previews, double-click or Enter opens at the line, ⌘Enter opens to the side, F4 steps through
+  results.
 - Setup and support (mocks 15–18): first-run shortcut picker, indexing progress, help page, settings.
 
-**Not in v1**
+### Not in v1
 
 - The AI chat panel and highlight-to-context.
 - `branch:`, following renames through history, saved searches, replace-in-files.
 - A shared index across machines or users.
 
-**Sizing assumption:** up to 5 repos, about 2 million lines of code and 100,000 commits inside the indexed history window. Performance budgets in this plan are set against that size.
+**Sizing assumption:** up to 5 repos, about 2 million lines of code and 100,000 commits inside the indexed history
+window. Performance budgets in this plan are set against that size.
 
 ## Architecture
 
-Three processes split the work. The webview draws, the extension host plugs into VS Code, and the search daemon owns every file, Git and index operation.
+Three processes split the work. The webview draws, the extension host plugs into VS Code, and the search daemon owns
+every file, Git and index operation.
 
 ```mermaid
 flowchart LR
@@ -42,9 +49,10 @@ flowchart LR
   IX --> DISK[("~/.unified-search/index")]
 ```
 
-A keystroke travels webview → extension → RPC server → planner → one engine, and results stream back the same way in batches. The indexer is the only writer to the index directory.
+A keystroke travels webview → extension → RPC server → planner → one engine, and results stream back the same way in
+batches. The indexer is the only writer to the index directory.
 
-**Who owns what**
+### Who owns what
 
 | Component | Owns | Must never |
 | --- | --- | --- |
@@ -56,7 +64,7 @@ A keystroke travels webview → extension → RPC server → planner → one eng
 | History engine | Commit results and commit previews | Write to an index |
 | Indexer | Building, updating and publishing both indexes; the per-repo lock | Answer searches |
 
-**Code layout**
+### Code layout
 
 ```text
 unified-search/
@@ -75,9 +83,10 @@ unified-search/
 
 ## Contract 1: query language and parsed query
 
-The daemon owns the only parser. The webview, the extension host and both engines consume its output and never re-parse the raw string.
+The daemon owns the only parser. The webview, the extension host and both engines consume its output and never re-parse
+the raw string.
 
-**Grammar**
+### Grammar
 
 ```ebnf
 query    = [ orExpr ] ;
@@ -95,14 +104,14 @@ regex    = "/" { char | "\\/" } "/" ;
 bare     = 1*( any char except space, "(", ")", '"' ) ;
 ```
 
-**Lexical rules**
+### Lexical rules
 
 - `AND` and `OR` are keywords only in uppercase. Lowercase `or` is a search term.
 - AND binds tighter than OR. `a b OR c` means `(a b) OR c`.
 - A word shaped like `name:` with an unknown name is an error, not a term. Quoting it (`"sinse:6m"`) makes it a term.
 - Regexes are RE2 syntax. RE2 runs in linear time, so no query can hang the daemon.
 
-**Operator semantics**
+### Operator semantics
 
 | Operator | Value | Matches against | Modes |
 | --- | --- | --- | --- |
@@ -117,15 +126,17 @@ bare     = 1*( any char except space, "(", ")", '"' ) ;
 | `case:` | `yes` or `no` | Case handling for every text match in the query | Both |
 | `count:` | Positive integer or `all` | Result limit | Both |
 
-**Rules the parser enforces**
+### Rules the parser enforces
 
-1. `case:`, `count:` and `type:` are global. They may appear once, at the top level, never inside `( )`, after `-` or inside an OR branch.
-2. The query has one mode. `author:`, `msg:` or `type:commit` anywhere makes it a history query. Otherwise it is a working-tree query.
+1. `case:`, `count:` and `type:` are global. They may appear once, at the top level, never inside `( )`, after `-` or
+   inside an OR branch.
+2. The query has one mode. `author:`, `msg:` or `type:commit` anywhere makes it a history query. Otherwise it is a
+   working-tree query.
 3. An OR whose branches would need different modes is an error, because one result list cannot mix commits and lines.
 4. `sym:` in a history query is an error. `since:` works in both modes with the meaning shown above.
 5. A query with no positive terms, such as `-timeout` alone, is an error.
 
-**Parsed query (the AST)**
+### Parsed query (the AST)
 
 ```ts
 type ParsedQuery = {
@@ -152,9 +163,10 @@ type Diagnostic = { severity: "error" | "warning"; code: string;
 type Fix = { title: string; edits: { span: Span; newText: string }[] };
 ```
 
-`termIndex` numbers each text term, so the UI can give OR branches their own highlight colors (mock 7). `resolved` drives labels such as "→ Jane Doe" in the chip row.
+`termIndex` numbers each text term, so the UI can give OR branches their own highlight colors (mock 7). `resolved`
+drives labels such as "→ Jane Doe" in the chip row.
 
-**Diagnostic codes**
+### Diagnostic codes
 
 | Code | Example | Fix offered |
 | --- | --- | --- |
@@ -169,11 +181,13 @@ type Fix = { title: string; edits: { span: Span; newText: string }[] };
 
 ## Contract 2: webview ↔ extension host
 
-The webview is a pure view. It renders what the host sends and reports what the user did; it never touches files, Git or the daemon.
+The webview is a pure view. It renders what the host sends and reports what the user did; it never touches files, Git or
+the daemon.
 
-**Envelope.** Every message is `{ v: 1, type: string, seq?: number, payload: object }` sent with `postMessage`. `seq` increases with each keystroke. Any response carrying an older `seq` than the newest one sent is dropped by the webview.
+**Envelope.** Every message is `{ v: 1, type: string, seq?: number, payload: object }` sent with `postMessage`. `seq`
+increases with each keystroke. Any response carrying an older `seq` than the newest one sent is dropped by the webview.
 
-**Webview → host**
+### Webview → host
 
 | Type | Payload | Host does |
 | --- | --- | --- |
@@ -184,9 +198,10 @@ The webview is a pure view. It renders what the host sends and reports what the 
 | `panel.close` | `{}` | Hides the panel and keeps the last query and results |
 | `help.open` / `settings.open` | `{}` | Opens the help tab, or Settings filtered to `@ext:unified-search` |
 
-Debouncing lives in the webview, using `typingDelayMs`. Applying a fix-it, accepting a completion and toggling Aa or `.*` are text edits done in the webview, followed by a normal `query.changed`.
+Debouncing lives in the webview, using `typingDelayMs`. Applying a fix-it, accepting a completion and toggling Aa or
+`.*` are text edits done in the webview, followed by a normal `query.changed`.
 
-**Host → webview**
+### Host → webview
 
 | Type | Payload | Drives |
 | --- | --- | --- |
@@ -197,20 +212,24 @@ Debouncing lives in the webview, using `typingDelayMs`. Applying a fix-it, accep
 | `index.status` | `{ repos: RepoStatus[] }` | Header dot, indexing banner (mock 14) |
 | `state.restore` | `{ text, recent: string[] }` | Reopening the panel where you left it |
 
-The shared types `ResultItem`, `Preview`, `HiddenNote`, `Completion` and `RepoStatus` are defined once in Contract 3 and used unchanged here.
+The shared types `ResultItem`, `Preview`, `HiddenNote`, `Completion` and `RepoStatus` are defined once in Contract 3 and
+used unchanged here.
 
 ## Contract 3: extension host ↔ search daemon
 
-The host talks to the daemon over JSON-RPC 2.0 on the daemon's stdin and stdout, with LSP-style `Content-Length` framing. There is no network port. The host spawns one daemon per VS Code window and restarts it if it dies.
+The host talks to the daemon over JSON-RPC 2.0 on the daemon's stdin and stdout, with LSP-style `Content-Length`
+framing. There is no network port. The host spawns one daemon per VS Code window and restarts it if it dies.
 
-**Lifecycle**
+### Lifecycle
 
 1. Host spawns the daemon binary bundled for the platform and sends `initialize`.
-2. The daemon replies with its version and the protocol version. On a protocol mismatch the host shows an error and stops.
-3. Host sends `workspace/setRoots` whenever folders are added or removed, and `settings/update` whenever a `unifiedSearch.*` setting changes.
+2. The daemon replies with its version and the protocol version. On a protocol mismatch the host shows an error and
+   stops.
+3. Host sends `workspace/setRoots` whenever folders are added or removed, and `settings/update` whenever a
+   `unifiedSearch.*` setting changes.
 4. On exit the host sends `shutdown`, then `exit`. The daemon must flush index writes within 2 seconds.
 
-**Methods**
+### Methods
 
 | Method | Kind | Params | Result |
 | --- | --- | --- | --- |
@@ -228,9 +247,10 @@ The host talks to the daemon over JSON-RPC 2.0 on the daemon's stdin and stdout,
 | `index/rebuild` | request | `{ repoId? }` | `{}` |
 | `shutdown` / `exit` | request / notification | `{}` | `{}` / — |
 
-`search/start` re-parses `text` itself rather than accepting an AST, so the daemon never trusts a parse it did not make. Results stream as `search/batch` notifications of up to 200 items; the request's response marks the end.
+`search/start` re-parses `text` itself rather than accepting an AST, so the daemon never trusts a parse it did not make.
+Results stream as `search/batch` notifications of up to 200 items; the request's response marks the end.
 
-**Shared types**
+### Shared types
 
 ```ts
 type Root = { id: string; path: string; name: string };   // id = first 12 hex of sha256(path)
@@ -273,7 +293,8 @@ type RepoStatus = { repoId: string; name: string;
                     progress?: number; message?: string };
 ```
 
-`ref` is opaque to the host and webview. Only the daemon creates or reads it, so the result format can change without touching the UI.
+`ref` is opaque to the host and webview. Only the daemon creates or reads it, so the result format can change without
+touching the UI.
 
 **Error codes** (JSON-RPC `error.code`)
 
@@ -288,7 +309,8 @@ type RepoStatus = { repoId: string; name: string;
 
 ## Contract 4: engines inside the daemon
 
-Inside the daemon, a planner turns the parsed query into a plan, and exactly one engine runs it. Engines never see raw query text, and the RPC layer never touches an index.
+Inside the daemon, a planner turns the parsed query into a plan, and exactly one engine runs it. Engines never see raw
+query text, and the RPC layer never touches an index.
 
 ```go
 // Planner: ParsedQuery + settings -> Plan. Pure function, no I/O except identity lookups.
@@ -348,27 +370,35 @@ type Indexer interface {
 }
 ```
 
-**Boundary rules**
+### Boundary rules
 
 - The planner decides the mode. Engines reject a plan of the wrong mode with an error instead of guessing.
-- `HiddenNote` counts come from the engine that applied the filter. The planner adds the `undo` fix by deleting that filter's span from the query.
+- `HiddenNote` counts come from the engine that applied the filter. The planner adds the `undo` fix by deleting that
+  filter's span from the query.
 - `ResultItem` values are built only inside engines. The RPC layer forwards them without changing them.
-- `TreeEngine` and `HistoryEngine` read only through the `Indexer`'s published snapshots, so a search never sees a half-written index.
-- Either engine can be swapped out behind its interface. For example, the history engine could be rewritten in C++ as a separate process speaking the same plan and result shapes.
+- `TreeEngine` and `HistoryEngine` read only through the `Indexer`'s published snapshots, so a search never sees a
+  half-written index.
+- Either engine can be swapped out behind its interface. For example, the history engine could be rewritten in C++ as a
+  separate process speaking the same plan and result shapes.
 
 ## Indexing
 
-Each repo gets two indexes on disk: Zoekt shards for current files and a SQLite database for history. Both are built once at import and then updated incrementally, so searches never scan raw files.
+Each repo gets two indexes on disk: Zoekt shards for current files and a SQLite database for history. Both are built
+once at import and then updated incrementally, so searches never scan raw files.
 
-**First build, per repo**
+### First build, per repo
 
-1. **Walk the working tree.** Respect `.gitignore` unless `includeIgnored` is on, then apply `index.exclude`, skip files over `maxFileSizeKB`, and skip binaries (a NUL byte in the first 8 KB).
-2. **Build the tree shard.** Feed the files to Zoekt's index builder, with universal-ctags extracting symbols when `index.symbols` is on. Run ctags as a separate process.
-3. **Record last-change times.** One pass over `git log --name-only` fills a `file_touch` table with each path's most recent commit time and SHA. This powers `since:` on current files.
-4. **Ingest history, newest first.** Stream `git log -p --first-parent` limited to `historyDepth`, writing in batches of 500 commits. Newest-first means recent history becomes searchable within seconds.
+1. **Walk the working tree.** Respect `.gitignore` unless `includeIgnored` is on, then apply `index.exclude`, skip files
+   over `maxFileSizeKB`, and skip binaries (a NUL byte in the first 8 KB).
+2. **Build the tree shard.** Feed the files to Zoekt's index builder, with universal-ctags extracting symbols when
+   `index.symbols` is on. Run ctags as a separate process.
+3. **Record last-change times.** One pass over `git log --name-only` fills a `file_touch` table with each path's most
+   recent commit time and SHA. This powers `since:` on current files.
+4. **Ingest history, newest first.** Stream `git log -p --first-parent` limited to `historyDepth`, writing in batches of
+   500 commits. Newest-first means recent history becomes searchable within seconds.
 5. **Publish.** Swap the new shard and database snapshot in atomically, then report `ready`.
 
-**History store schema**
+### History store schema
 
 ```sql
 CREATE TABLE commits (
@@ -384,9 +414,10 @@ CREATE INDEX commits_by_time ON commits(authored_at);
 CREATE INDEX commits_by_author ON commits(author_email);
 ```
 
-The trigram tokenizer narrows candidates; Go's RE2 then verifies each candidate line. Diffs for a single file over 1 MB, and merge commits other than their first-parent diff, are not stored.
+The trigram tokenizer narrows candidates; Go's RE2 then verifies each candidate line. Diffs for a single file over 1 MB,
+and merge commits other than their first-parent diff, are not stored.
 
-**Keeping it fresh**
+### Keeping it fresh
 
 | Event | Detected by | Update | Visible within |
 | --- | --- | --- | --- |
@@ -399,7 +430,7 @@ The trigram tokenizer narrows candidates; Go's RE2 then verifies each candidate 
 
 Uncommitted edits count as changed now for `since:` by marking those paths dirty in the overlay.
 
-**Storage layout**
+### Storage layout
 
 ```text
 ~/.unified-search/index/
@@ -411,11 +442,14 @@ Uncommitted edits count as changed now for `since:` by marking those paths dirty
     history.sqlite           commits, changes, FTS tables, file_touch
 ```
 
-Two VS Code windows on the same repo share one index. The first daemon to take `lock` writes; the others open the index read-only and reload when `state.json` changes. A `manifest.json` schema version mismatch triggers a rebuild rather than a migration.
+Two VS Code windows on the same repo share one index. The first daemon to take `lock` writes; the others open the index
+read-only and reload when `state.json` changes. A `manifest.json` schema version mismatch triggers a rebuild rather than
+a migration.
 
 ## Contract 5: settings, commands and keybindings
 
-Everything users configure is declared in `package.json`, so VS Code provides the Settings UI, `settings.json`, settings sync and per-workspace overrides. The extension builds no settings screen of its own.
+Everything users configure is declared in `package.json`, so VS Code provides the Settings UI, `settings.json`, settings
+sync and per-workspace overrides. The extension builds no settings screen of its own.
 
 **Settings** (`contributes.configuration`)
 
@@ -437,7 +471,8 @@ Everything users configure is declared in `package.json`, so VS Code provides th
 | `unifiedSearch.ui.showParsedQuery` | boolean | `true` | application |
 | `unifiedSearch.ui.recentQueries` | integer, 0–100 | `20` | application |
 
-`resource` settings can differ per repo through `.vscode/settings.json`. `machine` settings never sync, because index paths differ between computers.
+`resource` settings can differ per repo through `.vscode/settings.json`. `machine` settings never sync, because index
+paths differ between computers.
 
 **Commands** (`contributes.commands`)
 
@@ -451,7 +486,8 @@ Everything users configure is declared in `package.json`, so VS Code provides th
 
 **Keybindings** (`contributes.keybindings`)
 
-An extension cannot ask questions while it installs, so the shortcut choice happens on the first-run page. Each preset is a set of bindings gated on the preset setting; choosing an option only writes that setting.
+An extension cannot ask questions while it installs, so the shortcut choice happens on the first-run page. Each preset
+is a set of bindings gated on the preset setting; choosing an option only writes that setting.
 
 ```json
 [
@@ -468,15 +504,17 @@ An extension cannot ask questions while it installs, so the shortcut choice happ
 ]
 ```
 
-"Choose my own" sets the preset to `none` and opens Keyboard Shortcuts filtered to `unifiedSearch.open`. Bindings the user sets there always override the extension's.
+"Choose my own" sets the preset to `none` and opens Keyboard Shortcuts filtered to `unifiedSearch.open`. Bindings the
+user sets there always override the extension's.
 
 **Context keys the extension sets:** `unifiedSearch.panelOpen` and `unifiedSearch.hasResults`, through `setContext`.
 
 ## Errors, limits and performance budgets
 
-Every budget below is a p95 on the sizing assumption in Scope, measured from the keystroke in the webview to the first pixel of the result. A milestone is not done until its budgets pass in CI.
+Every budget below is a p95 on the sizing assumption in Scope, measured from the keystroke in the webview to the first
+pixel of the result. A milestone is not done until its budgets pass in CI.
 
-**Budgets**
+### Budgets
 
 | Path | Budget (p95) |
 | --- | --- |
@@ -490,14 +528,14 @@ Every budget below is a p95 on the sizing assumption in Scope, measured from the
 | First build, history window | 15 minutes, with recent commits searchable in the first minute |
 | Daemon memory, steady state | 1 GB |
 
-**Hard limits**
+### Hard limits
 
 - Query length: 1,000 characters.
 - Results: `count:all` stops at 50,000 and reports `truncated`.
 - Search time: 2 seconds, after which it returns what it has with `Overloaded`.
 - Regex: RE2 only. No backreferences or lookaround; the parser explains this in `invalid_regex`.
 
-**Failure handling**
+### Failure handling
 
 | Failure | Who handles it | What the user sees |
 | --- | --- | --- |
@@ -524,13 +562,15 @@ Each contract gets its own tests, so a change on one side of a boundary fails fa
 | Contract 5, extension | `@vscode/test-electron`: each shortcut preset, double-click opens at the right line, F4 steps, settings round-trip | A fixture workspace |
 | Budgets | Benchmark suite on one large open-source repo, run nightly, fails above budget | The Budgets table |
 
-The differential tests against ripgrep and `git log -G` are the main safety net: any disagreement is a bug in one of the two engines.
+The differential tests against ripgrep and `git log -G` are the main safety net: any disagreement is a bug in one of the
+two engines.
 
 The full test plan, with an end-to-end scenario for every mock and every failure mode, is in Test plan.
 
 ## Milestones
 
-The build runs in six milestones, about 13 weeks for one developer. Each ends at a gate: named mocks working end to end, with their budgets passing in CI.
+The build runs in six milestones, about 13 weeks for one developer. Each ends at a gate: named mocks working end to end,
+with their budgets passing in CI.
 
 | Milestone | Length | Scope | Exit gate |
 | --- | --- | --- | --- |
@@ -543,11 +583,12 @@ The build runs in six milestones, about 13 weeks for one developer. Each ends at
 
 Estimates: about 13 weeks for one developer, about 11 for two.
 
-M2 and M3 share only the M1 contracts, so a second developer can take M2 while M3 runs. Contracts 1 to 3 freeze at the end of M1; any later change bumps the protocol version and updates the JSON Schemas first.
+M2 and M3 share only the M1 contracts, so a second developer can take M2 while M3 runs. Contracts 1 to 3 freeze at the
+end of M1; any later change bumps the protocol version and updates the JSON Schemas first.
 
 ## Risks and open decisions
 
-**Risks**
+### Risks
 
 | Risk | Effect | Mitigation |
 | --- | --- | --- |
@@ -558,9 +599,14 @@ M2 and M3 share only the M1 contracts, so a second developer can take M2 while M
 | code-server's extension source | code-server installs from Open VSX, not the Microsoft Marketplace | Publish to both, and ship a `.vsix` per platform with the daemon bundled |
 | Licensing | Zoekt is Apache-2.0; universal-ctags is GPL-2.0 | Run ctags as a separate process, never linked into the daemon |
 
-**Open decisions**
+### Open decisions
 
-- **Daemon language.** Go is the default because Zoekt is a Go library and embeds directly. The history engine is the one piece that could be written in C++ instead, behind the `HistoryEngine` contract, at the cost of a second process and a second build toolchain.
-- **Renames in history.** v1 matches `f:` against each commit's path as it was then. Following renames (`git log --follow`) works per file only, so it is left for later.
-- **Merge commits.** v1 indexes only first-parent diffs, so a change appears once, at the commit that introduced it on the main line. Indexing every parent would triple the size of busy repos.
-- **Mixed-mode OR.** v1 rejects queries like `author:jane OR f:x`. A later version could show commits and lines as two sections instead.
+- **Daemon language.** Go is the default because Zoekt is a Go library and embeds directly. The history engine is the
+  one piece that could be written in C++ instead, behind the `HistoryEngine` contract, at the cost of a second process
+  and a second build toolchain.
+- **Renames in history.** v1 matches `f:` against each commit's path as it was then. Following renames (`git log
+  --follow`) works per file only, so it is left for later.
+- **Merge commits.** v1 indexes only first-parent diffs, so a change appears once, at the commit that introduced it on
+  the main line. Indexing every parent would triple the size of busy repos.
+- **Mixed-mode OR.** v1 rejects queries like `author:jane OR f:x`. A later version could show commits and lines as two
+  sections instead.

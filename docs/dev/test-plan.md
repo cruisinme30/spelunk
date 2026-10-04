@@ -1,10 +1,12 @@
 # Test plan
 
-Every user-visible behavior is proven by an automated scenario that runs the real extension, the real daemon and real Git repos, in desktop VS Code and in code-server, before a change merges.
+Every user-visible behavior is proven by an automated scenario that runs the real extension, the real daemon and real
+Git repos, in desktop VS Code and in code-server, before a change merges.
 
 ## Test layers
 
-Six layers, each proving something the layer below cannot. Only L4 and above exercise the whole system, but a failure should almost always show up first in a cheaper layer.
+Six layers, each proving something the layer below cannot. Only L4 and above exercise the whole system, but a failure
+should almost always show up first in a cheaper layer.
 
 | Layer | Proves | Runs for real | Faked | When | Time limit |
 | --- | --- | --- | --- | --- | --- |
@@ -17,7 +19,8 @@ Six layers, each proving something the layer below cannot. Only L4 and above exe
 
 ## End-to-end harness
 
-Each E2E scenario is one script that runs unchanged against two targets: desktop VS Code and code-server in a browser. The runner drives the UI like a person and reads every layer underneath to check the result.
+Each E2E scenario is one script that runs unchanged against two targets: desktop VS Code and code-server in a browser.
+The runner drives the UI like a person and reads every layer underneath to check the result.
 
 ```mermaid
 flowchart TB
@@ -29,13 +32,18 @@ flowchart TB
   D & C --> O4["Screenshots vs approved baselines"]
 ```
 
-The runner observes four places: the webview DOM, the editor through `_testState`, the daemon's JSON-RPC trace, and screenshots. So a failure points straight at the layer that broke. Desktop runs use `@vscode/test-electron` to launch VS Code; code-server runs in a container that Playwright opens in Chromium.
+The runner observes four places: the webview DOM, the editor through `_testState`, the daemon's JSON-RPC trace, and
+screenshots. So a failure points straight at the layer that broke. Desktop runs use `@vscode/test-electron` to launch VS
+Code; code-server runs in a container that Playwright opens in Chromium.
 
 ## Fixture workspace
 
-A script builds the same three repos the mocks show, byte for byte, every time. Because the results are known in advance, every E2E assertion can name exact files, lines and commits.
+A script builds the same three repos the mocks show, byte for byte, every time. Because the results are known in
+advance, every E2E assertion can name exact files, lines and commits.
 
-The script `testdata/build-fixtures` creates `payments-api`, `web-checkout` and `shared-libs`. It sets `GIT_AUTHOR_DATE` and `GIT_COMMITTER_DATE` relative to a fixed "now", which tests also pass to the daemon through `UNIFIED_SEARCH_NOW`. So "3 days ago" means the same thing in every run.
+The script `testdata/build-fixtures` creates `payments-api`, `web-checkout` and `shared-libs`. It sets `GIT_AUTHOR_DATE`
+and `GIT_COMMITTER_DATE` relative to a fixed "now", which tests also pass to the daemon through `UNIFIED_SEARCH_NOW`. So
+"3 days ago" means the same thing in every run.
 
 | Fixture feature | Exercises |
 | --- | --- |
@@ -50,15 +58,18 @@ The script `testdata/build-fixtures` creates `payments-api`, `web-checkout` and 
 | One folder that is not a Git repo | `history_unavailable` |
 | An uncommitted edit applied by the test at run time | "Uncommitted changes" and `since:` on current files |
 
-The large repo for performance is a real open-source project pinned to one commit, so its numbers are comparable night to night.
+The large repo for performance is a real open-source project pinned to one commit, so its numbers are comparable night
+to night.
 
 ## Scenario catalog
 
-Each mock becomes one E2E scenario with exact expected results, plus twelve scenarios for what the mocks cannot show: freshness, concurrency, failures and the remote setup. All run on desktop VS Code and on code-server.
+Each mock becomes one E2E scenario with exact expected results, plus twelve scenarios for what the mocks cannot show:
+freshness, concurrency, failures and the remote setup. All run on desktop VS Code and on code-server.
 
-Assertions read four things: the webview DOM through stable `data-testid` attributes, the editor's state through a test-only command, the daemon's JSON-RPC transcript, and a screenshot compared to an approved baseline.
+Assertions read four things: the webview DOM through stable `data-testid` attributes, the editor's state through a
+test-only command, the daemon's JSON-RPC transcript, and a screenshot compared to an approved baseline.
 
-**One scenario per mock**
+### One scenario per mock
 
 | ID | Mock | Steps | Must hold |
 | --- | --- | --- | --- |
@@ -81,7 +92,7 @@ Assertions read four things: the webview DOM through stable `data-testid` attrib
 | E17 | 17 | Click Try on every row of the help table | Each example runs with no diagnostics and at least one result |
 | E18 | 18 | Change each setting while the panel is open | Each takes effect without reload, such as single-click opening or a new exclude pattern removing results |
 
-**Cross-cutting scenarios**
+### Cross-cutting scenarios
 
 | ID | Scenario | Must hold |
 | --- | --- | --- |
@@ -100,11 +111,13 @@ Assertions read four things: the webview DOM through stable `data-testid` attrib
 
 ## Correctness beyond examples
 
-Hand-written scenarios only cover the queries someone thought of. Three generated checks cover the rest, and each runs on the fixture repos and on the large performance repo.
+Hand-written scenarios only cover the queries someone thought of. Three generated checks cover the rest, and each runs
+on the fixture repos and on the large performance repo.
 
-**1. Differential testing against independent tools**
+### 1. Differential testing against independent tools
 
-A generator produces random valid queries from the grammar. For each one, the daemon's results are compared with an answer built from tools that share none of its code:
+A generator produces random valid queries from the grammar. For each one, the daemon's results are compared with an
+answer built from tools that share none of its code:
 
 - Working-tree queries are compared with ripgrep, using the same regex, case flag, path filter and excludes.
 - History queries are compared with `git log -G <regex> --author <who> --since <when> -- <paths>`.
@@ -112,9 +125,10 @@ A generator produces random valid queries from the grammar. For each one, the da
 
 Any mismatch fails the run and is shrunk to the smallest query and file that still disagree.
 
-**2. Metamorphic rules**
+### 2. Metamorphic rules
 
-These hold for any query `A` and `B`, so they need no oracle at all. They are the main check on AND, OR, `-` and the global operators.
+These hold for any query `A` and `B`, so they need no oracle at all. They are the main check on AND, OR, `-` and the
+global operators.
 
 | Rule | Checks |
 | --- | --- |
@@ -127,29 +141,37 @@ These hold for any query `A` and `B`, so they need no oracle at all. They are th
 | `count:n A` is the first `n` of `count:all A`, in the same order | Limits and ordering |
 | Hidden-note count = `results(A)` minus `results(A with that filter)` | Every "N hidden by …" note in the UI |
 
-**3. Index equivalence**
+### 3. Index equivalence
 
-After any sequence of edits, saves, commits, branch switches and rebases, the incrementally updated index must answer exactly like a fresh rebuild. The check replays a random sequence, rebuilds from scratch in a second directory, runs a fixed set of 500 queries against both, and requires identical results. This is how the overlay, tombstones and compaction are proven correct.
+After any sequence of edits, saves, commits, branch switches and rebases, the incrementally updated index must answer
+exactly like a fresh rebuild. The check replays a random sequence, rebuilds from scratch in a second directory, runs a
+fixed set of 500 queries against both, and requires identical results. This is how the overlay, tombstones and
+compaction are proven correct.
 
 ## Performance and soak
 
-Budgets are measured the way a user feels them, from keystroke to pixels, and a nightly run fails the build when any p95 goes over its budget in the main plan.
+Budgets are measured the way a user feels them, from keystroke to pixels, and a nightly run fails the build when any p95
+goes over its budget in the main plan.
 
-**How timing is measured**
+### How timing is measured
 
-- The webview stamps each keystroke, and stamps again when the first result of that query is painted. Test builds report both through the test-only command.
-- The daemon adds its own spans to the transcript: parse, plan, engine, first batch. When a budget fails, the report shows which span grew.
+- The webview stamps each keystroke, and stamps again when the first result of that query is painted. Test builds report
+  both through the test-only command.
+- The daemon adds its own spans to the transcript: parse, plan, engine, first batch. When a budget fails, the report
+  shows which span grew.
 - Each query in the nightly corpus runs 50 times after one warm-up run. The report keeps p50, p95 and the slowest run.
 
-**Nightly performance run**
+### Nightly performance run
 
 - Repo: the pinned large open-source repo, indexed from scratch, which also checks the first-build budgets.
-- Query corpus: 200 queries covering every operator, saved in `testdata/perf-queries.txt` and grown whenever a slow query is reported.
+- Query corpus: 200 queries covering every operator, saved in `testdata/perf-queries.txt` and grown whenever a slow
+  query is reported.
 - Trend: results go to a dashboard, and a p95 that grows 20% over the 7-day median warns even inside budget.
 
-**Eight-hour soak**
+### Eight-hour soak
 
-A script edits, saves, commits, switches branches and rebases at random every few seconds while another searches continuously. It must end with:
+A script edits, saves, commits, switches branches and rebases at random every few seconds while another searches
+continuously. It must end with:
 
 - daemon memory under 1 GB and no steady growth over the last 4 hours;
 - no growth in open files or goroutines;
@@ -158,9 +180,10 @@ A script edits, saves, commits, switches branches and rebases at random every fe
 
 ## CI gates and spec coverage
 
-Nothing merges, closes a milestone or ships unless its gate is green. A spec-coverage check makes "all aspects tested" something CI can verify, not a judgment call.
+Nothing merges, closes a milestone or ships unless its gate is green. A spec-coverage check makes "all aspects tested"
+something CI can verify, not a judgment call.
 
-**Gates**
+### Gates
 
 | Event | Runs | Platforms | Blocks |
 | --- | --- | --- | --- |
@@ -170,9 +193,10 @@ Nothing merges, closes a milestone or ships unless its gate is green. A spec-cov
 | Milestone exit | That milestone's scenarios and budgets, 5 green nightlies in a row | All | Starting the next milestone's dependent work |
 | Release candidate | L6 on clean machines, then the manual checklist below | All, plus a code-server container | Publishing to the Marketplace and Open VSX |
 
-**Spec coverage**
+### Spec coverage
 
-Every item of the spec carries an ID, and every test declares which IDs it covers with a tag such as `@covers op:since diag:unclosed_paren`. A script lists all IDs straight from the sources of truth and fails CI when any has no test:
+Every item of the spec carries an ID, and every test declares which IDs it covers with a tag such as `@covers op:since
+diag:unclosed_paren`. A script lists all IDs straight from the sources of truth and fails CI when any has no test:
 
 - every operator and every global, from the grammar;
 - every diagnostic code, from the parser;
@@ -183,16 +207,18 @@ Every item of the spec carries an ID, and every test declares which IDs it cover
 
 Adding an operator or setting without a test therefore breaks the build on the same pull request.
 
-**Test-only hooks**
+### Test-only hooks
 
-E2E tests need to look inside the system. These hooks exist only in test builds, and the release build is checked to contain none of them:
+E2E tests need to look inside the system. These hooks exist only in test builds, and the release build is checked to
+contain none of them:
 
 - `UNIFIED_SEARCH_NOW` freezes the daemon's clock;
 - `UNIFIED_SEARCH_TRACE` writes the JSON-RPC transcript with timing spans;
 - `UNIFIED_SEARCH_HOLD_INDEX=<repo>:<percent>` pauses indexing for scenario E14;
-- the command `unifiedSearch._testState` returns the panel state, the last results, and the active editor's file and selection.
+- the command `unifiedSearch._testState` returns the panel state, the last results, and the active editor's file and
+  selection.
 
-**Manual checklist before each release**
+### Manual checklist before each release
 
 - [ ] Install the `.vsix` on a clean machine for each platform and complete first run.
 - [ ] Index one large repo from your own work and run ten real queries.

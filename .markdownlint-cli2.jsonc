@@ -1,0 +1,14 @@
+// markdownlint-cli2: every rule on, with the few settings below.
+// Run: npx markdownlint-cli2 (npm run lint:md).
+{
+  "config": {
+    "default": true,
+    // Prose wraps at 120 columns; tables and code blocks may run longer.
+    "MD013": { "line_length": 120, "tables": false, "code_blocks": false },
+    // The same heading text may repeat under different parents (e.g. "Evidence").
+    "MD024": { "siblings_only": true },
+  },
+  "globs": ["**/*.md"],
+  // The repos inside testdata/workspace are search fixtures, not documentation.
+  "ignores": ["**/node_modules/**", "**/dist/**", "testdata/workspace/*/**"],
+}
