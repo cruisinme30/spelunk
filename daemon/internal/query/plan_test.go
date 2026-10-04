@@ -138,6 +138,17 @@ func TestFiltersThatCanHideResultsCarryAnUndo(t *testing.T) {
 	}
 }
 
+func TestTypeIsAKindFilterWithAnUndo(t *testing.T) {
+	text := "type:file lang:python retry"
+	plan := mustPlan(t, text, defaultSettings)
+	if plan.KindFilter == nil || plan.KindFilter.Text != "type:file" || applyFix(text, plan.KindFilter.Undo) != "lang:python retry" {
+		t.Errorf("KindFilter = %+v, want type:file with an undo giving %q", plan.KindFilter, "lang:python retry")
+	}
+	if mustPlan(t, "retry", defaultSettings).KindFilter != nil {
+		t.Error("KindFilter of a query without type: = non-nil, want nil")
+	}
+}
+
 func TestEvalAndContributingTerms(t *testing.T) {
 	plan := mustPlan(t, "(a OR b) c -d", defaultSettings)
 	present := map[string]bool{"a": true, "c": true}

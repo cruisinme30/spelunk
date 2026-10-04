@@ -40,7 +40,10 @@ type Plan struct {
 	// Filters are the top-level conjuncts that can hide results; engines
 	// count what each one hid ("3 commits hidden by -f:vendor/").
 	Filters []Filter
-	// Terms are the positive text terms, for highlighting.
+	// KindFilter is set when type: narrows the result kinds, so engines can
+	// count what it hid ("code matches hidden", mock 12).
+	KindFilter *Filter
+	// Terms are the text terms in query order, for highlighting.
 	Terms []*Content
 }
 
@@ -169,8 +172,12 @@ func NewPlan(q protocol.ParsedQuery, settings protocol.Settings, now time.Time, 
 	plan.Pred = &And{}
 	for _, node := range topLevel(q.Root) {
 		pred := l.lower(node)
-		if pred == nil {
-			continue // a global
+		if pred == nil { // a global
+			if node.Kind == "op" && node.Op == protocol.OpNameType {
+				text := src.slice(node.Span.Start, node.Span.End)
+				plan.KindFilter = &Filter{Reason: "type", Index: -1, Text: text, Undo: removeFix("Remove "+text, src, node.Span)}
+			}
+			continue
 		}
 		if reason := filterReason(node); reason != "" {
 			text := src.slice(node.Span.Start, node.Span.End)
