@@ -60,7 +60,8 @@ func (r *recorder) sawState(id string, state protocol.IndexState) bool {
 	return false
 }
 
-// waitFor polls until every repo reports state.
+// waitFor polls until every repo's working tree reports state and its
+// history has settled (read, off or failed).
 func waitFor(t *testing.T, ix *Indexer, state protocol.IndexState) []protocol.RepoStatus {
 	t.Helper()
 	deadline := time.Now().Add(5 * time.Second)
@@ -68,7 +69,8 @@ func waitFor(t *testing.T, ix *Indexer, state protocol.IndexState) []protocol.Re
 		statuses := ix.Status()
 		done := len(statuses) > 0
 		for _, s := range statuses {
-			done = done && s.Tree == state
+			settled := s.History != protocol.IndexStateQueued && s.History != protocol.IndexStateIndexing
+			done = done && s.Tree == state && settled
 		}
 		if done {
 			return statuses
