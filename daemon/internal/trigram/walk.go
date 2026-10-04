@@ -1,0 +1,121 @@
+package trigram
+
+import (
+	"bytes"
+	"context"
+	"io/fs"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"sort"
+	"strings"
+)
+
+// binarySniffBytes: a NUL byte in the first 8 KB marks a file as binary.
+const binarySniffBytes = 8 << 10
+
+// WalkOptions are the index.* settings that decide which files are indexed.
+type WalkOptions struct {
+	Exclude        Excluder
+	IncludeIgnored bool
+	MaxFileBytes   int64
+}
+
+// File is one file chosen for indexing.
+type File struct {
+	Path string // slash-separated, relative to the repo root
+	Size int64
+}
+
+// ListFiles returns the files under root to index, sorted by path. In a Git
+// repo, Git decides what .gitignore excludes (unless IncludeIgnored);
+// elsewhere every file is listed. .git itself is never listed. Binary and
+// oversized files are left out.
+func ListFiles(ctx context.Context, root string, opts WalkOptions) ([]File, error) {
+	paths, err := gitListFiles(ctx, root)
+	if err != nil || opts.IncludeIgnored {
+		paths, err = walkAllFiles(ctx, root)
+		if err != nil {
+			return nil, err
+		}
+	}
+	var files []File
+	for _, path := range paths {
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+		if opts.Exclude.Excludes(path) {
+			continue
+		}
+		full := filepath.Join(root, filepath.FromSlash(path))
+		info, err := os.Lstat(full)
+		if err != nil || !info.Mode().IsRegular() {
+			continue
+		}
+		if opts.MaxFileBytes > 0 && info.Size() > opts.MaxFileBytes {
+			continue
+		}
+		if isBinaryFile(full) {
+			continue
+		}
+		files = append(files, File{Path: path, Size: info.Size()})
+	}
+	sort.Slice(files, func(i, j int) bool { return files[i].Path < files[j].Path })
+	return files, nil
+}
+
+// gitListFiles lists tracked and untracked-but-not-ignored files.
+func gitListFiles(ctx context.Context, root string) ([]string, error) {
+	cmd := exec.CommandContext(ctx, "git", "-C", root, "ls-files", "-z", "--cached", "--others", "--exclude-standard")
+	out, err := cmd.Output()
+	if err != nil {
+		return nil, err
+	}
+	seen := map[string]bool{}
+	var paths []string
+	for _, path := range strings.Split(strings.TrimRight(string(out), "\x00"), "\x00") {
+		if path != "" && !seen[path] { // a file with a merge conflict is listed once per stage
+			seen[path] = true
+			paths = append(paths, path)
+		}
+	}
+	return paths, nil
+}
+
+// walkAllFiles lists every regular file under root except inside .git.
+func walkAllFiles(ctx context.Context, root string) ([]string, error) {
+	var paths []string
+	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return nil // unreadable entries are skipped, not fatal
+		}
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		if entry.IsDir() {
+			if entry.Name() == ".git" {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		relative, err := filepath.Rel(root, path)
+		if err == nil {
+			paths = append(paths, filepath.ToSlash(relative))
+		}
+		return nil
+	})
+	return paths, err
+}
+
+func isBinaryFile(path string) bool {
+	f, err := os.Open(path)
+	if err != nil {
+		return true
+	}
+	defer f.Close()
+	head := make([]byte, binarySniffBytes)
+	n, _ := f.Read(head)
+	return isBinary(head[:n])
+}
+
+func isBinary(head []byte) bool { return bytes.IndexByte(head, 0) >= 0 }
