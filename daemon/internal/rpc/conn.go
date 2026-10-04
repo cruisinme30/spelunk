@@ -298,8 +298,12 @@ func (c *Conn) deliverResponse(m *message) {
 	c.mu.Lock()
 	responses := c.pending[string(*m.ID)]
 	c.mu.Unlock()
-	if responses != nil {
-		responses <- m
+	if responses == nil {
+		return
+	}
+	select {
+	case responses <- m:
+	default: // a second response for the same id: the first one counts
 	}
 }
 
