@@ -1,6 +1,3 @@
-// Package rpc implements JSON-RPC 2.0 over a byte stream with LSP-style
-// Content-Length framing (Contract 3). The same Conn serves both sides:
-// the daemon registers handlers, tests and tools use Call and Notify.
 package rpc
 
 import (

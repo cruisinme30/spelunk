@@ -1,5 +1,3 @@
-// Package server wires the Contract 3 methods to the daemon's parts.
-// It owns request lifecycle only: it never reads or writes an index.
 package server
 
 import (
@@ -8,8 +6,8 @@ import (
 	"sync"
 	"time"
 
-	"unifiedsearch/daemon/protocol"
-	"unifiedsearch/daemon/rpc"
+	"github.com/cruisinme30/unified-search/daemon/internal/protocol"
+	"github.com/cruisinme30/unified-search/daemon/internal/rpc"
 )
 
 // DaemonVersion is reported by initialize.

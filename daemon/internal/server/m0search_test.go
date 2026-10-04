@@ -7,7 +7,7 @@ import (
 	"sync"
 	"testing"
 
-	"unifiedsearch/daemon/protocol"
+	"github.com/cruisinme30/unified-search/daemon/internal/protocol"
 )
 
 // M0 exit gate: one hard-coded search round-trips, and opening a result

@@ -1,4 +1,16 @@
-// Command unified-search-daemon answers Contract 3 over stdin/stdout.
+// Unified-search-daemon is the search back end of the Unified Search VS Code
+// extension. The extension host starts one per window and talks to it with
+// JSON-RPC 2.0 on stdin and stdout (Contract 3 in docs/dev/implementation-plan.md).
+//
+// Usage:
+//
+//	unified-search-daemon            serve JSON-RPC on stdin/stdout
+//	unified-search-daemon --version  print the version and exit
+//
+// Environment, for tests and debugging:
+//
+//	UNIFIED_SEARCH_TRACE=<file>  append every JSON-RPC message to <file>
+//	UNIFIED_SEARCH_NOW=<RFC3339> freeze the clock (relative dates in tests)
 package main
 
 import (
@@ -10,8 +22,8 @@ import (
 	"syscall"
 	"time"
 
-	"unifiedsearch/daemon/rpc"
-	"unifiedsearch/daemon/server"
+	"github.com/cruisinme30/unified-search/daemon/internal/rpc"
+	"github.com/cruisinme30/unified-search/daemon/internal/server"
 )
 
 func main() {

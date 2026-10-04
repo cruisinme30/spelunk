@@ -1,0 +1,14 @@
+# golangci-lint v2. Run: golangci-lint run ./...
+version: "2"
+linters:
+  default: standard # errcheck, govet, ineffassign, staticcheck, unused
+  enable:
+    - revive # Go Code Review Comments: naming, doc comments, error strings
+    - misspell
+    - errorlint # wrapped errors compared with errors.Is / errors.As
+  exclusions:
+    generated: strict # skips files with a "Code generated ... DO NOT EDIT." header
+formatters:
+  enable:
+    - gofmt
+    - goimports

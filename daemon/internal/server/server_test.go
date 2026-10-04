@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"unifiedsearch/daemon/protocol"
-	"unifiedsearch/daemon/rpc"
+	"github.com/cruisinme30/unified-search/daemon/internal/protocol"
+	"github.com/cruisinme30/unified-search/daemon/internal/rpc"
 )
 
 // harness runs a Server against an in-process client over pipes.

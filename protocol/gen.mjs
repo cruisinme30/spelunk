@@ -236,7 +236,7 @@ function gofmt(src) {
 const targets = [
   [join(repo, "extension/src/protocol.gen.ts"), genTS()],
   [join(repo, "webview/src/protocol.gen.ts"), genTS()],
-  [join(repo, "daemon/protocol/protocol_gen.go"), gofmt(genGo())],
+  [join(repo, "daemon/internal/protocol/protocol_gen.go"), gofmt(genGo())],
 ];
 const check = process.argv.includes("--check");
 let stale = 0;

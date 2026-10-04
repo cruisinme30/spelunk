@@ -18,8 +18,8 @@ import (
 	"time"
 	"unicode/utf16"
 
-	"unifiedsearch/daemon/protocol"
-	"unifiedsearch/daemon/rpc"
+	"github.com/cruisinme30/unified-search/daemon/internal/protocol"
+	"github.com/cruisinme30/unified-search/daemon/internal/rpc"
 )
 
 func (s *Server) registerM0() {
