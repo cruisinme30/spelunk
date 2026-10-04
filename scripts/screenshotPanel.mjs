@@ -6,10 +6,15 @@
 //
 // Usage:
 //   node scripts/screenshotPanel.mjs --query 'retry_policy' --out panel.png
+//   node scripts/screenshotPanel.mjs --recent 'since:2w timeout' --key '?' --out sheet.png
 //
 // Options:
-//   --query <text>      what to type in the search box (required)
+//   --query <text>      what to type in the search box (default: leave it empty)
 //   --first <text>      a query to run before --query, e.g. to show that a broken query keeps the last results
+//   --recent <text>     a recent query (repeatable, newest first)
+//   --key <key>         a key to press after typing, as Playwright names it, e.g. Tab or ? (repeatable)
+//   --click <selector>  an element to click after the keys, e.g. '[data-testid="repos"]' (repeatable)
+//   --help-page         render the help page instead of the search panel
 //   --out <file>        where to save the PNG (default: panel.png)
 //   --select <n>        press ↓ n times after the results arrive, to preview a result
 //   --workspace <dir>   a folder of repos, one root per subfolder (default: testdata/workspace)
@@ -27,7 +32,11 @@ import { parseArgs } from "node:util";
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const { values: args } = parseArgs({
   options: {
-    query: { type: "string" },
+    query: { type: "string", default: "" },
+    recent: { type: "string", multiple: true, default: [] },
+    key: { type: "string", multiple: true, default: [] },
+    click: { type: "string", multiple: true, default: [] },
+    "help-page": { type: "boolean", default: false },
     first: { type: "string" },
     out: { type: "string", default: "panel.png" },
     select: { type: "string", default: "0" },
@@ -36,10 +45,6 @@ const { values: args } = parseArgs({
     height: { type: "string", default: "720" },
   },
 });
-if (!args.query) {
-  console.error("usage: node scripts/screenshotPanel.mjs --query <text> [--out file.png] [--select n]");
-  process.exit(2);
-}
 
 // Tools resolve from the workspace that depends on them.
 const { build } = createRequire(join(repoRoot, "extension/package.json"))("esbuild");
@@ -53,7 +58,8 @@ try {
 }
 
 async function main() {
-  await import(pathToFileURL(join(repoRoot, "webview/test/buildHarness.mjs")).href); // writes test/out/harness.html
+  await import(pathToFileURL(join(repoRoot, "webview/test/buildHarness.mjs")).href); // writes test/out/*.html
+  if (args["help-page"]) return screenshotHelpPage();
   const host = await loadHost();
 
   const roots = readdirSync(args.workspace)
@@ -91,11 +97,12 @@ async function main() {
       showParsedQuery: true,
       caseSensitive: false,
     };
-    const controller = new host.SearchController(daemon, ui, {
-      recentLimit: () => 20,
-      closeOnOpen: () => false,
-      uiSettings: () => uiSettings,
-    });
+    const controller = new host.SearchController(
+      daemon,
+      ui,
+      { recentLimit: () => 20, closeOnOpen: () => false, uiSettings: () => uiSettings },
+      { text: "", recent: args.recent },
+    );
     daemon.on("progress", (progress) => ui.post("index.status", progress));
 
     // Every message the webview sends goes to the controller, as in extension.ts.
@@ -122,9 +129,16 @@ async function main() {
       await until("the first query's results", () => posted.includes("search.done"));
       posted.length = 0;
     }
-    await page.fill('[data-testid="query"]', args.query);
-    await until("search.done or parse errors", () => posted.includes("search.done") || posted.includes("parse.result"));
-    await page.waitForTimeout(150); // a query with errors gets no search.done
+    if (args.query) {
+      await page.fill('[data-testid="query"]', args.query);
+      await until(
+        "search.done or parse errors",
+        () => posted.includes("search.done") || posted.includes("parse.result"),
+      );
+      await page.waitForTimeout(150); // a query with errors gets no search.done
+    }
+    for (const key of args.key) await page.keyboard.press(key);
+    for (const selector of args.click) await page.click(selector);
     for (let i = 0; i < Number(args.select); i++) await page.keyboard.press("ArrowDown");
     if (Number(args.select) > 0) await until("preview.result", () => posted.includes("preview.result"));
     await page.waitForTimeout(100);
@@ -133,6 +147,20 @@ async function main() {
   } finally {
     await browser.close();
     await daemon.stop();
+  }
+}
+
+/** The help page needs no daemon: it is static until Try is clicked. */
+async function screenshotHelpPage() {
+  const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined });
+  try {
+    const page = await browser.newPage({ viewport: { width: Number(args.width), height: Number(args.height) } });
+    await page.goto(pathToFileURL(join(repoRoot, "webview/test/out/help.html")).href);
+    for (const selector of args.click) await page.click(selector);
+    await page.screenshot({ path: args.out });
+    console.log(`saved ${args.out}`);
+  } finally {
+    await browser.close();
   }
 }
 
