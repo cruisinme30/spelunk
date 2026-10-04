@@ -1,0 +1,53 @@
+{
+  "version": 1,
+  "raw": "msg:\"fix flaky\" repo:web count:20",
+  "root": {
+    "children": [
+      {
+        "kind": "op",
+        "match": "phrase",
+        "op": "msg",
+        "span": {
+          "start": 0,
+          "end": 15
+        },
+        "value": "fix flaky"
+      },
+      {
+        "kind": "op",
+        "match": "regex",
+        "op": "repo",
+        "resolved": {
+          "label": "web-checkout"
+        },
+        "span": {
+          "start": 16,
+          "end": 24
+        },
+        "value": "web"
+      },
+      {
+        "kind": "op",
+        "match": "literal",
+        "op": "count",
+        "span": {
+          "start": 25,
+          "end": 33
+        },
+        "value": "20"
+      }
+    ],
+    "kind": "and",
+    "span": {
+      "start": 0,
+      "end": 33
+    }
+  },
+  "globals": {
+    "case": null,
+    "count": 20,
+    "type": null
+  },
+  "mode": "history",
+  "diagnostics": []
+}

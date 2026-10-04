@@ -1,0 +1,147 @@
+{
+  "version": 1,
+  "raw": "author:jane (timeout OR retry -f:vendor/ sinse:6m",
+  "root": {
+    "children": [
+      {
+        "kind": "op",
+        "match": "literal",
+        "op": "author",
+        "resolved": {
+          "label": "Jane Doe"
+        },
+        "span": {
+          "start": 0,
+          "end": 11
+        },
+        "value": "jane"
+      },
+      {
+        "children": [
+          {
+            "kind": "text",
+            "match": "literal",
+            "span": {
+              "start": 13,
+              "end": 20
+            },
+            "termIndex": 0,
+            "value": "timeout"
+          },
+          {
+            "children": [
+              {
+                "kind": "text",
+                "match": "literal",
+                "span": {
+                  "start": 24,
+                  "end": 29
+                },
+                "termIndex": 1,
+                "value": "retry"
+              },
+              {
+                "child": {
+                  "kind": "op",
+                  "match": "regex",
+                  "op": "f",
+                  "span": {
+                    "start": 31,
+                    "end": 40
+                  },
+                  "value": "vendor/"
+                },
+                "kind": "not",
+                "span": {
+                  "start": 30,
+                  "end": 40
+                }
+              }
+            ],
+            "kind": "and",
+            "span": {
+              "start": 24,
+              "end": 40
+            }
+          }
+        ],
+        "kind": "or",
+        "span": {
+          "start": 13,
+          "end": 40
+        }
+      }
+    ],
+    "kind": "and",
+    "span": {
+      "start": 0,
+      "end": 40
+    }
+  },
+  "globals": {
+    "case": null,
+    "count": null,
+    "type": null
+  },
+  "mode": "history",
+  "diagnostics": [
+    {
+      "severity": "error",
+      "code": "unclosed_paren",
+      "message": "Missing closing parenthesis",
+      "span": {
+        "start": 12,
+        "end": 13
+      },
+      "fixes": [
+        {
+          "title": "Close it after retry",
+          "edits": [
+            {
+              "span": {
+                "start": 29,
+                "end": 29
+              },
+              "newText": ")"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "severity": "error",
+      "code": "unknown_operator",
+      "message": "Unknown operator sinse:",
+      "span": {
+        "start": 41,
+        "end": 47
+      },
+      "fixes": [
+        {
+          "title": "Change to since:",
+          "edits": [
+            {
+              "span": {
+                "start": 41,
+                "end": 47
+              },
+              "newText": "since:"
+            }
+          ]
+        },
+        {
+          "title": "Search for the text instead",
+          "edits": [
+            {
+              "span": {
+                "start": 41,
+                "end": 49
+              },
+              "newText": "\"sinse:6m\""
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

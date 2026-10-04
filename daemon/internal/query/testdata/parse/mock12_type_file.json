@@ -1,0 +1,50 @@
+{
+  "version": 1,
+  "raw": "type:file lang:python retry",
+  "root": {
+    "children": [
+      {
+        "kind": "op",
+        "match": "literal",
+        "op": "type",
+        "span": {
+          "start": 0,
+          "end": 9
+        },
+        "value": "file"
+      },
+      {
+        "kind": "op",
+        "match": "literal",
+        "op": "lang",
+        "span": {
+          "start": 10,
+          "end": 21
+        },
+        "value": "python"
+      },
+      {
+        "kind": "text",
+        "match": "literal",
+        "span": {
+          "start": 22,
+          "end": 27
+        },
+        "termIndex": 0,
+        "value": "retry"
+      }
+    ],
+    "kind": "and",
+    "span": {
+      "start": 0,
+      "end": 27
+    }
+  },
+  "globals": {
+    "case": null,
+    "count": null,
+    "type": "file"
+  },
+  "mode": "workingTree",
+  "diagnostics": []
+}

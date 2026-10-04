@@ -1,0 +1,40 @@
+{
+  "version": 1,
+  "raw": "case:yes sym:retrypolicy",
+  "root": {
+    "children": [
+      {
+        "kind": "op",
+        "match": "literal",
+        "op": "case",
+        "span": {
+          "start": 0,
+          "end": 8
+        },
+        "value": "yes"
+      },
+      {
+        "kind": "op",
+        "match": "literal",
+        "op": "sym",
+        "span": {
+          "start": 9,
+          "end": 24
+        },
+        "value": "retrypolicy"
+      }
+    ],
+    "kind": "and",
+    "span": {
+      "start": 0,
+      "end": 24
+    }
+  },
+  "globals": {
+    "case": "yes",
+    "count": null,
+    "type": null
+  },
+  "mode": "workingTree",
+  "diagnostics": []
+}

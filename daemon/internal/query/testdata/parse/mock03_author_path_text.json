@@ -1,0 +1,53 @@
+{
+  "version": 1,
+  "raw": "author:jane f:.*test\\.py$ timeout",
+  "root": {
+    "children": [
+      {
+        "kind": "op",
+        "match": "literal",
+        "op": "author",
+        "resolved": {
+          "label": "Jane Doe"
+        },
+        "span": {
+          "start": 0,
+          "end": 11
+        },
+        "value": "jane"
+      },
+      {
+        "kind": "op",
+        "match": "regex",
+        "op": "f",
+        "span": {
+          "start": 12,
+          "end": 25
+        },
+        "value": ".*test\\.py$"
+      },
+      {
+        "kind": "text",
+        "match": "literal",
+        "span": {
+          "start": 26,
+          "end": 33
+        },
+        "termIndex": 0,
+        "value": "timeout"
+      }
+    ],
+    "kind": "and",
+    "span": {
+      "start": 0,
+      "end": 33
+    }
+  },
+  "globals": {
+    "case": null,
+    "count": null,
+    "type": null
+  },
+  "mode": "history",
+  "diagnostics": []
+}

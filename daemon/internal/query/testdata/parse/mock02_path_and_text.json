@@ -1,0 +1,40 @@
+{
+  "version": 1,
+  "raw": "f:.*test\\.py$ timeout",
+  "root": {
+    "children": [
+      {
+        "kind": "op",
+        "match": "regex",
+        "op": "f",
+        "span": {
+          "start": 0,
+          "end": 13
+        },
+        "value": ".*test\\.py$"
+      },
+      {
+        "kind": "text",
+        "match": "literal",
+        "span": {
+          "start": 14,
+          "end": 21
+        },
+        "termIndex": 0,
+        "value": "timeout"
+      }
+    ],
+    "kind": "and",
+    "span": {
+      "start": 0,
+      "end": 21
+    }
+  },
+  "globals": {
+    "case": null,
+    "count": null,
+    "type": null
+  },
+  "mode": "workingTree",
+  "diagnostics": []
+}

@@ -1,0 +1,89 @@
+{
+  "version": 1,
+  "raw": "author:jane (timeout OR retry) -f:vendor/ since:6m",
+  "root": {
+    "children": [
+      {
+        "kind": "op",
+        "match": "literal",
+        "op": "author",
+        "resolved": {
+          "label": "Jane Doe"
+        },
+        "span": {
+          "start": 0,
+          "end": 11
+        },
+        "value": "jane"
+      },
+      {
+        "children": [
+          {
+            "kind": "text",
+            "match": "literal",
+            "span": {
+              "start": 13,
+              "end": 20
+            },
+            "termIndex": 0,
+            "value": "timeout"
+          },
+          {
+            "kind": "text",
+            "match": "literal",
+            "span": {
+              "start": 24,
+              "end": 29
+            },
+            "termIndex": 1,
+            "value": "retry"
+          }
+        ],
+        "kind": "or",
+        "span": {
+          "start": 13,
+          "end": 29
+        }
+      },
+      {
+        "child": {
+          "kind": "op",
+          "match": "regex",
+          "op": "f",
+          "span": {
+            "start": 32,
+            "end": 41
+          },
+          "value": "vendor/"
+        },
+        "kind": "not",
+        "span": {
+          "start": 31,
+          "end": 41
+        }
+      },
+      {
+        "kind": "op",
+        "match": "literal",
+        "op": "since",
+        "span": {
+          "start": 42,
+          "end": 50
+        },
+        "value": "6m"
+      }
+    ],
+    "kind": "and",
+    "span": {
+      "start": 0,
+      "end": 50
+    }
+  },
+  "globals": {
+    "case": null,
+    "count": null,
+    "type": null
+  },
+  "mode": "history",
+  "diagnostics": []
+}
