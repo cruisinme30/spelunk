@@ -36,7 +36,7 @@ func check(src *source, query *protocol.ParsedQuery, problems *diagnostics) {
 
 // topLevel returns the nodes that are directly part of the top-level AND.
 func topLevel(root *protocol.Node) []*protocol.Node {
-	if root.Kind != "and" {
+	if root.Kind != protocol.NodeKindAnd {
 		return []*protocol.Node{root}
 	}
 	nodes := make([]*protocol.Node, len(root.Children))
@@ -66,7 +66,7 @@ func collectGlobals(src *source, query *protocol.ParsedQuery, problems *diagnost
 	}
 	seen := map[protocol.OpName]bool{}
 	walkWithParent(query.Root, nil, func(node, parent *protocol.Node) {
-		if node.Kind != "op" {
+		if node.Kind != protocol.NodeKindOp {
 			return
 		}
 		if op, _ := lookupOperator(node.Op); !op.global {
@@ -77,7 +77,7 @@ func collectGlobals(src *source, query *protocol.ParsedQuery, problems *diagnost
 		case !atTop[node]:
 			// Moving a negated global drops its minus: "-count:5" isn't meaningful.
 			removed := node.Span
-			if parent != nil && parent.Kind == "not" {
+			if parent != nil && parent.Kind == protocol.NodeKindNot {
 				removed = parent.Span
 			}
 			move := moveToTopLevel(src, written, removeSpan(src, removed))
@@ -99,7 +99,7 @@ func collectGlobals(src *source, query *protocol.ParsedQuery, problems *diagnost
 // back inside an OR branch.
 func moveToTopLevel(src *source, global string, removed protocol.Span) protocol.Fix {
 	rest := strings.TrimSpace(src.slice(0, removed.Start) + src.slice(removed.End, src.length()))
-	if root := Parse(rest, nil).Root; root != nil && root.Kind == "or" {
+	if root := Parse(rest, nil).Root; root != nil && root.Kind == protocol.NodeKindOr {
 		rest = "(" + rest + ")"
 	}
 	whole := protocol.Span{Start: 0, End: src.length()}
@@ -139,7 +139,7 @@ func setGlobal(globals *protocol.Globals, node *protocol.Node) {
 func needsHistory(node *protocol.Node) bool {
 	found := false
 	walk(node, func(n *protocol.Node) {
-		if n.Kind == "op" && (n.Op == protocol.OpNameAuthor || n.Op == protocol.OpNameMsg ||
+		if n.Kind == protocol.NodeKindOp && (n.Op == protocol.OpNameAuthor || n.Op == protocol.OpNameMsg ||
 			n.Op == protocol.OpNameType && n.Value == "commit") {
 			found = true
 		}
@@ -154,7 +154,7 @@ func usesHistory(root *protocol.Node) bool { return needsHistory(root) }
 // one result list can't mix commits and lines.
 func checkOrModes(root *protocol.Node, problems *diagnostics) {
 	walk(root, func(node *protocol.Node) {
-		if node.Kind != "or" {
+		if node.Kind != protocol.NodeKindOr {
 			return
 		}
 		history := 0
@@ -173,7 +173,7 @@ func checkOrModes(root *protocol.Node, problems *diagnostics) {
 // reportWorkingTreeOperators reports sym: in a history query.
 func reportWorkingTreeOperators(src *source, root *protocol.Node, problems *diagnostics) {
 	walk(root, func(node *protocol.Node) {
-		if node.Kind != "op" {
+		if node.Kind != protocol.NodeKindOp {
 			return
 		}
 		if op, _ := lookupOperator(node.Op); op.scope == scopeWorkingTreeOnly {
@@ -188,16 +188,16 @@ func reportWorkingTreeOperators(src *source, root *protocol.Node, problems *diag
 // Globals (case:, count:, type:) don't count: they only shape results.
 func hasPositiveTerm(node *protocol.Node) bool {
 	switch node.Kind {
-	case "not":
+	case protocol.NodeKindNot:
 		return false
-	case "and", "or":
+	case protocol.NodeKindAnd, protocol.NodeKindOr:
 		for i := range node.Children {
 			if hasPositiveTerm(&node.Children[i]) {
 				return true
 			}
 		}
 		return false
-	case "op":
+	case protocol.NodeKindOp:
 		op, _ := lookupOperator(node.Op)
 		return !op.global
 	default:

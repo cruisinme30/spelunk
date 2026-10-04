@@ -79,7 +79,7 @@ func (p *parser) parseQuery() *protocol.Node {
 			p.advance()
 		}
 	}
-	return joinNodes("and", parts)
+	return joinNodes(protocol.NodeKindAnd, parts)
 }
 
 func (p *parser) parseOr() *protocol.Node {
@@ -99,7 +99,7 @@ func (p *parser) parseOr() *protocol.Node {
 		}
 		branches = append(branches, next)
 	}
-	return joinNodes("or", branches)
+	return joinNodes(protocol.NodeKindOr, branches)
 }
 
 func (p *parser) parseAnd() *protocol.Node {
@@ -121,7 +121,7 @@ func (p *parser) parseAnd() *protocol.Node {
 			operands = append(operands, node)
 		}
 	}
-	return joinNodes("and", operands)
+	return joinNodes(protocol.NodeKindAnd, operands)
 }
 
 func (p *parser) reportMissingOperand(keyword token, side string) {
@@ -143,7 +143,7 @@ func (p *parser) parseUnary() *protocol.Node {
 			"Nothing after - to exclude")
 		return nil
 	}
-	return &protocol.Node{Kind: "not", Child: operand, Span: protocol.Span{Start: minus.start, End: operand.Span.End}}
+	return &protocol.Node{Kind: protocol.NodeKindNot, Child: operand, Span: protocol.Span{Start: minus.start, End: operand.Span.End}}
 }
 
 func (p *parser) parsePrimary() *protocol.Node {
@@ -181,10 +181,10 @@ func (p *parser) reportUnclosedParen(open token, inner *protocol.Node) {
 	var fixes []protocol.Fix
 	if inner != nil {
 		closeAfter := inner
-		if inner.Kind == "or" {
+		if inner.Kind == protocol.NodeKindOr {
 			lastBranch := &inner.Children[len(inner.Children)-1]
 			closeAfter = lastBranch
-			if lastBranch.Kind == "and" {
+			if lastBranch.Kind == protocol.NodeKindAnd {
 				closeAfter = &lastBranch.Children[0]
 			}
 		}
@@ -218,7 +218,7 @@ func (p *parser) textNode(t token) *protocol.Node {
 	case formBare:
 		// a plain word is matched literally
 	}
-	node := &protocol.Node{Kind: "text", Value: t.value, Match: match, TermIndex: p.nextTermIndex, Span: p.span(t)}
+	node := &protocol.Node{Kind: protocol.NodeKindText, Value: t.value, Match: match, TermIndex: p.nextTermIndex, Span: p.span(t)}
 	p.nextTermIndex++
 	return node
 }
@@ -256,7 +256,7 @@ func (p *parser) operatorNode(t token) *protocol.Node {
 		p.reportBadValue(op, t, valueSpan, problem)
 		return nil
 	}
-	node := &protocol.Node{Kind: "op", Op: op.name, Value: t.value, Match: match, Span: p.span(t)}
+	node := &protocol.Node{Kind: protocol.NodeKindOp, Op: op.name, Value: t.value, Match: match, Span: p.span(t)}
 	node.Resolved = p.resolve(op.name, t.value)
 	return node
 }

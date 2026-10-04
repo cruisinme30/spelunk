@@ -146,6 +146,15 @@ type Node struct {
 	Resolved  *Resolved `json:"resolved,omitempty"`
 }
 
+// Node kinds: the values of Node.Kind.
+const (
+	NodeKindAnd  = "and"
+	NodeKindOr   = "or"
+	NodeKindNot  = "not"
+	NodeKindText = "text"
+	NodeKindOp   = "op"
+)
+
 // MarshalJSON emits only the fields of the variant named by Kind.
 func (v Node) MarshalJSON() ([]byte, error) {
 	fields := map[string]any{"kind": v.Kind}
@@ -291,6 +300,14 @@ type ResultItem struct {
 	SubjectHits  []Range     `json:"subjectHits,omitempty"`
 }
 
+// ResultItem kinds: the values of ResultItem.Kind.
+const (
+	ResultItemKindFile   = "file"
+	ResultItemKindLine   = "line"
+	ResultItemKindSymbol = "symbol"
+	ResultItemKindCommit = "commit"
+)
+
 // MarshalJSON emits only the fields of the variant named by Kind.
 func (v ResultItem) MarshalJSON() ([]byte, error) {
 	fields := map[string]any{"kind": v.Kind}
@@ -434,6 +451,12 @@ type Preview struct {
 	Files      []FileStat      `json:"files,omitempty"`
 	Hunks      []Hunk          `json:"hunks,omitempty"`
 }
+
+// Preview kinds: the values of Preview.Kind.
+const (
+	PreviewKindFile   = "file"
+	PreviewKindCommit = "commit"
+)
 
 // MarshalJSON emits only the fields of the variant named by Kind.
 func (v Preview) MarshalJSON() ([]byte, error) {

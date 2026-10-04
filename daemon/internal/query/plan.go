@@ -21,10 +21,10 @@ type ResultKind = string
 
 // The kinds of result, as ResultItem.Kind names them.
 const (
-	KindFile   ResultKind = "file"
-	KindLine   ResultKind = "line"
-	KindSymbol ResultKind = "symbol"
-	KindCommit ResultKind = "commit"
+	KindFile   ResultKind = protocol.ResultItemKindFile
+	KindLine   ResultKind = protocol.ResultItemKindLine
+	KindSymbol ResultKind = protocol.ResultItemKindSymbol
+	KindCommit ResultKind = protocol.ResultItemKindCommit
 )
 
 // Plan is what a search engine runs. Engines never see query text.
@@ -218,7 +218,7 @@ func pageOffset(cursor string) (int, error) {
 // addGlobalFilter records a type: or case:yes global as a filter whose
 // hidden results the engine counts (the type:file and case:yes notes).
 func (p *Plan) addGlobalFilter(node *protocol.Node, src *source) {
-	if node.Kind != "op" {
+	if node.Kind != protocol.NodeKindOp {
 		return
 	}
 	text := src.slice(node.Span.Start, node.Span.End)
@@ -237,7 +237,7 @@ func resultKinds(q protocol.ParsedQuery) map[ResultKind]bool {
 	}
 	wantsSymbols := false
 	walk(q.Root, func(n *protocol.Node) {
-		if n.Kind == "op" && n.Op == protocol.OpNameSym {
+		if n.Kind == protocol.NodeKindOp && n.Op == protocol.OpNameSym {
 			wantsSymbols = true
 		}
 	})
@@ -265,23 +265,23 @@ type lowering struct {
 
 func (l *lowering) lower(node *protocol.Node) Pred {
 	switch node.Kind {
-	case "and", "or":
+	case protocol.NodeKindAnd, protocol.NodeKindOr:
 		var kids []Pred
 		for i := range node.Children {
 			if kid := l.lower(&node.Children[i]); kid != nil {
 				kids = append(kids, kid)
 			}
 		}
-		if node.Kind == "or" {
+		if node.Kind == protocol.NodeKindOr {
 			return &Or{Kids: kids}
 		}
 		return &And{Kids: kids}
-	case "not":
+	case protocol.NodeKindNot:
 		if kid := l.lower(node.Child); kid != nil {
 			return &Not{Kid: kid}
 		}
 		return nil
-	case "text":
+	case protocol.NodeKindText:
 		content := &Content{Re: l.regex(node.Value, node.Match), IgnoreCase: !l.caseSensitive, TermIndex: node.TermIndex}
 		if node.Match != protocol.MatchRegex {
 			content.Literal = node.Value
@@ -356,11 +356,11 @@ func since(now time.Time, value string) time.Time {
 // instead of counting everything outside it.
 func filterReason(node *protocol.Node) string {
 	switch {
-	case node.Kind == "not" && node.Child.Kind == "op" && node.Child.Op == protocol.OpNameF:
+	case node.Kind == protocol.NodeKindNot && node.Child.Kind == protocol.NodeKindOp && node.Child.Op == protocol.OpNameF:
 		return "pathFilter"
-	case node.Kind == "not":
+	case node.Kind == protocol.NodeKindNot:
 		return "not"
-	case node.Kind == "op" && node.Op == protocol.OpNameSince:
+	case node.Kind == protocol.NodeKindOp && node.Op == protocol.OpNameSince:
 		return "since"
 	default:
 		return ""

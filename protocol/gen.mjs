@@ -7,10 +7,14 @@
 //
 // Only the schema features the protocol uses are supported: objects, arrays,
 // string enums and consts, nullable alternatives (oneOf [X, null]), and unions
-// of objects discriminated by a `kind` property. Anything else throws.
+// of objects discriminated by a `kind` property. Other unions become `any` in
+// Go; any other unsupported schema throws.
+//
+// Formatting the Go output needs gofmt. Without a Go toolchain the Go file is
+// neither written nor checked, and the script says so.
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -229,8 +233,8 @@ function generateGoUnion(name, node) {
   for (const variant of node.oneOf) {
     const required = new Set(variant.required ?? []);
     for (const [property, propertyNode] of Object.entries(variant.properties)) {
-      // A recursive field (Node.child) must be a pointer, so it is always optional in Go.
-      const optional = !required.has(property) || property === "child";
+      // A field of the union's own type (Node.child) must be a pointer, so it is optional in Go.
+      const optional = !required.has(property) || refName(propertyNode.$ref ?? "") === name;
       const fieldType = property === "kind" ? "string" : goType(propertyNode, { optional });
       const previous = fieldTypes.get(property);
       if (previous && stripPointer(previous) !== stripPointer(fieldType)) {
@@ -243,6 +247,12 @@ function generateGoUnion(name, node) {
   for (const [property, fieldType] of fieldTypes)
     lines.push(`\t${goFieldName(property)} ${fieldType} \`json:"${property},omitempty"\``);
   lines.push("}", "");
+  const allKinds = node.oneOf.flatMap((variant) =>
+    variant.properties.kind.const === undefined ? variant.properties.kind.enum : [variant.properties.kind.const],
+  );
+  lines.push(`// ${name} kinds: the values of ${name}.Kind.`, "const (");
+  for (const kind of allKinds) lines.push(`\t${name}Kind${pascalCase(kind)} = ${JSON.stringify(kind)}`);
+  lines.push(")", "");
   lines.push(`// MarshalJSON emits only the fields of the variant named by Kind.`);
   lines.push(
     `func (v ${name}) MarshalJSON() ([]byte, error) {`,
@@ -334,12 +344,12 @@ function lowerFirst(text) {
   return text.charAt(0).toLowerCase() + text.slice(1);
 }
 
-/** Formats Go source with gofmt when a Go toolchain is installed. */
+/** Formats Go source with gofmt; null when no Go toolchain is installed. */
 function gofmt(source) {
   try {
     return execFileSync("gofmt", [], { input: source, encoding: "utf8" });
   } catch (error) {
-    if (error.code === "ENOENT") return source;
+    if (error.code === "ENOENT") return null;
     throw error;
   }
 }
@@ -347,15 +357,20 @@ function gofmt(source) {
 // ------------------------------------------------------------ write or check
 
 const typescript = generateTypeScript();
+const go = gofmt(generateGo());
 const outputs = [
   [join(repoRoot, "extension/src/protocol.gen.ts"), typescript],
   [join(repoRoot, "webview/src/protocol.gen.ts"), typescript],
-  [join(repoRoot, "daemon/internal/protocol/protocol_gen.go"), gofmt(generateGo())],
 ];
+if (go === null) {
+  console.warn("gofmt not found: daemon/internal/protocol/protocol_gen.go is neither written nor checked");
+} else {
+  outputs.push([join(repoRoot, "daemon/internal/protocol/protocol_gen.go"), go]);
+}
 const checkOnly = process.argv.includes("--check");
 let staleCount = 0;
 for (const [path, content] of outputs) {
-  const relativePath = path.replace(repoRoot + "/", "");
+  const relativePath = relative(repoRoot, path);
   if (!checkOnly) {
     writeFileSync(path, content);
     console.log("wrote " + relativePath);

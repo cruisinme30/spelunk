@@ -60,7 +60,7 @@ func Preview(repo *Repo, ref Ref, plan *query.Plan, contextLines int) (protocol.
 		}
 	}
 	return protocol.Preview{
-		Kind: "file", Path: ref.Path, FirstLine: first, Lines: lines[first-1 : last],
+		Kind: protocol.PreviewKindFile, Path: ref.Path, FirstLine: first, Lines: lines[first-1 : last],
 		FocusLine: focus, Hits: hits, DirtyLines: []int{},
 	}, nil
 }
