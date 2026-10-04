@@ -53,10 +53,14 @@ func TestPlanLowersTheQuery(t *testing.T) {
 
 func TestSinceWindowsCountBackFromNow(t *testing.T) {
 	tests := map[string]string{
-		"since:30d x": "2026-09-03T10:00:00Z",
-		"since:2w x":  "2026-09-19T10:00:00Z",
-		"since:6m x":  "2026-04-03T10:00:00Z",
-		"since:1y x":  "2025-10-03T10:00:00Z",
+		"since:30d x":       "2026-09-03T10:00:00Z",
+		"since:2w x":        "2026-09-19T10:00:00Z",
+		"since:6m x":        "2026-04-03T10:00:00Z",
+		"since:1y x":        "2025-10-03T10:00:00Z",
+		"since:90min x":     "2026-10-03T08:30:00Z",
+		"since:2h x":        "2026-10-03T08:00:00Z",
+		"since:today x":     "2026-10-03T00:00:00Z",
+		"since:Yesterday x": "2026-10-02T00:00:00Z",
 	}
 	for query, want := range tests {
 		first := mustPlan(t, query, defaultSettings).Pred.Kids[0]

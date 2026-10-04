@@ -22,6 +22,8 @@ All notable changes to this project are documented here. The format follows
   `case:yes`.
 - The help page: every operator with an example to try, worked examples, keys and settings.
 - `f:` and `repo:` also take globs such as `*.go` and `src/**/*.ts`.
+- `since:` also takes `today`, `yesterday`, minutes (`30min`) and hours (`2h`). `since:30m` (30 months) warns and
+  offers `30min`.
 - `npm run package` builds a `.vsix` for any platform, and F5 runs the extension on the sample repos.
 
 ### Removed

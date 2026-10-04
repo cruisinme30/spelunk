@@ -348,13 +348,26 @@ func (l *lowering) compile(pattern string) *regexp.Regexp {
 }
 
 // since returns when the window named by a since: value starts, counting
-// back from now: <n>d is n days, <n>w n weeks, <n>m n calendar months and
-// <n>y n calendar years, so since:6m on October 3 starts on April 3. value
-// must match durationPattern, which the parser already checked.
+// back from now: <n>min and <n>h are minutes and hours, <n>d days, <n>w
+// weeks, <n>m calendar months and <n>y calendar years, so since:6m on
+// October 3 starts on April 3. today starts at midnight in now's time zone,
+// and yesterday at the midnight before. value must be one the parser
+// accepted (see asDuration).
 func since(now time.Time, value string) time.Time {
+	midnight := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	switch strings.ToLower(value) {
+	case sinceToday:
+		return midnight
+	case sinceYesterday:
+		return midnight.AddDate(0, 0, -1)
+	}
 	parts := durationPattern.FindStringSubmatch(value)
 	n, _ := strconv.Atoi(parts[1])
 	switch parts[2] {
+	case "min":
+		return now.Add(-time.Duration(n) * time.Minute)
+	case "h":
+		return now.Add(-time.Duration(n) * time.Hour)
 	case "d":
 		return now.AddDate(0, 0, -n)
 	case "w":

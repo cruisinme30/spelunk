@@ -31,7 +31,7 @@ Words are matched anywhere in file names and code. Combine them with operators:
 | `f:*.go`, `f:_test\.py$` | Keep files whose path matches a glob or a regex |
 | `repo:web`, `lang:python` | Keep one repo or one language |
 | `type:file` | Show file names only |
-| `since:2w` | Keep files changed in the last two weeks |
+| `since:today`, `since:2h`, `since:2w` | Keep files changed today, in the last two hours, or in the last two weeks |
 | `count:50`, `count:all` | Show this many results per page |
 
 When a query has a mistake, the panel says what is wrong and offers a one-key fix (⌘.).

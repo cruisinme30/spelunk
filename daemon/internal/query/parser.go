@@ -256,9 +256,24 @@ func (p *parser) operatorNode(t token) *protocol.Node {
 		p.reportBadValue(op, t, valueSpan, problem)
 		return nil
 	}
+	if op.name == protocol.OpNameSince {
+		p.warnIfMonthsMeantAsMinutes(t, valueSpan)
+	}
 	node := &protocol.Node{Kind: protocol.NodeKindOp, Op: op.name, Value: t.value, Match: match, Span: p.span(t)}
 	node.Resolved = p.resolve(op.name, t.value)
 	return node
+}
+
+// warnIfMonthsMeantAsMinutes warns about since:30m, which means 30 months,
+// and offers since:30min. It's a warning, so the search still runs.
+func (p *parser) warnIfMonthsMeantAsMinutes(t token, valueSpan protocol.Span) {
+	minutes := monthsMeantAsMinutes(t.value)
+	if minutes == "" {
+		return
+	}
+	p.problems.add(protocol.SeverityWarning, DiagBadValue, p.span(t),
+		fmt.Sprintf("since:%s means %s months; for minutes write since:%s", t.value, strings.TrimSuffix(t.value, "m"), minutes),
+		replaceFix("Use since:"+minutes, valueSpan, minutes))
 }
 
 func (p *parser) reportUnknownOperator(t token) {

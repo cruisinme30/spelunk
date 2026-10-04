@@ -106,3 +106,20 @@ func TestEveryFixProducesAQueryWithoutThatDiagnostic(t *testing.T) {
 		}
 	}
 }
+
+func TestSinceInMonthsThatLooksLikeMinutesWarns(t *testing.T) {
+	q := Parse("since:30m timeout", testResolver)
+	if len(q.Diagnostics) != 1 {
+		t.Fatalf("Parse(since:30m) diagnostics = %+v, want one warning", q.Diagnostics)
+	}
+	d := q.Diagnostics[0]
+	if d.Severity != protocol.SeverityWarning || d.Code != DiagBadValue {
+		t.Errorf("diagnostic = %s %s, want a bad_value warning", d.Severity, d.Code)
+	}
+	if got := applyFix("since:30m timeout", d.Fixes[0]); got != "since:30min timeout" {
+		t.Errorf("fix gives %q, want %q", got, "since:30min timeout")
+	}
+	if q := Parse("since:6m timeout", testResolver); len(q.Diagnostics) != 0 {
+		t.Errorf("Parse(since:6m) diagnostics = %+v, want none: six months is plausible", q.Diagnostics)
+	}
+}

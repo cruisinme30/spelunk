@@ -105,7 +105,7 @@ function renderOption(
   return option;
 }
 
-/** "since:30d|2w|6m|1y" → ["30d", "2w", "6m", "1y"]; no list for a bare "f:". */
+/** "since:today|2h|30d|6m" → ["today", "2h", "30d", "6m"]; no list for a bare "f:". */
 function exampleValues(entryLabel: string): string[] {
   const values = entryLabel.slice(entryLabel.indexOf(":") + 1);
   return values.includes("|") ? values.split("|") : [];

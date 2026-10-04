@@ -8,7 +8,7 @@ import type { OpName } from "./protocol.gen";
 export interface OperatorEntry {
   /** The operator the entry describes; absent for syntax such as OR or quotes. */
   operator?: OpName;
-  /** How the entry reads, with example values after the colon: "since:30d|2w|6m|1y". */
+  /** How the entry reads, with example values after the colon: "since:today|2h|30d|6m". */
   label: string;
   /** What clicking the entry on the cheat sheet inserts into the query box. */
   insert: string;
@@ -162,10 +162,11 @@ export const OPERATOR_GROUPS: OperatorGroup[] = [
       },
       {
         operator: "since",
-        label: "since:30d|2w|6m|1y",
+        label: "since:today|2h|30d|6m",
         insert: "since:",
         summary: "Commits in the window, or files changed in it.",
-        description: "Commits in the window. On code results, files changed in it, including your uncommitted edits.",
+        description:
+          "Commits in the window, or files changed in it. today, yesterday, or a number with min, h, d, w, m (months) or y.",
         example: "since:2w timeout",
       },
     ],

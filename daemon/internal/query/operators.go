@@ -36,12 +36,12 @@ type operator struct {
 // operators lists every operator in completion order: most used first, so
 // "s" offers since: before sym:.
 var operators = []operator{
-	{name: protocol.OpNameF, summary: "File path, as a regex", examples: []string{`f:\.py$`, "f:src/", "f:test"}, interpret: asPathRegex},
+	{name: protocol.OpNameF, summary: "File path, as a regex or a glob", examples: []string{"f:*.py", `f:\.py$`, "f:src/", "f:test"}, interpret: asPathRegex},
 	{name: protocol.OpNameAuthor, scope: scopeHistoryOnly, summary: "Commits by this person", interpret: asName},
-	{name: protocol.OpNameSince, summary: "Only changes inside a time window", examples: []string{"since:30d", "since:2w", "since:6m", "since:1y"}, interpret: asDuration},
+	{name: protocol.OpNameSince, summary: "Only changes inside a time window", examples: []string{"since:30d", "since:2w", "since:6m", "since:1y", "since:today", "since:yesterday", "since:2h"}, interpret: asDuration},
 	{name: protocol.OpNameSym, scope: scopeWorkingTreeOnly, summary: "Symbol definitions", interpret: asText},
 	{name: protocol.OpNameLang, summary: "Programming language", examples: []string{"lang:python", "lang:go", "lang:typescript"}, interpret: asLanguage},
-	{name: protocol.OpNameRepo, summary: "Repo name, as a regex", interpret: asPathRegex},
+	{name: protocol.OpNameRepo, summary: "Repo name, as a regex or a glob", interpret: asPathRegex},
 	{name: protocol.OpNameMsg, scope: scopeHistoryOnly, summary: "Words in the commit message", interpret: asText},
 	{name: protocol.OpNameType, global: true, summary: "Only file names, code, or commits", examples: []string{"type:file", "type:code", "type:commit"}, interpret: oneOf("file", "code", "commit")},
 	{name: protocol.OpNameCase, global: true, summary: "Match case (yes) or ignore it (no)", examples: []string{"case:yes", "case:no"}, interpret: oneOf("yes", "no")},
@@ -110,15 +110,40 @@ func asName(_ string, form valueForm) (protocol.Match, string) {
 	}
 }
 
-var durationPattern = regexp.MustCompile(`^([1-9]\d{0,4})([dwmy])$`)
+// durationPattern is a since: window: a count and a unit, which is min
+// (minutes), h (hours), d (days), w (weeks), m (months) or y (years).
+var durationPattern = regexp.MustCompile(`^([1-9]\d{0,4})(min|h|d|w|m|y)$`)
 
-// asDuration: since: takes <n>d, <n>w, <n>m or <n>y.
+// The since: values that name a day rather than a length of time.
+const (
+	sinceToday     = "today"
+	sinceYesterday = "yesterday"
+)
+
+// asDuration: since: takes today, yesterday, or <n> and a unit (see durationPattern).
 func asDuration(value string, form valueForm) (protocol.Match, string) {
-	if form != formBare || !durationPattern.MatchString(value) {
-		return protocol.MatchLiteral, "since: takes a number and a unit: d, w, m or y"
+	day := strings.ToLower(value)
+	if form != formBare || (day != sinceToday && day != sinceYesterday && !durationPattern.MatchString(value)) {
+		return protocol.MatchLiteral, "since: takes today, yesterday, or a number and a unit: min, h, d, w, m (months) or y"
 	}
 	return protocol.MatchLiteral, ""
 }
+
+// monthsMeantAsMinutes returns the minutes reading of a since: value such
+// as 30m, which means 30 months but was likely typed for 30 minutes: more
+// than a year's worth of months. It returns "" for every other value.
+func monthsMeantAsMinutes(value string) string {
+	parts := durationPattern.FindStringSubmatch(value)
+	if len(parts) != 3 || parts[2] != "m" {
+		return ""
+	}
+	if months, _ := strconv.Atoi(parts[1]); months <= monthsInYear {
+		return ""
+	}
+	return parts[1] + "min"
+}
+
+const monthsInYear = 12
 
 // asLanguage: lang: takes a known language name or alias.
 func asLanguage(value string, _ valueForm) (protocol.Match, string) {

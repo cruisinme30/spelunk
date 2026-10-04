@@ -82,6 +82,7 @@ func TestOperators(t *testing.T) {
 		{"msg: phrase", `msg:"fix flaky"`, "msg=fix flaky/phrase"},
 		{"msg: regex", "msg:/fix(ed)?/", "msg=fix(ed)?/regex"},
 		{"since: days, weeks, months, years", "since:30d since:2w since:6m since:1y x", "and(since=30d/literal since=2w/literal since=6m/literal since=1y/literal literal:x)"},
+		{"since: minutes, hours, today and yesterday", "since:45min since:3h since:today since:yesterday x", "and(since=45min/literal since=3h/literal since=today/literal since=yesterday/literal literal:x)"},
 		{"case: yes", "case:yes x", "and(case=yes/literal literal:x)"},
 		{"count: number", "count:20 x", "and(count=20/literal literal:x)"},
 		{"count: all", "count:all x", "and(count=all/literal literal:x)"},
