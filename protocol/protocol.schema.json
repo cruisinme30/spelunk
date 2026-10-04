@@ -1,0 +1,582 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "unified-search/protocol",
+  "title": "Unified Search protocol",
+  "description": "Single source of truth for every type that crosses a process boundary: Contract 1 output (ParsedQuery), Contract 2 (webview <-> extension host) and Contract 3 (extension host <-> daemon). Run `node protocol/gen.mjs` after editing.",
+  "x-protocol-version": 1,
+  "$defs": {
+    "Span": {
+      "description": "UTF-16 offsets into the raw query.",
+      "type": "object",
+      "properties": { "start": { "type": "integer" }, "end": { "type": "integer" } },
+      "required": ["start", "end"]
+    },
+    "Range": {
+      "description": "UTF-16 offsets in the shown text.",
+      "type": "object",
+      "properties": { "start": { "type": "integer" }, "end": { "type": "integer" } },
+      "required": ["start", "end"]
+    },
+    "Hit": {
+      "description": "A matched range plus which text term matched, for colors.",
+      "type": "object",
+      "properties": {
+        "start": { "type": "integer" },
+        "end": { "type": "integer" },
+        "termIndex": { "type": "integer" }
+      },
+      "required": ["start", "end", "termIndex"]
+    },
+    "OpName": {
+      "type": "string",
+      "enum": ["f", "repo", "lang", "type", "sym", "author", "msg", "since", "case", "count"]
+    },
+    "Match": { "type": "string", "enum": ["literal", "phrase", "regex"] },
+    "Mode": { "type": "string", "enum": ["workingTree", "history"] },
+    "Severity": { "type": "string", "enum": ["error", "warning"] },
+    "TextEdit": {
+      "type": "object",
+      "properties": { "span": { "$ref": "#/$defs/Span" }, "newText": { "type": "string" } },
+      "required": ["span", "newText"]
+    },
+    "Fix": {
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "edits": { "type": "array", "items": { "$ref": "#/$defs/TextEdit" } }
+      },
+      "required": ["title", "edits"]
+    },
+    "Diagnostic": {
+      "type": "object",
+      "properties": {
+        "severity": { "$ref": "#/$defs/Severity" },
+        "code": { "type": "string" },
+        "message": { "type": "string" },
+        "span": { "$ref": "#/$defs/Span" },
+        "fixes": { "type": "array", "items": { "$ref": "#/$defs/Fix" } }
+      },
+      "required": ["severity", "code", "message", "span", "fixes"]
+    },
+    "Resolved": {
+      "type": "object",
+      "properties": { "label": { "type": "string" } },
+      "required": ["label"]
+    },
+    "Node": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": { "enum": ["and", "or"] },
+            "children": { "type": "array", "items": { "$ref": "#/$defs/Node" } },
+            "span": { "$ref": "#/$defs/Span" }
+          },
+          "required": ["kind", "children", "span"]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": { "const": "not" },
+            "child": { "$ref": "#/$defs/Node" },
+            "span": { "$ref": "#/$defs/Span" }
+          },
+          "required": ["kind", "child", "span"]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": { "const": "text" },
+            "value": { "type": "string" },
+            "match": { "$ref": "#/$defs/Match" },
+            "termIndex": { "type": "integer" },
+            "span": { "$ref": "#/$defs/Span" }
+          },
+          "required": ["kind", "value", "match", "termIndex", "span"]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": { "const": "op" },
+            "op": { "$ref": "#/$defs/OpName" },
+            "value": { "type": "string" },
+            "match": { "$ref": "#/$defs/Match" },
+            "span": { "$ref": "#/$defs/Span" },
+            "resolved": { "$ref": "#/$defs/Resolved" }
+          },
+          "required": ["kind", "op", "value", "match", "span"]
+        }
+      ]
+    },
+    "Globals": {
+      "type": "object",
+      "properties": {
+        "case": { "oneOf": [{ "enum": ["yes", "no"] }, { "type": "null" }] },
+        "count": { "oneOf": [{ "type": "integer" }, { "const": "all" }, { "type": "null" }], "x-go-type": "any" },
+        "type": { "oneOf": [{ "enum": ["file", "code", "commit"] }, { "type": "null" }] }
+      },
+      "required": ["case", "count", "type"]
+    },
+    "ParsedQuery": {
+      "type": "object",
+      "properties": {
+        "version": { "const": 1 },
+        "raw": { "type": "string" },
+        "root": { "oneOf": [{ "$ref": "#/$defs/Node" }, { "type": "null" }] },
+        "globals": { "$ref": "#/$defs/Globals" },
+        "mode": { "$ref": "#/$defs/Mode" },
+        "diagnostics": { "type": "array", "items": { "$ref": "#/$defs/Diagnostic" } }
+      },
+      "required": ["version", "raw", "root", "globals", "mode", "diagnostics"]
+    },
+    "Root": {
+      "description": "A workspace folder. id = first 12 hex of sha256(path).",
+      "type": "object",
+      "properties": { "id": { "type": "string" }, "path": { "type": "string" }, "name": { "type": "string" } },
+      "required": ["id", "path", "name"]
+    },
+    "Settings": {
+      "description": "The unifiedSearch.* settings the daemon needs (Contract 5).",
+      "type": "object",
+      "properties": {
+        "caseSensitive": { "type": "boolean" },
+        "defaultCount": { "type": "integer" },
+        "historyDepth": { "enum": ["6m", "2y", "all"] },
+        "symbols": { "type": "boolean" },
+        "exclude": { "type": "array", "items": { "type": "string" } },
+        "includeIgnored": { "type": "boolean" },
+        "maxFileSizeKB": { "type": "integer" },
+        "location": { "type": "string" }
+      },
+      "required": ["caseSensitive", "defaultCount", "historyDepth", "symbols", "exclude", "includeIgnored", "maxFileSizeKB", "location"]
+    },
+    "LastCommit": {
+      "type": "object",
+      "properties": { "sha": { "type": "string" }, "author": { "type": "string" }, "at": { "type": "string" } },
+      "required": ["sha", "author", "at"]
+    },
+    "Person": {
+      "type": "object",
+      "properties": { "name": { "type": "string" }, "email": { "type": "string" } },
+      "required": ["name", "email"]
+    },
+    "FileStat": {
+      "type": "object",
+      "properties": {
+        "path": { "type": "string" },
+        "added": { "type": "integer" },
+        "removed": { "type": "integer" },
+        "hiddenByFilter": { "type": "boolean" }
+      },
+      "required": ["path", "added", "removed"]
+    },
+    "SymbolKind": { "type": "string", "enum": ["class", "interface", "function", "method", "type", "other"] },
+    "ResultItem": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": { "const": "file" },
+            "ref": { "type": "string" },
+            "repoId": { "type": "string" },
+            "path": { "type": "string" },
+            "nameHits": { "type": "array", "items": { "$ref": "#/$defs/Range" } },
+            "lastCommit": { "$ref": "#/$defs/LastCommit" },
+            "dirty": { "type": "boolean" }
+          },
+          "required": ["kind", "ref", "repoId", "path", "nameHits", "dirty"]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": { "const": "line" },
+            "ref": { "type": "string" },
+            "repoId": { "type": "string" },
+            "path": { "type": "string" },
+            "line": { "type": "integer" },
+            "text": { "type": "string" },
+            "hits": { "type": "array", "items": { "$ref": "#/$defs/Hit" } }
+          },
+          "required": ["kind", "ref", "repoId", "path", "line", "text", "hits"]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": { "const": "symbol" },
+            "ref": { "type": "string" },
+            "repoId": { "type": "string" },
+            "path": { "type": "string" },
+            "line": { "type": "integer" },
+            "name": { "type": "string" },
+            "symbolKind": { "$ref": "#/$defs/SymbolKind" },
+            "hits": { "type": "array", "items": { "$ref": "#/$defs/Hit" } }
+          },
+          "required": ["kind", "ref", "repoId", "path", "line", "name", "symbolKind", "hits"]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": { "const": "commit" },
+            "ref": { "type": "string" },
+            "repoId": { "type": "string" },
+            "sha": { "type": "string" },
+            "subject": { "type": "string" },
+            "author": { "$ref": "#/$defs/Person" },
+            "at": { "type": "string" },
+            "files": { "type": "array", "items": { "$ref": "#/$defs/FileStat" } },
+            "diffHits": { "type": "integer" },
+            "matchedTerms": { "type": "array", "items": { "type": "integer" } },
+            "subjectHits": { "type": "array", "items": { "$ref": "#/$defs/Range" } }
+          },
+          "required": ["kind", "ref", "repoId", "sha", "subject", "author", "at", "files", "diffHits", "matchedTerms", "subjectHits"]
+        }
+      ]
+    },
+    "LineHits": {
+      "type": "object",
+      "properties": { "line": { "type": "integer" }, "ranges": { "type": "array", "items": { "$ref": "#/$defs/Hit" } } },
+      "required": ["line", "ranges"]
+    },
+    "OutlineSymbol": {
+      "type": "object",
+      "properties": { "name": { "type": "string" }, "line": { "type": "integer" } },
+      "required": ["name", "line"]
+    },
+    "DiffLine": {
+      "type": "object",
+      "properties": {
+        "kind": { "enum": ["ctx", "add", "del"] },
+        "oldNo": { "type": "integer" },
+        "newNo": { "type": "integer" },
+        "text": { "type": "string" },
+        "hits": { "type": "array", "items": { "$ref": "#/$defs/Hit" } }
+      },
+      "required": ["kind", "text", "hits"]
+    },
+    "Hunk": {
+      "type": "object",
+      "properties": {
+        "path": { "type": "string" },
+        "header": { "type": "string" },
+        "lines": { "type": "array", "items": { "$ref": "#/$defs/DiffLine" } }
+      },
+      "required": ["path", "header", "lines"]
+    },
+    "Preview": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": { "const": "file" },
+            "path": { "type": "string" },
+            "firstLine": { "type": "integer" },
+            "lines": { "type": "array", "items": { "type": "string" } },
+            "focusLine": { "type": "integer" },
+            "hits": { "type": "array", "items": { "$ref": "#/$defs/LineHits" } },
+            "dirtyLines": { "type": "array", "items": { "type": "integer" } },
+            "symbols": { "type": "array", "items": { "$ref": "#/$defs/OutlineSymbol" } }
+          },
+          "required": ["kind", "path", "firstLine", "lines", "focusLine", "hits", "dirtyLines"]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": { "const": "commit" },
+            "sha": { "type": "string" },
+            "subject": { "type": "string" },
+            "body": { "type": "string" },
+            "author": { "type": "string" },
+            "at": { "type": "string" },
+            "files": { "type": "array", "items": { "$ref": "#/$defs/FileStat" } },
+            "hunks": { "type": "array", "items": { "$ref": "#/$defs/Hunk" } }
+          },
+          "required": ["kind", "sha", "subject", "body", "author", "at", "files", "hunks"]
+        }
+      ]
+    },
+    "HiddenNote": {
+      "type": "object",
+      "properties": {
+        "reason": { "enum": ["not", "since", "case", "type", "pathFilter"] },
+        "count": { "type": "integer" },
+        "unit": { "enum": ["matches", "files", "commits"] },
+        "undo": { "$ref": "#/$defs/Fix" }
+      },
+      "required": ["reason", "count", "unit", "undo"]
+    },
+    "Completion": {
+      "type": "object",
+      "properties": {
+        "label": { "type": "string" },
+        "detail": { "type": "string" },
+        "insert": { "$ref": "#/$defs/Fix" },
+        "group": { "enum": ["operator", "author", "repo", "lang", "value"] }
+      },
+      "required": ["label", "detail", "insert", "group"]
+    },
+    "IndexState": { "type": "string", "enum": ["ready", "indexing", "queued", "error", "off"] },
+    "RepoStatus": {
+      "type": "object",
+      "properties": {
+        "repoId": { "type": "string" },
+        "name": { "type": "string" },
+        "tree": { "$ref": "#/$defs/IndexState" },
+        "history": { "$ref": "#/$defs/IndexState" },
+        "progress": { "type": "number" },
+        "message": { "type": "string" }
+      },
+      "required": ["repoId", "name", "tree", "history"]
+    },
+    "OpenTarget": {
+      "description": "Either a file position (path, line, column, length) or a commit (repoId, sha, path).",
+      "type": "object",
+      "properties": {
+        "path": { "type": "string" },
+        "line": { "type": "integer" },
+        "column": { "type": "integer" },
+        "length": { "type": "integer" },
+        "repoId": { "type": "string" },
+        "sha": { "type": "string" }
+      },
+      "required": []
+    },
+
+    "InitializeParams": {
+      "type": "object",
+      "properties": {
+        "protocol": { "type": "integer" },
+        "roots": { "type": "array", "items": { "$ref": "#/$defs/Root" } },
+        "settings": { "$ref": "#/$defs/Settings" }
+      },
+      "required": ["protocol", "roots", "settings"]
+    },
+    "InitializeResult": {
+      "type": "object",
+      "properties": { "daemonVersion": { "type": "string" }, "protocol": { "type": "integer" } },
+      "required": ["daemonVersion", "protocol"]
+    },
+    "SetRootsParams": {
+      "type": "object",
+      "properties": { "roots": { "type": "array", "items": { "$ref": "#/$defs/Root" } } },
+      "required": ["roots"]
+    },
+    "SettingsUpdateParams": {
+      "type": "object",
+      "properties": { "settings": { "$ref": "#/$defs/Settings" } },
+      "required": ["settings"]
+    },
+    "FileChange": {
+      "type": "object",
+      "properties": { "path": { "type": "string" }, "type": { "enum": ["changed", "created", "deleted"] } },
+      "required": ["path", "type"]
+    },
+    "DidChangeFilesParams": {
+      "description": "Host -> daemon: file events from VS Code's watcher, a fast path ahead of the daemon's own watcher.",
+      "type": "object",
+      "properties": { "changes": { "type": "array", "items": { "$ref": "#/$defs/FileChange" } } },
+      "required": ["changes"]
+    },
+    "ParseParams": {
+      "type": "object",
+      "properties": { "text": { "type": "string" }, "cursor": { "type": "integer" } },
+      "required": ["text", "cursor"]
+    },
+    "ParseResult": {
+      "type": "object",
+      "properties": {
+        "query": { "$ref": "#/$defs/ParsedQuery" },
+        "completions": { "type": "array", "items": { "$ref": "#/$defs/Completion" } }
+      },
+      "required": ["query", "completions"]
+    },
+    "SearchStartParams": {
+      "type": "object",
+      "properties": { "searchId": { "type": "string" }, "text": { "type": "string" }, "cursor": { "type": "string" } },
+      "required": ["searchId", "text"]
+    },
+    "SearchResult": {
+      "type": "object",
+      "properties": {
+        "total": { "type": "integer" },
+        "truncated": { "type": "boolean" },
+        "nextCursor": { "type": "string" },
+        "hidden": { "type": "array", "items": { "$ref": "#/$defs/HiddenNote" } },
+        "ms": { "type": "integer" }
+      },
+      "required": ["total", "truncated", "hidden", "ms"]
+    },
+    "SearchBatchParams": {
+      "type": "object",
+      "properties": {
+        "searchId": { "type": "string" },
+        "items": { "type": "array", "items": { "$ref": "#/$defs/ResultItem" } }
+      },
+      "required": ["searchId", "items"]
+    },
+    "PreviewParams": {
+      "type": "object",
+      "properties": { "ref": { "type": "string" }, "contextLines": { "type": "integer" } },
+      "required": ["ref", "contextLines"]
+    },
+    "OpenResolveParams": {
+      "type": "object",
+      "properties": { "ref": { "type": "string" } },
+      "required": ["ref"]
+    },
+    "IndexStatusResult": {
+      "type": "object",
+      "properties": { "repos": { "type": "array", "items": { "$ref": "#/$defs/RepoStatus" } } },
+      "required": ["repos"]
+    },
+    "RebuildParams": {
+      "type": "object",
+      "properties": { "repoId": { "type": "string" } },
+      "required": []
+    },
+    "Empty": { "type": "object", "properties": {}, "required": [] },
+
+    "Envelope": {
+      "description": "Contract 2 message envelope, sent with postMessage in both directions.",
+      "type": "object",
+      "properties": {
+        "v": { "const": 1 },
+        "type": { "type": "string" },
+        "seq": { "type": "integer" },
+        "payload": { "type": "object", "x-ts-type": "unknown", "x-go-type": "json.RawMessage" }
+      },
+      "required": ["v", "type", "payload"]
+    },
+    "QueryChangedMsg": {
+      "type": "object",
+      "properties": { "text": { "type": "string" }, "cursor": { "type": "integer" }, "seq": { "type": "integer" } },
+      "required": ["text", "cursor", "seq"]
+    },
+    "ResultSelectMsg": {
+      "type": "object",
+      "properties": { "ref": { "type": "string" } },
+      "required": ["ref"]
+    },
+    "ResultOpenMsg": {
+      "type": "object",
+      "properties": { "ref": { "type": "string" }, "where": { "enum": ["current", "side"] } },
+      "required": ["ref", "where"]
+    },
+    "ResultsMoreMsg": {
+      "type": "object",
+      "properties": { "searchId": { "type": "string" }, "cursor": { "type": "string" } },
+      "required": ["searchId", "cursor"]
+    },
+    "ParseResultMsg": {
+      "type": "object",
+      "properties": {
+        "seq": { "type": "integer" },
+        "query": { "$ref": "#/$defs/ParsedQuery" },
+        "completions": { "type": "array", "items": { "$ref": "#/$defs/Completion" } }
+      },
+      "required": ["seq", "query", "completions"]
+    },
+    "SearchBatchMsg": {
+      "type": "object",
+      "properties": {
+        "seq": { "type": "integer" },
+        "searchId": { "type": "string" },
+        "items": { "type": "array", "items": { "$ref": "#/$defs/ResultItem" } }
+      },
+      "required": ["seq", "searchId", "items"]
+    },
+    "SearchDoneMsg": {
+      "type": "object",
+      "properties": {
+        "seq": { "type": "integer" },
+        "searchId": { "type": "string" },
+        "total": { "type": "integer" },
+        "truncated": { "type": "boolean" },
+        "nextCursor": { "type": "string" },
+        "hidden": { "type": "array", "items": { "$ref": "#/$defs/HiddenNote" } },
+        "ms": { "type": "integer" },
+        "error": { "type": "string" }
+      },
+      "required": ["seq", "searchId", "total", "truncated", "hidden", "ms"]
+    },
+    "PreviewResultMsg": {
+      "type": "object",
+      "properties": {
+        "ref": { "type": "string" },
+        "preview": { "oneOf": [{ "$ref": "#/$defs/Preview" }, { "type": "null" }] },
+        "stale": { "type": "boolean" }
+      },
+      "required": ["ref", "preview"]
+    },
+    "IndexStatusMsg": {
+      "type": "object",
+      "properties": { "repos": { "type": "array", "items": { "$ref": "#/$defs/RepoStatus" } } },
+      "required": ["repos"]
+    },
+    "StateRestoreMsg": {
+      "type": "object",
+      "properties": {
+        "text": { "type": "string" },
+        "recent": { "type": "array", "items": { "type": "string" } },
+        "settings": { "$ref": "#/$defs/UiSettings" }
+      },
+      "required": ["text", "recent"]
+    },
+    "UiSettings": {
+      "description": "The UI-facing settings the host forwards to the webview.",
+      "type": "object",
+      "properties": {
+        "typingDelayMs": { "type": "integer" },
+        "openTrigger": { "enum": ["doubleClick", "singleClick"] },
+        "preview": { "type": "boolean" },
+        "showParsedQuery": { "type": "boolean" }
+      },
+      "required": ["typingDelayMs", "openTrigger", "preview", "showParsedQuery"]
+    },
+    "BannerMsg": {
+      "description": "Daemon health banner (failure table): restarting, stopped, or cleared.",
+      "type": "object",
+      "properties": {
+        "state": { "enum": ["ok", "restarting", "stopped", "protocolMismatch"] },
+        "message": { "type": "string" }
+      },
+      "required": ["state"]
+    }
+  },
+
+  "x-rpc-methods": {
+    "initialize":           { "kind": "request",      "params": "InitializeParams",     "result": "InitializeResult" },
+    "workspace/setRoots":   { "kind": "notification", "params": "SetRootsParams" },
+    "workspace/didChangeFiles": { "kind": "notification", "params": "DidChangeFilesParams" },
+    "settings/update":      { "kind": "notification", "params": "SettingsUpdateParams" },
+    "query/parse":          { "kind": "request",      "params": "ParseParams",          "result": "ParseResult" },
+    "search/start":         { "kind": "request",      "params": "SearchStartParams",    "result": "SearchResult" },
+    "search/batch":         { "kind": "notification", "params": "SearchBatchParams",    "direction": "daemon->host" },
+    "$/cancelRequest":      { "kind": "notification", "params": "Empty" },
+    "preview/get":          { "kind": "request",      "params": "PreviewParams",        "result": "Preview" },
+    "open/resolve":         { "kind": "request",      "params": "OpenResolveParams",    "result": "OpenTarget" },
+    "index/status":         { "kind": "request",      "params": "Empty",                "result": "IndexStatusResult" },
+    "index/progress":       { "kind": "notification", "params": "IndexStatusResult",    "direction": "daemon->host" },
+    "index/rebuild":        { "kind": "request",      "params": "RebuildParams",        "result": "Empty" },
+    "shutdown":             { "kind": "request",      "params": "Empty",                "result": "Empty" },
+    "exit":                 { "kind": "notification", "params": "Empty" }
+  },
+
+  "x-webview-messages": {
+    "query.changed":  { "direction": "webview->host", "payload": "QueryChangedMsg" },
+    "result.select":  { "direction": "webview->host", "payload": "ResultSelectMsg" },
+    "result.open":    { "direction": "webview->host", "payload": "ResultOpenMsg" },
+    "results.more":   { "direction": "webview->host", "payload": "ResultsMoreMsg" },
+    "panel.close":    { "direction": "webview->host", "payload": "Empty" },
+    "help.open":      { "direction": "webview->host", "payload": "Empty" },
+    "settings.open":  { "direction": "webview->host", "payload": "Empty" },
+    "ready":          { "direction": "webview->host", "payload": "Empty" },
+    "parse.result":   { "direction": "host->webview", "payload": "ParseResultMsg" },
+    "search.batch":   { "direction": "host->webview", "payload": "SearchBatchMsg" },
+    "search.done":    { "direction": "host->webview", "payload": "SearchDoneMsg" },
+    "preview.result": { "direction": "host->webview", "payload": "PreviewResultMsg" },
+    "index.status":   { "direction": "host->webview", "payload": "IndexStatusMsg" },
+    "state.restore":  { "direction": "host->webview", "payload": "StateRestoreMsg" },
+    "banner":         { "direction": "host->webview", "payload": "BannerMsg" },
+    "focus":          { "direction": "host->webview", "payload": "Empty" }
+  }
+}

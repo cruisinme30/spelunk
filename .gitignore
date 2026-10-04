@@ -17,11 +17,6 @@ dist/
 *.out
 coverage.*
 
-# Generated protocol types
-/extension/src/generated/
-/webview/src/generated/
-/daemon/internal/protocol/gen/
-
 # Fixtures built by testdata/build-fixtures
 /testdata/repos/
 
