@@ -11,6 +11,11 @@ All notable changes to this project are documented here. The format follows
 - `protocol/` JSON Schema with generated TypeScript and Go types.
 - VS Code extension host: daemon supervisor, search controller and search panel.
 - Search panel webview: query box with Aa / .* toggles, completions, fix-its, chips, results and preview.
+- Query language: parser, diagnostics with fix-its, completions and planner for every operator.
+- Working-tree search over a trigram index: file names and code, `f:`, `case:`, `/regex/`, `lang:`, `repo:`,
+  `type:`, `count:` with Load more, AND / OR / NOT, and "N hidden by …" notes with an undo.
+- Background indexing per workspace root, saved between sessions, with `index/status`, `index/rebuild` and progress.
+- Previews highlight every term of the query that produced the result.
 
 ### Fixed
 

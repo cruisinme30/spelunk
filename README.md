@@ -35,7 +35,8 @@ removed `timeout` or `retry`. Drop `author:` and the same box searches current f
 | [`webview/`](webview/) | The search panel (TypeScript, no framework) |
 | [`protocol/`](protocol/) | JSON Schema for every cross-process message, plus the type generator |
 | [`docs/`](docs/) | User docs, decision records, and planning docs |
-| [`scripts/`](scripts/) | `test-all.sh` and the spec-coverage check |
+| [`scripts/`](scripts/) | `test-all.sh`, the spec-coverage check and the panel screenshot tool |
+| [`testdata/`](testdata/) | A fixture workspace whose files match the mocks |
 
 [ARCHITECTURE.md](ARCHITECTURE.md) explains how the pieces fit together.
 

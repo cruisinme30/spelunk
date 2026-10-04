@@ -38,8 +38,11 @@ Nothing else defines a cross-boundary type.
 - `internal/query` is the only query parser. It also produces diagnostics, fix-its and completions, and has the
   planner that turns a parsed query into a `Plan` (Contract 4).
 - `internal/lang` detects a file's language from its name and shebang, and resolves `lang:` values.
-- Planned: `internal/trigram` (working-tree index and engine), `internal/history` (commit store and engine)
-  and `internal/indexer` (the only writer to the index directory).
+- `internal/trigram` is the working-tree index and engine: it lists the files to index, builds and saves shards
+  (trigram posting lists), runs a `Plan` over them, and previews and resolves its own results.
+- `internal/indexer` keeps one shard per workspace root up to date on a background worker and publishes each new
+  shard in one step. It is the only writer to the index directory.
+- Planned: `internal/history` (commit store and engine).
 
 ### `extension/` (TypeScript, VS Code extension host)
 
@@ -60,8 +63,9 @@ Nothing else defines a cross-boundary type.
 
 ### `testdata/`, `scripts/`
 
-Fixture repos (built by a script, byte for byte the same every time) and golden files. `scripts/test-all.sh` runs
-every test layer.
+`testdata/workspace/` holds three small repos whose files match the mocks; the daemon tests search them for the
+mocks' queries. `scripts/test-all.sh` runs every test layer, and `scripts/screenshotPanel.mjs` renders the panel for a
+query end to end (real daemon, controller and webview) to compare it with the mocks.
 
 ## Invariants
 
