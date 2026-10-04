@@ -1,76 +1,20 @@
 package server
 
 import (
-	"encoding/json"
-	"errors"
 	"os"
 	"path/filepath"
-	"sync"
 	"testing"
 	"time"
 
 	"github.com/cruisinme30/unified-search/daemon/internal/protocol"
-	"github.com/cruisinme30/unified-search/daemon/internal/rpc"
 )
 
+// kelvinSign is U+212A KELVIN SIGN. It looks like K and lowercases to an
+// ASCII k, so a search for "kelvin" ignoring case matches it.
+const kelvinSign = "\u212a"
+
+// clientSource is a small Python file with one retry_policy match, on line 5.
 const clientSource = "import logging\n\nclass Client:\n    def __init__(self):\n        self.retry_policy = RetryPolicy(max_attempts=3)\n"
-
-// batchLog records every search/batch item the client receives.
-type batchLog struct {
-	mu       sync.Mutex
-	items    []protocol.ResultItem
-	searchOf []string // the search ID of each item
-}
-
-func collectBatches(client *testClient) *batchLog {
-	log := &batchLog{}
-	client.conn.OnNotify(protocol.MethodSearchBatch, func(raw json.RawMessage) {
-		var batch protocol.SearchBatchParams
-		_ = json.Unmarshal(raw, &batch)
-		log.mu.Lock()
-		defer log.mu.Unlock()
-		for _, item := range batch.Items {
-			log.items = append(log.items, item)
-			log.searchOf = append(log.searchOf, batch.SearchID)
-		}
-	})
-	return log
-}
-
-// all returns every item received so far.
-func (l *batchLog) all() []protocol.ResultItem {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	return append([]protocol.ResultItem(nil), l.items...)
-}
-
-// of returns the items of one search.
-func (l *batchLog) of(searchID string) []protocol.ResultItem {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	var items []protocol.ResultItem
-	for i, item := range l.items {
-		if l.searchOf[i] == searchID {
-			items = append(items, item)
-		}
-	}
-	return items
-}
-
-func mustWriteFile(t *testing.T, path, content string) {
-	t.Helper()
-	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
-		t.Fatal(err)
-	}
-}
-
-func wantRPCCode(t *testing.T, call string, err error, want int) {
-	t.Helper()
-	var rpcErr *rpc.Error
-	if !errors.As(err, &rpcErr) || rpcErr.Code != want {
-		t.Fatalf("%s error = %v, want code %d", call, err, want)
-	}
-}
 
 // A search round-trips: results stream as batches, a result previews, and
 // opening it resolves to the file, line and column of the match.
@@ -121,8 +65,9 @@ func TestSearchPreviewAndOpenRoundTrip(t *testing.T) {
 
 func TestMatchOffsetsAreUTF16EvenWhenCaseFoldingChangesByteLength(t *testing.T) {
 	dir := t.TempDir()
-	// U+212A KELVIN SIGN lowercases to ASCII "k": 3 bytes become 1.
-	mustWriteFile(t, filepath.Join(dir, "units.txt"), "KK = kelvin_scale\n")
+	// Each KELVIN SIGN is 3 bytes in UTF-8 but 1 UTF-16 unit, like the k it
+	// folds to.
+	mustWriteFile(t, filepath.Join(dir, "units.txt"), kelvinSign+kelvinSign+" = kelvin_scale\n")
 	client := newTestClient(t)
 	batches := collectBatches(client)
 	client.mustInitialize(t, protocol.Root{ID: "r1", Path: dir, Name: "r"})
@@ -171,7 +116,6 @@ func TestInvalidQueriesAreRejected(t *testing.T) {
 
 // Load more: the cursor from one page starts the next.
 func TestCursorLoadsTheNextPage(t *testing.T) {
-	// @covers msg:results.more
 	dir := t.TempDir()
 	mustWriteFile(t, filepath.Join(dir, "a.txt"), "x1 hit\nx2 hit\nx3 hit\n")
 	client := newTestClient(t)

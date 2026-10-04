@@ -1,16 +1,16 @@
 package server
 
 import (
-	"fmt"
 	"path/filepath"
 	"reflect"
+	"strconv"
 	"testing"
 
 	"github.com/cruisinme30/unified-search/daemon/internal/protocol"
 )
 
-// fixtureRoots are the three repos of testdata/workspace, whose contents
-// match the design mockups (docs/dev/mocks.md).
+// fixtureRoots are the three repos of testdata/workspace, whose files are
+// the ones the panel's designs show.
 func fixtureRoots(t *testing.T) []protocol.Root {
 	t.Helper()
 	workspace, err := filepath.Abs("../../../testdata/workspace")
@@ -31,14 +31,14 @@ func resultLines(items []protocol.ResultItem) []string {
 		if item.Kind == "file" {
 			lines = append(lines, "file "+item.RepoID+"/"+item.Path)
 		} else {
-			lines = append(lines, fmt.Sprintf("%s/%s:%d", item.RepoID, item.Path, item.Line))
+			lines = append(lines, item.RepoID+"/"+item.Path+":"+strconv.Itoa(item.Line))
 		}
 	}
 	return lines
 }
 
-// The working-tree queries from the design mockups (docs/dev/mocks.md)
-// return exactly the results the designs show.
+// The working-tree queries of the panel's designs return exactly the
+// results the designs show.
 func TestDesignQueriesFindWhatTheDesignsShow(t *testing.T) {
 	tests := []struct {
 		screen, query string
@@ -108,7 +108,7 @@ func TestDesignQueriesFindWhatTheDesignsShow(t *testing.T) {
 	for i, tt := range tests {
 		t.Run(tt.screen, func(t *testing.T) {
 			var result protocol.SearchResult
-			searchID := fmt.Sprintf("s%d", i)
+			searchID := "s" + strconv.Itoa(i)
 			if err := client.call(protocol.MethodSearchStart, protocol.SearchStartParams{SearchID: searchID, Text: tt.query}, &result); err != nil {
 				t.Fatal(err)
 			}
@@ -120,7 +120,7 @@ func TestDesignQueriesFindWhatTheDesignsShow(t *testing.T) {
 			}
 			hidden := []string{}
 			for _, note := range result.Hidden {
-				hidden = append(hidden, fmt.Sprintf("%s:%s:%d", note.Reason, note.Filter, note.Count))
+				hidden = append(hidden, note.Reason+":"+note.Filter+":"+strconv.Itoa(note.Count))
 			}
 			if tt.hidden == nil {
 				tt.hidden = []string{}

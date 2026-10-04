@@ -28,15 +28,16 @@ func (s *Server) parse(_ context.Context, raw json.RawMessage) (any, error) {
 	}, nil
 }
 
-// resolver gives the parser the open repos' names and, once history is
-// indexed, their authors.
+// resolver gives the parser the open repos' names. It knows no authors:
+// history search is not built yet.
 func (s *Server) resolver() query.Resolver {
 	return workspaceResolver{server: s}
 }
 
+// workspaceResolver answers the parser's lookups from the server's state.
 type workspaceResolver struct{ server *Server }
 
-// Authors returns nothing until history is indexed.
+// Authors returns nothing: history search is not built yet.
 func (workspaceResolver) Authors(string, int) []query.AuthorStat { return nil }
 
 // RepoNames returns the display names of the open workspace roots.

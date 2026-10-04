@@ -1,21 +1,16 @@
 package server
 
-// index/status and index/rebuild, and keeping the indexer in step with
-// the workspace roots and settings.
+// index/status, index/rebuild and the index/progress notification.
 
 import (
 	"context"
 	"encoding/json"
-	"time"
 
 	"github.com/cruisinme30/unified-search/daemon/internal/protocol"
 	"github.com/cruisinme30/unified-search/daemon/internal/rpc"
 )
 
-// shutdownGrace is how long shutdown waits for index work to stop
-// (the shutdown request promises to finish within 2 seconds).
-const shutdownGrace = 2 * time.Second
-
+// registerIndex registers the index/* handlers.
 func (s *Server) registerIndex() {
 	s.conn.Handle(protocol.MethodIndexStatus, s.indexStatus)
 	s.conn.Handle(protocol.MethodIndexRebuild, s.rebuild)
@@ -26,10 +21,13 @@ func (s *Server) notifyIndexStatus(repos []protocol.RepoStatus) {
 	_ = s.conn.Notify(protocol.MethodIndexProgress, protocol.IndexStatusResult{Repos: repos})
 }
 
+// indexStatus answers index/status: every root's index state.
 func (s *Server) indexStatus(context.Context, json.RawMessage) (any, error) {
 	return protocol.IndexStatusResult{Repos: s.index.Status()}, nil
 }
 
+// rebuild answers index/rebuild: it rebuilds one root's index, or every
+// root's when no repo ID is given.
 func (s *Server) rebuild(_ context.Context, raw json.RawMessage) (any, error) {
 	var params protocol.RebuildParams
 	if err := decode(raw, &params); err != nil {
@@ -40,7 +38,3 @@ func (s *Server) rebuild(_ context.Context, raw json.RawMessage) (any, error) {
 	}
 	return protocol.Empty{}, nil
 }
-
-func (s *Server) onRootsChanged()    { s.index.SetRoots(s.Roots()) }
-func (s *Server) onSettingsChanged() { s.index.SetSettings(s.Settings()) }
-func (s *Server) onShutdown()        { s.index.Close(shutdownGrace) }

@@ -15,6 +15,10 @@ import (
 // DaemonVersion is reported by initialize.
 const DaemonVersion = "0.1.0"
 
+// shutdownGrace is how long shutdown waits for index work to stop (the
+// shutdown request promises to finish within 2 seconds).
+const shutdownGrace = 2 * time.Second
+
 // Server is one daemon instance bound to one connection. It is safe for
 // concurrent use: handlers run on their own goroutines.
 type Server struct {
@@ -75,6 +79,7 @@ func DefaultSettings() protocol.Settings {
 // shutdown request, 1 otherwise (as in LSP).
 func (s *Server) Exited() <-chan int { return s.exitCode }
 
+// exit handles the exit notification by delivering the exit code once.
 func (s *Server) exit() {
 	s.exitOnce.Do(func() {
 		s.mu.RLock()
@@ -98,6 +103,8 @@ func decode(params json.RawMessage, v any) error {
 	return nil
 }
 
+// initialize answers initialize: it applies the client's settings and
+// roots, then reports the daemon and protocol versions.
 func (s *Server) initialize(_ context.Context, raw json.RawMessage) (any, error) {
 	var params protocol.InitializeParams
 	if err := decode(raw, &params); err != nil {
@@ -106,23 +113,23 @@ func (s *Server) initialize(_ context.Context, raw json.RawMessage) (any, error)
 	// Settings are required by the schema; DefaultCount is at least 1 in any
 	// real settings object, so 0 means a client sent none.
 	if params.Settings.DefaultCount != 0 {
-		s.mu.Lock()
-		s.settings = params.Settings
-		s.mu.Unlock()
-		s.onSettingsChanged()
+		s.applySettings(params.Settings)
 	}
 	s.applyRoots(params.Roots)
 	return protocol.InitializeResult{DaemonVersion: DaemonVersion, Protocol: protocol.Version}, nil
 }
 
+// shutdown stops index work, waiting up to shutdownGrace, and records that
+// the client asked, so the exit that follows reports success.
 func (s *Server) shutdown(_ context.Context, _ json.RawMessage) (any, error) {
 	s.mu.Lock()
 	s.shutdownRequested = true
 	s.mu.Unlock()
-	s.onShutdown()
+	s.index.Close(shutdownGrace)
 	return protocol.Empty{}, nil
 }
 
+// setRoots handles workspace/setRoots.
 func (s *Server) setRoots(raw json.RawMessage) {
 	var params protocol.SetRootsParams
 	if decode(raw, &params) == nil {
@@ -130,22 +137,31 @@ func (s *Server) setRoots(raw json.RawMessage) {
 	}
 }
 
+// updateSettings handles settings/update.
 func (s *Server) updateSettings(raw json.RawMessage) {
 	var params protocol.SettingsUpdateParams
 	if decode(raw, &params) != nil {
 		return
 	}
-	s.mu.Lock()
-	s.settings = params.Settings
-	s.mu.Unlock()
-	s.onSettingsChanged()
+	s.applySettings(params.Settings)
 }
 
+// applySettings stores new settings and passes them to the indexer, which
+// rebuilds if they change what is indexed.
+func (s *Server) applySettings(settings protocol.Settings) {
+	s.mu.Lock()
+	s.settings = settings
+	s.mu.Unlock()
+	s.index.SetSettings(s.Settings())
+}
+
+// applyRoots stores the workspace roots and passes them to the indexer,
+// which starts indexing new roots and drops removed ones.
 func (s *Server) applyRoots(roots []protocol.Root) {
 	s.mu.Lock()
 	s.roots = slices.Clone(roots)
 	s.mu.Unlock()
-	s.onRootsChanged()
+	s.index.SetRoots(s.Roots())
 }
 
 // Settings returns a copy of the current settings.

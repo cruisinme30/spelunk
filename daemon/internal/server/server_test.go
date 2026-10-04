@@ -1,71 +1,13 @@
 package server
 
 import (
-	"context"
-	"io"
 	"testing"
 	"time"
 
 	"github.com/cruisinme30/unified-search/daemon/internal/protocol"
-	"github.com/cruisinme30/unified-search/daemon/internal/rpc"
 )
 
-// testClient talks to a Server over in-process pipes.
-type testClient struct {
-	server *Server
-	conn   *rpc.Conn
-}
-
-func newTestClient(t *testing.T) *testClient {
-	t.Helper()
-	serverIn, clientOut := io.Pipe()
-	clientIn, serverOut := io.Pipe()
-	serverConn := rpc.NewConn(serverIn, serverOut)
-	clientConn := rpc.NewConn(clientIn, clientOut)
-	srv := New(serverConn, Options{})
-	ctx, cancel := context.WithCancel(context.Background())
-	go func() { _ = serverConn.Serve(ctx) }()
-	go func() { _ = clientConn.Serve(ctx) }()
-	t.Cleanup(func() {
-		cancel()
-		_ = clientOut.Close() // ends the peers' read loops; nothing to report
-		_ = serverOut.Close()
-	})
-	return &testClient{server: srv, conn: clientConn}
-}
-
-func (c *testClient) call(method string, params, out any) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	return c.conn.Call(ctx, method, params, out)
-}
-
-// mustInitialize starts a session on roots, with the index in a temp
-// directory, and waits until every root is indexed.
-func (c *testClient) mustInitialize(t *testing.T, roots ...protocol.Root) {
-	t.Helper()
-	settings := DefaultSettings()
-	settings.Location = t.TempDir()
-	params := protocol.InitializeParams{Protocol: protocol.Version, Roots: roots, Settings: settings}
-	if err := c.call(protocol.MethodInitialize, params, nil); err != nil {
-		t.Fatalf("initialize: %v", err)
-	}
-	deadline := time.Now().Add(5 * time.Second)
-	for {
-		ready := true
-		for _, status := range c.server.index.Status() {
-			ready = ready && status.Tree == protocol.IndexStateReady
-		}
-		if ready {
-			return
-		}
-		if time.Now().After(deadline) {
-			t.Fatalf("roots not indexed after 5s: %+v", c.server.index.Status())
-		}
-		time.Sleep(5 * time.Millisecond)
-	}
-}
-
+// waitForExitCode returns the exit code srv delivers, failing after 2s.
 func waitForExitCode(t *testing.T, srv *Server) int {
 	t.Helper()
 	select {
