@@ -1,16 +1,15 @@
-# Unified Search — working notes for Claude
+# Working notes for Claude
 
-Read `docs/implementation-plan.md` before changing anything; `docs/test-plan.md` before adding tests.
+Read [ARCHITECTURE.md](ARCHITECTURE.md) (code map and invariants) and [CONTRIBUTING.md](CONTRIBUTING.md)
+(conventions) first. They're the source of truth; this file only adds what an agent needs on top.
 
-## Boundaries that must hold
-- The daemon owns the only query parser. Webview, extension host and engines never re-parse raw query text.
-- The webview is a pure view: no file, Git or daemon access.
-- Types that cross a process boundary are generated from `protocol/` JSON Schemas — never hand-written on either side.
-- Only the indexer writes to the index directory; engines read published snapshots only.
-- `ResultItem`s are built only inside engines; the RPC layer forwards them unchanged. `ref` is opaque outside the daemon.
-- Contracts 1–3 freeze at the end of M1; later changes bump the protocol version and update schemas first.
-
-## Conventions
-- Regex is RE2 everywhere. All `Range`/`Span` offsets are UTF-16.
-- Every test tags the spec IDs it covers (`@covers op:since diag:unclosed_paren`); CI fails on uncovered IDs.
-- universal-ctags runs as a separate process (GPL) — never linked into the daemon.
+- Plans live in `docs/dev/`: read `implementation-plan.md` before changing behaviour, `test-plan.md` before adding
+  tests. Record milestone evidence in `docs/dev/progress.md`.
+- A milestone is done only when its exit gate is proven by tests that ran green (`npm test`) and the evidence is in
+  `progress.md`. Show it to the user before starting the next milestone.
+- Commits are small Conventional Commits with directory scopes. Each one must pass `scripts/test-all.sh` on its own.
+  `git mv` stages immediately, so reset the index before staging a selective commit.
+- Never edit `*.gen.ts` or `*_gen.go`. Change `protocol/protocol.schema.json`, then run `node protocol/gen.mjs`.
+- Tag tests with `@covers <id>` for what they prove. Don't tag a test for something it doesn't actually assert.
+- Offline sandbox: no npm or Go module downloads. Tools that exist: Go stdlib, system SQLite (FTS5), tsc, esbuild,
+  Prettier, Playwright + Chromium, git, ripgrep. Use `extension/tsconfig.offline.json` when `@types/vscode` is missing.

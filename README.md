@@ -1,27 +1,54 @@
 # Unified Search
 
-One search box for VS Code (desktop and code-server) that answers a single query language over current files **and** Git history, across every repo in the workspace, as you type.
+**One search box for file names, code and Git history, across every repo in your VS Code workspace.**
 
-```
+```text
 author:jane f:.*test\.py$ (timeout OR retry) -f:vendor/ since:6m
 ```
 
-## Layout
+That query finds Jane's commits from the last six months that changed a Python test outside `vendor/` and added or
+removed `timeout` or `retry`. Drop `author:` and the same box searches current files instead.
 
-| Path | Language | What lives here |
-| --- | --- | --- |
-| `protocol/` | JSON Schema | Contracts 2 and 3; generates the TypeScript and Go types. Single source of truth for anything crossing a process boundary |
-| `extension/` | TypeScript | VS Code extension host: commands, keybindings, settings, spawning the daemon, opening editors |
-| `webview/` | TypeScript | The search panel UI (pure view) |
-| `daemon/` | Go | `rpc/`, `query/` (parser + planner), `tree/` (Zoekt engine), `history/` (SQLite FTS5 engine), `indexer/` |
-| `testdata/` | — | Fixture repos (built by script) and golden files |
+![The search panel showing code matches for retry_policy, with a preview](docs/dev/proof/m0-panel.png)
 
-## Docs
+> **Status: early development.** The skeleton works end to end (milestone M0). The query language and the indexes
+> are being built now; see [progress](docs/dev/progress.md). There is no Marketplace release yet.
 
-- [Implementation plan](docs/implementation-plan.md) — scope, architecture, the five contracts, indexing, budgets, milestones, risks
-- [Test plan](docs/test-plan.md) — test layers, E2E harness, scenario catalog (E01–E18, X01–X12), CI gates
-- [Mocks](docs/mocks.md) — index of the 18 UI mocks
+## Features (v1 scope)
 
-## Status
+- **One query language.** Combine text, `"phrases"`, `/regex/`, `AND`, `OR`, `( )` and `-exclusions` with
+  operators: `f:` (path), `repo:`, `lang:`, `type:`, `sym:`, `author:`, `msg:`, `since:`, `case:`, `count:`.
+- **Results as you type,** from local indexes: a trigram index of current files, symbols, and a commit index of
+  diffs, messages and authors.
+- **Helpful when you're wrong:** errors with one-key fixes, completions for operators and values (authors, repos,
+  languages), and notes like "3 commits hidden by `-f:vendor/`".
+- **Keyboard first:** ⌘P or ⇧⌘F (you choose on first run), ↵ to open at the match, ⌘↵ to open to the side,
+  F4 to step through results.
+- Works the same in desktop VS Code and code-server.
 
-M0 · Skeleton — not started.
+## Repository layout
+
+| Path | What lives there |
+| --- | --- |
+| [`daemon/`](daemon/) | Go search daemon: parser, planner, indexes, engines |
+| [`extension/`](extension/) | VS Code extension host (TypeScript) |
+| [`webview/`](webview/) | The search panel (TypeScript, no framework) |
+| [`protocol/`](protocol/) | JSON Schema for every cross-process message, plus the type generator |
+| [`docs/`](docs/) | User docs, decision records, and planning docs |
+| [`scripts/`](scripts/) | `test-all.sh` and the spec-coverage check |
+
+[ARCHITECTURE.md](ARCHITECTURE.md) explains how the pieces fit together.
+
+## Development
+
+```sh
+npm install && npx playwright install chromium
+npm test        # every test layer, including the Go daemon
+```
+
+Then open `extension/` in VS Code and press F5. See [CONTRIBUTING.md](CONTRIBUTING.md) for conventions, and
+[docs/](docs/README.md) for everything else.
+
+## License
+
+[MIT](LICENSE)

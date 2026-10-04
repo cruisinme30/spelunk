@@ -60,11 +60,15 @@ A keystroke travels webview → extension → RPC server → planner → one eng
 
 ```text
 unified-search/
-  protocol/   JSON Schemas for Contracts 2 and 3; generates the TypeScript and Go types
-  extension/  TypeScript: the VS Code extension host
-  webview/    TypeScript: the search panel
-  daemon/     Go: rpc/, query/ (parser, planner), tree/, history/, indexer/
-  testdata/   fixture repos and golden files
+  protocol/    protocol.schema.json (Contracts 1-3) and gen.mjs, which writes the TypeScript and Go types
+  extension/   TypeScript: the VS Code extension host (src/, tests in src/test/)
+  webview/     TypeScript: the search panel (src/, render/ modules; Playwright tests in test/)
+  daemon/      Go module github.com/cruisinme30/unified-search/daemon
+    cmd/unified-search-daemon/   the binary
+    internal/  rpc/, protocol/ (generated), server/, query/ (parser, planner), lang/,
+               trigram/ (working-tree engine), history/, indexer/
+  testdata/    fixture repos (built by script) and golden files
+  docs/        user docs, ADRs, and these planning docs under docs/dev/
 ```
 
 `protocol/` is the single source of truth for shared types. Neither side hand-writes a type that crosses a boundary.
