@@ -123,3 +123,34 @@ function unescapeRegexTerm(value: string): string {
 function quoteIfNeeded(literal: string): string {
   return /[\s"()]/.test(literal) ? `"${literal.replace(/"/g, '\\"')}"` : literal;
 }
+
+/** The repo a top-level repo: picks, as the daemon resolved it; undefined for all repos. */
+export function scopedRepo(query: ParsedQuery | undefined): string | undefined {
+  const found = topLevelRepoNodes(query);
+  return found.length === 1 ? (found[0].resolved?.label ?? found[0].value) : undefined;
+}
+
+/**
+ * The repo menu: replaces the query's repo: scope with one repo, or removes
+ * it for all repos. Negated repo: filters (-repo:legacy) are left alone.
+ */
+export function scopeToRepo(text: string, query: ParsedQuery | undefined, repoName: string | undefined): Edited {
+  let edited: Edited = { text, cursor: text.length };
+  const spans = topLevelRepoNodes(query)
+    .map((node) => node.span)
+    .sort((a, b) => b.start - a.start); // right to left, so earlier spans stay valid
+  for (const span of spans) edited = removeSpan(edited.text, span);
+  if (repoName === undefined) return { text: edited.text.trim(), cursor: edited.text.trim().length };
+  const operator = `repo:${repoName.replace(new RegExp(REGEX_SPECIAL.source, "g"), "\\$&")}`;
+  const rest = edited.text.trim();
+  const result = rest ? `${operator} ${rest}` : operator;
+  return { text: result, cursor: result.length };
+}
+
+/** repo: operators that scope the whole query: not negated, not inside an OR. */
+function topLevelRepoNodes(query: ParsedQuery | undefined): OpNode[] {
+  const root = query?.root;
+  if (!root) return [];
+  const conjuncts = root.kind === "and" ? root.children : [root];
+  return conjuncts.filter((node): node is OpNode => node.kind === "op" && node.op === "repo");
+}

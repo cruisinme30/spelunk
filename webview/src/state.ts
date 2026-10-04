@@ -21,6 +21,8 @@ export interface ViewState {
   seq: number;
   parsed?: ParsedQuery;
   completions: Completion[];
+  /** The text the search runs on while a word is being completed (mocks 5 and 6). */
+  searchText?: string;
   completionIndex: number;
   completionsOpen: boolean;
   /** The search whose results are on screen ("" when none). */

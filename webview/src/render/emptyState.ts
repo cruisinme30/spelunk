@@ -3,6 +3,10 @@ import { el } from "../format";
 import { SHEET } from "../sheet";
 import type { ViewState } from "../state";
 
+/** A small clock, marking a recent query (mock 4). */
+const CLOCK_ICON =
+  '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>';
+
 export interface EmptyStateHandlers {
   onRunRecent(query: string): void;
   onInsert(snippet: string): void;
@@ -13,6 +17,12 @@ export function renderEmptyState(body: HTMLElement, state: ViewState, handlers: 
   body.replaceChildren(
     el("div", { class: className }, renderRecent(state, handlers.onRunRecent), renderSheet(handlers.onInsert)),
   );
+}
+
+function clockIcon(): HTMLElement {
+  const icon = el("span", { class: "icon", "aria-hidden": "true" });
+  icon.innerHTML = CLOCK_ICON;
+  return icon;
 }
 
 function renderRecent(state: ViewState, onRunRecent: (query: string) => void): HTMLElement {
@@ -26,6 +36,7 @@ function renderRecent(state: ViewState, onRunRecent: (query: string) => void): H
         "data-recent": query,
         "data-testid": "recent",
       },
+      clockIcon(),
       el("code", {}, query),
     );
     row.addEventListener("click", () => onRunRecent(query));

@@ -7,17 +7,26 @@ import { clamp, el, plural, wrapIndex } from "./format";
 import { type HostMessage, loadDraft, onHostMessage, saveDraft, send } from "./host";
 import { createLayout, type Layout } from "./layout";
 import type { Completion, Fix, OpenWhere, ParsedQuery, SearchDoneMsg } from "./protocol.gen";
-import { applyEdits, isCasePressed, isRegexPressed, toggleCase, toggleRegex } from "./queryEdit";
+import {
+  applyEdits,
+  isCasePressed,
+  isRegexPressed,
+  scopedRepo,
+  scopeToRepo,
+  toggleCase,
+  toggleRegex,
+} from "./queryEdit";
 import {
   type FooterMode,
   renderBanners,
   renderChips,
-  renderCompletions,
   renderDiagnostics,
   renderFooter,
   renderIndexStatus,
 } from "./render/chrome";
+import { completionsVisible, renderCompletions, type ResultsGlimpse } from "./render/completions";
 import { renderEmptyState } from "./render/emptyState";
+import { renderRepoMenu } from "./render/repoMenu";
 import { renderPreview } from "./render/preview";
 import { pathScope, ResultsView } from "./render/results";
 import { createViewState, hasErrors, type ViewState } from "./state";
@@ -52,8 +61,12 @@ export class SearchPanel {
 
   // ------------------------------------------------------------ query text
 
-  /** Reports the box to the host: after the typing delay, or now if `immediate`. */
-  private queryChanged(immediate = false): void {
+  /**
+   * Reports the box to the host: after the typing delay, or now if
+   * `immediate`. `asTyped` asks for the word at the cursor to be searched
+   * too, even though suggestions are offered for it.
+   */
+  private queryChanged(immediate = false, asTyped = false): void {
     clearTimeout(this.debounceTimer);
     const report = () => {
       const { input } = this.layout;
@@ -63,6 +76,7 @@ export class SearchPanel {
         text: input.value,
         cursor: input.selectionStart ?? input.value.length,
         seq: this.state.seq,
+        ...(asTyped ? { asTyped } : {}),
       });
     };
     if (immediate || this.state.ui.typingDelayMs <= 0) report();
@@ -132,11 +146,11 @@ export class SearchPanel {
       const edited = toggleRegex(input.value, this.state.parsed);
       this.setQuery(edited.text, edited.cursor);
     });
-    reposButton.addEventListener("click", () => {
-      const separator = input.value && !input.value.endsWith(" ") ? " " : "";
-      this.setQuery(input.value + separator + "repo:");
-      this.state.completionsOpen = true;
-      input.focus();
+    reposButton.addEventListener("click", () => this.toggleRepoMenu());
+    // A click anywhere else closes the repo menu.
+    document.addEventListener("mousedown", (event) => {
+      const target = event.target as HTMLElement;
+      if (!target.closest(".menuanchor")) this.toggleRepoMenu(false);
     });
 
     body.addEventListener("click", (event) => {
@@ -151,6 +165,22 @@ export class SearchPanel {
     });
   }
 
+  /** Opens or closes the repo menu (or sets it with `open`). */
+  private toggleRepoMenu(open = this.layout.repoMenu.hidden): void {
+    const { repoMenu, reposButton, input } = this.layout;
+    repoMenu.hidden = !open;
+    reposButton.setAttribute("aria-expanded", String(open));
+    if (!open) return;
+    renderRepoMenu(repoMenu, this.state.repos, scopedRepo(this.state.parsed), {
+      onPick: (repoName) => {
+        this.toggleRepoMenu(false);
+        const edited = scopeToRepo(input.value, this.state.parsed, repoName);
+        this.setQuery(edited.text, edited.cursor);
+        input.focus();
+      },
+    });
+  }
+
   /** ⌘ or Ctrl opens to the side. */
   private open(ref: string, event: MouseEvent | KeyboardEvent): void {
     const where: OpenWhere = event.metaKey || event.ctrlKey ? "side" : "current";
@@ -158,7 +188,15 @@ export class SearchPanel {
   }
 
   private get completionsVisible(): boolean {
-    return this.state.completionsOpen && this.state.completions.length > 0;
+    return completionsVisible(this.state, this.layout.input);
+  }
+
+  /** Closes the suggestions and searches the box exactly as typed (Esc or ↵ while suggesting). */
+  private searchAsTyped(): void {
+    this.state.completionsOpen = false;
+    this.renderCompletions();
+    this.renderFooter();
+    this.queryChanged(true, true);
   }
 
   private onKeyDown(event: KeyboardEvent): void {
@@ -171,6 +209,10 @@ export class SearchPanel {
     const modifier = event.metaKey || event.ctrlKey;
     switch (event.key) {
       case "?":
+        if (this.completionsVisible) {
+          send("help.open", {}); // every operator, explained
+          return true;
+        }
         if (this.layout.input.value) return false; // a literal ? in a query
         this.state.sheetOpen = !this.state.sheetOpen;
         this.showEmptyState();
@@ -204,14 +246,11 @@ export class SearchPanel {
     if (firstFix) this.applyFix(firstFix);
   }
 
-  /** Esc closes the suggestions first, then the panel. */
+  /** Esc closes the suggestions first, keeping the word as typed, then the panel. */
   private onEscape(): void {
-    if (this.completionsVisible) {
-      this.state.completionsOpen = false;
-      this.renderCompletions();
-    } else {
-      send("panel.close", {});
-    }
+    if (!this.layout.repoMenu.hidden) this.toggleRepoMenu(false);
+    else if (this.completionsVisible) this.searchAsTyped();
+    else send("panel.close", {});
   }
 
   /** ↑↓ move through suggestions when they are open, otherwise through rows. */
@@ -226,9 +265,9 @@ export class SearchPanel {
     }
   }
 
-  /** Enter accepts a suggestion, runs a recent query, or opens the selected result. */
+  /** Enter searches as typed while suggesting (Tab accepts), runs a recent query, or opens the selected result. */
   private onEnter(event: KeyboardEvent, modifier: boolean): void {
-    if (this.completionsVisible && !modifier) this.acceptCompletion(this.state.completionIndex);
+    if (this.completionsVisible && !modifier) this.searchAsTyped();
     else if (!this.layout.input.value) this.runRecent(this.state.recent[this.state.recentIndex]);
     else if (this.state.selectedRef) this.open(this.state.selectedRef, event);
   }
@@ -284,13 +323,15 @@ export class SearchPanel {
         this.layout.input.select();
         return;
       case "parse.result":
-        if (message.payload.seq === state.seq) this.onParsed(message.payload.query, message.payload.completions);
+        if (message.payload.seq === state.seq)
+          this.onParsed(message.payload.query, message.payload.completions, message.payload.searchText);
         return;
       case "search.batch":
         if (!this.isCurrent(message.payload.seq, message.payload.searchId)) return;
         this.resultsFor(message.payload.searchId).append(message.payload.items);
         this.renderSummary();
         this.selectFirstRow();
+        if (this.completionsVisible) this.renderCompletions(); // the results glimpse
         return;
       case "search.done":
         if (this.isCurrent(message.payload.seq, message.payload.searchId)) this.onSearchDone(message.payload);
@@ -333,10 +374,11 @@ export class SearchPanel {
     return seq === this.state.seq || searchId === this.state.searchId;
   }
 
-  private onParsed(query: ParsedQuery, completions: Completion[]): void {
+  private onParsed(query: ParsedQuery, completions: Completion[], searchText: string | undefined): void {
     const state = this.state;
     state.parsed = query;
     state.completions = completions;
+    state.searchText = searchText;
     if (state.completionIndex >= completions.length) state.completionIndex = 0;
     const errors = hasErrors(state);
     if (!errors && query.root) state.lastGoodText = query.raw;
@@ -348,6 +390,7 @@ export class SearchPanel {
     input.setAttribute("aria-invalid", String(errors));
 
     this.renderCompletions();
+    renderIndexStatus(this.layout, state); // the repos button names the scoped repo
     renderDiagnostics(this.layout, state, (fix) => this.applyFix(fix));
     this.results?.showLastGood(errors && state.lastGoodText ? state.lastGoodText : undefined);
     renderChips(this.layout, state, this.summary);
@@ -384,6 +427,7 @@ export class SearchPanel {
     this.state.done = done;
     this.resultsFor(done.searchId).finish(done);
     this.renderSummary();
+    if (this.completionsVisible) this.renderCompletions();
   }
 
   // ------------------------------------------------------------ rendering
@@ -404,7 +448,15 @@ export class SearchPanel {
   }
 
   private renderCompletions(): void {
-    renderCompletions(this.layout, this.state, (index) => this.acceptCompletion(index));
+    const items = this.results?.items ?? [];
+    const glimpse: ResultsGlimpse | undefined = this.results
+      ? { total: this.state.done?.total ?? items.length, lines: items.filter((item) => item.kind === "line") }
+      : undefined;
+    renderCompletions(this.layout, this.state, glimpse, {
+      onPick: (index) => this.acceptCompletion(index),
+      onSearchAsTyped: () => this.searchAsTyped(),
+    });
+    this.renderFooter();
   }
 
   private renderBanners(): void {
@@ -414,6 +466,7 @@ export class SearchPanel {
   private renderFooter(): void {
     let mode: FooterMode = "results";
     if (!this.layout.input.value) mode = "empty";
+    else if (this.completionsVisible) mode = this.state.completions[0].group === "operator" ? "operators" : "values";
     else if (hasErrors(this.state)) mode = "errors";
     renderFooter(this.layout, mode, this.state.parsed?.mode === "history");
   }

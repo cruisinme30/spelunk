@@ -4,7 +4,8 @@
 import { el, plural, termClass } from "../format";
 import type { Layout } from "../layout";
 import type { BannerMsg, Diagnostic, Fix, IndexState, Mode, Node as QueryNode, RepoStatus } from "../protocol.gen";
-import { OP_LABEL, OP_TONE, toneForLabel } from "../sheet";
+import { OP_LABEL, OP_TONE } from "../sheet";
+import { scopedRepo } from "../queryEdit";
 import { hasErrors, type ViewState } from "../state";
 
 const isBusy = (state: IndexState) => state === "indexing" || state === "queued";
@@ -25,7 +26,8 @@ export function renderIndexStatus(layout: Layout, state: ViewState): void {
   }
   layout.statusDot.className = `dot ${dot}`;
   layout.statusText.textContent = text;
-  layout.reposButton.textContent = `All repos · ${repos.length}`;
+  const scoped = scopedRepo(state.parsed);
+  layout.reposButton.textContent = scoped ?? `All repos · ${repos.length}`;
 }
 
 /** Daemon health (failure table) followed by one banner per indexing repo (mock 14). */
@@ -88,51 +90,6 @@ function renderIndexingBanner(repo: RepoStatus): HTMLElement | null {
   );
 }
 
-const COMPLETION_GROUP_TITLE: Record<string, string> = {
-  operator: "Operators",
-  author: "Authors",
-  repo: "Repos",
-  lang: "Languages",
-  value: "Values",
-};
-
-/** The autocomplete list under the box (mocks 5 and 6). */
-export function renderCompletions(layout: Layout, state: ViewState, onPick: (index: number) => void): void {
-  const { completions, input } = layout;
-  const visible = state.completionsOpen && state.completions.length > 0 && document.activeElement === input;
-  completions.hidden = !visible;
-  input.setAttribute("aria-expanded", String(visible));
-  completions.replaceChildren();
-  if (!visible) return;
-  let group = "";
-  state.completions.forEach((completion, index) => {
-    if (completion.group !== group) {
-      group = completion.group;
-      completions.append(el("div", { class: "cgroup", role: "presentation" }, COMPLETION_GROUP_TITLE[group] ?? group));
-    }
-    const selected = index === state.completionIndex;
-    const option = el(
-      "div",
-      {
-        class: selected ? "copt selected" : "copt",
-        role: "option",
-        id: `c${index}`,
-        "aria-selected": String(selected),
-        "data-testid": "completion",
-      },
-      el("code", { class: `tone-${toneForLabel(completion.label)}` }, completion.label),
-      el("span", { class: "detail" }, completion.detail),
-      selected ? el("kbd", {}, "Tab") : null,
-    );
-    // mousedown, not click: picking must not move focus out of the query box.
-    option.addEventListener("mousedown", (event) => {
-      event.preventDefault();
-      onPick(index);
-    });
-    completions.append(option);
-  });
-}
-
 /** Query errors and warnings with their fix-it buttons (mock 13). */
 export function renderDiagnostics(layout: Layout, state: ViewState, onFix: (fix: Fix) => void): void {
   const raw = state.parsed?.raw ?? "";
@@ -178,7 +135,7 @@ export function renderChips(layout: Layout, state: ViewState, summary: HTMLEleme
   const modeLabel = query.mode === "history" ? "Commit history" : "Working tree";
   layout.chips.append(
     el("span", { class: "label" }, "Query"),
-    ...chipsFor(query.root, query.mode),
+    ...chipsFor(query.root, { mode: query.mode, fileNamesOnly: query.globals.type === "file" }),
     el("span", { class: `mode ${query.mode}`, "data-testid": "mode" }, modeLabel),
     summary,
   );
@@ -186,21 +143,40 @@ export function renderChips(layout: Layout, state: ViewState, summary: HTMLEleme
 
 const joiner = (text: string, extraClass = "") => el("span", { class: `joiner ${extraClass}`.trim() }, text);
 
-/** Children's chips separated by AND or OR. */
-function joinChips(children: QueryNode[], word: "AND" | "OR", mode: Mode): Node[] {
-  return children.flatMap((child, index) => (index ? [joiner(word), ...chipsFor(child, mode)] : chipsFor(child, mode)));
+/** What a chip's wording depends on beyond its own node. */
+interface ChipContext {
+  mode: Mode;
+  /** type:file: text terms match file names only (mock 12). */
+  fileNamesOnly: boolean;
 }
 
-function chipsFor(node: QueryNode, mode: Mode): Node[] {
+/** How a type: value reads in its chip. */
+const TYPE_LABEL: Record<string, string> = { file: "file names only", code: "code lines only", commit: "commits only" };
+
+/** Children's chips separated by AND or OR. */
+function joinChips(children: QueryNode[], word: "AND" | "OR", context: ChipContext): Node[] {
+  return children.flatMap((child, index) =>
+    index ? [joiner(word), ...chipsFor(child, context)] : chipsFor(child, context),
+  );
+}
+
+/** The word on a text term's chip: how it matches in this query. */
+function textLabel(node: Extract<QueryNode, { kind: "text" }>, context: ChipContext): string {
+  if (node.match === "regex") return "regex";
+  if (context.mode === "history") return "diff contains";
+  return context.fileNamesOnly ? "name" : "text";
+}
+
+function chipsFor(node: QueryNode, context: ChipContext): Node[] {
   switch (node.kind) {
     case "and":
-      return joinChips(node.children, "AND", mode);
+      return joinChips(node.children, "AND", context);
     case "or":
-      return [joiner("("), ...joinChips(node.children, "OR", mode), joiner(")")];
+      return [joiner("("), ...joinChips(node.children, "OR", context), joiner(")")];
     case "not":
-      return [joiner("NOT", "not"), ...chipsFor(node.child, mode)];
+      return [joiner("NOT", "not"), ...chipsFor(node.child, context)];
     case "text": {
-      const label = node.match === "regex" ? "regex" : mode === "history" ? "diff contains" : "text";
+      const label = textLabel(node, context);
       return [
         el(
           "span",
@@ -211,7 +187,9 @@ function chipsFor(node: QueryNode, mode: Mode): Node[] {
       ];
     }
     case "op": {
-      const value = node.op === "case" ? (node.value === "yes" ? "sensitive" : "insensitive") : node.value;
+      let value = node.value;
+      if (node.op === "case") value = node.value === "yes" ? "sensitive" : "insensitive";
+      if (node.op === "type") value = TYPE_LABEL[node.value] ?? node.value;
       return [
         el(
           "span",
@@ -225,7 +203,7 @@ function chipsFor(node: QueryNode, mode: Mode): Node[] {
   }
 }
 
-export type FooterMode = "empty" | "errors" | "results";
+export type FooterMode = "empty" | "errors" | "results" | "operators" | "values";
 
 /** Key hints along the bottom, which change with what the panel shows. */
 export function renderFooter(layout: Layout, mode: FooterMode, isHistory: boolean): void {
@@ -234,6 +212,18 @@ export function renderFooter(layout: Layout, mode: FooterMode, isHistory: boolea
   const hints: Record<FooterMode, HTMLElement[]> = {
     empty: [hint("↑↓", "move"), hint("↵", "run recent query"), hintAtEnd("?", "opens this sheet anytime")],
     errors: [hint("⌘.", "apply first fix"), hint("Tab", "complete operator"), hintAtEnd("?", "all operators")],
+    operators: [
+      hint("↑↓", "pick"),
+      hint("Tab", "insert operator"),
+      hint("Esc", "dismiss"),
+      hintAtEnd("?", "all operators"),
+    ],
+    values: [
+      hint("↑↓", "pick"),
+      hint("Tab", "insert value"),
+      hint("Esc", "keep as typed"),
+      hintAtEnd("?", "all operators"),
+    ],
     results: [
       hint("↑↓", "move"),
       hint("↵", isHistory ? "open diff" : "open"),

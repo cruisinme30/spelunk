@@ -229,11 +229,6 @@ mark.t3 {
   background: var(--sel);
   color: var(--sel-fg);
 }
-.copt .detail {
-  flex: 1;
-  color: var(--muted);
-  font-size: 12px;
-}
 
 .banner {
   display: flex;
@@ -629,6 +624,19 @@ mark.t3 {
 .notes:empty {
   display: none;
 }
+.note {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px 12px;
+  padding: 8px 12px;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+}
+.note code {
+  font-family: var(--mono);
+}
 .more {
   padding: 6px 14px;
 }
@@ -774,6 +782,11 @@ pre.body {
   border: 0;
   text-align: left;
   cursor: pointer;
+  gap: 10px;
+}
+.recent-row .icon {
+  display: inline-flex;
+  color: var(--muted);
 }
 .recent-row code {
   overflow: hidden;
@@ -865,4 +878,119 @@ pre.body {
   #preview {
     display: none;
   }
+}
+
+/* Suggestions take the place of the chips and results while open (mocks 5 and 6). */
+.us.completing #chips,
+.us.completing #body {
+  display: none;
+}
+.us.completing #completions {
+  flex: 1 1 auto;
+  overflow: auto;
+}
+#completions {
+  flex: 0 0 auto;
+  max-height: none;
+  margin: 0;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  padding-bottom: 4px;
+}
+#completions .copt {
+  min-height: 44px;
+  padding: 6px 14px;
+}
+#completions .op {
+  flex: 0 0 auto;
+  padding: 2px 8px;
+  border: 1px solid currentColor;
+  border-radius: 5px;
+  font-family: var(--mono);
+}
+.ctext {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+.ctext .title {
+  color: var(--fg);
+}
+.ctext .detail {
+  color: var(--muted);
+  font-size: 12px;
+}
+#completions kbd.value {
+  font-family: var(--mono);
+}
+.copt.astyped {
+  border-top: 1px solid var(--line);
+  margin-top: 4px;
+}
+.copt.astyped code {
+  font-family: var(--mono);
+}
+.glimpse {
+  border-top: 1px solid var(--line);
+  margin-top: 4px;
+  padding-top: 4px;
+  opacity: 0.85;
+}
+.glimpse .cgroup.split {
+  display: flex;
+  justify-content: space-between;
+}
+.glimpse .cgroup code {
+  text-transform: none;
+  font-family: var(--mono);
+}
+
+/* The repo menu under "All repos · 3". */
+.menuanchor {
+  position: relative;
+  display: inline-flex;
+}
+.toggle.repos::after {
+  content: "▾";
+  margin-left: 6px;
+  opacity: 0.7;
+}
+.menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 10;
+  min-width: 220px;
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+.menuitem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 5px;
+  background: none;
+  color: var(--fg);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.menuitem:hover,
+.menuitem:focus-visible {
+  background: var(--hover);
+}
+.menuitem .check {
+  width: 14px;
+}
+.menuitem .name {
+  flex: 1;
 }

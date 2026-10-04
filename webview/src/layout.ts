@@ -7,6 +7,7 @@ export interface Layout {
   caseButton: HTMLButtonElement;
   regexButton: HTMLButtonElement;
   reposButton: HTMLButtonElement;
+  repoMenu: HTMLElement;
   statusDot: HTMLElement;
   statusText: HTMLElement;
   completions: HTMLElement;
@@ -58,7 +59,18 @@ export function createLayout(root: HTMLElement): Layout {
     },
     ".*",
   );
-  const reposButton = el("button", { type: "button", class: "toggle repos", "data-testid": "repos" }, "All repos");
+  const reposButton = el(
+    "button",
+    {
+      type: "button",
+      class: "toggle repos",
+      "data-testid": "repos",
+      "aria-haspopup": "menu",
+      "aria-expanded": "false",
+    },
+    "All repos",
+  );
+  const repoMenu = el("div", { class: "menu", role: "menu", "data-testid": "repo-menu", hidden: true });
   const icon = el("span", { class: "icon", "aria-hidden": "true" });
   icon.innerHTML = SEARCH_ICON;
 
@@ -85,7 +97,13 @@ export function createLayout(root: HTMLElement): Layout {
       { class: "bar" },
       el("label", { for: "q", class: "qlabel" }, icon),
       input,
-      el("div", { class: "tools" }, caseButton, regexButton, reposButton),
+      el(
+        "div",
+        { class: "tools" },
+        caseButton,
+        regexButton,
+        el("span", { class: "menuanchor" }, reposButton, repoMenu),
+      ),
     ),
     el("div", { class: "status", role: "status" }, statusDot, statusText),
     completions,
@@ -102,6 +120,7 @@ export function createLayout(root: HTMLElement): Layout {
     caseButton,
     regexButton,
     reposButton,
+    repoMenu,
     statusDot,
     statusText,
     completions,

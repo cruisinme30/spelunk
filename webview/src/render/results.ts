@@ -1,7 +1,7 @@
 // The result list: sections for file names, definitions, code and commits,
 // appended to as batches stream in, plus hidden-result notes and Load more.
 import { el, fileStat, highlight, plural, shortSha, termClass, timeAgo, trimIndent } from "../format";
-import type { Fix, HiddenNote, ParsedQuery, ResultItem, SearchDoneMsg } from "../protocol.gen";
+import type { Fix, HiddenNote, Node as QueryNode, ParsedQuery, ResultItem, SearchDoneMsg } from "../protocol.gen";
 import { textNodes } from "../queryEdit";
 import { repoName, type ViewState } from "../state";
 
@@ -12,6 +12,25 @@ type ItemOf<K extends ResultKind> = Extract<ResultItem, { kind: K }>;
 const COMMIT_FILES_SHOWN = 2;
 
 const SINGULAR_UNIT: Record<HiddenNote["unit"], string> = { matches: "match", files: "file", commits: "commit" };
+
+/** What undoing a filter does, where "Show them" would mislead. */
+const UNDO_LABEL: Partial<Record<HiddenNote["reason"], string>> = {
+  // Undoing case:yes changes how text matches rather than showing hidden rows (mock 8).
+  case: "Ignore case",
+  type: "Show code too",
+};
+
+/** The plain words of a parsed query, in order. */
+export function textTerms(query: ParsedQuery | undefined): string[] {
+  const words: string[] = [];
+  const visit = (node: QueryNode): void => {
+    if (node.kind === "text") words.push(node.value);
+    else if (node.kind === "and" || node.kind === "or") node.children.forEach(visit);
+    else if (node.kind === "not") visit(node.child);
+  };
+  if (query?.root) visit(query.root);
+  return words;
+}
 
 interface Section {
   root: HTMLElement;
@@ -185,17 +204,27 @@ export class ResultsView {
     );
   }
 
-  /** "3 commits hidden by -f:vendor/ · Show them" (mock 7). */
+  /**
+   * "3 commits hidden by -f:vendor/ · Show them" (mock 7), "38 code matches
+   * for retry hidden by type:file · Show code too" (mock 12).
+   */
   private renderNote(note: HiddenNote): HTMLElement {
     const unit = note.count === 1 ? SINGULAR_UNIT[note.unit] : note.unit;
-    // Undoing case:yes changes how text matches rather than showing hidden rows (mock 8).
-    const label = note.reason === "case" ? note.undo.title : "Show them";
-    const showThem = el("button", { type: "button", class: "btn link", "data-testid": "show-hidden" }, label);
+    let what = `${note.count.toLocaleString("en-US")} ${unit}`;
+    if (note.reason === "type") {
+      const terms = textTerms(this.state.parsed);
+      what = `${note.count.toLocaleString("en-US")} code ${unit}` + (terms.length ? ` for ${terms.join(" and ")}` : "");
+    }
+    const showThem = el(
+      "button",
+      { type: "button", class: "btn link", "data-testid": "show-hidden" },
+      UNDO_LABEL[note.reason] ?? "Show them",
+    );
     showThem.addEventListener("click", () => this.handlers.onApplyFix(note.undo));
     return el(
       "div",
       { class: "note", "data-reason": note.reason },
-      el("span", {}, `${note.count.toLocaleString("en-US")} ${unit} hidden by `, el("code", {}, note.filter)),
+      el("span", {}, `${what} hidden by `, el("code", {}, note.filter)),
       showThem,
     );
   }
