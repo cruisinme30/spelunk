@@ -143,8 +143,8 @@ async function openTarget(target: OpenTarget, where: "current" | "side", item: R
   const cfg = vscode.workspace.getConfiguration("unifiedSearch");
   const viewColumn = where === "side" ? vscode.ViewColumn.Beside : vscode.ViewColumn.Active;
   const preview = cfg.get("open.preview", true);
-  if (target.sha && target.repoId) {
-    const uri = commits.uriFor(target.repoId, target.sha, item?.kind === "commit" ? item.subject : undefined);
+  if (target.sha && item) {
+    const uri = commits.uriFor(item.ref, target.sha, item.kind === "commit" ? item.subject : undefined);
     const doc = await vscode.workspace.openTextDocument(uri);
     await vscode.languages.setTextDocumentLanguage(doc, "diff");
     await vscode.window.showTextDocument(doc, { viewColumn, preview });

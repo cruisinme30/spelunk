@@ -8,13 +8,14 @@ export class CommitDocuments implements vscode.TextDocumentContentProvider {
   static readonly scheme = "unified-search-commit";
   constructor(private readonly daemon: Daemon) {}
 
-  uriFor(repoId: string, sha: string, subject?: string): vscode.Uri {
+  /** The daemon's opaque ref rides along in the URI query; nothing here parses it. */
+  uriFor(ref: string, sha: string, subject?: string): vscode.Uri {
     const title = `${sha.slice(0, 7)}${subject ? " " + subject.replace(/[\\/]/g, " ").slice(0, 60) : ""}.diff`;
-    return vscode.Uri.parse(`${CommitDocuments.scheme}:/${encodeURIComponent(title)}`).with({ query: `${repoId}:${sha}` });
+    return vscode.Uri.parse(`${CommitDocuments.scheme}:/${encodeURIComponent(title)}`).with({ query: ref });
   }
 
   async provideTextDocumentContent(uri: vscode.Uri): Promise<string> {
-    const ref = `c:${uri.query}`;
+    const ref = uri.query;
     const p = await this.daemon.request("preview/get", { ref, contextLines: 3 });
     return renderCommit(p);
   }
