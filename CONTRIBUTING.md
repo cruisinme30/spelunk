@@ -100,8 +100,9 @@ Never edit `*.gen.ts` or `*_gen.go`. Change `protocol/protocol.schema.json`, the
 - Go: table-driven subtests, failure messages in `Parse(%q) = %v, want %v` form, golden files in `testdata/`
   refreshed with `go test ./... -update`.
 - **Spec coverage:** tag each test with the spec IDs it proves, e.g. `// @covers op:since diag:unclosed_paren` or
-  `rpc:search/start` or `msg:query.changed`. A check fails CI when an operator, diagnostic code, RPC method, webview
-  message, setting or mock has no test.
+  `rpc:search/start` or `msg:query.changed`. `scripts/specCoverage.mjs` lists every operator, diagnostic code, RPC
+  method, webview message, setting, command, mock and failure mode with no test. It fails on unknown ids now, and
+  `--strict` (any gap fails) is the release gate.
 - Put each test in the cheapest layer that can prove the behaviour (see [the test plan](docs/dev/test-plan.md)).
 
 ## Docs

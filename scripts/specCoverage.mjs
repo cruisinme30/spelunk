@@ -9,11 +9,15 @@
 // Usage: node scripts/specCoverage.mjs [--strict]
 //   --strict exits non-zero when anything is uncovered (the release gate).
 import { readdirSync, readFileSync, statSync } from "node:fs";
-import { join, relative } from "node:path";
+import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const root = join(fileURLToPath(import.meta.url), "..", "..");
-const read = (p) => readFileSync(join(root, p), "utf8");
+const root = join(dirname(fileURLToPath(import.meta.url)), "..");
+/** Mocks 1-18 in docs/dev/mocks.md. */
+const MOCK_COUNT = 18;
+/** Rows of the failure table in docs/dev/implementation-plan.md. */
+const FAILURE_ROWS = ["daemon-crash", "index-corrupt", "repo-indexing", "no-git", "ref-stale", "disk-full"];
+const read = (path) => readFileSync(join(root, path), "utf8");
 const schema = JSON.parse(read("protocol/protocol.schema.json"));
 const manifest = JSON.parse(read("extension/package.json"));
 
@@ -26,39 +30,41 @@ add(
   "OpName in protocol.schema.json",
 );
 add(
-  ["and", "or", "not", "group", "phrase", "regex"].map((s) => `syntax:${s}`),
+  ["and", "or", "not", "group", "phrase", "regex"].map((construct) => `syntax:${construct}`),
   "query grammar",
 );
 add(
-  Object.keys(schema["x-rpc-methods"]).map((m) => `rpc:${m}`),
+  Object.keys(schema["x-rpc-methods"]).map((method) => `rpc:${method}`),
   "x-rpc-methods",
 );
 add(
-  Object.keys(schema["x-webview-messages"]).map((m) => `msg:${m}`),
+  Object.keys(schema["x-webview-messages"]).map((type) => `msg:${type}`),
   "x-webview-messages",
 );
 add(
-  Object.keys(manifest.contributes.configuration.properties).map((k) => `setting:${k.replace(/^unifiedSearch\./, "")}`),
+  Object.keys(manifest.contributes.configuration.properties).map(
+    (key) => `setting:${key.replace(/^unifiedSearch\./, "")}`,
+  ),
   "package.json settings",
 );
 add(
-  manifest.contributes.commands.map((c) => `command:${c.command.replace(/^unifiedSearch\./, "")}`),
+  manifest.contributes.commands.map((command) => `command:${command.command.replace(/^unifiedSearch\./, "")}`),
   "package.json commands",
 );
 add(
-  Array.from({ length: 18 }, (_, i) => `mock:${i + 1}`),
+  Array.from({ length: MOCK_COUNT }, (_, i) => `mock:${i + 1}`),
   "docs/dev/mocks.md",
 );
 add(
-  ["daemon-crash", "index-corrupt", "repo-indexing", "no-git", "ref-stale", "disk-full"].map((f) => `failure:${f}`),
+  FAILURE_ROWS.map((row) => `failure:${row}`),
   "failure table",
 );
 
 // Diagnostic codes are declared as `Diag… = "code"` constants in the query package.
 const diagDir = join(root, "daemon/internal/query");
-for (const file of safeList(diagDir).filter((f) => f.endsWith(".go") && !f.endsWith("_test.go"))) {
-  for (const m of readFileSync(join(diagDir, file), "utf8").matchAll(/^\s*Diag\w+\s*=\s*"([a-z_]+)"/gm)) {
-    required.set(`diag:${m[1]}`, "daemon/internal/query diagnostic codes");
+for (const file of safeList(diagDir).filter((name) => name.endsWith(".go") && !name.endsWith("_test.go"))) {
+  for (const match of readFileSync(join(diagDir, file), "utf8").matchAll(/^\s*Diag\w+\s*=\s*"([a-z_]+)"/gm)) {
+    required.set(`diag:${match[1]}`, "daemon/internal/query diagnostic codes");
   }
 }
 
@@ -67,8 +73,8 @@ const testFile = /(_test\.go|\.test\.ts|\.test\.mjs)$/;
 const covered = new Map(); // id -> [files]
 for (const file of walk(root)) {
   if (!testFile.test(file)) continue;
-  for (const m of readFileSync(file, "utf8").matchAll(/@covers\s+([^\n*]+)/g)) {
-    for (const id of m[1].trim().split(/\s+/)) {
+  for (const match of readFileSync(file, "utf8").matchAll(/@covers\s+([^\n*]+)/g)) {
+    for (const id of match[1].trim().split(/\s+/)) {
       if (!covered.has(id)) covered.set(id, []);
       covered.get(id).push(relative(root, file));
     }
@@ -80,14 +86,14 @@ const unknown = [...covered.keys()].filter((id) => !required.has(id));
 const groups = new Map();
 for (const id of required.keys()) {
   const kind = id.split(":")[0];
-  const g = groups.get(kind) ?? { total: 0, done: 0 };
-  g.total++;
-  if (covered.has(id)) g.done++;
-  groups.set(kind, g);
+  const group = groups.get(kind) ?? { total: 0, done: 0 };
+  group.total++;
+  if (covered.has(id)) group.done++;
+  groups.set(kind, group);
 }
 
 console.log(`Spec coverage: ${required.size - missing.length}/${required.size}`);
-for (const [kind, g] of groups) console.log(`  ${kind.padEnd(8)} ${String(g.done).padStart(3)}/${g.total}`);
+for (const [kind, group] of groups) console.log(`  ${kind.padEnd(8)} ${String(group.done).padStart(3)}/${group.total}`);
 if (missing.length) console.log(`Uncovered: ${missing.join(" ")}`);
 if (unknown.length) {
   console.log(`Unknown @covers ids (typo or stale): ${unknown.join(" ")}`);

@@ -17,7 +17,12 @@ step "protocol: generated types are up to date"
 node protocol/gen.mjs --check
 
 step "format: prettier --check"
-if command -v "$(tool prettier)" >/dev/null; then "$(tool prettier)" --check . ; else echo "prettier not installed; skipped"; fi
+prettier=$(tool prettier)
+if command -v "$prettier" >/dev/null; then
+  "$prettier" --check .
+else
+  echo "prettier not installed; skipped"
+fi
 (cd daemon && test -z "$(gofmt -l .)" || { gofmt -l .; echo "gofmt: files above need formatting"; exit 1; })
 
 step "daemon: go vet + go test"
@@ -43,7 +48,7 @@ step "webview: typecheck + Playwright contract tests"
   node --test "test/*.test.mjs"
 )
 
-step "spec coverage (report only until release; see CONTRIBUTING.md)"
-node scripts/specCoverage.mjs | head -10
+step "spec coverage (fails on unknown @covers ids; --strict at release)"
+node scripts/specCoverage.mjs
 
 printf '\nAll layers passed.\n'
