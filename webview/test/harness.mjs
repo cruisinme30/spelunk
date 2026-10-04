@@ -32,6 +32,9 @@ export const openPanel = (testContext) => openPage(testContext, "searchPanel.htm
 /** Opens the help page. */
 export const openHelp = (testContext) => openPage(testContext, "help.html");
 
+/** Opens the welcome page. */
+export const openWelcome = (testContext) => openPage(testContext, "welcome.html");
+
 async function openPage(testContext, file) {
   const page = await browser.newPage();
   testContext.after(() => page.close());

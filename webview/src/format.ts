@@ -26,9 +26,24 @@ export function element<K extends keyof HTMLElementTagNameMap>(
   const created = document.createElement(tag);
   for (const [name, value] of Object.entries(attributes)) {
     if (value === undefined || value === false) continue;
-    if (name === "class") created.className = String(value);
-    else if (name === "text") created.textContent = String(value);
-    else created.setAttribute(name, value === true ? "" : String(value));
+    switch (name) {
+      case "class": {
+        created.className = String(value);
+        break;
+      }
+      case "text": {
+        created.textContent = String(value);
+        break;
+      }
+      case "style": {
+        // Through the CSSOM: the webviews' content security policy blocks style attributes.
+        created.style.cssText = String(value);
+        break;
+      }
+      default: {
+        created.setAttribute(name, value === true ? "" : String(value));
+      }
+    }
   }
   for (const child of children) {
     if (child !== null && child !== undefined && child !== false) created.append(child);

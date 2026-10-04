@@ -7,10 +7,11 @@ One search box for file names, code and Git history, across every repo in your w
 
 ## Getting started
 
-1. Open a folder or workspace. The status bar shows indexing progress until the index is ready, then "Unified
-   Search".
+1. Open a folder or workspace. The welcome page asks which key opens search and how much to index, and shows each
+   repo's indexing. **Unified Search: Show Welcome** opens it again. The status bar shows indexing progress until
+   the index is ready, then "Unified Search".
 2. Press **⌘P** (Ctrl+P on Windows and Linux) and type. Quick Open moves to ⌥⌘P (Ctrl+Alt+P). To keep ⌘P for Quick
-   Open, set `unifiedSearch.shortcut.preset` to `findInFiles` (⇧⌘F) or `none`.
+   Open, pick ⇧⌘F or your own key on the welcome page, or set `unifiedSearch.shortcut.preset`.
 3. Click a result to preview it, press ↵ to open it at the match, ⌘↵ to open it to the side, and F4 or ⇧F4 to step
    through results without the panel.
 

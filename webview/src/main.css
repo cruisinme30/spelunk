@@ -1286,3 +1286,192 @@ pre.body {
     grid-template-columns: 1fr;
   }
 }
+
+/* The welcome page. */
+
+.welcome {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 40px 20px 56px;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  line-height: 1.5;
+}
+
+.welcome h1 {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 600;
+}
+
+.welcome h2,
+.welcome legend {
+  margin: 0;
+  padding: 0 0 12px;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.welcome .lead {
+  margin: -20px 0 0;
+  font-size: 15px;
+  color: var(--muted);
+}
+
+.choices {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.choice {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--panel);
+  cursor: pointer;
+}
+
+.choice:has(input:checked) {
+  border-color: var(--focus);
+  background: var(--sel);
+}
+
+.choice input {
+  margin: 3px 0 0;
+  width: 18px;
+  height: 18px;
+}
+
+.choice-text {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.choice-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.pill {
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--bg);
+  background: var(--tone-scope);
+}
+
+.repo-rows {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.repo-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  padding: 12px 14px;
+  background: var(--panel);
+}
+
+.repo-row + .repo-row {
+  border-top: 1px solid var(--border);
+}
+
+.repo-name {
+  min-width: 120px;
+  font-weight: 500;
+}
+
+.repo-detail {
+  flex: 1 1 200px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.repo-progress {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.repo-state {
+  font-size: 12px;
+}
+
+.repo-row.ready .repo-state {
+  color: var(--ok);
+}
+
+.repo-row.indexing .repo-state,
+.repo-row.problem .repo-state {
+  color: var(--warn);
+}
+
+.index-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 24px;
+  padding-top: 12px;
+}
+
+.index-options .field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.index-options select {
+  height: 36px;
+  min-width: 200px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--btn);
+  color: var(--fg);
+}
+
+.index-options .check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  align-self: flex-end;
+  min-height: 36px;
+}
+
+.welcome-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+}
+
+.welcome-actions .btn {
+  height: 44px;
+  padding: 0 16px;
+  font-size: 14px;
+}
+
+.btn.primary {
+  border: 0;
+  background: var(--vscode-button-background, #2563c9);
+  color: var(--vscode-button-foreground, #fff);
+  font-weight: 600;
+}

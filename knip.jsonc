@@ -11,7 +11,7 @@
       "project": ["src/**/*.ts", "*.mjs"],
     },
     "webview": {
-      "entry": ["src/main.ts", "src/helpPage.ts", "test/*.test.mjs"],
+      "entry": ["src/main.ts", "src/helpPage.ts", "src/welcomePage.ts", "test/*.test.mjs"],
       "project": ["src/**/*.ts", "test/**/*.mjs"],
     },
   },

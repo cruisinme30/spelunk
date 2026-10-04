@@ -773,6 +773,22 @@ type HelpTryMsg struct {
 	Query string `json:"query"`
 }
 
+// WelcomeStateMsg is what the welcome page shows: the shortcut preset and what is indexed.
+type WelcomeStateMsg struct {
+	Preset       string `json:"preset"`
+	HistoryDepth string `json:"historyDepth"`
+	Symbols      bool   `json:"symbols"`
+	// Mac is whether keys are written for a Mac (⌘P) or for Windows and Linux (Ctrl+P)
+	Mac bool `json:"mac"`
+}
+
+// WelcomeChooseMsg saves one choice made on the welcome page in the user's settings.
+type WelcomeChooseMsg struct {
+	Preset       string `json:"preset,omitempty"`
+	HistoryDepth string `json:"historyDepth,omitempty"`
+	Symbols      bool   `json:"symbols,omitempty"`
+}
+
 // ParseResultMsg drives the chips, diagnostics, completions and toggles.
 type ParseResultMsg struct {
 	Seq         int          `json:"seq"`
@@ -906,22 +922,26 @@ const (
 
 // Search panel message types (webview <-> extension host).
 const (
-	MsgQueryChanged  = "query.changed"
-	MsgResultSelect  = "result.select"
-	MsgResultOpen    = "result.open"
-	MsgResultsMore   = "results.more"
-	MsgPanelClose    = "panel.close"
-	MsgHelpOpen      = "help.open"
-	MsgHelpTry       = "help.try"
-	MsgSettingsOpen  = "settings.open"
-	MsgReady         = "ready"
-	MsgDaemonRestart = "daemon.restart"
-	MsgParseResult   = "parse.result"
-	MsgSearchBatch   = "search.batch"
-	MsgSearchDone    = "search.done"
-	MsgPreviewResult = "preview.result"
-	MsgIndexStatus   = "index.status"
-	MsgStateRestore  = "state.restore"
-	MsgBanner        = "banner"
-	MsgFocus         = "focus"
+	MsgQueryChanged    = "query.changed"
+	MsgResultSelect    = "result.select"
+	MsgResultOpen      = "result.open"
+	MsgResultsMore     = "results.more"
+	MsgPanelClose      = "panel.close"
+	MsgHelpOpen        = "help.open"
+	MsgHelpTry         = "help.try"
+	MsgSettingsOpen    = "settings.open"
+	MsgWelcomeChoose   = "welcome.choose"
+	MsgWelcomeShortcut = "welcome.shortcut"
+	MsgWelcomeStart    = "welcome.start"
+	MsgReady           = "ready"
+	MsgDaemonRestart   = "daemon.restart"
+	MsgParseResult     = "parse.result"
+	MsgSearchBatch     = "search.batch"
+	MsgSearchDone      = "search.done"
+	MsgPreviewResult   = "preview.result"
+	MsgIndexStatus     = "index.status"
+	MsgStateRestore    = "state.restore"
+	MsgBanner          = "banner"
+	MsgFocus           = "focus"
+	MsgWelcomeState    = "welcome.state"
 )

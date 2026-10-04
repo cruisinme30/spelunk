@@ -78,6 +78,10 @@
       {
         "command": "unifiedSearch.restartDaemon",
         "title": "Unified Search: Restart Search"
+      },
+      {
+        "command": "unifiedSearch.showWelcome",
+        "title": "Unified Search: Show Welcome"
       }
     ],
     "keybindings": [

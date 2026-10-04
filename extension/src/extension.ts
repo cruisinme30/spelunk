@@ -7,7 +7,13 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import * as vscode from "vscode";
 import { CommitDocuments } from "./commitDocuments";
-import { type ControllerOptions, type PersistedState, SearchController, type Ui } from "./controller";
+import {
+  type ControllerOptions,
+  type PersistedState,
+  SearchController,
+  type Ui,
+  type WebviewMessage,
+} from "./controller";
 import { Daemon, type DaemonState } from "./daemon";
 import { HelpPanel } from "./helpPanel";
 import { SearchPanel } from "./panel";
@@ -19,9 +25,12 @@ import type {
   OpenWhere,
   ResultItem,
   Root,
+  WelcomeChooseMsg as WelcomeChoice,
+  WelcomeStateMsg as WelcomeState,
 } from "./protocol.gen";
 import { makeRoot } from "./roots";
-import { DEFAULTS, daemonSettings, uiSettings } from "./settings";
+import { DEFAULTS, daemonSettings, uiSettings, welcomeSettings } from "./settings";
+import { WELCOMED_KEY, WelcomePanel } from "./welcomePanel";
 
 /** The globalState key that keeps the query and recent queries across sessions. */
 const STATE_KEY = "unifiedSearch.state";
@@ -76,15 +85,34 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi {
     if (message.type === "help.try") void vscode.commands.executeCommand("unifiedSearch.open", message.payload);
     else if (message.type === "settings.open") ui.openSettings();
   });
+  const welcome = new WelcomePanel(
+    context.extensionUri,
+    {
+      settings: (): WelcomeState => welcomeSettings(configuration(), process.platform === "darwin"),
+      indexStatus: () => daemon.request("index/status", {}),
+    },
+    (message) => {
+      handleWelcome(message, welcome, () => {
+        ui.openSettings();
+      });
+    },
+  );
   forwardDaemonEventsToPanel(daemon, panel);
+  daemon.on("progress", (progress) => {
+    welcome.indexStatus(progress);
+  });
 
   context.subscriptions.push(
     log,
     panel,
     help,
+    welcome,
     vscode.workspace.registerTextDocumentContentProvider(CommitDocuments.scheme, commitDocuments),
     createStatusBar(daemon),
     ...registerCommands(daemon, controller, panel, help),
+    vscode.commands.registerCommand("unifiedSearch.showWelcome", () => {
+      welcome.show();
+    }),
     forwardFileChanges(daemon),
     vscode.workspace.onDidChangeWorkspaceFolders(() => {
       daemon.setRoots(workspaceRoots());
@@ -93,11 +121,69 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi {
       if (!event.affectsConfiguration("unifiedSearch")) return;
       daemon.updateSettings(daemonSettings(configuration(), homedir()));
       if (panel.isOpen) controller.restore(); // sends the new settings to the panel
+      welcome.refresh();
     }),
   );
 
   daemon.start().catch(logError("daemon start"));
+  if (!context.globalState.get<boolean>(WELCOMED_KEY)) {
+    welcome.show();
+    void context.globalState.update(WELCOMED_KEY, true);
+  }
   return { daemon, controller };
+}
+
+/**
+ * Acts on the welcome page: a choice is saved in the user's settings (the
+ * page then shows it, through onDidChangeConfiguration), "Choose my own"
+ * opens Keyboard Shortcuts filtered to this extension, and Start opens the
+ * search panel.
+ */
+function handleWelcome(message: WebviewMessage, welcome: WelcomePanel, openSettings: () => void): void {
+  switch (message.type) {
+    case "welcome.choose": {
+      void saveWelcomeChoice(message.payload);
+      return;
+    }
+    case "welcome.shortcut": {
+      void configuration().update("shortcut.preset", "none", vscode.ConfigurationTarget.Global);
+      void vscode.commands.executeCommand("workbench.action.openGlobalKeybindings", "unifiedSearch");
+      return;
+    }
+    case "welcome.start": {
+      welcome.dispose();
+      void vscode.commands.executeCommand("unifiedSearch.open");
+      return;
+    }
+    case "help.open": {
+      void vscode.commands.executeCommand("unifiedSearch.openHelp");
+      return;
+    }
+    case "settings.open": {
+      openSettings();
+      return;
+    }
+    case "daemon.restart":
+    case "help.try":
+    case "panel.close":
+    case "query.changed":
+    case "ready":
+    case "result.open":
+    case "result.select":
+    case "results.more": {
+      // The search panel's messages; the page doesn't send them.
+      return;
+    }
+  }
+}
+
+/** Saves the welcome page's choices as user settings. */
+async function saveWelcomeChoice(choice: WelcomeChoice): Promise<void> {
+  const config = configuration();
+  const global = vscode.ConfigurationTarget.Global;
+  if (choice.preset !== undefined) await config.update("shortcut.preset", choice.preset, global);
+  if (choice.historyDepth !== undefined) await config.update("index.historyDepth", choice.historyDepth, global);
+  if (choice.symbols !== undefined) await config.update("index.symbols", choice.symbols, global);
 }
 
 /** Stops the daemon gracefully when VS Code shuts the extension down. */

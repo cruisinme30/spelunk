@@ -377,6 +377,9 @@ export class SearchPanel {
         this.renderBanners();
         return;
       }
+      case "welcome.state": {
+        return; // for the welcome page
+      }
     }
   }
 

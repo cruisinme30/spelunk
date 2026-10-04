@@ -23,10 +23,11 @@ await build({
 
 if (existsSync(join(webview, "src/main.ts"))) {
   mkdirSync(join(here, "dist/webview"), { recursive: true });
-  // The search panel and the help page share main.css.
+  // The search panel, the help page and the welcome page share main.css.
   for (const [entry, out] of [
     ["main.ts", "main.js"],
     ["helpPage.ts", "help.js"],
+    ["welcomePage.ts", "welcome.js"],
   ]) {
     await build({
       entryPoints: [join(webview, "src", entry)],

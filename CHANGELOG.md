@@ -38,15 +38,14 @@ All notable changes to this project are documented here. The format follows
 - `sym:` finds definitions (classes, interfaces, functions, methods and types) in 14 languages, suggests the
   workspace's names as you type, and offers to search a name as text with how many matches that finds. A file
   preview lists the members of the class it shows.
+- A welcome page, shown once after installing and by **Unified Search: Show Welcome**: pick the search shortcut and
+  how much to index, and watch each repo's indexing.
 - When a search finds nothing, the panel says why (for example that `case:yes` is on) above what each filter hid.
-
-### Removed
-
-- The Show Welcome command, which was listed but did nothing; it returns with the first-run page.
 
 ### Fixed
 
 - A reopened search panel no longer ignores the queries typed into it.
+- Indexing progress bars fill in VS Code: they were set with style attributes, which webviews block.
 - A saved index that can't be read says so while it is rebuilt, and an index that can't be saved (a full disk) keeps
   serving with a warning.
 - Case-insensitive searches no longer copy each file to lowercase it, and regex terms are found by their literal

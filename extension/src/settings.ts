@@ -1,5 +1,5 @@
 // Maps the unifiedSearch.* configuration to protocol types.
-import type { Settings, UiSettings } from "./protocol.gen";
+import type { Settings, UiSettings, WelcomeStateMsg as WelcomeState } from "./protocol.gen";
 
 /** Anything shaped like VS Code's WorkspaceConfiguration.get. */
 export interface ConfigReader {
@@ -22,6 +22,7 @@ export const DEFAULTS = {
   location: "~/.unified-search/index",
   showParsedQuery: true,
   recentQueries: 20,
+  shortcutPreset: "quickOpen",
 } as const;
 
 /** The hard cap on results per page; the daemon enforces the same limit. */
@@ -29,6 +30,7 @@ const MAX_DEFAULT_COUNT = 50_000;
 const MAX_TYPING_DELAY_MS = 1000;
 const HISTORY_DEPTHS: readonly Settings["historyDepth"][] = ["6m", "2y", "all"];
 const OPEN_TRIGGERS: readonly UiSettings["openTrigger"][] = ["doubleClick", "singleClick"];
+const SHORTCUT_PRESETS: readonly WelcomeState["preset"][] = ["quickOpen", "findInFiles", "none"];
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, Math.round(value)));
@@ -72,5 +74,20 @@ export function uiSettings(config: ConfigReader): UiSettings {
     preview: config.get("open.preview", DEFAULTS.openPreview),
     showParsedQuery: config.get("ui.showParsedQuery", DEFAULTS.showParsedQuery),
     caseSensitive: config.get("caseSensitive", DEFAULTS.caseSensitive),
+  };
+}
+
+/** What the welcome page shows; `mac` writes keys as ⌘P rather than Ctrl+P. */
+export function welcomeSettings(config: ConfigReader, mac: boolean): WelcomeState {
+  const settings = daemonSettings(config, "");
+  return {
+    preset: oneOf(
+      config.get<string>("shortcut.preset", DEFAULTS.shortcutPreset),
+      SHORTCUT_PRESETS,
+      DEFAULTS.shortcutPreset,
+    ),
+    historyDepth: settings.historyDepth,
+    symbols: settings.symbols,
+    mac,
   };
 }

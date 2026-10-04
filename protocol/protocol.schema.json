@@ -1137,6 +1137,41 @@
       },
       "required": ["query"]
     },
+    "WelcomeStateMsg": {
+      "description": "WelcomeStateMsg is what the welcome page shows: the shortcut preset and what is indexed.",
+      "type": "object",
+      "properties": {
+        "preset": {
+          "enum": ["quickOpen", "findInFiles", "none"]
+        },
+        "historyDepth": {
+          "enum": ["6m", "2y", "all"]
+        },
+        "symbols": {
+          "type": "boolean"
+        },
+        "mac": {
+          "type": "boolean",
+          "description": "Whether keys are written for a Mac (⌘P) or for Windows and Linux (Ctrl+P)"
+        }
+      },
+      "required": ["preset", "historyDepth", "symbols", "mac"]
+    },
+    "WelcomeChooseMsg": {
+      "description": "WelcomeChooseMsg saves one choice made on the welcome page in the user's settings.",
+      "type": "object",
+      "properties": {
+        "preset": {
+          "enum": ["quickOpen", "findInFiles", "none"]
+        },
+        "historyDepth": {
+          "enum": ["6m", "2y", "all"]
+        },
+        "symbols": {
+          "type": "boolean"
+        }
+      }
+    },
     "ParseResultMsg": {
       "description": "ParseResultMsg drives the chips, diagnostics, completions and toggles.",
       "type": "object",
@@ -1409,6 +1444,18 @@
       "direction": "webview->host",
       "payload": "Empty"
     },
+    "welcome.choose": {
+      "direction": "webview->host",
+      "payload": "WelcomeChooseMsg"
+    },
+    "welcome.shortcut": {
+      "direction": "webview->host",
+      "payload": "Empty"
+    },
+    "welcome.start": {
+      "direction": "webview->host",
+      "payload": "Empty"
+    },
     "ready": {
       "direction": "webview->host",
       "payload": "Empty"
@@ -1448,6 +1495,10 @@
     "focus": {
       "direction": "host->webview",
       "payload": "Empty"
+    },
+    "welcome.state": {
+      "direction": "host->webview",
+      "payload": "WelcomeStateMsg"
     }
   },
   "x-error-codes": {

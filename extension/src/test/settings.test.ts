@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { rootId } from "../roots";
-import { daemonSettings, type ConfigReader } from "../settings";
+import { daemonSettings, welcomeSettings, type ConfigReader } from "../settings";
 
 function configWith(values: Record<string, unknown>): ConfigReader {
   return { get: <T>(key: string, fallback: T) => (key in values ? (values[key] as T) : fallback) };
@@ -25,4 +25,15 @@ test("the index location expands ~ and ~/ but not ~user", () => {
   assert.equal(location("~/idx"), "/home/u/idx");
   assert.equal(location("~"), "/home/u");
   assert.equal(location("~alice/idx"), "~alice/idx");
+});
+
+test("the welcome page shows the saved preset and index choices, and an unknown preset as the default", () => {
+  const config = configWith({ "shortcut.preset": "findInFiles", "index.historyDepth": "6m", "index.symbols": false });
+  assert.deepEqual(welcomeSettings(config, true), {
+    preset: "findInFiles",
+    historyDepth: "6m",
+    symbols: false,
+    mac: true,
+  });
+  assert.equal(welcomeSettings(configWith({ "shortcut.preset": "bogus" }), false).preset, "quickOpen");
 });

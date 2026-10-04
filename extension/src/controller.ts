@@ -179,8 +179,11 @@ export class SearchController {
         this.ui.hidePanel();
         return;
       }
-      case "help.try": {
-        // sent by the help page, which extension.ts routes to the open command
+      case "help.try":
+      case "welcome.choose":
+      case "welcome.shortcut":
+      case "welcome.start": {
+        // sent by the help and welcome pages, which extension.ts handles
         return;
       }
       case "help.open": {

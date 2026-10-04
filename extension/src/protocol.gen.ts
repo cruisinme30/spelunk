@@ -441,6 +441,22 @@ export interface HelpTryMsg {
   query: string;
 }
 
+/** WelcomeStateMsg is what the welcome page shows: the shortcut preset and what is indexed. */
+export interface WelcomeStateMsg {
+  preset: "quickOpen" | "findInFiles" | "none";
+  historyDepth: "6m" | "2y" | "all";
+  symbols: boolean;
+  /** Whether keys are written for a Mac (⌘P) or for Windows and Linux (Ctrl+P) */
+  mac: boolean;
+}
+
+/** WelcomeChooseMsg saves one choice made on the welcome page in the user's settings. */
+export interface WelcomeChooseMsg {
+  preset?: "quickOpen" | "findInFiles" | "none";
+  historyDepth?: "6m" | "2y" | "all";
+  symbols?: boolean;
+}
+
 /** ParseResultMsg drives the chips, diagnostics, completions and toggles. */
 export interface ParseResultMsg {
   seq: number;
@@ -536,6 +552,9 @@ export interface WebviewToHost {
   "help.open": Empty;
   "help.try": HelpTryMsg;
   "settings.open": Empty;
+  "welcome.choose": WelcomeChooseMsg;
+  "welcome.shortcut": Empty;
+  "welcome.start": Empty;
   "ready": Empty;
   "daemon.restart": Empty;
 }
@@ -550,4 +569,5 @@ export interface HostToWebview {
   "state.restore": StateRestoreMsg;
   "banner": BannerMsg;
   "focus": Empty;
+  "welcome.state": WelcomeStateMsg;
 }

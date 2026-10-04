@@ -1,5 +1,5 @@
-// Builds test/out/searchPanel.html (the search panel) and test/out/help.html
-// (the help page): the real webview bundles, with a fake acquireVsCodeApi in
+// Builds test/out/searchPanel.html (the search panel), test/out/help.html
+// (the help page) and test/out/welcome.html (the welcome page): the real webview bundles, with a fake acquireVsCodeApi in
 // place of VS Code. Tests talk to a page through these globals:
 //
 //   window.__sent                every message the webview sent, in order
@@ -57,3 +57,4 @@ async function buildPage(entry, name) {
 const css = readFileSync(join(here, "../src/main.css"), "utf8");
 await buildPage("main.ts", "searchPanel");
 await buildPage("helpPage.ts", "help");
+await buildPage("welcomePage.ts", "welcome");
