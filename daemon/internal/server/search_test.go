@@ -189,8 +189,11 @@ func TestCursorLoadsTheNextPage(t *testing.T) {
 		t.Fatal(err)
 	}
 	items := batches.all()
-	if len(items) != 3 || items[2].Line != 3 || second.NextCursor != "" {
-		t.Fatalf("after two pages: %d items, last line %d, next cursor %q; want 3 items ending at line 3 and no more pages", len(items), items[len(items)-1].Line, second.NextCursor)
+	if len(items) != 3 {
+		t.Fatalf("after two pages: %d items, want 3", len(items))
+	}
+	if items[2].Line != 3 || second.NextCursor != "" {
+		t.Errorf("after two pages: last line %d, next cursor %q; want line 3 and no more pages", items[2].Line, second.NextCursor)
 	}
 }
 

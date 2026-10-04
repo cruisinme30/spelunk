@@ -60,6 +60,17 @@ func (b *batcher) flush() {
 	b.flushLocked()
 }
 
+// discard drops what is waiting and cancels the pending flush.
+func (b *batcher) discard() {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.timer != nil {
+		b.timer.Stop()
+		b.timer = nil
+	}
+	b.items = nil
+}
+
 func (b *batcher) flushLocked() {
 	if b.timer != nil {
 		b.timer.Stop()
@@ -83,9 +94,9 @@ func (s *Server) search(ctx context.Context, raw json.RawMessage) (any, error) {
 	if err != nil {
 		return nil, rpc.Errorf(protocol.CodeQueryInvalid, "%v", err)
 	}
-	if plan.Mode == protocol.ModeHistory {
-		// The history engine comes with the commit index; until then a
-		// history query has no results rather than wrong ones.
+	if plan.Mode == protocol.ModeHistory || plan.Kinds[query.KindSymbol] {
+		// Not built yet: history queries need the commit index and sym: the
+		// symbol index. Until then they have no results rather than wrong ones.
 		return protocol.SearchResult{Ms: int(time.Since(started).Milliseconds())}, nil
 	}
 
@@ -93,6 +104,7 @@ func (s *Server) search(ctx context.Context, raw json.RawMessage) (any, error) {
 	batch := &batcher{conn: s.conn, searchID: params.SearchID}
 	stats, err := trigram.Search(ctx, plan, s.index.Repos(), planID, batch.add)
 	if err != nil {
+		batch.discard() // no batches may follow the error response
 		return nil, err
 	}
 	batch.flush()
