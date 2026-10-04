@@ -23,12 +23,12 @@ shell, `protocol/` types generated, opening a file at a line works.
 | Content-Length framing, cancellation | `daemon/internal/rpc/conn_test.go` (framing, call/notify, `$/cancelRequest` → -32800, panic → -32603); `extension/src/test/jsonRpc.test.ts` (frames split across chunks) |
 | `protocol/` types generated | `node protocol/gen.mjs --check` in test-all; `daemon/internal/protocol/protocol_test.go` (unions emit only their variant's fields, required arrays are `[]`) |
 | Webview shell | `webview/test/webview.test.mjs`: Playwright tests against the real bundle: ready/restore, typing → `query.changed`, results + preview, stale `seq` dropped, fix-it via ⌘., Aa edits text, Restart banner |
-| **Hard-coded search round-trips** | `daemon/internal/server/m0search_test.go` (RPC level) and `extension/src/test/controller.test.ts` (host controller → real daemon): `query.changed` → `parse.result` → `search.batch` → `search.done`, then `result.select` → `preview.result` |
+| **Hard-coded search round-trips** | `daemon/internal/server/search_test.go` (RPC level) and `extension/src/test/controller.test.ts` (host controller → real daemon): `query.changed` → `parse.result` → `search.batch` → `search.done`, then `result.select` → `preview.result` |
 | Opening a file at a line | Same controller test: `result.open` resolves to `{path, line 3, column 14, length 12}` and calls `openTarget(…, "side")`; the panel hides (closeOnOpen); F4 reopens the next result. The final `showTextDocument` call is VS Code glue in `extension.ts` (**not yet run**: needs VS Code) |
-| Visual check | [`proof/m0-panel.png`](proof/m0-panel.png): real daemon results rendered by the real webview bundle |
+| Visual check | [`proof/search-panel-results-and-preview.png`](proof/search-panel-results-and-preview.png): real daemon results rendered by the real webview bundle |
 
-The M0 search is a deliberate placeholder: the whole box is one case-insensitive literal (`daemon/internal/server/m0search.go`).
-M1 replaces it with the parser, planner and tree engine.
+The first search is a deliberate placeholder: the whole box is one case-insensitive literal, found by scanning files
+(`daemon/internal/server/search.go`). The working-tree engine replaces the scan.
 
 ## Conventions pass (between M0 and M1): done
 

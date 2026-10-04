@@ -38,7 +38,7 @@ Nothing else defines a cross-boundary type.
 - `internal/query` is the only query parser. It also produces diagnostics, fix-its and completions, and has the
   planner that turns a parsed query into a `Plan` (Contract 4).
 - `internal/lang` detects a file's language from its name and shebang, and resolves `lang:` values.
-- Coming in M1–M4: `internal/trigram` (working-tree index and engine), `internal/history` (commit store and engine)
+- Planned: `internal/trigram` (working-tree index and engine), `internal/history` (commit store and engine)
   and `internal/indexer` (the only writer to the index directory).
 
 ### `extension/` (TypeScript, VS Code extension host)

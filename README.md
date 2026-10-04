@@ -9,9 +9,9 @@ author:jane f:.*test\.py$ (timeout OR retry) -f:vendor/ since:6m
 That query finds Jane's commits from the last six months that changed a Python test outside `vendor/` and added or
 removed `timeout` or `retry`. Drop `author:` and the same box searches current files instead.
 
-![The search panel showing code matches for retry_policy, with a preview](docs/dev/proof/m0-panel.png)
+![The search panel showing code matches for retry_policy, with a preview](docs/dev/proof/search-panel-results-and-preview.png)
 
-> **Status: early development.** The skeleton works end to end (milestone M0). The query language and the indexes
+> **Status: early development.** The skeleton works end to end and the query language is parsed in full. The indexes
 > are being built now; see [progress](docs/dev/progress.md). There is no Marketplace release yet.
 
 ## Features (v1 scope)
