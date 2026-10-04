@@ -5,12 +5,12 @@ Start with [ARCHITECTURE.md](ARCHITECTURE.md) for the map of the code.
 
 ## Setup
 
-You need **Go 1.22+**, **Node 20+** and **Git**. universal-ctags is optional; it powers `sym:` when installed.
+You need **Go 1.22+**, **Node 20+**, **Git** and [golangci-lint](https://golangci-lint.run/) v2.
 
 ```sh
-npm install                  # TypeScript, ESLint, Prettier, Playwright for both workspaces
+npm install                  # TypeScript, Prettier, Playwright and the Node linters
 npx playwright install chromium
-npm test                     # every test layer: scripts/test-all.sh
+npm test                     # every linter and test layer: scripts/test-all.sh
 ```
 
 To try the extension, open `extension/` in VS Code and press **F5**. The extension finds the daemon at
@@ -21,12 +21,27 @@ To try the extension, open `extension/` in VS Code and press **F5**. The extensi
 
 | Command | Does |
 | --- | --- |
-| `npm test` | All layers: generator check, formatting, Go vet + tests, extension tests, webview tests |
-| `npm run lint` | ESLint over the TypeScript (type-aware) |
+| `npm test` | Everything CI runs: generator check, formatting, linters, Go, extension and webview tests |
+| `npm run lint` | Every linter (below) |
 | `npm run format` | Prettier over TS, JS, JSON, CSS and YAML |
 | `npm run gen` | Regenerate protocol types after editing `protocol/protocol.schema.json` |
 | `cd daemon && go test ./...` | Daemon tests only |
 | `cd daemon && golangci-lint run` | Go lint (config in `daemon/.golangci.yml`) |
+
+## Linters
+
+Every linter runs in CI with zero warnings allowed, and locally as part of `npm test` once `npm install` has
+installed it. Fix what a linter reports rather than silencing it; a suppression needs a comment saying why.
+
+| Tool | Checks | Config |
+| --- | --- | --- |
+| [golangci-lint](https://golangci-lint.run/) | Go: vet, staticcheck, gosec, revive, complexity and size limits, doc comments | `daemon/.golangci.yml` |
+| [ESLint](https://eslint.org/) | TypeScript: typescript-eslint strict and stylistic (type-aware), unicorn, JSDoc on exports, size limits | `eslint.config.mjs` |
+| [Stylelint](https://stylelint.io/) | CSS: the standard config | `stylelint.config.mjs` |
+| [markdownlint](https://github.com/DavidAnson/markdownlint-cli2) | Markdown structure and line length | `.markdownlint-cli2.jsonc` |
+| [cspell](https://cspell.org/) | Spelling in code, comments and docs | `cspell.config.yaml` |
+| [knip](https://knip.dev/) | Unused files, exports and dependencies | `knip.jsonc` |
+| [Prettier](https://prettier.io/) and gofmt | Formatting | `.prettierrc.json` |
 
 ## Commits
 
@@ -97,8 +112,8 @@ Follow the [Google TypeScript Style Guide](https://google.github.io/styleguide/t
 
 ### Generated code
 
-Never edit `*.gen.ts` or `*_gen.go`. Change `protocol/protocol.schema.json`, then run `npm run gen`. CI runs
-`node protocol/gen.mjs --check`.
+Never edit `*.gen.ts` or `*_gen.go`. Change `protocol/protocol.schema.json`, then run `npm run gen`. `npm test`
+(and so CI) fails when the generated files are out of date.
 
 ## Tests
 
@@ -108,7 +123,7 @@ Never edit `*.gen.ts` or `*_gen.go`. Change `protocol/protocol.schema.json`, the
   refreshed with `go test ./... -update`.
 - **Spec coverage:** tag each test with the spec IDs it proves, e.g. `// @covers op:since diag:unclosed_paren` or
   `rpc:search/start` or `msg:query.changed`. `scripts/specCoverage.mjs` lists every operator, diagnostic code, RPC
-  method, webview message, setting, command, mock and failure mode with no test. It fails on unknown ids now, and
+  method, webview message, setting, command, screen and failure mode with no test. It fails on unknown ids now, and
   `--strict` (any gap fails) is the release gate.
 - Put each test in the cheapest layer that can prove the behaviour (see [the test plan](docs/dev/test-plan.md)).
 

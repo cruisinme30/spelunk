@@ -1,0 +1,75 @@
+# Spell-checks code, comments and docs. Run: npm run lint:spelling
+# Add real words to `words`; never add a typo to silence it.
+$schema: https://raw.githubusercontent.com/streetsidesoftware/cspell/main/cspell.schema.json
+version: "0.2"
+language: en
+dictionaries:
+  - en_US
+  - en-gb
+  - softwareTerms
+  - typescript
+  - node
+  - golang
+  - css
+  - html
+  - bash
+  - npm
+  - companies
+  - misc
+  - filetypes
+ignorePaths:
+  - "**/node_modules/**"
+  - "**/dist/**"
+  - "**/dist-test/**"
+  - "**/out/**"
+  - "**/*.gen.ts"
+  - "**/*_gen.go"
+  - "**/*.png"
+  - "**/go.sum"
+  - package-lock.json
+  - daemon/bin/**
+  - daemon/internal/query/testdata/**
+  - testdata/workspace/*/**
+words:
+  # Names
+  - cruisinme
+  - Gourav
+  - Mittal
+  # Tools, libraries and formats
+  - chromium
+  - codegen
+  - diataxis
+  - Diátaxis
+  - ebnf
+  - fsnotify
+  - gitignore
+  - gofmt
+  - goimports
+  - golangci
+  - gosec
+  - mailmap
+  - nilerr
+  - nolint
+  - oneline
+  - quicktype
+  - Rakefile
+  - ripgrep
+  - Zoekt
+  # Words of this code base
+  - goldens
+  - prefilter
+  - Preds
+  - retrypolicy
+  - trigram
+  - trigrams
+  - unifiedsearch
+  - unmarshals
+  - webview
+  - webviews
+ignoreWords:
+  # Deliberate misspellings: tests check the suggestions offered for them.
+  - sinse
+  - pyhton
+  - wibble
+  # since:'s units in a regex character class.
+  - dwmy

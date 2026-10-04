@@ -1,0 +1,21 @@
+// Finds unused files, exports and dependencies. Run: npm run lint:unused
+{
+  "$schema": "https://unpkg.com/knip@6/schema-jsonc.json",
+  "workspaces": {
+    ".": {
+      "entry": ["scripts/*.mjs"],
+      "project": ["scripts/**/*.mjs", "protocol/**/*.mjs"],
+    },
+    "extension": {
+      "entry": ["src/extension.ts", "src/test/*.test.ts"],
+      "project": ["src/**/*.ts", "*.mjs"],
+    },
+    "webview": {
+      "entry": ["src/main.ts", "src/helpPage.ts", "test/*.test.mjs"],
+      "project": ["src/**/*.ts", "test/**/*.mjs"],
+    },
+  },
+  "ignore": ["**/*.gen.ts"],
+  // Go tools the scripts call; they are not npm packages.
+  "ignoreBinaries": ["golangci-lint", "gofmt"],
+}
