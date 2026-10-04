@@ -1,0 +1,449 @@
+package history
+
+import (
+	"context"
+	"errors"
+	"slices"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/cruisinme30/unified-search/daemon/internal/lang"
+	"github.com/cruisinme30/unified-search/daemon/internal/protocol"
+	"github.com/cruisinme30/unified-search/daemon/internal/query"
+	"github.com/cruisinme30/unified-search/daemon/internal/trigram"
+)
+
+// Repo is one repo's published history store plus what results need to
+// name it.
+type Repo struct {
+	ID    string
+	Name  string
+	Root  string // absolute path
+	Store *Store
+}
+
+// maxResultFiles is how many changed files one commit result lists; the
+// preview lists them all.
+const maxResultFiles = 20
+
+// Search runs a history plan over repos and calls emit for each commit on
+// the requested page as soon as it is found, newest first across all repos.
+// It counts every match (for Total and Load more) and what each filter hid,
+// like trigram.Search.
+func Search(ctx context.Context, plan *query.Plan, repos []Repo, planID int, emit func(protocol.ResultItem)) (trigram.Stats, error) {
+	if plan.Mode != protocol.ModeHistory {
+		return trigram.Stats{}, errors.New("history engine got a working-tree plan")
+	}
+	ctx, cancel := context.WithTimeout(ctx, trigram.SearchBudget)
+	defer cancel()
+	s := &searcher{ctx: ctx, plan: plan, planID: planID, emit: emit, lines: trigram.NewLineFinder(), hidden: map[int]int{}}
+	s.searchNewestFirst(repos)
+	if plan.CaseFilter != nil {
+		s.hiddenByCase = countIgnoringCase(ctx, plan, repos) - s.counted
+	}
+	if errors.Is(ctx.Err(), context.Canceled) {
+		return trigram.Stats{}, context.Cause(ctx)
+	}
+	return s.stats(), nil
+}
+
+// countIgnoringCase counts the commits plan would find without case:yes.
+func countIgnoringCase(ctx context.Context, plan *query.Plan, repos []Repo) int {
+	folded := plan.IgnoringCase()
+	folded.Offset, folded.Limit = 0, 0
+	stats, err := Search(ctx, folded, repos, 0, func(protocol.ResultItem) {})
+	if err != nil {
+		return 0
+	}
+	return stats.Total
+}
+
+// searcher holds one search's progress.
+type searcher struct {
+	ctx    context.Context
+	plan   *query.Plan
+	planID int
+	emit   func(protocol.ResultItem)
+
+	lines     *trigram.LineFinder
+	counted   int // matching commits so far
+	truncated bool
+	// hidden counts, per filter index, commits that only that filter removed.
+	hidden map[int]int
+	// hiddenByCase counts commits that differ only in case from case:yes.
+	hiddenByCase int
+}
+
+// stats summarizes the search.
+func (s *searcher) stats() trigram.Stats {
+	stats := trigram.Stats{Total: s.counted, Truncated: s.truncated, Hidden: []protocol.HiddenNote{}}
+	if next := s.plan.Offset + s.plan.Limit; next < s.counted {
+		stats.NextOffset = next
+	}
+	for _, f := range s.plan.Filters {
+		if n := s.hidden[f.Index]; n > 0 {
+			stats.Hidden = append(stats.Hidden, protocol.HiddenNote{Reason: f.Reason, Filter: f.Text, Count: n, Unit: "commits", Undo: f.Undo})
+		}
+	}
+	if c := s.plan.CaseFilter; c != nil && s.hiddenByCase > 0 {
+		stats.Hidden = append(stats.Hidden, protocol.HiddenNote{Reason: c.Reason, Filter: c.Text, Count: s.hiddenByCase, Unit: "commits", Undo: c.Undo})
+	}
+	return stats
+}
+
+// stopped reports whether the search should stop: out of time, cancelled,
+// or at query.MaxResults. Any of these marks the results truncated.
+func (s *searcher) stopped() bool {
+	if s.ctx.Err() != nil || s.counted >= query.MaxResults {
+		s.truncated = true
+	}
+	return s.truncated
+}
+
+// searchNewestFirst visits the candidate commits of every repo, newest
+// first across repos, so the first page goes out as soon as it is found.
+func (s *searcher) searchNewestFirst(repos []Repo) {
+	var cursors []*cursor
+	for i := range repos {
+		if repos[i].Store != nil && !s.repoExcluded(&repos[i]) {
+			cursors = append(cursors, &cursor{repo: &repos[i]})
+		}
+	}
+	for !s.stopped() {
+		var next *cursor
+		var newest *Commit
+		for _, c := range cursors {
+			if commit := s.peek(c); commit != nil && (newest == nil || commit.At.After(newest.At)) {
+				next, newest = c, commit
+			}
+		}
+		if next == nil {
+			return
+		}
+		next.ids = next.ids[1:]
+		s.visit(next.repo, newest)
+	}
+}
+
+// cursor walks one repo's candidate commits, newest first.
+type cursor struct {
+	repo *Repo
+	seg  int      // the next segment to narrow
+	ids  []uint32 // the candidates of the segment before it not yet visited
+}
+
+// peek returns the cursor's next candidate commit, or nil when it has none
+// left. Each segment is narrowed only when the walk reaches it.
+func (s *searcher) peek(c *cursor) *Commit {
+	segments := c.repo.Store.segments
+	for len(c.ids) == 0 {
+		if c.seg == len(segments) {
+			return nil
+		}
+		c.ids = s.candidates(segments[c.seg])
+		c.seg++
+	}
+	return &segments[c.seg-1].commits[c.ids[0]]
+}
+
+// visit counts a commit that matches, emitting it if it is on the page, or
+// credits the filter that hid it. Top-level conditions on the commit itself
+// (author:, since:, msg:, repo:) are checked first: they are cheap, and a
+// commit that fails one needs no diff matching unless that one is a filter.
+func (s *searcher) visit(repo *Repo, c *Commit) {
+	failed := -1 // the index of the one top-level commit condition that fails
+	for i, kid := range s.plan.Pred.Kids {
+		if matched, ok := topLevelCommitLeaf(repo, c, kid); ok && !matched {
+			if failed >= 0 {
+				return // two fail: no single filter hid it
+			}
+			failed = i
+		}
+	}
+	files := views(c, s.lines)
+	switch {
+	case failed >= 0:
+		s.creditFilter(repo, c, files, failed)
+	case s.matches(repo, c, files):
+		if s.counted >= s.plan.Offset && s.counted < s.plan.Offset+s.plan.Limit {
+			s.emit(s.result(repo, c, files))
+		}
+		s.counted++
+	default:
+		s.countHidden(repo, c, files)
+	}
+}
+
+// topLevelCommitLeaf evaluates a top-level conjunct that depends on the
+// commit alone, possibly negated. ok is false for any other conjunct.
+func topLevelCommitLeaf(repo *Repo, c *Commit, kid query.Pred) (matched, ok bool) {
+	if not, negated := kid.(*query.Not); negated {
+		matched, ok = commitLeaf(repo, c, not.Kid)
+		return !matched, ok
+	}
+	return commitLeaf(repo, c, kid)
+}
+
+// repoExcluded reports whether a top-level repo: rules the whole repo out.
+func (s *searcher) repoExcluded(repo *Repo) bool {
+	for _, kid := range s.plan.Pred.Kids {
+		if r, ok := kid.(*query.Repo); ok && !r.Re.MatchString(repo.Name) {
+			return true
+		}
+	}
+	return false
+}
+
+// candidates narrows a segment's commits with its trigram indexes: text
+// terms through the changed lines, msg: through the messages.
+func (s *searcher) candidates(seg *segment) []uint32 {
+	ids := trigram.Narrow(s.plan.Pred, func(leaf query.Pred) []uint32 {
+		switch leaf := leaf.(type) {
+		case *query.Content:
+			return seg.diffs.Candidates(trigram.ContentLiteral(leaf), s.plan.CaseSensitive)
+		case *query.Message:
+			return seg.messages.Candidates(query.RequiredLiteral(leaf.Re), s.plan.CaseSensitive)
+		default:
+			return nil
+		}
+	})
+	if ids != nil {
+		return ids
+	}
+	all := make([]uint32, len(seg.commits))
+	for i := range all {
+		all[i] = uint32(i) //nolint:gosec // G115: a segment holds far fewer than 2^32 commits
+	}
+	return all
+}
+
+// fileView is one changed file, as the predicate's leaves see it. A commit
+// without files (an empty commit) is seen as one file with no path.
+type fileView struct {
+	file    *FileChange
+	finder  *trigram.LineFinder
+	matches map[*query.Content][]int // per text term, the changed lines it matches
+}
+
+// views returns a commit's files for matching.
+func views(c *Commit, finder *trigram.LineFinder) []*fileView {
+	if len(c.Files) == 0 {
+		return []*fileView{{file: &FileChange{}, finder: finder, matches: map[*query.Content][]int{}}}
+	}
+	out := make([]*fileView, len(c.Files))
+	for i := range c.Files {
+		out[i] = &fileView{file: &c.Files[i], finder: finder, matches: map[*query.Content][]int{}}
+	}
+	return out
+}
+
+// leafFor evaluates predicate leaves against one commit and one of its files.
+func leafFor(repo *Repo, c *Commit, view *fileView) func(query.Pred) bool {
+	return func(p query.Pred) bool {
+		switch p := p.(type) {
+		case *query.Content:
+			return len(view.lines(p)) > 0
+		case *query.Path:
+			return p.Re.MatchString(view.file.Path)
+		case *query.Lang:
+			return view.file.Path != "" && lang.Detect(view.file.Path, nil) == p.Name
+		default:
+			matched, _ := commitLeaf(repo, c, p)
+			return matched
+		}
+	}
+}
+
+// commitLeaf evaluates a leaf that depends on the commit alone, not on one
+// of its files. ok is false for any other leaf.
+func commitLeaf(repo *Repo, c *Commit, p query.Pred) (matched, ok bool) {
+	switch p := p.(type) {
+	case *query.Author:
+		return authorMatches(p, c), true
+	case *query.Message:
+		return p.Re.MatchString(c.Subject + "\n" + c.Body), true
+	case *query.Since:
+		return !c.At.Before(p.After), true
+	case *query.Repo:
+		return p.Re.MatchString(repo.Name), true
+	default:
+		return false, false // sym: is a working-tree operator; the parser keeps it out
+	}
+}
+
+// lines returns which of the file's changed lines term matches, counted
+// from 1 in diff order.
+func (v *fileView) lines(term *query.Content) []int {
+	if found, ok := v.matches[term]; ok {
+		return found
+	}
+	found := v.finder.Lines(v.file.Text, term)
+	v.matches[term] = found
+	return found
+}
+
+// authorMatches compares author: with a commit's author, after .mailmap.
+func authorMatches(a *query.Author, c *Commit) bool {
+	name := strings.ToLower(c.AuthorName)
+	if a.Exact {
+		return name == a.Fragment
+	}
+	return strings.Contains(name, a.Fragment) || strings.Contains(strings.ToLower(c.AuthorEmail), a.Fragment)
+}
+
+// matches reports whether one of the commit's files satisfies the plan.
+func (s *searcher) matches(repo *Repo, c *Commit, views []*fileView) bool {
+	for _, view := range views {
+		if query.Eval(s.plan.Pred, leafFor(repo, c, view)) {
+			return true
+		}
+	}
+	return false
+}
+
+// result builds the result of a commit that matches: the files that
+// satisfy the plan, and what matched in their diffs and in the subject.
+func (s *searcher) result(repo *Repo, c *Commit, views []*fileView) protocol.ResultItem {
+	var files []protocol.FileStat
+	diffHits := 0
+	terms := map[int]bool{}
+	for _, view := range views {
+		leaf := leafFor(repo, c, view)
+		if !query.Eval(s.plan.Pred, leaf) {
+			continue
+		}
+		if view.file.Path != "" {
+			files = append(files, protocol.FileStat{Path: view.file.Path, Added: view.file.Added, Removed: view.file.Removed})
+		}
+		matched := map[int]bool{}
+		for _, term := range query.Contributing(s.plan.Pred, leaf) {
+			terms[term.TermIndex] = true
+			for _, line := range view.lines(term) {
+				matched[line] = true
+			}
+		}
+		diffHits += len(matched)
+	}
+	matchedTerms := make([]int, 0, len(terms))
+	for index := range terms {
+		matchedTerms = append(matchedTerms, index)
+	}
+	slices.Sort(matchedTerms)
+	if len(files) > maxResultFiles {
+		files = files[:maxResultFiles]
+	}
+	return protocol.ResultItem{
+		Kind: query.KindCommit, Ref: Ref{PlanID: s.planID, RepoID: repo.ID, SHA: c.SHA}.String(), RepoID: repo.ID,
+		SHA: c.SHA, Subject: c.Subject, Author: protocol.Person{Name: c.AuthorName, Email: c.AuthorEmail},
+		At: c.At.UTC().Format(time.RFC3339), Files: files, DiffHits: diffHits, MatchedTerms: matchedTerms,
+		SubjectHits: s.subjectHits(c.Subject),
+	}
+}
+
+// subjectHits marks what msg: terms, and the query's text terms, match in a subject.
+func (s *searcher) subjectHits(subject string) []protocol.Range {
+	ranges := []protocol.Range{}
+	mark := func(re interface{ FindAllStringIndex(string, int) [][]int }) {
+		for _, loc := range re.FindAllStringIndex(subject, -1) {
+			if loc[1] > loc[0] {
+				ranges = append(ranges, trigram.UTF16Range(subject, loc[0], loc[1]))
+			}
+		}
+	}
+	for _, term := range s.plan.Terms {
+		mark(term.Re)
+	}
+	walkMessages(s.plan.Pred, func(m *query.Message) { mark(m.Re) })
+	slices.SortFunc(ranges, func(a, b protocol.Range) int { return a.Start - b.Start })
+	return ranges
+}
+
+// walkMessages calls visit for every msg: leaf of p that isn't negated.
+func walkMessages(p query.Pred, visit func(*query.Message)) {
+	switch p := p.(type) {
+	case *query.And:
+		for _, kid := range p.Kids {
+			walkMessages(kid, visit)
+		}
+	case *query.Or:
+		for _, kid := range p.Kids {
+			walkMessages(kid, visit)
+		}
+	case *query.Message:
+		visit(p)
+	}
+}
+
+// countHidden credits a commit that doesn't match to the first top-level
+// filter that alone removed it ("3 commits hidden by -f:vendor/").
+func (s *searcher) countHidden(repo *Repo, c *Commit, views []*fileView) {
+	for _, f := range s.plan.Filters {
+		if s.creditFilter(repo, c, views, f.Index) {
+			return
+		}
+	}
+}
+
+// creditFilter counts the commit as hidden by the top-level conjunct at
+// index if that conjunct is a filter and the commit matches without it.
+func (s *searcher) creditFilter(repo *Repo, c *Commit, views []*fileView, index int) bool {
+	if !slices.ContainsFunc(s.plan.Filters, func(f query.Filter) bool { return f.Index == index }) {
+		return false
+	}
+	without := &query.And{Kids: slices.Delete(slices.Clone(s.plan.Pred.Kids), index, index+1)}
+	for _, view := range views {
+		if query.Eval(without, leafFor(repo, c, view)) {
+			s.hidden[index]++
+			return true
+		}
+	}
+	return false
+}
+
+// ------------------------------------------------------------ refs
+
+// RefPrefix starts every history ref; working-tree refs use another.
+const RefPrefix = "hist"
+
+// Ref locates one commit result. Its string form is the opaque ref handed
+// to clients.
+type Ref struct {
+	// PlanID names the search that produced the result, so its preview can
+	// mark the query's terms and the files its filters hid.
+	PlanID int
+	RepoID string
+	SHA    string
+}
+
+// String encodes the ref.
+func (r Ref) String() string {
+	return strings.Join([]string{RefPrefix, strconv.Itoa(r.PlanID), r.RepoID, r.SHA}, "|")
+}
+
+// ParseRef decodes a ref built by String. ok is false for anything else,
+// including a sha that isn't hexadecimal (it is passed to git).
+func ParseRef(text string) (ref Ref, ok bool) {
+	parts := strings.Split(text, "|")
+	if len(parts) != 4 || parts[0] != RefPrefix || parts[2] == "" || !isHex(parts[3]) {
+		return Ref{}, false
+	}
+	planID, err := strconv.Atoi(parts[1])
+	if err != nil || planID < 0 {
+		return Ref{}, false
+	}
+	return Ref{PlanID: planID, RepoID: parts[2], SHA: parts[3]}, true
+}
+
+// isHex reports whether text is a plausible commit sha.
+func isHex(text string) bool {
+	if len(text) < 7 || len(text) > 64 {
+		return false
+	}
+	for _, r := range text {
+		if !strings.ContainsRune("0123456789abcdef", r) {
+			return false
+		}
+	}
+	return true
+}

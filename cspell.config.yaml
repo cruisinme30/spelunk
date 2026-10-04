@@ -46,12 +46,14 @@ words:
   - gofmt
   - goimports
   - golangci
+  - gpgsign
   - gosec
   - mailmap
   - nilerr
   - nolint
   - oneline
   - quicktype
+  - quotepath
   - Rakefile
   - ripgrep
   - trimpath

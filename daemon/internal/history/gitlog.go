@@ -1,0 +1,367 @@
+package history
+
+import (
+	"bufio"
+	"bytes"
+	"context"
+	"errors"
+	"fmt"
+	"io"
+	"os/exec"
+	"slices"
+	"strconv"
+	"strings"
+	"time"
+)
+
+// Commit is one commit as the history index keeps it: who wrote it and
+// when, its message, and the lines each file added and removed. Context
+// lines and line numbers are not kept; a preview reads them with git show.
+type Commit struct {
+	SHA         string
+	AuthorName  string // after .mailmap
+	AuthorEmail string
+	At          time.Time // the author date
+	Subject     string
+	Body        string
+	Files       []FileChange
+}
+
+// FileChange is what one commit changed in one file.
+type FileChange struct {
+	Path    string // slash-separated, relative to the repo root
+	Added   int
+	Removed int
+	// Text is the added and removed lines in diff order, each ending in a
+	// newline, and is never modified once read. It holds at most
+	// maxFileTextBytes, so a huge generated diff stays countable but is only
+	// partly searchable, and it is empty for a file the Options skip.
+	Text []byte
+}
+
+// Limits on what one commit keeps, so a vendored import or a generated
+// file doesn't fill memory.
+const (
+	maxFileTextBytes = 1 << 20
+	maxLineBytes     = 2_000
+)
+
+// Options decide what a history index keeps.
+type Options struct {
+	// Since is where the history window starts; zero means all history.
+	Since time.Time
+	// Skip, if not nil, reports whether to leave out a path's changed lines,
+	// as index.exclude leaves files out of the working-tree index. Commits
+	// still list the file and count its lines, so f: finds them.
+	Skip func(path string) bool
+}
+
+// ErrNotGit means the folder is not inside a Git working tree.
+var ErrNotGit = errors.New("not a Git repository")
+
+// logFormat starts each commit with a record separator (0x1e) and ends each
+// field with a unit separator (0x1f): sha, author name, author email,
+// author date, subject, body.
+const logFormat = "%x1e%H%x1f%aN%x1f%aE%x1f%aI%x1f%s%x1f%b%x1f"
+
+// headerFields is how many fields logFormat writes.
+const headerFields = 6
+
+// gitOptions come before every git command: plain path names, and no
+// optional locks, so the daemon never makes the user's own git commands
+// wait or fail on a lock.
+var gitOptions = []string{"--no-optional-locks", "-c", "core.quotepath=off"}
+
+// git runs git in root and returns its standard output.
+func git(ctx context.Context, root string, args ...string) ([]byte, error) {
+	//nolint:gosec // G204: the arguments are this package's own, and shas come from git or are checked hexadecimal
+	cmd := exec.CommandContext(ctx, "git", slices.Concat(gitOptions, []string{"-C", root}, args)...)
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	out, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("git %s: %w: %s", args[0], err, strings.TrimSpace(stderr.String()))
+	}
+	return out, nil
+}
+
+// Head returns the commit HEAD points at, "" for a repo without commits,
+// or ErrNotGit.
+func Head(ctx context.Context, root string) (string, error) {
+	if _, err := git(ctx, root, "rev-parse", "--is-inside-work-tree"); err != nil {
+		if ctx.Err() != nil {
+			return "", ctx.Err()
+		}
+		return "", ErrNotGit
+	}
+	out, err := git(ctx, root, "rev-parse", "--verify", "--quiet", "HEAD")
+	if err != nil {
+		return "", nil //nolint:nilerr // no HEAD yet: a repo without commits has an empty history
+	}
+	return strings.TrimSpace(string(out)), nil
+}
+
+// isAncestor reports whether commit old is on HEAD's history, so the
+// commits after it are all that changed.
+func isAncestor(ctx context.Context, root, old string) bool {
+	_, err := git(ctx, root, "merge-base", "--is-ancestor", old, "HEAD")
+	return err == nil
+}
+
+// countCommits counts the first-parent commits readLog would read, for
+// progress. It returns 0 when it can't tell.
+func countCommits(ctx context.Context, root, revisions string, opts Options) int {
+	args := []string{"rev-list", "--count", "--first-parent"}
+	if !opts.Since.IsZero() {
+		args = append(args, "--since="+opts.Since.Format(time.RFC3339))
+	}
+	out, err := git(ctx, root, append(args, revisions, "--", ".")...)
+	if err != nil {
+		return 0
+	}
+	n, _ := strconv.Atoi(strings.TrimSpace(string(out)))
+	return n
+}
+
+// readLog streams the first-parent commits of revisions ("HEAD", or
+// "old..HEAD") newest first, limited to root's folder and to the window
+// opts sets, calling each for every commit read.
+func readLog(ctx context.Context, root, revisions string, opts Options, each func(Commit) error) error {
+	args := slices.Concat(gitOptions, []string{
+		"-C", root, "log",
+		"--first-parent", "-m", "--relative", "-p", "-U0",
+		"--no-color", "--no-ext-diff", "--no-renames", "--use-mailmap",
+		"--format=" + logFormat,
+	})
+	if !opts.Since.IsZero() {
+		args = append(args, "--since="+opts.Since.Format(time.RFC3339))
+	}
+	//nolint:gosec // G204: revisions are shas git itself reported, not user input
+	cmd := exec.CommandContext(ctx, "git", append(args, revisions, "--", ".")...)
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	out, err := cmd.StdoutPipe()
+	if err != nil {
+		return err
+	}
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+	parseErr := parseLog(out, opts.Skip, each)
+	if parseErr != nil {
+		_ = cmd.Process.Kill() // stop reading; the parse error is the one to report
+	}
+	waitErr := cmd.Wait()
+	switch {
+	case parseErr != nil:
+		return parseErr
+	case ctx.Err() != nil:
+		return ctx.Err()
+	case waitErr != nil:
+		return fmt.Errorf("git log: %w: %s", waitErr, strings.TrimSpace(stderr.String()))
+	}
+	return nil
+}
+
+// parseLog reads git log output in logFormat with -p -U0 patches. skip,
+// if not nil, says which files' changed lines to leave out.
+func parseLog(r io.Reader, skip func(string) bool, each func(Commit) error) error {
+	p := logParser{lines: bufio.NewReaderSize(r, 64*1024), skip: skip}
+	for {
+		line, err := p.readLine()
+		if len(line) > 0 || err == nil {
+			if feedErr := p.feed(line, each); feedErr != nil {
+				return feedErr
+			}
+		}
+		if errors.Is(err, io.EOF) {
+			return p.finish(each)
+		}
+		if err != nil {
+			return err
+		}
+	}
+}
+
+// logParser turns git log output into commits, one line at a time.
+type logParser struct {
+	lines *bufio.Reader
+	skip  func(string) bool
+
+	commit *Commit       // the commit being read, nil before the first
+	header *bytes.Buffer // a commit's header while it spans lines
+	file   *FileChange   // the file whose patch is being read
+	text   bytes.Buffer  // the file's changed lines so far
+	inHunk bool          // between "@@" and the next file header
+	// skipFile is set at the file's first hunk, once its path is known.
+	skipFile bool
+}
+
+// readLine returns the next line without its newline, cut at
+// maxLineBytes; the rest of a longer line is skipped.
+func (p *logParser) readLine() ([]byte, error) {
+	var line []byte
+	for {
+		chunk, err := p.lines.ReadSlice('\n')
+		if len(line) < maxLineBytes {
+			line = append(line, chunk[:min(len(chunk), maxLineBytes-len(line))]...)
+		}
+		if errors.Is(err, bufio.ErrBufferFull) {
+			continue
+		}
+		return bytes.TrimRight(line, "\r\n"), err
+	}
+}
+
+// feed takes one line of output.
+func (p *logParser) feed(line []byte, each func(Commit) error) error {
+	if p.header != nil {
+		p.header.WriteByte('\n')
+		p.header.Write(line)
+		return p.finishHeader()
+	}
+	if len(line) > 0 && line[0] == 0x1e {
+		if err := p.finish(each); err != nil {
+			return err
+		}
+		p.header = bytes.NewBuffer(append([]byte(nil), line[1:]...))
+		return p.finishHeader()
+	}
+	if p.commit != nil {
+		p.patchLine(string(line))
+	}
+	return nil
+}
+
+// finishHeader starts the commit once its header has every field.
+func (p *logParser) finishHeader() error {
+	text := p.header.String()
+	if strings.Count(text, "\x1f") < headerFields {
+		return nil // the body continues on the next line
+	}
+	p.header = nil
+	fields := strings.SplitN(text, "\x1f", headerFields+1)
+	at, err := time.Parse(time.RFC3339, fields[3])
+	if err != nil {
+		return fmt.Errorf("commit %s: bad date %q", fields[0], fields[3])
+	}
+	p.commit = &Commit{
+		SHA: fields[0], AuthorName: fields[1], AuthorEmail: fields[2], At: at,
+		Subject: fields[4], Body: strings.TrimSpace(fields[5]),
+	}
+	return nil
+}
+
+// patchLine reads one line of a commit's patch.
+func (p *logParser) patchLine(line string) {
+	switch {
+	case strings.HasPrefix(line, "diff --git "):
+		p.startFile(diffGitPath(line))
+	case p.file == nil:
+		// The blank line between header and patch.
+	case !p.inHunk && p.fileHeader(line):
+		// The path is read.
+	case strings.HasPrefix(line, "@@ "):
+		p.startHunk()
+	case p.inHunk && strings.HasPrefix(line, "+"):
+		p.file.Added++
+		p.keep(line[1:])
+	case p.inHunk && strings.HasPrefix(line, "-"):
+		p.file.Removed++
+		p.keep(line[1:])
+	}
+}
+
+// fileHeader reads a "--- a/path" or "+++ b/path" line, reporting whether
+// line was one.
+func (p *logParser) fileHeader(line string) bool {
+	switch {
+	case strings.HasPrefix(line, "--- "):
+		if path, ok := patchPath(line[4:], "a/"); ok {
+			p.file.Path = path
+		}
+	case strings.HasPrefix(line, "+++ "):
+		if path, ok := patchPath(line[4:], "b/"); ok {
+			p.file.Path = path // the new path wins; a deleted file keeps the old one
+		}
+	default:
+		return false
+	}
+	return true
+}
+
+// startHunk begins a hunk. At the file's first hunk its path is final, so
+// that is when the Options decide whether to skip its lines.
+func (p *logParser) startHunk() {
+	if !p.inHunk && p.text.Len() == 0 {
+		p.skipFile = p.skip != nil && p.skip(p.file.Path)
+	}
+	p.inHunk = true
+}
+
+// keep stores a changed line unless the file is skipped or already has
+// its fill.
+func (p *logParser) keep(line string) {
+	if !p.skipFile && p.text.Len()+len(line) < maxFileTextBytes {
+		p.text.WriteString(line)
+		p.text.WriteByte('\n')
+	}
+}
+
+// startFile begins the next file of the commit.
+func (p *logParser) startFile(path string) {
+	p.endFile()
+	p.commit.Files = append(p.commit.Files, FileChange{Path: path})
+	p.file = &p.commit.Files[len(p.commit.Files)-1]
+	p.inHunk, p.skipFile = false, false
+}
+
+// endFile stores the changed lines of the file being read, in a slice of
+// their own size.
+func (p *logParser) endFile() {
+	if p.file != nil && p.text.Len() > 0 {
+		p.file.Text = bytes.Clone(p.text.Bytes())
+	}
+	p.text.Reset()
+}
+
+// finish hands over the commit read so far.
+func (p *logParser) finish(each func(Commit) error) error {
+	if p.commit == nil {
+		return nil
+	}
+	p.endFile()
+	commit := *p.commit
+	p.commit, p.file, p.inHunk = nil, nil, false
+	return each(commit)
+}
+
+// diffGitPath takes the path from "diff --git a/x b/x"; the --- and +++
+// lines that follow correct it when the name holds " b/".
+func diffGitPath(line string) string {
+	rest := strings.TrimPrefix(line, "diff --git ")
+	if i := strings.LastIndex(rest, " b/"); i >= 0 {
+		return unquote(rest[i+3:])
+	}
+	return rest
+}
+
+// patchPath reads the path of a ---/+++ line: "a/src/x.go" with prefix
+// "a/", possibly C-quoted. ok is false for /dev/null.
+func patchPath(text, prefix string) (string, bool) {
+	text = unquote(strings.TrimRight(text, "\t"))
+	if text == "/dev/null" || !strings.HasPrefix(text, prefix) {
+		return "", false
+	}
+	return text[len(prefix):], true
+}
+
+// unquote undoes Git's C-style quoting of unusual path names.
+func unquote(text string) string {
+	if len(text) >= 2 && text[0] == '"' && text[len(text)-1] == '"' {
+		if unquoted, err := strconv.Unquote(text); err == nil {
+			return unquoted
+		}
+	}
+	return text
+}
