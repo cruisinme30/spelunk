@@ -7,29 +7,45 @@ import "encoding/json"
 // Version is the protocol version exchanged in initialize.
 const Version = 1
 
-var _ json.RawMessage
+// Application error codes carried in JSON-RPC error.code (Contract 3).
+const (
+	// CodeRequestCancelled: A newer keystroke cancelled this request.
+	CodeRequestCancelled = -32800
+	// CodeQueryInvalid: search/start got a query with error diagnostics.
+	CodeQueryInvalid = 1001
+	// CodeIndexNotReady: A repo has no index yet; partial results still stream.
+	CodeIndexNotReady = 1002
+	// CodeRefStale: The file or commit behind a ref is gone.
+	CodeRefStale = 1003
+	// CodeIndexCorrupt: A shard or database failed a check; a rebuild starts on its own.
+	CodeIndexCorrupt = 1004
+	// CodeOverloaded: The search hit its time budget and returned what it had.
+	CodeOverloaded = 1005
+)
 
-// Span: UTF-16 offsets into the raw query.
+// Span is a range of UTF-16 offsets into the raw query text.
 type Span struct {
 	Start int `json:"start"`
 	End   int `json:"end"`
 }
 
-// Range: UTF-16 offsets in the shown text.
+// Range is a range of UTF-16 offsets into the text shown on screen.
 type Range struct {
 	Start int `json:"start"`
 	End   int `json:"end"`
 }
 
-// Hit: A matched range plus which text term matched, for colors.
+// Hit is a matched Range plus the text term that matched, which picks its highlight color.
 type Hit struct {
 	Start     int `json:"start"`
 	End       int `json:"end"`
 	TermIndex int `json:"termIndex"`
 }
 
+// OpName is an operator's name, the part before the colon.
 type OpName = string
 
+// OpName values.
 const (
 	OpNameF      OpName = "f"
 	OpNameRepo   OpName = "repo"
@@ -43,33 +59,41 @@ const (
 	OpNameCount  OpName = "count"
 )
 
+// Match says how a value was written: bare (literal), quoted (phrase) or /regex/.
 type Match = string
 
+// Match values.
 const (
 	MatchLiteral Match = "literal"
 	MatchPhrase  Match = "phrase"
 	MatchRegex   Match = "regex"
 )
 
+// Mode is what a query searches: current files or Git history.
 type Mode = string
 
+// Mode values.
 const (
 	ModeWorkingTree Mode = "workingTree"
 	ModeHistory     Mode = "history"
 )
 
+// Severity is how serious a Diagnostic is; only errors stop a search.
 type Severity = string
 
+// Severity values.
 const (
 	SeverityError   Severity = "error"
 	SeverityWarning Severity = "warning"
 )
 
+// TextEdit replaces a span of the query text.
 type TextEdit struct {
 	Span    Span   `json:"span"`
 	NewText string `json:"newText"`
 }
 
+// Fix is a titled set of edits that repairs or rewrites the query.
 type Fix struct {
 	Title string     `json:"title"`
 	Edits []TextEdit `json:"edits"`
@@ -77,14 +101,15 @@ type Fix struct {
 
 // MarshalJSON emits [] rather than null for required arrays.
 func (v Fix) MarshalJSON() ([]byte, error) {
-	type alias Fix
-	a := alias(v)
-	if a.Edits == nil {
-		a.Edits = []TextEdit{}
+	type plain Fix
+	p := plain(v)
+	if p.Edits == nil {
+		p.Edits = []TextEdit{}
 	}
-	return json.Marshal(a)
+	return json.Marshal(p)
 }
 
+// Diagnostic is a problem the parser found, with fixes the user can apply.
 type Diagnostic struct {
 	Severity Severity `json:"severity"`
 	Code     string   `json:"code"`
@@ -95,18 +120,20 @@ type Diagnostic struct {
 
 // MarshalJSON emits [] rather than null for required arrays.
 func (v Diagnostic) MarshalJSON() ([]byte, error) {
-	type alias Diagnostic
-	a := alias(v)
-	if a.Fixes == nil {
-		a.Fixes = []Fix{}
+	type plain Diagnostic
+	p := plain(v)
+	if p.Fixes == nil {
+		p.Fixes = []Fix{}
 	}
-	return json.Marshal(a)
+	return json.Marshal(p)
 }
 
+// Resolved is a friendlier label for an operator value, such as an author's full name.
 type Resolved struct {
 	Label string `json:"label"`
 }
 
+// Node is one node of the parsed query tree.
 type Node struct {
 	Kind      string    `json:"kind,omitempty"`
 	Children  []Node    `json:"children,omitempty"`
@@ -119,43 +146,45 @@ type Node struct {
 	Resolved  *Resolved `json:"resolved,omitempty"`
 }
 
-// MarshalJSON emits the fields of the variant named by Kind.
+// MarshalJSON emits only the fields of the variant named by Kind.
 func (v Node) MarshalJSON() ([]byte, error) {
-	m := map[string]any{"kind": v.Kind}
+	fields := map[string]any{"kind": v.Kind}
 	switch v.Kind {
 	case "and", "or":
 		if v.Children == nil {
-			m["children"] = []Node{}
+			fields["children"] = []Node{}
 		} else {
-			m["children"] = v.Children
+			fields["children"] = v.Children
 		}
-		m["span"] = v.Span
+		fields["span"] = v.Span
 	case "not":
-		m["child"] = v.Child
-		m["span"] = v.Span
+		fields["child"] = v.Child
+		fields["span"] = v.Span
 	case "text":
-		m["value"] = v.Value
-		m["match"] = v.Match
-		m["termIndex"] = v.TermIndex
-		m["span"] = v.Span
+		fields["value"] = v.Value
+		fields["match"] = v.Match
+		fields["termIndex"] = v.TermIndex
+		fields["span"] = v.Span
 	case "op":
-		m["op"] = v.Op
-		m["value"] = v.Value
-		m["match"] = v.Match
-		m["span"] = v.Span
+		fields["op"] = v.Op
+		fields["value"] = v.Value
+		fields["match"] = v.Match
+		fields["span"] = v.Span
 		if v.Resolved != nil {
-			m["resolved"] = v.Resolved
+			fields["resolved"] = v.Resolved
 		}
 	}
-	return json.Marshal(m)
+	return json.Marshal(fields)
 }
 
+// Globals are the query-wide operators case:, count: and type:, or null when absent.
 type Globals struct {
 	Case  *string `json:"case"`
 	Count any     `json:"count"`
 	Type  *string `json:"type"`
 }
 
+// ParsedQuery is the parser's output (Contract 1).
 type ParsedQuery struct {
 	Version     int          `json:"version"`
 	Raw         string       `json:"raw"`
@@ -167,22 +196,22 @@ type ParsedQuery struct {
 
 // MarshalJSON emits [] rather than null for required arrays.
 func (v ParsedQuery) MarshalJSON() ([]byte, error) {
-	type alias ParsedQuery
-	a := alias(v)
-	if a.Diagnostics == nil {
-		a.Diagnostics = []Diagnostic{}
+	type plain ParsedQuery
+	p := plain(v)
+	if p.Diagnostics == nil {
+		p.Diagnostics = []Diagnostic{}
 	}
-	return json.Marshal(a)
+	return json.Marshal(p)
 }
 
-// Root: A workspace folder. id = first 12 hex of sha256(path).
+// Root is a workspace folder; its id is the first 12 hex digits of sha256(path).
 type Root struct {
 	ID   string `json:"id"`
 	Path string `json:"path"`
 	Name string `json:"name"`
 }
 
-// Settings: The unifiedSearch.* settings the daemon needs (Contract 5).
+// Settings are the unifiedSearch.* settings the daemon needs (Contract 5).
 type Settings struct {
 	CaseSensitive  bool     `json:"caseSensitive"`
 	DefaultCount   int      `json:"defaultCount"`
@@ -196,25 +225,28 @@ type Settings struct {
 
 // MarshalJSON emits [] rather than null for required arrays.
 func (v Settings) MarshalJSON() ([]byte, error) {
-	type alias Settings
-	a := alias(v)
-	if a.Exclude == nil {
-		a.Exclude = []string{}
+	type plain Settings
+	p := plain(v)
+	if p.Exclude == nil {
+		p.Exclude = []string{}
 	}
-	return json.Marshal(a)
+	return json.Marshal(p)
 }
 
+// LastCommit is the newest commit that touched a file.
 type LastCommit struct {
 	SHA    string `json:"sha"`
 	Author string `json:"author"`
 	At     string `json:"at"`
 }
 
+// Person is a commit author.
 type Person struct {
 	Name  string `json:"name"`
 	Email string `json:"email"`
 }
 
+// FileStat is one file changed by a commit.
 type FileStat struct {
 	Path           string `json:"path"`
 	Added          int    `json:"added"`
@@ -222,8 +254,10 @@ type FileStat struct {
 	HiddenByFilter bool   `json:"hiddenByFilter,omitempty"`
 }
 
+// SymbolKind is what a symbol definition is.
 type SymbolKind = string
 
+// SymbolKind values.
 const (
 	SymbolKindClass     SymbolKind = "class"
 	SymbolKindInterface SymbolKind = "interface"
@@ -233,6 +267,7 @@ const (
 	SymbolKindOther     SymbolKind = "other"
 )
 
+// ResultItem is one search result: a file name, a code line, a symbol or a commit.
 type ResultItem struct {
 	Kind         string      `json:"kind,omitempty"`
 	Ref          string      `json:"ref,omitempty"`
@@ -256,73 +291,74 @@ type ResultItem struct {
 	SubjectHits  []Range     `json:"subjectHits,omitempty"`
 }
 
-// MarshalJSON emits the fields of the variant named by Kind.
+// MarshalJSON emits only the fields of the variant named by Kind.
 func (v ResultItem) MarshalJSON() ([]byte, error) {
-	m := map[string]any{"kind": v.Kind}
+	fields := map[string]any{"kind": v.Kind}
 	switch v.Kind {
 	case "file":
-		m["ref"] = v.Ref
-		m["repoId"] = v.RepoID
-		m["path"] = v.Path
+		fields["ref"] = v.Ref
+		fields["repoId"] = v.RepoID
+		fields["path"] = v.Path
 		if v.NameHits == nil {
-			m["nameHits"] = []Range{}
+			fields["nameHits"] = []Range{}
 		} else {
-			m["nameHits"] = v.NameHits
+			fields["nameHits"] = v.NameHits
 		}
 		if v.LastCommit != nil {
-			m["lastCommit"] = v.LastCommit
+			fields["lastCommit"] = v.LastCommit
 		}
-		m["dirty"] = v.Dirty
+		fields["dirty"] = v.Dirty
 	case "line":
-		m["ref"] = v.Ref
-		m["repoId"] = v.RepoID
-		m["path"] = v.Path
-		m["line"] = v.Line
-		m["text"] = v.Text
+		fields["ref"] = v.Ref
+		fields["repoId"] = v.RepoID
+		fields["path"] = v.Path
+		fields["line"] = v.Line
+		fields["text"] = v.Text
 		if v.Hits == nil {
-			m["hits"] = []Hit{}
+			fields["hits"] = []Hit{}
 		} else {
-			m["hits"] = v.Hits
+			fields["hits"] = v.Hits
 		}
 	case "symbol":
-		m["ref"] = v.Ref
-		m["repoId"] = v.RepoID
-		m["path"] = v.Path
-		m["line"] = v.Line
-		m["name"] = v.Name
-		m["symbolKind"] = v.SymbolKind
+		fields["ref"] = v.Ref
+		fields["repoId"] = v.RepoID
+		fields["path"] = v.Path
+		fields["line"] = v.Line
+		fields["name"] = v.Name
+		fields["symbolKind"] = v.SymbolKind
 		if v.Hits == nil {
-			m["hits"] = []Hit{}
+			fields["hits"] = []Hit{}
 		} else {
-			m["hits"] = v.Hits
+			fields["hits"] = v.Hits
 		}
 	case "commit":
-		m["ref"] = v.Ref
-		m["repoId"] = v.RepoID
-		m["sha"] = v.SHA
-		m["subject"] = v.Subject
-		m["author"] = v.Author
-		m["at"] = v.At
+		fields["ref"] = v.Ref
+		fields["repoId"] = v.RepoID
+		fields["sha"] = v.SHA
+		fields["subject"] = v.Subject
+		fields["author"] = v.Author
+		fields["at"] = v.At
 		if v.Files == nil {
-			m["files"] = []FileStat{}
+			fields["files"] = []FileStat{}
 		} else {
-			m["files"] = v.Files
+			fields["files"] = v.Files
 		}
-		m["diffHits"] = v.DiffHits
+		fields["diffHits"] = v.DiffHits
 		if v.MatchedTerms == nil {
-			m["matchedTerms"] = []int{}
+			fields["matchedTerms"] = []int{}
 		} else {
-			m["matchedTerms"] = v.MatchedTerms
+			fields["matchedTerms"] = v.MatchedTerms
 		}
 		if v.SubjectHits == nil {
-			m["subjectHits"] = []Range{}
+			fields["subjectHits"] = []Range{}
 		} else {
-			m["subjectHits"] = v.SubjectHits
+			fields["subjectHits"] = v.SubjectHits
 		}
 	}
-	return json.Marshal(m)
+	return json.Marshal(fields)
 }
 
+// LineHits are the matches on one preview line.
 type LineHits struct {
 	Line   int   `json:"line"`
 	Ranges []Hit `json:"ranges"`
@@ -330,19 +366,21 @@ type LineHits struct {
 
 // MarshalJSON emits [] rather than null for required arrays.
 func (v LineHits) MarshalJSON() ([]byte, error) {
-	type alias LineHits
-	a := alias(v)
-	if a.Ranges == nil {
-		a.Ranges = []Hit{}
+	type plain LineHits
+	p := plain(v)
+	if p.Ranges == nil {
+		p.Ranges = []Hit{}
 	}
-	return json.Marshal(a)
+	return json.Marshal(p)
 }
 
+// OutlineSymbol is a definition shown in a file preview's outline.
 type OutlineSymbol struct {
 	Name string `json:"name"`
 	Line int    `json:"line"`
 }
 
+// DiffLine is one line of a diff hunk.
 type DiffLine struct {
 	Kind  string `json:"kind"`
 	OldNo int    `json:"oldNo,omitempty"`
@@ -353,14 +391,15 @@ type DiffLine struct {
 
 // MarshalJSON emits [] rather than null for required arrays.
 func (v DiffLine) MarshalJSON() ([]byte, error) {
-	type alias DiffLine
-	a := alias(v)
-	if a.Hits == nil {
-		a.Hits = []Hit{}
+	type plain DiffLine
+	p := plain(v)
+	if p.Hits == nil {
+		p.Hits = []Hit{}
 	}
-	return json.Marshal(a)
+	return json.Marshal(p)
 }
 
+// Hunk is one hunk of a commit diff.
 type Hunk struct {
 	Path   string     `json:"path"`
 	Header string     `json:"header"`
@@ -369,14 +408,15 @@ type Hunk struct {
 
 // MarshalJSON emits [] rather than null for required arrays.
 func (v Hunk) MarshalJSON() ([]byte, error) {
-	type alias Hunk
-	a := alias(v)
-	if a.Lines == nil {
-		a.Lines = []DiffLine{}
+	type plain Hunk
+	p := plain(v)
+	if p.Lines == nil {
+		p.Lines = []DiffLine{}
 	}
-	return json.Marshal(a)
+	return json.Marshal(p)
 }
 
+// Preview is the right-hand pane's content for a selected result.
 type Preview struct {
 	Kind       string          `json:"kind,omitempty"`
 	Path       string          `json:"path,omitempty"`
@@ -395,59 +435,63 @@ type Preview struct {
 	Hunks      []Hunk          `json:"hunks,omitempty"`
 }
 
-// MarshalJSON emits the fields of the variant named by Kind.
+// MarshalJSON emits only the fields of the variant named by Kind.
 func (v Preview) MarshalJSON() ([]byte, error) {
-	m := map[string]any{"kind": v.Kind}
+	fields := map[string]any{"kind": v.Kind}
 	switch v.Kind {
 	case "file":
-		m["path"] = v.Path
-		m["firstLine"] = v.FirstLine
+		fields["path"] = v.Path
+		fields["firstLine"] = v.FirstLine
 		if v.Lines == nil {
-			m["lines"] = []string{}
+			fields["lines"] = []string{}
 		} else {
-			m["lines"] = v.Lines
+			fields["lines"] = v.Lines
 		}
-		m["focusLine"] = v.FocusLine
+		fields["focusLine"] = v.FocusLine
 		if v.Hits == nil {
-			m["hits"] = []LineHits{}
+			fields["hits"] = []LineHits{}
 		} else {
-			m["hits"] = v.Hits
+			fields["hits"] = v.Hits
 		}
 		if v.DirtyLines == nil {
-			m["dirtyLines"] = []int{}
+			fields["dirtyLines"] = []int{}
 		} else {
-			m["dirtyLines"] = v.DirtyLines
+			fields["dirtyLines"] = v.DirtyLines
 		}
 		if len(v.Symbols) > 0 {
-			m["symbols"] = v.Symbols
+			fields["symbols"] = v.Symbols
 		}
 	case "commit":
-		m["sha"] = v.SHA
-		m["subject"] = v.Subject
-		m["body"] = v.Body
-		m["author"] = v.Author
-		m["at"] = v.At
+		fields["sha"] = v.SHA
+		fields["subject"] = v.Subject
+		fields["body"] = v.Body
+		fields["author"] = v.Author
+		fields["at"] = v.At
 		if v.Files == nil {
-			m["files"] = []FileStat{}
+			fields["files"] = []FileStat{}
 		} else {
-			m["files"] = v.Files
+			fields["files"] = v.Files
 		}
 		if v.Hunks == nil {
-			m["hunks"] = []Hunk{}
+			fields["hunks"] = []Hunk{}
 		} else {
-			m["hunks"] = v.Hunks
+			fields["hunks"] = v.Hunks
 		}
 	}
-	return json.Marshal(m)
+	return json.Marshal(fields)
 }
 
+// HiddenNote counts results a filter removed, with a fix that removes the filter.
 type HiddenNote struct {
 	Reason string `json:"reason"`
+	// Filter is the filter as typed, e.g. -f:vendor/
+	Filter string `json:"filter"`
 	Count  int    `json:"count"`
 	Unit   string `json:"unit"`
 	Undo   Fix    `json:"undo"`
 }
 
+// Completion is an autocomplete suggestion; accepting it applies its edit.
 type Completion struct {
 	Label  string `json:"label"`
 	Detail string `json:"detail"`
@@ -455,8 +499,10 @@ type Completion struct {
 	Group  string `json:"group"`
 }
 
+// IndexState is where one index of a repo stands.
 type IndexState = string
 
+// IndexState values.
 const (
 	IndexStateReady    IndexState = "ready"
 	IndexStateIndexing IndexState = "indexing"
@@ -465,6 +511,7 @@ const (
 	IndexStateOff      IndexState = "off"
 )
 
+// RepoStatus is the indexing state of one repo.
 type RepoStatus struct {
 	RepoID   string     `json:"repoId"`
 	Name     string     `json:"name"`
@@ -474,7 +521,7 @@ type RepoStatus struct {
 	Message  string     `json:"message,omitempty"`
 }
 
-// OpenTarget: Either a file position (path, line, column, length) or a commit (repoId, sha, path).
+// OpenTarget is where opening a result goes: a file position (path, line, column, length) or a commit (repoId, sha).
 type OpenTarget struct {
 	Path   string `json:"path,omitempty"`
 	Line   int    `json:"line,omitempty"`
@@ -484,6 +531,16 @@ type OpenTarget struct {
 	SHA    string `json:"sha,omitempty"`
 }
 
+// OpenWhere is which editor group a result opens in.
+type OpenWhere = string
+
+// OpenWhere values.
+const (
+	OpenWhereCurrent OpenWhere = "current"
+	OpenWhereSide    OpenWhere = "side"
+)
+
+// InitializeParams start the daemon.
 type InitializeParams struct {
 	Protocol int      `json:"protocol"`
 	Roots    []Root   `json:"roots"`
@@ -492,62 +549,68 @@ type InitializeParams struct {
 
 // MarshalJSON emits [] rather than null for required arrays.
 func (v InitializeParams) MarshalJSON() ([]byte, error) {
-	type alias InitializeParams
-	a := alias(v)
-	if a.Roots == nil {
-		a.Roots = []Root{}
+	type plain InitializeParams
+	p := plain(v)
+	if p.Roots == nil {
+		p.Roots = []Root{}
 	}
-	return json.Marshal(a)
+	return json.Marshal(p)
 }
 
+// InitializeResult reports the daemon's version and protocol.
 type InitializeResult struct {
 	DaemonVersion string `json:"daemonVersion"`
 	Protocol      int    `json:"protocol"`
 }
 
+// SetRootsParams replace the workspace folders.
 type SetRootsParams struct {
 	Roots []Root `json:"roots"`
 }
 
 // MarshalJSON emits [] rather than null for required arrays.
 func (v SetRootsParams) MarshalJSON() ([]byte, error) {
-	type alias SetRootsParams
-	a := alias(v)
-	if a.Roots == nil {
-		a.Roots = []Root{}
+	type plain SetRootsParams
+	p := plain(v)
+	if p.Roots == nil {
+		p.Roots = []Root{}
 	}
-	return json.Marshal(a)
+	return json.Marshal(p)
 }
 
+// SettingsUpdateParams carry changed settings.
 type SettingsUpdateParams struct {
 	Settings Settings `json:"settings"`
 }
 
+// FileChange is one file event from VS Code's watcher.
 type FileChange struct {
 	Path string `json:"path"`
 	Type string `json:"type"`
 }
 
-// DidChangeFilesParams: Host -> daemon: file events from VS Code's watcher, a fast path ahead of the daemon's own watcher.
+// DidChangeFilesParams forward file events from the host, a fast path ahead of the daemon's own watcher.
 type DidChangeFilesParams struct {
 	Changes []FileChange `json:"changes"`
 }
 
 // MarshalJSON emits [] rather than null for required arrays.
 func (v DidChangeFilesParams) MarshalJSON() ([]byte, error) {
-	type alias DidChangeFilesParams
-	a := alias(v)
-	if a.Changes == nil {
-		a.Changes = []FileChange{}
+	type plain DidChangeFilesParams
+	p := plain(v)
+	if p.Changes == nil {
+		p.Changes = []FileChange{}
 	}
-	return json.Marshal(a)
+	return json.Marshal(p)
 }
 
+// ParseParams ask the daemon to parse the query box.
 type ParseParams struct {
 	Text   string `json:"text"`
 	Cursor int    `json:"cursor"`
 }
 
+// ParseResult is the parsed query plus completions at the cursor.
 type ParseResult struct {
 	Query       ParsedQuery  `json:"query"`
 	Completions []Completion `json:"completions"`
@@ -555,20 +618,22 @@ type ParseResult struct {
 
 // MarshalJSON emits [] rather than null for required arrays.
 func (v ParseResult) MarshalJSON() ([]byte, error) {
-	type alias ParseResult
-	a := alias(v)
-	if a.Completions == nil {
-		a.Completions = []Completion{}
+	type plain ParseResult
+	p := plain(v)
+	if p.Completions == nil {
+		p.Completions = []Completion{}
 	}
-	return json.Marshal(a)
+	return json.Marshal(p)
 }
 
+// SearchStartParams start (or page) a search; the daemon re-parses the text itself.
 type SearchStartParams struct {
 	SearchID string `json:"searchId"`
 	Text     string `json:"text"`
 	Cursor   string `json:"cursor,omitempty"`
 }
 
+// SearchResult ends a search after its batches.
 type SearchResult struct {
 	Total      int          `json:"total"`
 	Truncated  bool         `json:"truncated"`
@@ -579,14 +644,15 @@ type SearchResult struct {
 
 // MarshalJSON emits [] rather than null for required arrays.
 func (v SearchResult) MarshalJSON() ([]byte, error) {
-	type alias SearchResult
-	a := alias(v)
-	if a.Hidden == nil {
-		a.Hidden = []HiddenNote{}
+	type plain SearchResult
+	p := plain(v)
+	if p.Hidden == nil {
+		p.Hidden = []HiddenNote{}
 	}
-	return json.Marshal(a)
+	return json.Marshal(p)
 }
 
+// SearchBatchParams stream up to 200 results of a running search.
 type SearchBatchParams struct {
 	SearchID string       `json:"searchId"`
 	Items    []ResultItem `json:"items"`
@@ -594,45 +660,50 @@ type SearchBatchParams struct {
 
 // MarshalJSON emits [] rather than null for required arrays.
 func (v SearchBatchParams) MarshalJSON() ([]byte, error) {
-	type alias SearchBatchParams
-	a := alias(v)
-	if a.Items == nil {
-		a.Items = []ResultItem{}
+	type plain SearchBatchParams
+	p := plain(v)
+	if p.Items == nil {
+		p.Items = []ResultItem{}
 	}
-	return json.Marshal(a)
+	return json.Marshal(p)
 }
 
+// PreviewParams ask for the preview of a result.
 type PreviewParams struct {
 	Ref          string `json:"ref"`
 	ContextLines int    `json:"contextLines"`
 }
 
+// OpenResolveParams ask where a result opens.
 type OpenResolveParams struct {
 	Ref string `json:"ref"`
 }
 
+// IndexStatusResult is the indexing state of every repo.
 type IndexStatusResult struct {
 	Repos []RepoStatus `json:"repos"`
 }
 
 // MarshalJSON emits [] rather than null for required arrays.
 func (v IndexStatusResult) MarshalJSON() ([]byte, error) {
-	type alias IndexStatusResult
-	a := alias(v)
-	if a.Repos == nil {
-		a.Repos = []RepoStatus{}
+	type plain IndexStatusResult
+	p := plain(v)
+	if p.Repos == nil {
+		p.Repos = []RepoStatus{}
 	}
-	return json.Marshal(a)
+	return json.Marshal(p)
 }
 
+// RebuildParams name the repo to rebuild, or all when repoId is absent.
 type RebuildParams struct {
 	RepoID string `json:"repoId,omitempty"`
 }
 
+// Empty is a message with no fields.
 type Empty struct {
 }
 
-// Envelope: Contract 2 message envelope, sent with postMessage in both directions.
+// Envelope wraps every Contract 2 message in both directions.
 type Envelope struct {
 	V       int             `json:"v"`
 	Type    string          `json:"type"`
@@ -640,26 +711,31 @@ type Envelope struct {
 	Payload json.RawMessage `json:"payload"`
 }
 
+// QueryChangedMsg reports the query box after the typing delay.
 type QueryChangedMsg struct {
 	Text   string `json:"text"`
 	Cursor int    `json:"cursor"`
 	Seq    int    `json:"seq"`
 }
 
+// ResultSelectMsg asks for a result's preview.
 type ResultSelectMsg struct {
 	Ref string `json:"ref"`
 }
 
+// ResultOpenMsg opens a result in an editor.
 type ResultOpenMsg struct {
-	Ref   string `json:"ref"`
-	Where string `json:"where"`
+	Ref   string    `json:"ref"`
+	Where OpenWhere `json:"where"`
 }
 
+// ResultsMoreMsg loads the next page of results.
 type ResultsMoreMsg struct {
 	SearchID string `json:"searchId"`
 	Cursor   string `json:"cursor"`
 }
 
+// ParseResultMsg drives the chips, diagnostics, completions and toggles.
 type ParseResultMsg struct {
 	Seq         int          `json:"seq"`
 	Query       ParsedQuery  `json:"query"`
@@ -668,14 +744,15 @@ type ParseResultMsg struct {
 
 // MarshalJSON emits [] rather than null for required arrays.
 func (v ParseResultMsg) MarshalJSON() ([]byte, error) {
-	type alias ParseResultMsg
-	a := alias(v)
-	if a.Completions == nil {
-		a.Completions = []Completion{}
+	type plain ParseResultMsg
+	p := plain(v)
+	if p.Completions == nil {
+		p.Completions = []Completion{}
 	}
-	return json.Marshal(a)
+	return json.Marshal(p)
 }
 
+// SearchBatchMsg appends streamed results.
 type SearchBatchMsg struct {
 	Seq      int          `json:"seq"`
 	SearchID string       `json:"searchId"`
@@ -684,14 +761,15 @@ type SearchBatchMsg struct {
 
 // MarshalJSON emits [] rather than null for required arrays.
 func (v SearchBatchMsg) MarshalJSON() ([]byte, error) {
-	type alias SearchBatchMsg
-	a := alias(v)
-	if a.Items == nil {
-		a.Items = []ResultItem{}
+	type plain SearchBatchMsg
+	p := plain(v)
+	if p.Items == nil {
+		p.Items = []ResultItem{}
 	}
-	return json.Marshal(a)
+	return json.Marshal(p)
 }
 
+// SearchDoneMsg ends a search: counts, hidden notes, Load more and errors.
 type SearchDoneMsg struct {
 	Seq        int          `json:"seq"`
 	SearchID   string       `json:"searchId"`
@@ -705,34 +783,37 @@ type SearchDoneMsg struct {
 
 // MarshalJSON emits [] rather than null for required arrays.
 func (v SearchDoneMsg) MarshalJSON() ([]byte, error) {
-	type alias SearchDoneMsg
-	a := alias(v)
-	if a.Hidden == nil {
-		a.Hidden = []HiddenNote{}
+	type plain SearchDoneMsg
+	p := plain(v)
+	if p.Hidden == nil {
+		p.Hidden = []HiddenNote{}
 	}
-	return json.Marshal(a)
+	return json.Marshal(p)
 }
 
+// PreviewResultMsg fills the preview pane; stale means the result no longer exists.
 type PreviewResultMsg struct {
 	Ref     string   `json:"ref"`
 	Preview *Preview `json:"preview"`
 	Stale   bool     `json:"stale,omitempty"`
 }
 
+// IndexStatusMsg drives the header dot and indexing banners.
 type IndexStatusMsg struct {
 	Repos []RepoStatus `json:"repos"`
 }
 
 // MarshalJSON emits [] rather than null for required arrays.
 func (v IndexStatusMsg) MarshalJSON() ([]byte, error) {
-	type alias IndexStatusMsg
-	a := alias(v)
-	if a.Repos == nil {
-		a.Repos = []RepoStatus{}
+	type plain IndexStatusMsg
+	p := plain(v)
+	if p.Repos == nil {
+		p.Repos = []RepoStatus{}
 	}
-	return json.Marshal(a)
+	return json.Marshal(p)
 }
 
+// StateRestoreMsg restores the panel's query, recent queries and settings.
 type StateRestoreMsg struct {
 	Text     string      `json:"text"`
 	Recent   []string    `json:"recent"`
@@ -741,15 +822,15 @@ type StateRestoreMsg struct {
 
 // MarshalJSON emits [] rather than null for required arrays.
 func (v StateRestoreMsg) MarshalJSON() ([]byte, error) {
-	type alias StateRestoreMsg
-	a := alias(v)
-	if a.Recent == nil {
-		a.Recent = []string{}
+	type plain StateRestoreMsg
+	p := plain(v)
+	if p.Recent == nil {
+		p.Recent = []string{}
 	}
-	return json.Marshal(a)
+	return json.Marshal(p)
 }
 
-// UiSettings: The UI-facing settings the host forwards to the webview.
+// UiSettings are the UI-facing settings the host forwards to the webview.
 type UiSettings struct {
 	TypingDelayMs   int    `json:"typingDelayMs"`
 	OpenTrigger     string `json:"openTrigger"`
@@ -758,7 +839,7 @@ type UiSettings struct {
 	CaseSensitive   bool   `json:"caseSensitive"`
 }
 
-// BannerMsg: Daemon health banner (failure table): restarting, stopped, or cleared.
+// BannerMsg reports daemon health (failure table): restarting, stopped or cleared.
 type BannerMsg struct {
 	State   string `json:"state"`
 	Message string `json:"message,omitempty"`
@@ -803,9 +884,3 @@ const (
 	MsgBanner        = "banner"
 	MsgFocus         = "focus"
 )
-
-// SpecMethods lists every Contract 3 method, for spec coverage.
-var SpecMethods = []string{"initialize", "workspace/setRoots", "workspace/didChangeFiles", "settings/update", "query/parse", "search/start", "search/batch", "$/cancelRequest", "preview/get", "open/resolve", "index/status", "index/progress", "index/rebuild", "shutdown", "exit"}
-
-// SpecMessages lists every Contract 2 message type, for spec coverage.
-var SpecMessages = []string{"query.changed", "result.select", "result.open", "results.more", "panel.close", "help.open", "settings.open", "ready", "daemon.restart", "parse.result", "search.batch", "search.done", "preview.result", "index.status", "state.restore", "banner", "focus"}

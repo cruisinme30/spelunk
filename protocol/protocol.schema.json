@@ -6,147 +6,337 @@
   "x-protocol-version": 1,
   "$defs": {
     "Span": {
-      "description": "UTF-16 offsets into the raw query.",
+      "description": "Span is a range of UTF-16 offsets into the raw query text.",
       "type": "object",
-      "properties": { "start": { "type": "integer" }, "end": { "type": "integer" } },
+      "properties": {
+        "start": {
+          "type": "integer"
+        },
+        "end": {
+          "type": "integer"
+        }
+      },
       "required": ["start", "end"]
     },
     "Range": {
-      "description": "UTF-16 offsets in the shown text.",
+      "description": "Range is a range of UTF-16 offsets into the text shown on screen.",
       "type": "object",
-      "properties": { "start": { "type": "integer" }, "end": { "type": "integer" } },
+      "properties": {
+        "start": {
+          "type": "integer"
+        },
+        "end": {
+          "type": "integer"
+        }
+      },
       "required": ["start", "end"]
     },
     "Hit": {
-      "description": "A matched range plus which text term matched, for colors.",
+      "description": "Hit is a matched Range plus the text term that matched, which picks its highlight color.",
       "type": "object",
       "properties": {
-        "start": { "type": "integer" },
-        "end": { "type": "integer" },
-        "termIndex": { "type": "integer" }
+        "start": {
+          "type": "integer"
+        },
+        "end": {
+          "type": "integer"
+        },
+        "termIndex": {
+          "type": "integer"
+        }
       },
       "required": ["start", "end", "termIndex"]
     },
     "OpName": {
+      "description": "OpName is an operator's name, the part before the colon.",
       "type": "string",
       "enum": ["f", "repo", "lang", "type", "sym", "author", "msg", "since", "case", "count"]
     },
-    "Match": { "type": "string", "enum": ["literal", "phrase", "regex"] },
-    "Mode": { "type": "string", "enum": ["workingTree", "history"] },
-    "Severity": { "type": "string", "enum": ["error", "warning"] },
+    "Match": {
+      "description": "Match says how a value was written: bare (literal), quoted (phrase) or /regex/.",
+      "type": "string",
+      "enum": ["literal", "phrase", "regex"]
+    },
+    "Mode": {
+      "description": "Mode is what a query searches: current files or Git history.",
+      "type": "string",
+      "enum": ["workingTree", "history"]
+    },
+    "Severity": {
+      "description": "Severity is how serious a Diagnostic is; only errors stop a search.",
+      "type": "string",
+      "enum": ["error", "warning"]
+    },
     "TextEdit": {
+      "description": "TextEdit replaces a span of the query text.",
       "type": "object",
-      "properties": { "span": { "$ref": "#/$defs/Span" }, "newText": { "type": "string" } },
+      "properties": {
+        "span": {
+          "$ref": "#/$defs/Span"
+        },
+        "newText": {
+          "type": "string"
+        }
+      },
       "required": ["span", "newText"]
     },
     "Fix": {
+      "description": "Fix is a titled set of edits that repairs or rewrites the query.",
       "type": "object",
       "properties": {
-        "title": { "type": "string" },
-        "edits": { "type": "array", "items": { "$ref": "#/$defs/TextEdit" } }
+        "title": {
+          "type": "string"
+        },
+        "edits": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/TextEdit"
+          }
+        }
       },
       "required": ["title", "edits"]
     },
     "Diagnostic": {
+      "description": "Diagnostic is a problem the parser found, with fixes the user can apply.",
       "type": "object",
       "properties": {
-        "severity": { "$ref": "#/$defs/Severity" },
-        "code": { "type": "string" },
-        "message": { "type": "string" },
-        "span": { "$ref": "#/$defs/Span" },
-        "fixes": { "type": "array", "items": { "$ref": "#/$defs/Fix" } }
+        "severity": {
+          "$ref": "#/$defs/Severity"
+        },
+        "code": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        },
+        "span": {
+          "$ref": "#/$defs/Span"
+        },
+        "fixes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Fix"
+          }
+        }
       },
       "required": ["severity", "code", "message", "span", "fixes"]
     },
     "Resolved": {
+      "description": "Resolved is a friendlier label for an operator value, such as an author's full name.",
       "type": "object",
-      "properties": { "label": { "type": "string" } },
+      "properties": {
+        "label": {
+          "type": "string"
+        }
+      },
       "required": ["label"]
     },
     "Node": {
+      "description": "Node is one node of the parsed query tree.",
       "oneOf": [
         {
           "type": "object",
           "properties": {
-            "kind": { "enum": ["and", "or"] },
-            "children": { "type": "array", "items": { "$ref": "#/$defs/Node" } },
-            "span": { "$ref": "#/$defs/Span" }
+            "kind": {
+              "enum": ["and", "or"]
+            },
+            "children": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/Node"
+              }
+            },
+            "span": {
+              "$ref": "#/$defs/Span"
+            }
           },
           "required": ["kind", "children", "span"]
         },
         {
           "type": "object",
           "properties": {
-            "kind": { "const": "not" },
-            "child": { "$ref": "#/$defs/Node" },
-            "span": { "$ref": "#/$defs/Span" }
+            "kind": {
+              "const": "not"
+            },
+            "child": {
+              "$ref": "#/$defs/Node"
+            },
+            "span": {
+              "$ref": "#/$defs/Span"
+            }
           },
           "required": ["kind", "child", "span"]
         },
         {
           "type": "object",
           "properties": {
-            "kind": { "const": "text" },
-            "value": { "type": "string" },
-            "match": { "$ref": "#/$defs/Match" },
-            "termIndex": { "type": "integer" },
-            "span": { "$ref": "#/$defs/Span" }
+            "kind": {
+              "const": "text"
+            },
+            "value": {
+              "type": "string"
+            },
+            "match": {
+              "$ref": "#/$defs/Match"
+            },
+            "termIndex": {
+              "type": "integer"
+            },
+            "span": {
+              "$ref": "#/$defs/Span"
+            }
           },
           "required": ["kind", "value", "match", "termIndex", "span"]
         },
         {
           "type": "object",
           "properties": {
-            "kind": { "const": "op" },
-            "op": { "$ref": "#/$defs/OpName" },
-            "value": { "type": "string" },
-            "match": { "$ref": "#/$defs/Match" },
-            "span": { "$ref": "#/$defs/Span" },
-            "resolved": { "$ref": "#/$defs/Resolved" }
+            "kind": {
+              "const": "op"
+            },
+            "op": {
+              "$ref": "#/$defs/OpName"
+            },
+            "value": {
+              "type": "string"
+            },
+            "match": {
+              "$ref": "#/$defs/Match"
+            },
+            "span": {
+              "$ref": "#/$defs/Span"
+            },
+            "resolved": {
+              "$ref": "#/$defs/Resolved"
+            }
           },
           "required": ["kind", "op", "value", "match", "span"]
         }
       ]
     },
     "Globals": {
+      "description": "Globals are the query-wide operators case:, count: and type:, or null when absent.",
       "type": "object",
       "properties": {
-        "case": { "oneOf": [{ "enum": ["yes", "no"] }, { "type": "null" }] },
-        "count": { "oneOf": [{ "type": "integer" }, { "const": "all" }, { "type": "null" }], "x-go-type": "any" },
-        "type": { "oneOf": [{ "enum": ["file", "code", "commit"] }, { "type": "null" }] }
+        "case": {
+          "oneOf": [
+            {
+              "enum": ["yes", "no"]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "count": {
+          "oneOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "const": "all"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "x-go-type": "any"
+        },
+        "type": {
+          "oneOf": [
+            {
+              "enum": ["file", "code", "commit"]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
       },
       "required": ["case", "count", "type"]
     },
     "ParsedQuery": {
+      "description": "ParsedQuery is the parser's output (Contract 1).",
       "type": "object",
       "properties": {
-        "version": { "const": 1 },
-        "raw": { "type": "string" },
-        "root": { "oneOf": [{ "$ref": "#/$defs/Node" }, { "type": "null" }] },
-        "globals": { "$ref": "#/$defs/Globals" },
-        "mode": { "$ref": "#/$defs/Mode" },
-        "diagnostics": { "type": "array", "items": { "$ref": "#/$defs/Diagnostic" } }
+        "version": {
+          "const": 1
+        },
+        "raw": {
+          "type": "string"
+        },
+        "root": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/Node"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "globals": {
+          "$ref": "#/$defs/Globals"
+        },
+        "mode": {
+          "$ref": "#/$defs/Mode"
+        },
+        "diagnostics": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Diagnostic"
+          }
+        }
       },
       "required": ["version", "raw", "root", "globals", "mode", "diagnostics"]
     },
     "Root": {
-      "description": "A workspace folder. id = first 12 hex of sha256(path).",
+      "description": "Root is a workspace folder; its id is the first 12 hex digits of sha256(path).",
       "type": "object",
-      "properties": { "id": { "type": "string" }, "path": { "type": "string" }, "name": { "type": "string" } },
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
       "required": ["id", "path", "name"]
     },
     "Settings": {
-      "description": "The unifiedSearch.* settings the daemon needs (Contract 5).",
+      "description": "Settings are the unifiedSearch.* settings the daemon needs (Contract 5).",
       "type": "object",
       "properties": {
-        "caseSensitive": { "type": "boolean" },
-        "defaultCount": { "type": "integer" },
-        "historyDepth": { "enum": ["6m", "2y", "all"] },
-        "symbols": { "type": "boolean" },
-        "exclude": { "type": "array", "items": { "type": "string" } },
-        "includeIgnored": { "type": "boolean" },
-        "maxFileSizeKB": { "type": "integer" },
-        "location": { "type": "string" }
+        "caseSensitive": {
+          "type": "boolean"
+        },
+        "defaultCount": {
+          "type": "integer"
+        },
+        "historyDepth": {
+          "enum": ["6m", "2y", "all"]
+        },
+        "symbols": {
+          "type": "boolean"
+        },
+        "exclude": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "includeIgnored": {
+          "type": "boolean"
+        },
+        "maxFileSizeKB": {
+          "type": "integer"
+        },
+        "location": {
+          "type": "string"
+        }
       },
       "required": [
         "caseSensitive",
@@ -160,82 +350,199 @@
       ]
     },
     "LastCommit": {
+      "description": "LastCommit is the newest commit that touched a file.",
       "type": "object",
-      "properties": { "sha": { "type": "string" }, "author": { "type": "string" }, "at": { "type": "string" } },
+      "properties": {
+        "sha": {
+          "type": "string"
+        },
+        "author": {
+          "type": "string"
+        },
+        "at": {
+          "type": "string"
+        }
+      },
       "required": ["sha", "author", "at"]
     },
     "Person": {
+      "description": "Person is a commit author.",
       "type": "object",
-      "properties": { "name": { "type": "string" }, "email": { "type": "string" } },
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "email": {
+          "type": "string"
+        }
+      },
       "required": ["name", "email"]
     },
     "FileStat": {
+      "description": "FileStat is one file changed by a commit.",
       "type": "object",
       "properties": {
-        "path": { "type": "string" },
-        "added": { "type": "integer" },
-        "removed": { "type": "integer" },
-        "hiddenByFilter": { "type": "boolean" }
+        "path": {
+          "type": "string"
+        },
+        "added": {
+          "type": "integer"
+        },
+        "removed": {
+          "type": "integer"
+        },
+        "hiddenByFilter": {
+          "type": "boolean"
+        }
       },
       "required": ["path", "added", "removed"]
     },
-    "SymbolKind": { "type": "string", "enum": ["class", "interface", "function", "method", "type", "other"] },
+    "SymbolKind": {
+      "description": "SymbolKind is what a symbol definition is.",
+      "type": "string",
+      "enum": ["class", "interface", "function", "method", "type", "other"]
+    },
     "ResultItem": {
+      "description": "ResultItem is one search result: a file name, a code line, a symbol or a commit.",
       "oneOf": [
         {
           "type": "object",
           "properties": {
-            "kind": { "const": "file" },
-            "ref": { "type": "string" },
-            "repoId": { "type": "string" },
-            "path": { "type": "string" },
-            "nameHits": { "type": "array", "items": { "$ref": "#/$defs/Range" } },
-            "lastCommit": { "$ref": "#/$defs/LastCommit" },
-            "dirty": { "type": "boolean" }
+            "kind": {
+              "const": "file"
+            },
+            "ref": {
+              "type": "string"
+            },
+            "repoId": {
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
+            },
+            "nameHits": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/Range"
+              }
+            },
+            "lastCommit": {
+              "$ref": "#/$defs/LastCommit"
+            },
+            "dirty": {
+              "type": "boolean"
+            }
           },
           "required": ["kind", "ref", "repoId", "path", "nameHits", "dirty"]
         },
         {
           "type": "object",
           "properties": {
-            "kind": { "const": "line" },
-            "ref": { "type": "string" },
-            "repoId": { "type": "string" },
-            "path": { "type": "string" },
-            "line": { "type": "integer" },
-            "text": { "type": "string" },
-            "hits": { "type": "array", "items": { "$ref": "#/$defs/Hit" } }
+            "kind": {
+              "const": "line"
+            },
+            "ref": {
+              "type": "string"
+            },
+            "repoId": {
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
+            },
+            "line": {
+              "type": "integer"
+            },
+            "text": {
+              "type": "string"
+            },
+            "hits": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/Hit"
+              }
+            }
           },
           "required": ["kind", "ref", "repoId", "path", "line", "text", "hits"]
         },
         {
           "type": "object",
           "properties": {
-            "kind": { "const": "symbol" },
-            "ref": { "type": "string" },
-            "repoId": { "type": "string" },
-            "path": { "type": "string" },
-            "line": { "type": "integer" },
-            "name": { "type": "string" },
-            "symbolKind": { "$ref": "#/$defs/SymbolKind" },
-            "hits": { "type": "array", "items": { "$ref": "#/$defs/Hit" } }
+            "kind": {
+              "const": "symbol"
+            },
+            "ref": {
+              "type": "string"
+            },
+            "repoId": {
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
+            },
+            "line": {
+              "type": "integer"
+            },
+            "name": {
+              "type": "string"
+            },
+            "symbolKind": {
+              "$ref": "#/$defs/SymbolKind"
+            },
+            "hits": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/Hit"
+              }
+            }
           },
           "required": ["kind", "ref", "repoId", "path", "line", "name", "symbolKind", "hits"]
         },
         {
           "type": "object",
           "properties": {
-            "kind": { "const": "commit" },
-            "ref": { "type": "string" },
-            "repoId": { "type": "string" },
-            "sha": { "type": "string" },
-            "subject": { "type": "string" },
-            "author": { "$ref": "#/$defs/Person" },
-            "at": { "type": "string" },
-            "files": { "type": "array", "items": { "$ref": "#/$defs/FileStat" } },
-            "diffHits": { "type": "integer" },
-            "matchedTerms": { "type": "array", "items": { "type": "integer" } },
-            "subjectHits": { "type": "array", "items": { "$ref": "#/$defs/Range" } }
+            "kind": {
+              "const": "commit"
+            },
+            "ref": {
+              "type": "string"
+            },
+            "repoId": {
+              "type": "string"
+            },
+            "sha": {
+              "type": "string"
+            },
+            "subject": {
+              "type": "string"
+            },
+            "author": {
+              "$ref": "#/$defs/Person"
+            },
+            "at": {
+              "type": "string"
+            },
+            "files": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/FileStat"
+              }
+            },
+            "diffHits": {
+              "type": "integer"
+            },
+            "matchedTerms": {
+              "type": "array",
+              "items": {
+                "type": "integer"
+              }
+            },
+            "subjectHits": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/Range"
+              }
+            }
           },
           "required": [
             "kind",
@@ -254,355 +561,884 @@
       ]
     },
     "LineHits": {
+      "description": "LineHits are the matches on one preview line.",
       "type": "object",
       "properties": {
-        "line": { "type": "integer" },
-        "ranges": { "type": "array", "items": { "$ref": "#/$defs/Hit" } }
+        "line": {
+          "type": "integer"
+        },
+        "ranges": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Hit"
+          }
+        }
       },
       "required": ["line", "ranges"]
     },
     "OutlineSymbol": {
+      "description": "OutlineSymbol is a definition shown in a file preview's outline.",
       "type": "object",
-      "properties": { "name": { "type": "string" }, "line": { "type": "integer" } },
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "line": {
+          "type": "integer"
+        }
+      },
       "required": ["name", "line"]
     },
     "DiffLine": {
+      "description": "DiffLine is one line of a diff hunk.",
       "type": "object",
       "properties": {
-        "kind": { "enum": ["ctx", "add", "del"] },
-        "oldNo": { "type": "integer" },
-        "newNo": { "type": "integer" },
-        "text": { "type": "string" },
-        "hits": { "type": "array", "items": { "$ref": "#/$defs/Hit" } }
+        "kind": {
+          "enum": ["ctx", "add", "del"]
+        },
+        "oldNo": {
+          "type": "integer"
+        },
+        "newNo": {
+          "type": "integer"
+        },
+        "text": {
+          "type": "string"
+        },
+        "hits": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Hit"
+          }
+        }
       },
       "required": ["kind", "text", "hits"]
     },
     "Hunk": {
+      "description": "Hunk is one hunk of a commit diff.",
       "type": "object",
       "properties": {
-        "path": { "type": "string" },
-        "header": { "type": "string" },
-        "lines": { "type": "array", "items": { "$ref": "#/$defs/DiffLine" } }
+        "path": {
+          "type": "string"
+        },
+        "header": {
+          "type": "string"
+        },
+        "lines": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/DiffLine"
+          }
+        }
       },
       "required": ["path", "header", "lines"]
     },
     "Preview": {
+      "description": "Preview is the right-hand pane's content for a selected result.",
       "oneOf": [
         {
           "type": "object",
           "properties": {
-            "kind": { "const": "file" },
-            "path": { "type": "string" },
-            "firstLine": { "type": "integer" },
-            "lines": { "type": "array", "items": { "type": "string" } },
-            "focusLine": { "type": "integer" },
-            "hits": { "type": "array", "items": { "$ref": "#/$defs/LineHits" } },
-            "dirtyLines": { "type": "array", "items": { "type": "integer" } },
-            "symbols": { "type": "array", "items": { "$ref": "#/$defs/OutlineSymbol" } }
+            "kind": {
+              "const": "file"
+            },
+            "path": {
+              "type": "string"
+            },
+            "firstLine": {
+              "type": "integer"
+            },
+            "lines": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "focusLine": {
+              "type": "integer"
+            },
+            "hits": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/LineHits"
+              }
+            },
+            "dirtyLines": {
+              "type": "array",
+              "items": {
+                "type": "integer"
+              }
+            },
+            "symbols": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/OutlineSymbol"
+              }
+            }
           },
           "required": ["kind", "path", "firstLine", "lines", "focusLine", "hits", "dirtyLines"]
         },
         {
           "type": "object",
           "properties": {
-            "kind": { "const": "commit" },
-            "sha": { "type": "string" },
-            "subject": { "type": "string" },
-            "body": { "type": "string" },
-            "author": { "type": "string" },
-            "at": { "type": "string" },
-            "files": { "type": "array", "items": { "$ref": "#/$defs/FileStat" } },
-            "hunks": { "type": "array", "items": { "$ref": "#/$defs/Hunk" } }
+            "kind": {
+              "const": "commit"
+            },
+            "sha": {
+              "type": "string"
+            },
+            "subject": {
+              "type": "string"
+            },
+            "body": {
+              "type": "string"
+            },
+            "author": {
+              "type": "string"
+            },
+            "at": {
+              "type": "string"
+            },
+            "files": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/FileStat"
+              }
+            },
+            "hunks": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/Hunk"
+              }
+            }
           },
           "required": ["kind", "sha", "subject", "body", "author", "at", "files", "hunks"]
         }
       ]
     },
     "HiddenNote": {
+      "description": "HiddenNote counts results a filter removed, with a fix that removes the filter.",
       "type": "object",
       "properties": {
-        "reason": { "enum": ["not", "since", "case", "type", "pathFilter"] },
-        "count": { "type": "integer" },
-        "unit": { "enum": ["matches", "files", "commits"] },
-        "undo": { "$ref": "#/$defs/Fix" }
+        "reason": {
+          "enum": ["not", "since", "case", "type", "pathFilter"]
+        },
+        "filter": {
+          "type": "string",
+          "description": "The filter as typed, e.g. -f:vendor/"
+        },
+        "count": {
+          "type": "integer"
+        },
+        "unit": {
+          "enum": ["matches", "files", "commits"]
+        },
+        "undo": {
+          "$ref": "#/$defs/Fix"
+        }
       },
-      "required": ["reason", "count", "unit", "undo"]
+      "required": ["reason", "filter", "count", "unit", "undo"]
     },
     "Completion": {
+      "description": "Completion is an autocomplete suggestion; accepting it applies its edit.",
       "type": "object",
       "properties": {
-        "label": { "type": "string" },
-        "detail": { "type": "string" },
-        "insert": { "$ref": "#/$defs/Fix" },
-        "group": { "enum": ["operator", "author", "repo", "lang", "value"] }
+        "label": {
+          "type": "string"
+        },
+        "detail": {
+          "type": "string"
+        },
+        "insert": {
+          "$ref": "#/$defs/Fix"
+        },
+        "group": {
+          "enum": ["operator", "author", "repo", "lang", "value"]
+        }
       },
       "required": ["label", "detail", "insert", "group"]
     },
-    "IndexState": { "type": "string", "enum": ["ready", "indexing", "queued", "error", "off"] },
+    "IndexState": {
+      "description": "IndexState is where one index of a repo stands.",
+      "type": "string",
+      "enum": ["ready", "indexing", "queued", "error", "off"]
+    },
     "RepoStatus": {
+      "description": "RepoStatus is the indexing state of one repo.",
       "type": "object",
       "properties": {
-        "repoId": { "type": "string" },
-        "name": { "type": "string" },
-        "tree": { "$ref": "#/$defs/IndexState" },
-        "history": { "$ref": "#/$defs/IndexState" },
-        "progress": { "type": "number" },
-        "message": { "type": "string" }
+        "repoId": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "tree": {
+          "$ref": "#/$defs/IndexState"
+        },
+        "history": {
+          "$ref": "#/$defs/IndexState"
+        },
+        "progress": {
+          "type": "number"
+        },
+        "message": {
+          "type": "string"
+        }
       },
       "required": ["repoId", "name", "tree", "history"]
     },
     "OpenTarget": {
-      "description": "Either a file position (path, line, column, length) or a commit (repoId, sha, path).",
+      "description": "OpenTarget is where opening a result goes: a file position (path, line, column, length) or a commit (repoId, sha).",
       "type": "object",
       "properties": {
-        "path": { "type": "string" },
-        "line": { "type": "integer" },
-        "column": { "type": "integer" },
-        "length": { "type": "integer" },
-        "repoId": { "type": "string" },
-        "sha": { "type": "string" }
+        "path": {
+          "type": "string"
+        },
+        "line": {
+          "type": "integer"
+        },
+        "column": {
+          "type": "integer"
+        },
+        "length": {
+          "type": "integer"
+        },
+        "repoId": {
+          "type": "string"
+        },
+        "sha": {
+          "type": "string"
+        }
       },
       "required": []
     },
-
+    "OpenWhere": {
+      "description": "OpenWhere is which editor group a result opens in.",
+      "type": "string",
+      "enum": ["current", "side"]
+    },
     "InitializeParams": {
+      "description": "InitializeParams start the daemon.",
       "type": "object",
       "properties": {
-        "protocol": { "type": "integer" },
-        "roots": { "type": "array", "items": { "$ref": "#/$defs/Root" } },
-        "settings": { "$ref": "#/$defs/Settings" }
+        "protocol": {
+          "type": "integer"
+        },
+        "roots": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Root"
+          }
+        },
+        "settings": {
+          "$ref": "#/$defs/Settings"
+        }
       },
       "required": ["protocol", "roots", "settings"]
     },
     "InitializeResult": {
+      "description": "InitializeResult reports the daemon's version and protocol.",
       "type": "object",
-      "properties": { "daemonVersion": { "type": "string" }, "protocol": { "type": "integer" } },
+      "properties": {
+        "daemonVersion": {
+          "type": "string"
+        },
+        "protocol": {
+          "type": "integer"
+        }
+      },
       "required": ["daemonVersion", "protocol"]
     },
     "SetRootsParams": {
+      "description": "SetRootsParams replace the workspace folders.",
       "type": "object",
-      "properties": { "roots": { "type": "array", "items": { "$ref": "#/$defs/Root" } } },
+      "properties": {
+        "roots": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Root"
+          }
+        }
+      },
       "required": ["roots"]
     },
     "SettingsUpdateParams": {
+      "description": "SettingsUpdateParams carry changed settings.",
       "type": "object",
-      "properties": { "settings": { "$ref": "#/$defs/Settings" } },
+      "properties": {
+        "settings": {
+          "$ref": "#/$defs/Settings"
+        }
+      },
       "required": ["settings"]
     },
     "FileChange": {
+      "description": "FileChange is one file event from VS Code's watcher.",
       "type": "object",
-      "properties": { "path": { "type": "string" }, "type": { "enum": ["changed", "created", "deleted"] } },
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "type": {
+          "enum": ["changed", "created", "deleted"]
+        }
+      },
       "required": ["path", "type"]
     },
     "DidChangeFilesParams": {
-      "description": "Host -> daemon: file events from VS Code's watcher, a fast path ahead of the daemon's own watcher.",
+      "description": "DidChangeFilesParams forward file events from the host, a fast path ahead of the daemon's own watcher.",
       "type": "object",
-      "properties": { "changes": { "type": "array", "items": { "$ref": "#/$defs/FileChange" } } },
+      "properties": {
+        "changes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/FileChange"
+          }
+        }
+      },
       "required": ["changes"]
     },
     "ParseParams": {
+      "description": "ParseParams ask the daemon to parse the query box.",
       "type": "object",
-      "properties": { "text": { "type": "string" }, "cursor": { "type": "integer" } },
+      "properties": {
+        "text": {
+          "type": "string"
+        },
+        "cursor": {
+          "type": "integer"
+        }
+      },
       "required": ["text", "cursor"]
     },
     "ParseResult": {
+      "description": "ParseResult is the parsed query plus completions at the cursor.",
       "type": "object",
       "properties": {
-        "query": { "$ref": "#/$defs/ParsedQuery" },
-        "completions": { "type": "array", "items": { "$ref": "#/$defs/Completion" } }
+        "query": {
+          "$ref": "#/$defs/ParsedQuery"
+        },
+        "completions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Completion"
+          }
+        }
       },
       "required": ["query", "completions"]
     },
     "SearchStartParams": {
+      "description": "SearchStartParams start (or page) a search; the daemon re-parses the text itself.",
       "type": "object",
-      "properties": { "searchId": { "type": "string" }, "text": { "type": "string" }, "cursor": { "type": "string" } },
+      "properties": {
+        "searchId": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        },
+        "cursor": {
+          "type": "string"
+        }
+      },
       "required": ["searchId", "text"]
     },
     "SearchResult": {
+      "description": "SearchResult ends a search after its batches.",
       "type": "object",
       "properties": {
-        "total": { "type": "integer" },
-        "truncated": { "type": "boolean" },
-        "nextCursor": { "type": "string" },
-        "hidden": { "type": "array", "items": { "$ref": "#/$defs/HiddenNote" } },
-        "ms": { "type": "integer" }
+        "total": {
+          "type": "integer"
+        },
+        "truncated": {
+          "type": "boolean"
+        },
+        "nextCursor": {
+          "type": "string"
+        },
+        "hidden": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/HiddenNote"
+          }
+        },
+        "ms": {
+          "type": "integer"
+        }
       },
       "required": ["total", "truncated", "hidden", "ms"]
     },
     "SearchBatchParams": {
+      "description": "SearchBatchParams stream up to 200 results of a running search.",
       "type": "object",
       "properties": {
-        "searchId": { "type": "string" },
-        "items": { "type": "array", "items": { "$ref": "#/$defs/ResultItem" } }
+        "searchId": {
+          "type": "string"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ResultItem"
+          }
+        }
       },
       "required": ["searchId", "items"]
     },
     "PreviewParams": {
+      "description": "PreviewParams ask for the preview of a result.",
       "type": "object",
-      "properties": { "ref": { "type": "string" }, "contextLines": { "type": "integer" } },
+      "properties": {
+        "ref": {
+          "type": "string"
+        },
+        "contextLines": {
+          "type": "integer"
+        }
+      },
       "required": ["ref", "contextLines"]
     },
     "OpenResolveParams": {
+      "description": "OpenResolveParams ask where a result opens.",
       "type": "object",
-      "properties": { "ref": { "type": "string" } },
+      "properties": {
+        "ref": {
+          "type": "string"
+        }
+      },
       "required": ["ref"]
     },
     "IndexStatusResult": {
+      "description": "IndexStatusResult is the indexing state of every repo.",
       "type": "object",
-      "properties": { "repos": { "type": "array", "items": { "$ref": "#/$defs/RepoStatus" } } },
+      "properties": {
+        "repos": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/RepoStatus"
+          }
+        }
+      },
       "required": ["repos"]
     },
     "RebuildParams": {
-      "type": "object",
-      "properties": { "repoId": { "type": "string" } },
-      "required": []
-    },
-    "Empty": { "type": "object", "properties": {}, "required": [] },
-
-    "Envelope": {
-      "description": "Contract 2 message envelope, sent with postMessage in both directions.",
+      "description": "RebuildParams name the repo to rebuild, or all when repoId is absent.",
       "type": "object",
       "properties": {
-        "v": { "const": 1 },
-        "type": { "type": "string" },
-        "seq": { "type": "integer" },
-        "payload": { "type": "object", "x-ts-type": "unknown", "x-go-type": "json.RawMessage" }
+        "repoId": {
+          "type": "string"
+        }
+      },
+      "required": []
+    },
+    "Empty": {
+      "description": "Empty is a message with no fields.",
+      "type": "object",
+      "properties": {},
+      "required": []
+    },
+    "Envelope": {
+      "description": "Envelope wraps every Contract 2 message in both directions.",
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 1
+        },
+        "type": {
+          "type": "string"
+        },
+        "seq": {
+          "type": "integer"
+        },
+        "payload": {
+          "type": "object",
+          "x-ts-type": "unknown",
+          "x-go-type": "json.RawMessage"
+        }
       },
       "required": ["v", "type", "payload"]
     },
     "QueryChangedMsg": {
+      "description": "QueryChangedMsg reports the query box after the typing delay.",
       "type": "object",
-      "properties": { "text": { "type": "string" }, "cursor": { "type": "integer" }, "seq": { "type": "integer" } },
+      "properties": {
+        "text": {
+          "type": "string"
+        },
+        "cursor": {
+          "type": "integer"
+        },
+        "seq": {
+          "type": "integer"
+        }
+      },
       "required": ["text", "cursor", "seq"]
     },
     "ResultSelectMsg": {
+      "description": "ResultSelectMsg asks for a result's preview.",
       "type": "object",
-      "properties": { "ref": { "type": "string" } },
+      "properties": {
+        "ref": {
+          "type": "string"
+        }
+      },
       "required": ["ref"]
     },
     "ResultOpenMsg": {
+      "description": "ResultOpenMsg opens a result in an editor.",
       "type": "object",
-      "properties": { "ref": { "type": "string" }, "where": { "enum": ["current", "side"] } },
+      "properties": {
+        "ref": {
+          "type": "string"
+        },
+        "where": {
+          "$ref": "#/$defs/OpenWhere"
+        }
+      },
       "required": ["ref", "where"]
     },
     "ResultsMoreMsg": {
+      "description": "ResultsMoreMsg loads the next page of results.",
       "type": "object",
-      "properties": { "searchId": { "type": "string" }, "cursor": { "type": "string" } },
+      "properties": {
+        "searchId": {
+          "type": "string"
+        },
+        "cursor": {
+          "type": "string"
+        }
+      },
       "required": ["searchId", "cursor"]
     },
     "ParseResultMsg": {
+      "description": "ParseResultMsg drives the chips, diagnostics, completions and toggles.",
       "type": "object",
       "properties": {
-        "seq": { "type": "integer" },
-        "query": { "$ref": "#/$defs/ParsedQuery" },
-        "completions": { "type": "array", "items": { "$ref": "#/$defs/Completion" } }
+        "seq": {
+          "type": "integer"
+        },
+        "query": {
+          "$ref": "#/$defs/ParsedQuery"
+        },
+        "completions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Completion"
+          }
+        }
       },
       "required": ["seq", "query", "completions"]
     },
     "SearchBatchMsg": {
+      "description": "SearchBatchMsg appends streamed results.",
       "type": "object",
       "properties": {
-        "seq": { "type": "integer" },
-        "searchId": { "type": "string" },
-        "items": { "type": "array", "items": { "$ref": "#/$defs/ResultItem" } }
+        "seq": {
+          "type": "integer"
+        },
+        "searchId": {
+          "type": "string"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ResultItem"
+          }
+        }
       },
       "required": ["seq", "searchId", "items"]
     },
     "SearchDoneMsg": {
+      "description": "SearchDoneMsg ends a search: counts, hidden notes, Load more and errors.",
       "type": "object",
       "properties": {
-        "seq": { "type": "integer" },
-        "searchId": { "type": "string" },
-        "total": { "type": "integer" },
-        "truncated": { "type": "boolean" },
-        "nextCursor": { "type": "string" },
-        "hidden": { "type": "array", "items": { "$ref": "#/$defs/HiddenNote" } },
-        "ms": { "type": "integer" },
-        "error": { "type": "string" }
+        "seq": {
+          "type": "integer"
+        },
+        "searchId": {
+          "type": "string"
+        },
+        "total": {
+          "type": "integer"
+        },
+        "truncated": {
+          "type": "boolean"
+        },
+        "nextCursor": {
+          "type": "string"
+        },
+        "hidden": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/HiddenNote"
+          }
+        },
+        "ms": {
+          "type": "integer"
+        },
+        "error": {
+          "type": "string"
+        }
       },
       "required": ["seq", "searchId", "total", "truncated", "hidden", "ms"]
     },
     "PreviewResultMsg": {
+      "description": "PreviewResultMsg fills the preview pane; stale means the result no longer exists.",
       "type": "object",
       "properties": {
-        "ref": { "type": "string" },
-        "preview": { "oneOf": [{ "$ref": "#/$defs/Preview" }, { "type": "null" }] },
-        "stale": { "type": "boolean" }
+        "ref": {
+          "type": "string"
+        },
+        "preview": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/Preview"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "stale": {
+          "type": "boolean"
+        }
       },
       "required": ["ref", "preview"]
     },
     "IndexStatusMsg": {
+      "description": "IndexStatusMsg drives the header dot and indexing banners.",
       "type": "object",
-      "properties": { "repos": { "type": "array", "items": { "$ref": "#/$defs/RepoStatus" } } },
+      "properties": {
+        "repos": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/RepoStatus"
+          }
+        }
+      },
       "required": ["repos"]
     },
     "StateRestoreMsg": {
+      "description": "StateRestoreMsg restores the panel's query, recent queries and settings.",
       "type": "object",
       "properties": {
-        "text": { "type": "string" },
-        "recent": { "type": "array", "items": { "type": "string" } },
-        "settings": { "$ref": "#/$defs/UiSettings" }
+        "text": {
+          "type": "string"
+        },
+        "recent": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "settings": {
+          "$ref": "#/$defs/UiSettings"
+        }
       },
       "required": ["text", "recent"]
     },
     "UiSettings": {
-      "description": "The UI-facing settings the host forwards to the webview.",
+      "description": "UiSettings are the UI-facing settings the host forwards to the webview.",
       "type": "object",
       "properties": {
-        "typingDelayMs": { "type": "integer" },
-        "openTrigger": { "enum": ["doubleClick", "singleClick"] },
-        "preview": { "type": "boolean" },
-        "showParsedQuery": { "type": "boolean" },
-        "caseSensitive": { "type": "boolean" }
+        "typingDelayMs": {
+          "type": "integer"
+        },
+        "openTrigger": {
+          "enum": ["doubleClick", "singleClick"]
+        },
+        "preview": {
+          "type": "boolean"
+        },
+        "showParsedQuery": {
+          "type": "boolean"
+        },
+        "caseSensitive": {
+          "type": "boolean"
+        }
       },
       "required": ["typingDelayMs", "openTrigger", "preview", "showParsedQuery", "caseSensitive"]
     },
     "BannerMsg": {
-      "description": "Daemon health banner (failure table): restarting, stopped, or cleared.",
+      "description": "BannerMsg reports daemon health (failure table): restarting, stopped or cleared.",
       "type": "object",
       "properties": {
-        "state": { "enum": ["ok", "restarting", "stopped", "protocolMismatch"] },
-        "message": { "type": "string" }
+        "state": {
+          "enum": ["ok", "restarting", "stopped", "protocolMismatch"]
+        },
+        "message": {
+          "type": "string"
+        }
       },
       "required": ["state"]
     }
   },
-
   "x-rpc-methods": {
-    "initialize": { "kind": "request", "params": "InitializeParams", "result": "InitializeResult" },
-    "workspace/setRoots": { "kind": "notification", "params": "SetRootsParams" },
-    "workspace/didChangeFiles": { "kind": "notification", "params": "DidChangeFilesParams" },
-    "settings/update": { "kind": "notification", "params": "SettingsUpdateParams" },
-    "query/parse": { "kind": "request", "params": "ParseParams", "result": "ParseResult" },
-    "search/start": { "kind": "request", "params": "SearchStartParams", "result": "SearchResult" },
-    "search/batch": { "kind": "notification", "params": "SearchBatchParams", "direction": "daemon->host" },
-    "$/cancelRequest": { "kind": "notification", "params": "Empty" },
-    "preview/get": { "kind": "request", "params": "PreviewParams", "result": "Preview" },
-    "open/resolve": { "kind": "request", "params": "OpenResolveParams", "result": "OpenTarget" },
-    "index/status": { "kind": "request", "params": "Empty", "result": "IndexStatusResult" },
-    "index/progress": { "kind": "notification", "params": "IndexStatusResult", "direction": "daemon->host" },
-    "index/rebuild": { "kind": "request", "params": "RebuildParams", "result": "Empty" },
-    "shutdown": { "kind": "request", "params": "Empty", "result": "Empty" },
-    "exit": { "kind": "notification", "params": "Empty" }
+    "initialize": {
+      "kind": "request",
+      "params": "InitializeParams",
+      "result": "InitializeResult"
+    },
+    "workspace/setRoots": {
+      "kind": "notification",
+      "params": "SetRootsParams"
+    },
+    "workspace/didChangeFiles": {
+      "kind": "notification",
+      "params": "DidChangeFilesParams"
+    },
+    "settings/update": {
+      "kind": "notification",
+      "params": "SettingsUpdateParams"
+    },
+    "query/parse": {
+      "kind": "request",
+      "params": "ParseParams",
+      "result": "ParseResult"
+    },
+    "search/start": {
+      "kind": "request",
+      "params": "SearchStartParams",
+      "result": "SearchResult"
+    },
+    "search/batch": {
+      "kind": "notification",
+      "params": "SearchBatchParams",
+      "direction": "daemon->host"
+    },
+    "$/cancelRequest": {
+      "kind": "notification",
+      "params": "Empty"
+    },
+    "preview/get": {
+      "kind": "request",
+      "params": "PreviewParams",
+      "result": "Preview"
+    },
+    "open/resolve": {
+      "kind": "request",
+      "params": "OpenResolveParams",
+      "result": "OpenTarget"
+    },
+    "index/status": {
+      "kind": "request",
+      "params": "Empty",
+      "result": "IndexStatusResult"
+    },
+    "index/progress": {
+      "kind": "notification",
+      "params": "IndexStatusResult",
+      "direction": "daemon->host"
+    },
+    "index/rebuild": {
+      "kind": "request",
+      "params": "RebuildParams",
+      "result": "Empty"
+    },
+    "shutdown": {
+      "kind": "request",
+      "params": "Empty",
+      "result": "Empty"
+    },
+    "exit": {
+      "kind": "notification",
+      "params": "Empty"
+    }
   },
-
   "x-webview-messages": {
-    "query.changed": { "direction": "webview->host", "payload": "QueryChangedMsg" },
-    "result.select": { "direction": "webview->host", "payload": "ResultSelectMsg" },
-    "result.open": { "direction": "webview->host", "payload": "ResultOpenMsg" },
-    "results.more": { "direction": "webview->host", "payload": "ResultsMoreMsg" },
-    "panel.close": { "direction": "webview->host", "payload": "Empty" },
-    "help.open": { "direction": "webview->host", "payload": "Empty" },
-    "settings.open": { "direction": "webview->host", "payload": "Empty" },
-    "ready": { "direction": "webview->host", "payload": "Empty" },
-    "daemon.restart": { "direction": "webview->host", "payload": "Empty" },
-    "parse.result": { "direction": "host->webview", "payload": "ParseResultMsg" },
-    "search.batch": { "direction": "host->webview", "payload": "SearchBatchMsg" },
-    "search.done": { "direction": "host->webview", "payload": "SearchDoneMsg" },
-    "preview.result": { "direction": "host->webview", "payload": "PreviewResultMsg" },
-    "index.status": { "direction": "host->webview", "payload": "IndexStatusMsg" },
-    "state.restore": { "direction": "host->webview", "payload": "StateRestoreMsg" },
-    "banner": { "direction": "host->webview", "payload": "BannerMsg" },
-    "focus": { "direction": "host->webview", "payload": "Empty" }
+    "query.changed": {
+      "direction": "webview->host",
+      "payload": "QueryChangedMsg"
+    },
+    "result.select": {
+      "direction": "webview->host",
+      "payload": "ResultSelectMsg"
+    },
+    "result.open": {
+      "direction": "webview->host",
+      "payload": "ResultOpenMsg"
+    },
+    "results.more": {
+      "direction": "webview->host",
+      "payload": "ResultsMoreMsg"
+    },
+    "panel.close": {
+      "direction": "webview->host",
+      "payload": "Empty"
+    },
+    "help.open": {
+      "direction": "webview->host",
+      "payload": "Empty"
+    },
+    "settings.open": {
+      "direction": "webview->host",
+      "payload": "Empty"
+    },
+    "ready": {
+      "direction": "webview->host",
+      "payload": "Empty"
+    },
+    "daemon.restart": {
+      "direction": "webview->host",
+      "payload": "Empty"
+    },
+    "parse.result": {
+      "direction": "host->webview",
+      "payload": "ParseResultMsg"
+    },
+    "search.batch": {
+      "direction": "host->webview",
+      "payload": "SearchBatchMsg"
+    },
+    "search.done": {
+      "direction": "host->webview",
+      "payload": "SearchDoneMsg"
+    },
+    "preview.result": {
+      "direction": "host->webview",
+      "payload": "PreviewResultMsg"
+    },
+    "index.status": {
+      "direction": "host->webview",
+      "payload": "IndexStatusMsg"
+    },
+    "state.restore": {
+      "direction": "host->webview",
+      "payload": "StateRestoreMsg"
+    },
+    "banner": {
+      "direction": "host->webview",
+      "payload": "BannerMsg"
+    },
+    "focus": {
+      "direction": "host->webview",
+      "payload": "Empty"
+    }
+  },
+  "x-error-codes": {
+    "RequestCancelled": {
+      "code": -32800,
+      "when": "A newer keystroke cancelled this request"
+    },
+    "QueryInvalid": {
+      "code": 1001,
+      "when": "search/start got a query with error diagnostics"
+    },
+    "IndexNotReady": {
+      "code": 1002,
+      "when": "A repo has no index yet; partial results still stream"
+    },
+    "RefStale": {
+      "code": 1003,
+      "when": "The file or commit behind a ref is gone"
+    },
+    "IndexCorrupt": {
+      "code": 1004,
+      "when": "A shard or database failed a check; a rebuild starts on its own"
+    },
+    "Overloaded": {
+      "code": 1005,
+      "when": "The search hit its time budget and returned what it had"
+    }
   }
 }

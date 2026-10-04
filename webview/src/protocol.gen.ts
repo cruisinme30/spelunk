@@ -3,43 +3,66 @@
 
 export const PROTOCOL_VERSION = 1;
 
-/** UTF-16 offsets into the raw query. */
+/** Application error codes carried in JSON-RPC error.code (Contract 3). */
+export const ErrorCodes = {
+  /** A newer keystroke cancelled this request. */
+  RequestCancelled: -32800,
+  /** search/start got a query with error diagnostics. */
+  QueryInvalid: 1001,
+  /** A repo has no index yet; partial results still stream. */
+  IndexNotReady: 1002,
+  /** The file or commit behind a ref is gone. */
+  RefStale: 1003,
+  /** A shard or database failed a check; a rebuild starts on its own. */
+  IndexCorrupt: 1004,
+  /** The search hit its time budget and returned what it had. */
+  Overloaded: 1005,
+} as const;
+
+/** Span is a range of UTF-16 offsets into the raw query text. */
 export interface Span {
   start: number;
   end: number;
 }
 
-/** UTF-16 offsets in the shown text. */
+/** Range is a range of UTF-16 offsets into the text shown on screen. */
 export interface Range {
   start: number;
   end: number;
 }
 
-/** A matched range plus which text term matched, for colors. */
+/** Hit is a matched Range plus the text term that matched, which picks its highlight color. */
 export interface Hit {
   start: number;
   end: number;
   termIndex: number;
 }
 
+/** OpName is an operator's name, the part before the colon. */
 export type OpName = "f" | "repo" | "lang" | "type" | "sym" | "author" | "msg" | "since" | "case" | "count";
 
+/** Match says how a value was written: bare (literal), quoted (phrase) or /regex/. */
 export type Match = "literal" | "phrase" | "regex";
 
+/** Mode is what a query searches: current files or Git history. */
 export type Mode = "workingTree" | "history";
 
+/** Severity is how serious a Diagnostic is; only errors stop a search. */
 export type Severity = "error" | "warning";
 
+/** TextEdit replaces a span of the query text. */
 export interface TextEdit {
   span: Span;
   newText: string;
 }
 
+/** Fix is a titled set of edits that repairs or rewrites the query. */
 export interface Fix {
   title: string;
   edits: TextEdit[];
 }
 
+/** Diagnostic is a problem the parser found, with fixes the user can apply. */
 export interface Diagnostic {
   severity: Severity;
   code: string;
@@ -48,10 +71,12 @@ export interface Diagnostic {
   fixes: Fix[];
 }
 
+/** Resolved is a friendlier label for an operator value, such as an author's full name. */
 export interface Resolved {
   label: string;
 }
 
+/** Node is one node of the parsed query tree. */
 export type Node =
   | {
       kind: "and" | "or";
@@ -79,12 +104,14 @@ export type Node =
       resolved?: Resolved;
     };
 
+/** Globals are the query-wide operators case:, count: and type:, or null when absent. */
 export interface Globals {
   case: "yes" | "no" | null;
   count: number | "all" | null;
   type: "file" | "code" | "commit" | null;
 }
 
+/** ParsedQuery is the parser's output (Contract 1). */
 export interface ParsedQuery {
   version: 1;
   raw: string;
@@ -94,14 +121,14 @@ export interface ParsedQuery {
   diagnostics: Diagnostic[];
 }
 
-/** A workspace folder. id = first 12 hex of sha256(path). */
+/** Root is a workspace folder; its id is the first 12 hex digits of sha256(path). */
 export interface Root {
   id: string;
   path: string;
   name: string;
 }
 
-/** The unifiedSearch.* settings the daemon needs (Contract 5). */
+/** Settings are the unifiedSearch.* settings the daemon needs (Contract 5). */
 export interface Settings {
   caseSensitive: boolean;
   defaultCount: number;
@@ -113,17 +140,20 @@ export interface Settings {
   location: string;
 }
 
+/** LastCommit is the newest commit that touched a file. */
 export interface LastCommit {
   sha: string;
   author: string;
   at: string;
 }
 
+/** Person is a commit author. */
 export interface Person {
   name: string;
   email: string;
 }
 
+/** FileStat is one file changed by a commit. */
 export interface FileStat {
   path: string;
   added: number;
@@ -131,8 +161,10 @@ export interface FileStat {
   hiddenByFilter?: boolean;
 }
 
+/** SymbolKind is what a symbol definition is. */
 export type SymbolKind = "class" | "interface" | "function" | "method" | "type" | "other";
 
+/** ResultItem is one search result: a file name, a code line, a symbol or a commit. */
 export type ResultItem =
   | {
       kind: "file";
@@ -176,16 +208,19 @@ export type ResultItem =
       subjectHits: Range[];
     };
 
+/** LineHits are the matches on one preview line. */
 export interface LineHits {
   line: number;
   ranges: Hit[];
 }
 
+/** OutlineSymbol is a definition shown in a file preview's outline. */
 export interface OutlineSymbol {
   name: string;
   line: number;
 }
 
+/** DiffLine is one line of a diff hunk. */
 export interface DiffLine {
   kind: "ctx" | "add" | "del";
   oldNo?: number;
@@ -194,12 +229,14 @@ export interface DiffLine {
   hits: Hit[];
 }
 
+/** Hunk is one hunk of a commit diff. */
 export interface Hunk {
   path: string;
   header: string;
   lines: DiffLine[];
 }
 
+/** Preview is the right-hand pane's content for a selected result. */
 export type Preview =
   | {
       kind: "file";
@@ -222,13 +259,17 @@ export type Preview =
       hunks: Hunk[];
     };
 
+/** HiddenNote counts results a filter removed, with a fix that removes the filter. */
 export interface HiddenNote {
   reason: "not" | "since" | "case" | "type" | "pathFilter";
+  /** The filter as typed, e.g. -f:vendor/ */
+  filter: string;
   count: number;
   unit: "matches" | "files" | "commits";
   undo: Fix;
 }
 
+/** Completion is an autocomplete suggestion; accepting it applies its edit. */
 export interface Completion {
   label: string;
   detail: string;
@@ -236,8 +277,10 @@ export interface Completion {
   group: "operator" | "author" | "repo" | "lang" | "value";
 }
 
+/** IndexState is where one index of a repo stands. */
 export type IndexState = "ready" | "indexing" | "queued" | "error" | "off";
 
+/** RepoStatus is the indexing state of one repo. */
 export interface RepoStatus {
   repoId: string;
   name: string;
@@ -247,7 +290,7 @@ export interface RepoStatus {
   message?: string;
 }
 
-/** Either a file position (path, line, column, length) or a commit (repoId, sha, path). */
+/** OpenTarget is where opening a result goes: a file position (path, line, column, length) or a commit (repoId, sha). */
 export interface OpenTarget {
   path?: string;
   line?: number;
@@ -257,51 +300,63 @@ export interface OpenTarget {
   sha?: string;
 }
 
+/** OpenWhere is which editor group a result opens in. */
+export type OpenWhere = "current" | "side";
+
+/** InitializeParams start the daemon. */
 export interface InitializeParams {
   protocol: number;
   roots: Root[];
   settings: Settings;
 }
 
+/** InitializeResult reports the daemon's version and protocol. */
 export interface InitializeResult {
   daemonVersion: string;
   protocol: number;
 }
 
+/** SetRootsParams replace the workspace folders. */
 export interface SetRootsParams {
   roots: Root[];
 }
 
+/** SettingsUpdateParams carry changed settings. */
 export interface SettingsUpdateParams {
   settings: Settings;
 }
 
+/** FileChange is one file event from VS Code's watcher. */
 export interface FileChange {
   path: string;
   type: "changed" | "created" | "deleted";
 }
 
-/** Host -> daemon: file events from VS Code's watcher, a fast path ahead of the daemon's own watcher. */
+/** DidChangeFilesParams forward file events from the host, a fast path ahead of the daemon's own watcher. */
 export interface DidChangeFilesParams {
   changes: FileChange[];
 }
 
+/** ParseParams ask the daemon to parse the query box. */
 export interface ParseParams {
   text: string;
   cursor: number;
 }
 
+/** ParseResult is the parsed query plus completions at the cursor. */
 export interface ParseResult {
   query: ParsedQuery;
   completions: Completion[];
 }
 
+/** SearchStartParams start (or page) a search; the daemon re-parses the text itself. */
 export interface SearchStartParams {
   searchId: string;
   text: string;
   cursor?: string;
 }
 
+/** SearchResult ends a search after its batches. */
 export interface SearchResult {
   total: number;
   truncated: boolean;
@@ -310,31 +365,37 @@ export interface SearchResult {
   ms: number;
 }
 
+/** SearchBatchParams stream up to 200 results of a running search. */
 export interface SearchBatchParams {
   searchId: string;
   items: ResultItem[];
 }
 
+/** PreviewParams ask for the preview of a result. */
 export interface PreviewParams {
   ref: string;
   contextLines: number;
 }
 
+/** OpenResolveParams ask where a result opens. */
 export interface OpenResolveParams {
   ref: string;
 }
 
+/** IndexStatusResult is the indexing state of every repo. */
 export interface IndexStatusResult {
   repos: RepoStatus[];
 }
 
+/** RebuildParams name the repo to rebuild, or all when repoId is absent. */
 export interface RebuildParams {
   repoId?: string;
 }
 
+/** Empty is a message with no fields. */
 export type Empty = Record<string, never>;
 
-/** Contract 2 message envelope, sent with postMessage in both directions. */
+/** Envelope wraps every Contract 2 message in both directions. */
 export interface Envelope {
   v: 1;
   type: string;
@@ -342,38 +403,45 @@ export interface Envelope {
   payload: unknown;
 }
 
+/** QueryChangedMsg reports the query box after the typing delay. */
 export interface QueryChangedMsg {
   text: string;
   cursor: number;
   seq: number;
 }
 
+/** ResultSelectMsg asks for a result's preview. */
 export interface ResultSelectMsg {
   ref: string;
 }
 
+/** ResultOpenMsg opens a result in an editor. */
 export interface ResultOpenMsg {
   ref: string;
-  where: "current" | "side";
+  where: OpenWhere;
 }
 
+/** ResultsMoreMsg loads the next page of results. */
 export interface ResultsMoreMsg {
   searchId: string;
   cursor: string;
 }
 
+/** ParseResultMsg drives the chips, diagnostics, completions and toggles. */
 export interface ParseResultMsg {
   seq: number;
   query: ParsedQuery;
   completions: Completion[];
 }
 
+/** SearchBatchMsg appends streamed results. */
 export interface SearchBatchMsg {
   seq: number;
   searchId: string;
   items: ResultItem[];
 }
 
+/** SearchDoneMsg ends a search: counts, hidden notes, Load more and errors. */
 export interface SearchDoneMsg {
   seq: number;
   searchId: string;
@@ -385,23 +453,26 @@ export interface SearchDoneMsg {
   error?: string;
 }
 
+/** PreviewResultMsg fills the preview pane; stale means the result no longer exists. */
 export interface PreviewResultMsg {
   ref: string;
   preview: Preview | null;
   stale?: boolean;
 }
 
+/** IndexStatusMsg drives the header dot and indexing banners. */
 export interface IndexStatusMsg {
   repos: RepoStatus[];
 }
 
+/** StateRestoreMsg restores the panel's query, recent queries and settings. */
 export interface StateRestoreMsg {
   text: string;
   recent: string[];
   settings?: UiSettings;
 }
 
-/** The UI-facing settings the host forwards to the webview. */
+/** UiSettings are the UI-facing settings the host forwards to the webview. */
 export interface UiSettings {
   typingDelayMs: number;
   openTrigger: "doubleClick" | "singleClick";
@@ -410,7 +481,7 @@ export interface UiSettings {
   caseSensitive: boolean;
 }
 
-/** Daemon health banner (failure table): restarting, stopped, or cleared. */
+/** BannerMsg reports daemon health (failure table): restarting, stopped or cleared. */
 export interface BannerMsg {
   state: "ok" | "restarting" | "stopped" | "protocolMismatch";
   message?: string;

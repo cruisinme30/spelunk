@@ -1,45 +1,68 @@
 #!/usr/bin/env node
-// Generates TypeScript and Go types from protocol.schema.json.
+// Generates the TypeScript and Go types for every cross-process message from
+// protocol.schema.json (see docs/adr/0002-json-schema-as-protocol-source.md).
+//
 // Usage: node protocol/gen.mjs [--check]
-// --check exits non-zero when a generated file is out of date (CI).
-import { readFileSync, writeFileSync, existsSync } from "node:fs";
-import { dirname, join } from "node:path";
+//   --check writes nothing and exits non-zero when a generated file is stale.
+//
+// Only the schema features the protocol uses are supported: objects, arrays,
+// string enums and consts, nullable alternatives (oneOf [X, null]), and unions
+// of objects discriminated by a `kind` property. Anything else throws.
 import { execFileSync } from "node:child_process";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const repo = join(here, "..");
+const repoRoot = join(here, "..");
 const schema = JSON.parse(readFileSync(join(here, "protocol.schema.json"), "utf8"));
-const defs = schema.$defs;
-const version = schema["x-protocol-version"];
-const methods = schema["x-rpc-methods"];
-const messages = schema["x-webview-messages"];
+const definitions = schema.$defs;
+const protocolVersion = schema["x-protocol-version"];
+const rpcMethods = schema["x-rpc-methods"];
+const webviewMessages = schema["x-webview-messages"];
+const errorCodes = schema["x-error-codes"];
 
-const refName = (r) => r.replace("#/$defs/", "");
-const isNull = (s) => s && s.type === "null";
-const nullableInner = (s) => {
-  const alts = s.oneOf || s.anyOf;
-  if (!alts) return null;
-  const non = alts.filter((a) => !isNull(a));
-  return non.length !== alts.length ? non : null;
-};
-const isObjUnion = (s) => (s.oneOf || []).length > 1 && s.oneOf.every((v) => v.type === "object" && v.properties?.kind);
-const pascal = (s) => s.replace(/(^|[^A-Za-z0-9]+)([A-Za-z0-9])/g, (_, __, c) => c.toUpperCase());
-const goField = (s) => {
-  const p = pascal(s);
-  return p.replace(/Id$/, "ID").replace(/^Id$/, "ID").replace(/Kb$/, "KB").replace(/Sha$/, "SHA").replace(/Ms$/, "Ms");
-};
+/** Go initialisms keep one case (Go Code Review Comments). */
+const GO_INITIALISMS = { Id: "ID", Kb: "KB", Sha: "SHA", Url: "URL", Uri: "URI", Json: "JSON" };
 
-// ---------------- TypeScript ----------------
-function tsType(s) {
-  if (s.$ref) return refName(s.$ref);
-  if (s["x-ts-type"]) return s["x-ts-type"];
-  const nn = nullableInner(s);
-  if (nn) return [...nn.map(tsType), "null"].join(" | ");
-  if (s.oneOf || s.anyOf) return (s.oneOf || s.anyOf).map(tsType).join(" | ");
-  if (s.const !== undefined) return JSON.stringify(s.const);
-  if (s.enum) return s.enum.map((e) => JSON.stringify(e)).join(" | ");
-  switch (s.type) {
+// ------------------------------------------------------------ schema helpers
+
+const refName = (ref) => ref.replace("#/$defs/", "");
+const isNullSchema = (node) => node?.type === "null";
+
+/** For `oneOf: [X, {type: null}]`, the non-null alternatives; otherwise null. */
+function nonNullAlternatives(node) {
+  const alternatives = node.oneOf ?? node.anyOf;
+  if (!alternatives) return null;
+  const nonNull = alternatives.filter((alt) => !isNullSchema(alt));
+  return nonNull.length !== alternatives.length ? nonNull : null;
+}
+
+/** A union of objects told apart by their `kind` property. */
+function isKindUnion(node) {
+  const variants = node.oneOf ?? [];
+  return variants.length > 1 && variants.every((v) => v.type === "object" && v.properties?.kind);
+}
+
+const pascalCase = (text) => text.replace(/(^|[^A-Za-z0-9]+)([A-Za-z0-9])/g, (_, _sep, letter) => letter.toUpperCase());
+
+/** A JSON property name as a Go field name: repoId -> RepoID. */
+function goFieldName(property) {
+  const words = pascalCase(property).match(/[A-Z][a-z0-9]*/g) ?? [pascalCase(property)];
+  return words.map((word) => GO_INITIALISMS[word] ?? word).join("");
+}
+
+// ------------------------------------------------------------ TypeScript
+
+function tsType(node) {
+  if (node.$ref) return refName(node.$ref);
+  if (node["x-ts-type"]) return node["x-ts-type"];
+  const nonNull = nonNullAlternatives(node);
+  if (nonNull) return [...nonNull.map(tsType), "null"].join(" | ");
+  if (node.oneOf || node.anyOf) return (node.oneOf ?? node.anyOf).map(tsType).join(" | ");
+  if (node.const !== undefined) return JSON.stringify(node.const);
+  if (node.enum) return node.enum.map((value) => JSON.stringify(value)).join(" | ");
+  switch (node.type) {
     case "string":
       return "string";
     case "integer":
@@ -50,86 +73,98 @@ function tsType(s) {
     case "null":
       return "null";
     case "array": {
-      const t = tsType(s.items);
-      return /[|&]/.test(t) ? `(${t})[]` : `${t}[]`;
+      const item = tsType(node.items);
+      return /[|&]/.test(item) ? `(${item})[]` : `${item}[]`;
     }
     case "object":
-      return tsObject(s, "  ");
+      return tsObjectLiteral(node, "  ");
   }
-  throw new Error("tsType: unsupported " + JSON.stringify(s));
+  throw new Error("tsType: unsupported schema " + JSON.stringify(node));
 }
-function tsObject(s, indent) {
-  const req = new Set(s.required || []);
-  const props = Object.entries(s.properties || {});
-  if (!props.length) return "Record<string, never>";
-  const lines = props.map(([k, v]) => `${indent}${k}${req.has(k) ? "" : "?"}: ${tsType(v)};`);
-  return `{\n${lines.join("\n")}\n${indent.slice(2)}}`;
+
+function tsObjectLiteral(node, indent) {
+  const required = new Set(node.required ?? []);
+  const properties = Object.entries(node.properties ?? {});
+  if (!properties.length) return "Record<string, never>";
+  const fields = properties.map(([name, property]) => {
+    const doc = property.description ? `${indent}/** ${property.description} */\n` : "";
+    return `${doc}${indent}${name}${required.has(name) ? "" : "?"}: ${tsType(property)};`;
+  });
+  return `{\n${fields.join("\n")}\n${indent.slice(2)}}`;
 }
-function genTS() {
-  const out = [
+
+function generateTypeScript() {
+  const lines = [
     "// Code generated by protocol/gen.mjs from protocol/protocol.schema.json. DO NOT EDIT.",
     "/* eslint-disable */",
     "",
-    `export const PROTOCOL_VERSION = ${version};`,
+    `export const PROTOCOL_VERSION = ${protocolVersion};`,
+    "",
+    "/** Application error codes carried in JSON-RPC error.code (Contract 3). */",
+    "export const ErrorCodes = {",
+    ...Object.entries(errorCodes).map(([name, { code, when }]) => `  /** ${when}. */\n  ${name}: ${code},`),
+    "} as const;",
     "",
   ];
-  for (const [name, s] of Object.entries(defs)) {
-    if (s.description) out.push(`/** ${s.description} */`);
-    if (s.type === "object" && !s["x-ts-type"]) {
-      const body = tsObject(s, "  ");
-      out.push(body.startsWith("{") ? `export interface ${name} ${body}` : `export type ${name} = ${body};`);
-    } else if (isObjUnion(s)) {
-      out.push(`export type ${name} =\n` + s.oneOf.map((v) => `  | ${tsObject(v, "      ")}`).join("\n") + ";");
+  for (const [name, node] of Object.entries(definitions)) {
+    lines.push(`/** ${node.description} */`);
+    if (node.type === "object" && !node["x-ts-type"]) {
+      const body = tsObjectLiteral(node, "  ");
+      lines.push(body.startsWith("{") ? `export interface ${name} ${body}` : `export type ${name} = ${body};`);
+    } else if (isKindUnion(node)) {
+      lines.push(
+        `export type ${name} =\n` + node.oneOf.map((v) => `  | ${tsObjectLiteral(v, "      ")}`).join("\n") + ";",
+      );
     } else {
-      out.push(`export type ${name} = ${tsType(s)};`);
+      lines.push(`export type ${name} = ${tsType(node)};`);
     }
-    out.push("");
+    lines.push("");
   }
-  out.push("/** Contract 3 requests: method -> [params, result]. */");
-  out.push("export interface RpcRequests {");
-  for (const [m, d] of Object.entries(methods))
-    if (d.kind === "request") out.push(`  ${JSON.stringify(m)}: [${d.params}, ${d.result}];`);
-  out.push("}", "");
-  out.push("/** Contract 3 notifications: method -> params. */");
-  out.push("export interface RpcNotifications {");
-  for (const [m, d] of Object.entries(methods))
-    if (d.kind === "notification") out.push(`  ${JSON.stringify(m)}: ${d.params};`);
-  out.push("}", "");
-  for (const [dir, iface] of [
+  lines.push("/** Contract 3 requests: method -> [params, result]. */", "export interface RpcRequests {");
+  for (const [method, entry] of Object.entries(rpcMethods)) {
+    if (entry.kind === "request") lines.push(`  ${JSON.stringify(method)}: [${entry.params}, ${entry.result}];`);
+  }
+  lines.push("}", "", "/** Contract 3 notifications: method -> params. */", "export interface RpcNotifications {");
+  for (const [method, entry] of Object.entries(rpcMethods)) {
+    if (entry.kind === "notification") lines.push(`  ${JSON.stringify(method)}: ${entry.params};`);
+  }
+  lines.push("}", "");
+  for (const [direction, interfaceName] of [
     ["webview->host", "WebviewToHost"],
     ["host->webview", "HostToWebview"],
   ]) {
-    out.push(`/** Contract 2 messages, ${dir}: type -> payload. */`);
-    out.push(`export interface ${iface} {`);
-    for (const [t, d] of Object.entries(messages))
-      if (d.direction === dir) out.push(`  ${JSON.stringify(t)}: ${d.payload};`);
-    out.push("}", "");
+    lines.push(`/** Contract 2 messages, ${direction}: type -> payload. */`, `export interface ${interfaceName} {`);
+    for (const [type, entry] of Object.entries(webviewMessages)) {
+      if (entry.direction === direction) lines.push(`  ${JSON.stringify(type)}: ${entry.payload};`);
+    }
+    lines.push("}", "");
   }
-  return out.join("\n");
+  return lines.join("\n");
 }
 
-// ---------------- Go ----------------
-const goNamed = new Set(); // defs that become named Go types
-for (const [n, s] of Object.entries(defs)) goNamed.add(n);
+// ------------------------------------------------------------ Go
 
-function goType(s, { optional = false } = {}) {
-  if (s["x-go-type"]) return s["x-go-type"];
-  if (s.$ref) {
-    const n = refName(s.$ref);
-    const d = defs[n];
-    const isStruct = d.type === "object" || isObjUnion(d);
-    return optional && isStruct ? "*" + n : n;
+const isGoStruct = (definition) => definition.type === "object" || isKindUnion(definition);
+const stripPointer = (goType) => goType.replace(/^\*/, "");
+
+/** The Go type for a schema node. Optional structs become pointers so they can be omitted. */
+function goType(node, { optional = false } = {}) {
+  if (node["x-go-type"]) return node["x-go-type"];
+  if (node.$ref) {
+    const name = refName(node.$ref);
+    return optional && isGoStruct(definitions[name]) ? "*" + name : name;
   }
-  const nn = nullableInner(s);
-  if (nn) {
-    if (nn.length !== 1) return "any";
-    const t = goType(nn[0]);
-    return t.startsWith("*") || t.startsWith("[]") || t === "any" ? t : "*" + t;
+  const nonNull = nonNullAlternatives(node);
+  if (nonNull) {
+    if (nonNull.length !== 1) return "any";
+    const inner = goType(nonNull[0]);
+    const alreadyNullable = inner.startsWith("*") || inner.startsWith("[]") || inner === "any";
+    return alreadyNullable ? inner : "*" + inner;
   }
-  if (s.oneOf || s.anyOf) return "any";
-  if (s.const !== undefined) return typeof s.const === "number" ? "int" : "string";
-  if (s.enum) return "string";
-  switch (s.type) {
+  if (node.oneOf || node.anyOf) return "any";
+  if (node.const !== undefined) return typeof node.const === "number" ? "int" : "string";
+  if (node.enum) return "string";
+  switch (node.type) {
     case "string":
       return "string";
     case "integer":
@@ -139,23 +174,128 @@ function goType(s, { optional = false } = {}) {
     case "boolean":
       return "bool";
     case "array":
-      return "[]" + goType(s.items);
+      return "[]" + goType(node.items);
     case "object":
       return "map[string]any";
   }
-  throw new Error("goType: unsupported " + JSON.stringify(s));
+  throw new Error("goType: unsupported schema " + JSON.stringify(node));
 }
-const zeroCheck = (t, expr) => {
-  if (t.startsWith("*") || t === "any" || t.startsWith("map[")) return `${expr} != nil`;
-  if (t.startsWith("[]")) return `len(${expr}) > 0`;
-  if (t === "string" || (/^[A-Z]/.test(t) && defs[t] && defs[t].type === "string")) return `${expr} != ""`;
-  if (t === "int" || t === "float64") return `${expr} != 0`;
-  if (t === "bool") return expr;
-  return null;
-};
 
-function genGo() {
-  const out = [
+/** A Go expression that is true when `fieldExpr` holds a non-zero value, or null if always present. */
+function nonZeroCheck(goTypeName, fieldExpr) {
+  if (goTypeName.startsWith("*") || goTypeName === "any" || goTypeName.startsWith("map[")) return `${fieldExpr} != nil`;
+  if (goTypeName.startsWith("[]")) return `len(${fieldExpr}) > 0`;
+  const isNamedString = definitions[goTypeName]?.type === "string";
+  if (goTypeName === "string" || isNamedString) return `${fieldExpr} != ""`;
+  if (goTypeName === "int" || goTypeName === "float64") return `${fieldExpr} != 0`;
+  if (goTypeName === "bool") return fieldExpr;
+  return null;
+}
+
+function goDocComment(text) {
+  return `// ${text}`;
+}
+
+function generateGoStruct(name, node) {
+  const required = new Set(node.required ?? []);
+  const lines = [goDocComment(node.description), `type ${name} struct {`];
+  const requiredSlices = [];
+  for (const [property, propertyNode] of Object.entries(node.properties ?? {})) {
+    const optional = !required.has(property);
+    const fieldType = goType(propertyNode, { optional });
+    const field = goFieldName(property);
+    if (propertyNode.description) lines.push(`\t// ${field} is ${lowerFirst(propertyNode.description)}`);
+    lines.push(`\t${field} ${fieldType} \`json:"${property}${optional ? ",omitempty" : ""}"\``);
+    if (!optional && fieldType.startsWith("[]")) requiredSlices.push([field, fieldType]);
+  }
+  lines.push("}", "");
+  if (requiredSlices.length) {
+    lines.push(`// MarshalJSON emits [] rather than null for required arrays.`);
+    lines.push(`func (v ${name}) MarshalJSON() ([]byte, error) {`, `\ttype plain ${name}`, `\tp := plain(v)`);
+    for (const [field, fieldType] of requiredSlices)
+      lines.push(`\tif p.${field} == nil {`, `\t\tp.${field} = ${fieldType}{}`, `\t}`);
+    lines.push(`\treturn json.Marshal(p)`, `}`, "");
+  }
+  return lines;
+}
+
+/**
+ * A kind-union becomes one Go struct holding every variant's fields. Its
+ * MarshalJSON writes only the fields of the variant named by Kind, with []
+ * for required arrays, so the wire format matches the TypeScript union.
+ */
+function generateGoUnion(name, node) {
+  const fieldTypes = new Map();
+  for (const variant of node.oneOf) {
+    const required = new Set(variant.required ?? []);
+    for (const [property, propertyNode] of Object.entries(variant.properties)) {
+      // A recursive field (Node.child) must be a pointer, so it is always optional in Go.
+      const optional = !required.has(property) || property === "child";
+      const fieldType = property === "kind" ? "string" : goType(propertyNode, { optional });
+      const previous = fieldTypes.get(property);
+      if (previous && stripPointer(previous) !== stripPointer(fieldType)) {
+        throw new Error(`${name}.${property}: variants disagree on its type (${previous} vs ${fieldType})`);
+      }
+      if (!previous || fieldType.startsWith("*")) fieldTypes.set(property, fieldType);
+    }
+  }
+  const lines = [goDocComment(node.description), `type ${name} struct {`];
+  for (const [property, fieldType] of fieldTypes)
+    lines.push(`\t${goFieldName(property)} ${fieldType} \`json:"${property},omitempty"\``);
+  lines.push("}", "");
+  lines.push(`// MarshalJSON emits only the fields of the variant named by Kind.`);
+  lines.push(
+    `func (v ${name}) MarshalJSON() ([]byte, error) {`,
+    `\tfields := map[string]any{"kind": v.Kind}`,
+    `\tswitch v.Kind {`,
+  );
+  for (const variant of node.oneOf) {
+    const kinds =
+      variant.properties.kind.const !== undefined ? [variant.properties.kind.const] : variant.properties.kind.enum;
+    lines.push(`\tcase ${kinds.map((kind) => JSON.stringify(kind)).join(", ")}:`);
+    const required = new Set(variant.required ?? []);
+    for (const property of Object.keys(variant.properties)) {
+      if (property === "kind") continue;
+      const fieldType = fieldTypes.get(property);
+      const fieldExpr = `v.${goFieldName(property)}`;
+      const key = JSON.stringify(property);
+      if (required.has(property) && fieldType.startsWith("[]")) {
+        lines.push(
+          `\t\tif ${fieldExpr} == nil {`,
+          `\t\t\tfields[${key}] = ${fieldType}{}`,
+          `\t\t} else {`,
+          `\t\t\tfields[${key}] = ${fieldExpr}`,
+          `\t\t}`,
+        );
+      } else if (required.has(property)) {
+        lines.push(`\t\tfields[${key}] = ${fieldExpr}`);
+      } else {
+        const check = nonZeroCheck(fieldType, fieldExpr);
+        lines.push(
+          check ? `\t\tif ${check} {\n\t\t\tfields[${key}] = ${fieldExpr}\n\t\t}` : `\t\tfields[${key}] = ${fieldExpr}`,
+        );
+      }
+    }
+  }
+  lines.push(`\t}`, `\treturn json.Marshal(fields)`, `}`, "");
+  return lines;
+}
+
+function generateGoEnum(name, node) {
+  return [
+    goDocComment(node.description),
+    `type ${name} = string`,
+    "",
+    `// ${name} values.`,
+    "const (",
+    ...node.enum.map((value) => `\t${name}${pascalCase(value)} ${name} = ${JSON.stringify(value)}`),
+    ")",
+    "",
+  ];
+}
+
+function generateGo() {
+  const lines = [
     "// Code generated by protocol/gen.mjs from protocol/protocol.schema.json. DO NOT EDIT.",
     "",
     "package protocol",
@@ -163,142 +303,65 @@ function genGo() {
     'import "encoding/json"',
     "",
     `// Version is the protocol version exchanged in initialize.`,
-    `const Version = ${version}`,
+    `const Version = ${protocolVersion}`,
     "",
-    "var _ json.RawMessage",
+    "// Application error codes carried in JSON-RPC error.code (Contract 3).",
+    "const (",
+    ...Object.entries(errorCodes).map(
+      ([name, { code, when }]) => `\t// Code${name}: ${when}.\n\tCode${name} = ${code}`,
+    ),
+    ")",
     "",
   ];
-  for (const [name, s] of Object.entries(defs)) {
-    if (s.description) out.push(`// ${name}: ${s.description}`);
-    if (s.type === "object") {
-      const req = new Set(s.required || []);
-      const fields = Object.entries(s.properties || {});
-      out.push(`type ${name} struct {`);
-      const sliceFix = [];
-      for (const [k, v] of fields) {
-        const opt = !req.has(k);
-        const t = goType(v, { optional: opt });
-        out.push(`\t${goField(k)} ${t} \`json:"${k}${opt ? ",omitempty" : ""}"\``);
-        if (!opt && t.startsWith("[]")) sliceFix.push([goField(k), t]);
-      }
-      out.push("}", "");
-      if (sliceFix.length) {
-        out.push(`// MarshalJSON emits [] rather than null for required arrays.`);
-        out.push(`func (v ${name}) MarshalJSON() ([]byte, error) {`, `\ttype alias ${name}`, `\ta := alias(v)`);
-        for (const [f, t] of sliceFix) out.push(`\tif a.${f} == nil {`, `\t\ta.${f} = ${t}{}`, `\t}`);
-        out.push(`\treturn json.Marshal(a)`, `}`, "");
-      }
-    } else if (isObjUnion(s)) {
-      // Merge variants into one struct; MarshalJSON emits only the fields of
-      // the variant selected by Kind, with [] for required arrays.
-      const merged = new Map();
-      for (const v of s.oneOf)
-        for (const [k, p] of Object.entries(v.properties)) {
-          const t = k === "kind" ? "string" : goType(p, { optional: !(v.required || []).includes(k) || k === "child" });
-          const prev = merged.get(k);
-          if (prev && prev !== t && !(prev.replace("*", "") === t.replace("*", "")))
-            throw new Error(`${name}.${k}: conflicting types ${prev} vs ${t}`);
-          if (!prev || t.startsWith("*")) merged.set(k, t);
-        }
-      out.push(`type ${name} struct {`);
-      for (const [k, t] of merged) out.push(`\t${goField(k)} ${t} \`json:"${k},omitempty"\``);
-      out.push("}", "");
-      out.push(`// MarshalJSON emits the fields of the variant named by Kind.`);
-      out.push(
-        `func (v ${name}) MarshalJSON() ([]byte, error) {`,
-        `\tm := map[string]any{"kind": v.Kind}`,
-        `\tswitch v.Kind {`,
-      );
-      for (const variant of s.oneOf) {
-        const kinds =
-          variant.properties.kind.const !== undefined ? [variant.properties.kind.const] : variant.properties.kind.enum;
-        out.push(`\tcase ${kinds.map((k) => JSON.stringify(k)).join(", ")}:`);
-        const req = new Set(variant.required || []);
-        for (const k of Object.keys(variant.properties)) {
-          if (k === "kind") continue;
-          const t = merged.get(k),
-            f = `v.${goField(k)}`;
-          if (req.has(k)) {
-            if (t.startsWith("[]"))
-              out.push(
-                `\t\tif ${f} == nil {`,
-                `\t\t\tm[${JSON.stringify(k)}] = ${t}{}`,
-                `\t\t} else {`,
-                `\t\t\tm[${JSON.stringify(k)}] = ${f}`,
-                `\t\t}`,
-              );
-            else out.push(`\t\tm[${JSON.stringify(k)}] = ${f}`);
-          } else {
-            const zc = zeroCheck(t, f);
-            out.push(
-              zc ? `\t\tif ${zc} {\n\t\t\tm[${JSON.stringify(k)}] = ${f}\n\t\t}` : `\t\tm[${JSON.stringify(k)}] = ${f}`,
-            );
-          }
-        }
-      }
-      out.push(`\t}`, `\treturn json.Marshal(m)`, `}`, "");
-    } else if (s.enum && s.type === "string") {
-      out.push(`type ${name} = string`, "");
-      out.push("const (");
-      for (const e of s.enum) out.push(`\t${name}${pascal(e)} ${name} = ${JSON.stringify(e)}`);
-      out.push(")", "");
-    } else {
-      out.push(`type ${name} = ${goType(s)}`, "");
-    }
+  for (const [name, node] of Object.entries(definitions)) {
+    if (!node.description?.startsWith(name))
+      throw new Error(`${name}: description must start with "${name}" (it becomes the doc comment)`);
+    if (node.type === "object") lines.push(...generateGoStruct(name, node));
+    else if (isKindUnion(node)) lines.push(...generateGoUnion(name, node));
+    else if (node.enum && node.type === "string") lines.push(...generateGoEnum(name, node));
+    else lines.push(goDocComment(node.description), `type ${name} = ${goType(node)}`, "");
   }
-  out.push("// Contract 3 method names.", "const (");
-  for (const m of Object.keys(methods))
-    out.push(`\tMethod${pascal(m.replace("$/", "Dollar/"))} = ${JSON.stringify(m)}`);
-  out.push(")", "");
-  out.push("// Contract 2 message types.", "const (");
-  for (const t of Object.keys(messages)) out.push(`\tMsg${pascal(t)} = ${JSON.stringify(t)}`);
-  out.push(")", "");
-  out.push("// SpecMethods lists every Contract 3 method, for spec coverage.");
-  out.push(
-    "var SpecMethods = []string{" +
-      Object.keys(methods)
-        .map((m) => JSON.stringify(m))
-        .join(", ") +
-      "}",
-    "",
-  );
-  out.push("// SpecMessages lists every Contract 2 message type, for spec coverage.");
-  out.push(
-    "var SpecMessages = []string{" +
-      Object.keys(messages)
-        .map((m) => JSON.stringify(m))
-        .join(", ") +
-      "}",
-    "",
-  );
-  return out.join("\n");
+  lines.push("// Contract 3 method names.", "const (");
+  for (const method of Object.keys(rpcMethods))
+    lines.push(`\tMethod${pascalCase(method.replace("$/", "Dollar/"))} = ${JSON.stringify(method)}`);
+  lines.push(")", "", "// Contract 2 message types.", "const (");
+  for (const type of Object.keys(webviewMessages)) lines.push(`\tMsg${pascalCase(type)} = ${JSON.stringify(type)}`);
+  lines.push(")", "");
+  return lines.join("\n");
 }
 
-function gofmt(src) {
+function lowerFirst(text) {
+  return text.charAt(0).toLowerCase() + text.slice(1);
+}
+
+/** Formats Go source with gofmt when a Go toolchain is installed. */
+function gofmt(source) {
   try {
-    return execFileSync("gofmt", [], { input: src, encoding: "utf8" });
-  } catch (e) {
-    if (e.code === "ENOENT") return src; // no Go toolchain: leave unformatted
-    throw e;
+    return execFileSync("gofmt", [], { input: source, encoding: "utf8" });
+  } catch (error) {
+    if (error.code === "ENOENT") return source;
+    throw error;
   }
 }
 
-const targets = [
-  [join(repo, "extension/src/protocol.gen.ts"), genTS()],
-  [join(repo, "webview/src/protocol.gen.ts"), genTS()],
-  [join(repo, "daemon/internal/protocol/protocol_gen.go"), gofmt(genGo())],
+// ------------------------------------------------------------ write or check
+
+const typescript = generateTypeScript();
+const outputs = [
+  [join(repoRoot, "extension/src/protocol.gen.ts"), typescript],
+  [join(repoRoot, "webview/src/protocol.gen.ts"), typescript],
+  [join(repoRoot, "daemon/internal/protocol/protocol_gen.go"), gofmt(generateGo())],
 ];
-const check = process.argv.includes("--check");
-let stale = 0;
-for (const [path, text] of targets) {
-  if (check) {
-    if (!existsSync(path) || readFileSync(path, "utf8") !== text) {
-      console.error("out of date: " + path);
-      stale++;
-    }
-  } else {
-    writeFileSync(path, text);
-    console.log("wrote " + path.replace(repo + "/", ""));
+const checkOnly = process.argv.includes("--check");
+let staleCount = 0;
+for (const [path, content] of outputs) {
+  const relativePath = path.replace(repoRoot + "/", "");
+  if (!checkOnly) {
+    writeFileSync(path, content);
+    console.log("wrote " + relativePath);
+  } else if (!existsSync(path) || readFileSync(path, "utf8") !== content) {
+    console.error("out of date: " + relativePath + " (run node protocol/gen.mjs)");
+    staleCount++;
   }
 }
-process.exit(stale ? 1 : 0);
+process.exit(staleCount ? 1 : 0);
