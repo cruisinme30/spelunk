@@ -24,6 +24,7 @@ coverage.*
 .unified-search/
 *.trace.jsonl
 dist-test/
+dist-e2e/
 /webview/test/out/
 
 # Built by npm run package

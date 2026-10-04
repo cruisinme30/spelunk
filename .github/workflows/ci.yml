@@ -45,3 +45,30 @@ jobs:
 
       - name: Lint and test
         run: npm test
+
+  # The commands in a real VS Code window (scripts/e2e.mjs downloads it).
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: daemon/go.mod
+          cache-dependency-path: daemon/go.mod
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Node dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Build the daemon and the extension
+        run: |
+          (cd daemon && go build -o bin/unified-search-daemon ./cmd/unified-search-daemon)
+          npm run build
+
+      - name: Run the end-to-end tests
+        run: xvfb-run -a node scripts/e2e.mjs

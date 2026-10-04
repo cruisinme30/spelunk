@@ -1,5 +1,6 @@
 // Bundles the extension host (CommonJS) and the webview with esbuild.
-// --tests also bundles src/test/*.test.ts into dist-test/ for `node --test`.
+// --tests also bundles src/test/*.test.ts into dist-test/ for `node --test`,
+// and --e2e bundles src/e2e/commands.test.ts into dist-e2e/ for scripts/e2e.mjs.
 import { build } from "esbuild";
 import { cpSync, existsSync, mkdirSync, readdirSync, rmSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -8,6 +9,7 @@ import { fileURLToPath } from "node:url";
 const here = dirname(fileURLToPath(import.meta.url));
 const webview = join(here, "..", "webview");
 const tests = process.argv.includes("--tests");
+const endToEnd = process.argv.includes("--e2e");
 
 await build({
   entryPoints: [join(here, "src/extension.ts")],
@@ -58,6 +60,19 @@ if (tests) {
     target: "node18",
     external: ["vscode"],
     outdir: join(here, "dist-test"),
+    logLevel: "warning",
+  });
+}
+
+if (endToEnd) {
+  await build({
+    entryPoints: [join(here, "src/e2e/commands.test.ts")],
+    bundle: true,
+    platform: "node",
+    format: "cjs",
+    target: "node18",
+    external: ["vscode"],
+    outfile: join(here, "dist-e2e/index.js"),
     logLevel: "warning",
   });
 }

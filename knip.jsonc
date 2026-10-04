@@ -7,7 +7,7 @@
       "project": ["scripts/**/*.mjs", "protocol/**/*.mjs"],
     },
     "extension": {
-      "entry": ["src/extension.ts", "src/test/*.test.ts"],
+      "entry": ["src/extension.ts", "src/test/*.test.ts", "src/e2e/commands.test.ts"],
       "project": ["src/**/*.ts", "*.mjs"],
     },
     "webview": {
