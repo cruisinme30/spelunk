@@ -57,6 +57,7 @@ words:
   - Rakefile
   - ripgrep
   - trimpath
+  - typealias
   - Zoekt
   # Words of this code base
   - goldens
