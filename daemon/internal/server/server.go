@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/cruisinme30/unified-search/daemon/internal/indexer"
 	"github.com/cruisinme30/unified-search/daemon/internal/protocol"
 	"github.com/cruisinme30/unified-search/daemon/internal/rpc"
 )
@@ -17,8 +18,10 @@ const DaemonVersion = "0.1.0"
 // Server is one daemon instance bound to one connection. It is safe for
 // concurrent use: handlers run on their own goroutines.
 type Server struct {
-	conn *rpc.Conn
-	now  func() time.Time
+	conn  *rpc.Conn
+	now   func() time.Time
+	index *indexer.Indexer
+	plans planMemory
 
 	mu                sync.RWMutex
 	roots             []protocol.Root
@@ -42,6 +45,7 @@ func New(conn *rpc.Conn, opts Options) *Server {
 	if s.now == nil {
 		s.now = time.Now
 	}
+	s.index = indexer.New(s.settings, s.notifyIndexStatus)
 	conn.Handle(protocol.MethodInitialize, s.initialize)
 	conn.Handle(protocol.MethodShutdown, s.shutdown)
 	conn.OnNotify(protocol.MethodExit, func(json.RawMessage) { s.exit() })
@@ -49,6 +53,7 @@ func New(conn *rpc.Conn, opts Options) *Server {
 	conn.OnNotify(protocol.MethodSettingsUpdate, s.updateSettings)
 	conn.Handle(protocol.MethodQueryParse, s.parse)
 	s.registerSearch()
+	s.registerIndex()
 	return s
 }
 
@@ -104,6 +109,7 @@ func (s *Server) initialize(_ context.Context, raw json.RawMessage) (any, error)
 		s.mu.Lock()
 		s.settings = params.Settings
 		s.mu.Unlock()
+		s.onSettingsChanged()
 	}
 	s.applyRoots(params.Roots)
 	return protocol.InitializeResult{DaemonVersion: DaemonVersion, Protocol: protocol.Version}, nil
@@ -157,12 +163,3 @@ func (s *Server) Roots() []protocol.Root {
 	defer s.mu.RUnlock()
 	return slices.Clone(s.roots)
 }
-
-// onRootsChanged will start, drop and reconfigure repo indexes once the indexer exists.
-func (s *Server) onRootsChanged() {}
-
-// onSettingsChanged will pass new exclude and size limits to the indexer.
-func (s *Server) onSettingsChanged() {}
-
-// onShutdown will flush index writes within 2 seconds (Contract 3 lifecycle).
-func (s *Server) onShutdown() {}

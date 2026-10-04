@@ -77,6 +77,17 @@ function scriptedBackend(slow = new Set<string>()) {
   return { backend, release: () => waiting.splice(0).forEach((resolve) => resolve()) };
 }
 
+/** Waits until the daemon has indexed every root, so results are complete. */
+async function untilIndexed(daemon: Daemon): Promise<void> {
+  const deadline = Date.now() + 5000;
+  for (;;) {
+    const { repos } = await daemon.request("index/status", {});
+    if (repos.every((repo) => repo.tree === "ready")) return;
+    if (Date.now() > deadline) throw new Error(`roots not indexed after 5s: ${JSON.stringify(repos)}`);
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+}
+
 const queryChanged = (text: string, seq: number): WebviewMessage => ({
   v: 1,
   type: "query.changed",
@@ -92,10 +103,15 @@ test(
     const daemon = new Daemon({
       binary: DAEMON_BINARY,
       roots: () => [makeRoot(workspace, "payments-api")],
-      settings: () => ({ ...DEFAULTS, exclude: [...DEFAULTS.exclude], location: workspace }),
+      settings: () => ({
+        ...DEFAULTS,
+        exclude: [...DEFAULTS.exclude],
+        location: mkdtempSync(join(tmpdir(), "us-idx-")),
+      }),
     });
     await daemon.start();
     try {
+      await untilIndexed(daemon);
       const host = recordingUi();
       const controller = newController(daemon, host.ui);
 

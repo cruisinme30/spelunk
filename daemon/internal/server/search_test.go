@@ -129,14 +129,57 @@ func TestPreviewOfCRLFFileHasNoCarriageReturns(t *testing.T) {
 	}
 }
 
-func TestMalformedRefIsStale(t *testing.T) {
-	for _, ref := range []string{"", "line|r1|x|0|1|a.txt", "line|r1|1|-2|1|a.txt", "other|r1|1|0|1|a.txt"} {
-		if _, err := parseLineRef(ref); err == nil {
-			t.Errorf("parseLineRef(%q) = nil error, want malformed ref", ref)
-		}
+func TestMalformedOrForeignRefsAreStale(t *testing.T) {
+	client := newTestClient(t, Options{})
+	client.mustInitialize(t, protocol.Root{ID: "r1", Path: t.TempDir(), Name: "r"})
+	for _, ref := range []string{"", "line|r1|1|0|1|a.txt", "tree|1|other-root|1|0|1|a.txt"} {
+		err := client.call(protocol.MethodPreviewGet, protocol.PreviewParams{Ref: ref, ContextLines: 1}, nil)
+		wantRPCCode(t, "preview/get "+ref, err, protocol.CodeRefStale)
 	}
-	original := lineRef{rootID: "r1", line: 3, column: 4, length: 5, path: "dir/a|b.txt"}
-	if got, err := parseLineRef(original.String()); err != nil || got != original {
-		t.Errorf("parseLineRef(%q) = %+v, %v; want %+v", original.String(), got, err, original)
+}
+
+func TestInvalidQueriesAreRejected(t *testing.T) {
+	client := newTestClient(t, Options{})
+	client.mustInitialize(t)
+	err := client.call(protocol.MethodSearchStart, protocol.SearchStartParams{SearchID: "s1", Text: "(retry"}, nil)
+	wantRPCCode(t, "search/start (retry", err, protocol.CodeQueryInvalid)
+}
+
+// Load more: the cursor from one page starts the next.
+//
+// @covers msg:results.more
+func TestCursorLoadsTheNextPage(t *testing.T) {
+	dir := t.TempDir()
+	mustWriteFile(t, filepath.Join(dir, "a.txt"), "x1 hit\nx2 hit\nx3 hit\n")
+	client := newTestClient(t, Options{})
+	batches := collectBatches(client)
+	client.mustInitialize(t, protocol.Root{ID: "r1", Path: dir, Name: "r"})
+
+	var first, second protocol.SearchResult
+	if err := client.call(protocol.MethodSearchStart, protocol.SearchStartParams{SearchID: "s1", Text: "count:2 hit"}, &first); err != nil {
+		t.Fatal(err)
+	}
+	if first.Total != 3 || first.NextCursor == "" {
+		t.Fatalf("first page = %+v, want total 3 and a next cursor", first)
+	}
+	if err := client.call(protocol.MethodSearchStart, protocol.SearchStartParams{SearchID: "s2", Text: "count:2 hit", Cursor: first.NextCursor}, &second); err != nil {
+		t.Fatal(err)
+	}
+	items := batches()
+	if len(items) != 3 || items[2].Line != 3 || second.NextCursor != "" {
+		t.Fatalf("after two pages: %d items, last line %d, next cursor %q; want 3 items ending at line 3 and no more pages", len(items), items[len(items)-1].Line, second.NextCursor)
+	}
+}
+
+// @covers rpc:index/status
+func TestIndexStatusReportsEveryRoot(t *testing.T) {
+	client := newTestClient(t, Options{})
+	client.mustInitialize(t, protocol.Root{ID: "r1", Path: t.TempDir(), Name: "web"})
+	var status protocol.IndexStatusResult
+	if err := client.call(protocol.MethodIndexStatus, protocol.Empty{}, &status); err != nil {
+		t.Fatal(err)
+	}
+	if len(status.Repos) != 1 || status.Repos[0].Name != "web" || status.Repos[0].Tree != protocol.IndexStateReady {
+		t.Errorf("index/status = %+v, want web ready", status.Repos)
 	}
 }

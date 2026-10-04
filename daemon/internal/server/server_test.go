@@ -40,11 +40,29 @@ func (c *testClient) call(method string, params, out any) error {
 	return c.conn.Call(ctx, method, params, out)
 }
 
+// mustInitialize starts a session on roots, with the index in a temp
+// directory, and waits until every root is indexed.
 func (c *testClient) mustInitialize(t *testing.T, roots ...protocol.Root) {
 	t.Helper()
-	params := protocol.InitializeParams{Protocol: protocol.Version, Roots: roots, Settings: DefaultSettings()}
+	settings := DefaultSettings()
+	settings.Location = t.TempDir()
+	params := protocol.InitializeParams{Protocol: protocol.Version, Roots: roots, Settings: settings}
 	if err := c.call(protocol.MethodInitialize, params, nil); err != nil {
 		t.Fatalf("initialize: %v", err)
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		ready := true
+		for _, status := range c.server.index.Status() {
+			ready = ready && status.Tree == protocol.IndexStateReady
+		}
+		if ready {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("roots not indexed after 5s: %+v", c.server.index.Status())
+		}
+		time.Sleep(5 * time.Millisecond)
 	}
 }
 
