@@ -21,6 +21,9 @@ All notable changes to this project are documented here. The format follows
 - A repo menu that scopes the query to one repo, a "Show code too" undo for `type:file`, and "Ignore case" for
   `case:yes`.
 - The help page: every operator with an example to try, worked examples, keys and settings.
+- Typing an operator lists the values it takes: time windows for `since:` with when each starts and how many files
+  changed, file types and folders for `f:`, repos with their index state, the workspace's languages, and what each
+  `type:`, `case:` and `count:` value does.
 - `f:` and `repo:` also take globs such as `*.go` and `src/**/*.ts`.
 - `since:` also takes `today`, `yesterday`, minutes (`30min`) and hours (`2h`). `since:30m` (30 months) warns and
   offers `30min`.

@@ -92,6 +92,65 @@ test("the case: suggestion shows its description and values like every other ope
   assert.match(option, /\byes\b[\s\S]*\bno\b/);
 });
 
+/** A since: value suggestion as the daemon sends it. */
+const sinceValue = ({ label, detail, context, note, section }) => ({
+  label,
+  detail,
+  context,
+  note,
+  ...(section ? { section } : {}),
+  group: "value",
+  insert: { title: `Insert since:${label}`, edits: [{ span: { start: 8, end: 14 }, newText: `since:${label} ` }] },
+});
+
+test("since: lists time windows in groups, with when each starts and what changed", async (t) => {
+  // @covers screen:since-values
+  const page = await openPanel(t);
+  await restore(page);
+  await page.fill('[data-testid="query"]', "timeout since:");
+  const { seq } = await lastSent(page, "query.changed");
+  const since = { kind: "op", op: "since", value: "", match: "literal", span: { start: 8, end: 14 } };
+  await fromHost(page, "parse.result", {
+    seq,
+    query: parsedQuery("timeout since:", {
+      kind: "and",
+      children: [textNode("timeout", 0), since],
+      span: { start: 0, end: 14 },
+    }),
+    completions: [
+      sinceValue({
+        label: "today",
+        detail: "Today",
+        context: "Since midnight",
+        note: "5 files changed",
+        section: "Calendar days",
+      }),
+      sinceValue({
+        label: "yesterday",
+        detail: "Yesterday and today",
+        context: "Since Fri, Oct 2, 00:00",
+        note: "9 files changed",
+      }),
+      sinceValue({
+        label: "2h",
+        detail: "Last 2 hours",
+        context: "Since 08:04",
+        note: "2 files changed",
+        section: "The last few hours",
+      }),
+    ],
+  });
+  const list = page.locator("#completions");
+  assert.equal(await list.locator(".completion-group").first().innerText(), "TIME WINDOWS");
+  assert.deepEqual(await list.locator(".completion-section").allInnerTexts(), ["CALENDAR DAYS", "THE LAST FEW HOURS"]);
+  const today = await page.locator('[data-testid="completion"]').first().innerText();
+  assert.match(today, /today[\s\S]*Today[\s\S]*Since midnight[\s\S]*5 files changed/);
+  assert.equal(await list.locator(".completion-operator.tone-history").count(), 3, "values take since:'s color");
+  assert.match(await page.locator('[data-testid="value-hint"]').innerText(), /m is months/);
+  await page.keyboard.press("Tab");
+  assert.equal(await page.inputValue('[data-testid="query"]'), "timeout since:today ");
+});
+
 test("Tab inserts the suggested operator at the cursor", async (t) => {
   // @covers screen:operator-suggestions
   const { page } = await suggestingOperators(t);

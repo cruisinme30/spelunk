@@ -5,18 +5,25 @@ import { element, highlight, plural, trimIndent } from "../format";
 import type { Layout } from "../layout";
 import { operatorEntry, toneForLabel } from "../operators";
 import { textTerms } from "../parsedQuery";
-import type { Completion, ResultItem } from "../protocol.gen";
+import type { Completion, OpName, ResultItem } from "../protocol.gen";
 import type { ViewState } from "../state";
 
 /** Result lines shown under the suggestions. */
 const GLIMPSE_LINES = 2;
 
-const GROUP_TITLE: Record<Completion["group"], string> = {
-  operator: "Operators starting with",
-  author: "Authors matching",
-  repo: "Repos matching",
-  lang: "Languages matching",
-  value: "Values for",
+/** What an operator's value suggestions are called, and a line on what else it takes. */
+const VALUE_LISTS: Partial<Record<OpName, { heading: string; hint?: string }>> = {
+  since: {
+    heading: "Time windows",
+    hint: "Or type a number and a unit: 45min, 3h, 10d, 3w, 2m, 1y. m is months; minutes are min.",
+  },
+  f: { heading: "Paths", hint: String.raw`f: takes a glob (*.go, src/**/*.ts) or a regex (_test\.py$).` },
+  repo: { heading: "Repos", hint: "repo: also takes a glob (web-*) or a regex (^pay)." },
+  lang: { heading: "Languages" },
+  type: { heading: "Result kinds" },
+  case: { heading: "Case" },
+  count: { heading: "Results per page" },
+  author: { heading: "Authors" },
 };
 
 /** What picking a suggestion, or dismissing them, does. */
@@ -52,14 +59,29 @@ export function renderCompletions(
   const [first] = state.completions;
   if (!visible || !first) return;
 
-  const group = first.group;
   const typed = typedWord(input.value, first);
+  // Values replace the whole operator ("since:2" → "since:2h"); the operator comes before the colon.
+  const operator = first.group === "operator" ? undefined : typed.slice(0, typed.indexOf(":"));
+  const list = operator === undefined ? undefined : VALUE_LISTS[operator as OpName];
   completions.append(
-    element("div", { class: "completion-group", role: "presentation" }, `${GROUP_TITLE[group]} “${typed}”`),
-    ...state.completions.map((completion, index) => renderOption(completion, index, state.completionIndex, handlers)),
+    element("div", { class: "completion-group", role: "presentation" }, listHeading(typed, operator, list?.heading)),
+    ...state.completions.flatMap((completion, index) => {
+      const option = renderOption(completion, { index, selected: index === state.completionIndex, operator }, handlers);
+      if (!completion.section) return [option];
+      return [element("div", { class: "completion-section", role: "presentation" }, completion.section), option];
+    }),
   );
-  if (group === "operator") completions.append(renderSearchAsTyped(state, handlers));
+  if (list?.hint)
+    completions.append(element("div", { class: "completion-hint", "data-testid": "value-hint" }, list.hint));
+  if (first.group === "operator") completions.append(renderSearchAsTyped(state, handlers));
   if (glimpse && state.searchText) completions.append(renderGlimpse(state.searchText, glimpse));
+}
+
+/** "Operators starting with “s”", "Time windows", "Time windows matching “2”". */
+function listHeading(typed: string, operator: string | undefined, heading = "Values"): string {
+  if (operator === undefined) return `Operators starting with “${typed}”`;
+  const value = typed.slice(operator.length + 1);
+  return value ? `${heading} matching “${value}”` : heading;
 }
 
 /** The text the suggestions would replace, as typed. */
@@ -68,16 +90,25 @@ function typedWord(text: string, completion: Completion): string {
   return span ? text.slice(span.start, span.end) : "";
 }
 
+/** Where a suggestion sits in the list, and which operator's value it is, if any. */
+interface OptionPlace {
+  index: number;
+  selected: boolean;
+  operator: string | undefined;
+}
+
+/** One suggestion: an operator, or a value of `place.operator`. */
 function renderOption(
   completion: Completion,
-  index: number,
-  selectedIndex: number,
+  { index, selected, operator }: OptionPlace,
   handlers: CompletionHandlers,
 ): HTMLElement {
-  const selected = index === selectedIndex;
   // An operator suggestion borrows the reference's description and example values.
   const entry = completion.group === "operator" ? operatorEntry(completion.label.replace(/:$/, "")) : undefined;
   const values = selected && entry ? exampleValues(entry.label) : [];
+  // A value takes its operator's color; an operator its own.
+  const tone = toneForLabel(operator === undefined ? completion.label : `${operator}:`);
+  const secondLine = entry?.summary ?? completion.context;
   const option = element(
     "div",
     {
@@ -87,13 +118,14 @@ function renderOption(
       "aria-selected": String(selected),
       "data-testid": "completion",
     },
-    element("code", { class: `completion-operator tone-${toneForLabel(completion.label)}` }, completion.label),
+    element("code", { class: `completion-operator tone-${tone}` }, completion.label),
     element(
       "span",
       { class: "completion-text" },
       element("span", { class: "title" }, completion.detail),
-      entry ? element("span", { class: "detail" }, entry.summary) : null,
+      secondLine ? element("span", { class: "detail" }, secondLine) : null,
     ),
+    completion.note ? element("span", { class: "completion-note" }, completion.note) : null,
     ...values.map((value) => element("kbd", { class: "value" }, value)),
     selected ? element("kbd", {}, "Tab") : null,
   );

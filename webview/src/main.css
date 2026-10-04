@@ -267,6 +267,32 @@ mark.term-color-3 {
   color: var(--sel-fg);
 }
 
+/* A heading inside a value list: "Calendar days", "File types". */
+.completion-section {
+  padding: 10px 14px 2px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.completion-note {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+/* What else an operator takes, under its value list. */
+.completion-hint {
+  margin: 8px 14px 4px;
+  padding: 8px 10px;
+  border: 1px dashed var(--line);
+  border-radius: 6px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
 .banner {
   display: flex;
   flex-wrap: wrap;
@@ -1033,7 +1059,11 @@ pre.body {
 }
 
 /* Suggestions take the place of the chips and results while open. */
+
+/* The diagnostics go too: they are usually about the word being completed
+   ("since: needs a value"), and come back once a suggestion is picked. */
 .search-panel.completing #chips,
+.search-panel.completing #diagnostics,
 .search-panel.completing #body {
   display: none;
 }
@@ -1045,6 +1075,7 @@ pre.body {
 
 #completions .completion-operator {
   flex: 0 0 auto;
+  min-width: 88px;
   padding: 2px 8px;
   border: 1px solid currentcolor;
   border-radius: 5px;
