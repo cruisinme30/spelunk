@@ -38,3 +38,15 @@ func TestParseReportsDiagnosticsWithoutFailing(t *testing.T) {
 		t.Errorf("diagnostics = %+v, want one unknown_operator", result.Query.Diagnostics)
 	}
 }
+
+func TestParseIncludesPlannerWarnings(t *testing.T) {
+	client := newTestClient(t, Options{})
+	client.mustInitialize(t)
+	var result protocol.ParseResult
+	if err := client.call(protocol.MethodQueryParse, protocol.ParseParams{Text: "type:commit /a.b/", Cursor: 17}, &result); err != nil {
+		t.Fatal(err)
+	}
+	if d := result.Query.Diagnostics; len(d) != 1 || d[0].Code != "history_full_scan" || d[0].Severity != protocol.SeverityWarning {
+		t.Errorf("diagnostics = %+v, want one history_full_scan warning", d)
+	}
+}
