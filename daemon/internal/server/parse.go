@@ -31,7 +31,7 @@ func (s *Server) resolver() query.Resolver {
 type workspaceResolver struct{ server *Server }
 
 // Authors returns nothing until the history index exists (M3).
-func (workspaceResolver) Authors(string, int) []query.Author { return nil }
+func (workspaceResolver) Authors(string, int) []query.AuthorStat { return nil }
 
 func (r workspaceResolver) RepoNames() []string {
 	roots := r.server.Roots()

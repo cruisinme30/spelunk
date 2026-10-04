@@ -103,7 +103,7 @@ func valueCompletions(t token, resolver Resolver, now time.Time) []protocol.Comp
 }
 
 // authorDetail reads like "214 commits · payments-api, shared-libs · last 3 days ago".
-func authorDetail(author Author, now time.Time) string {
+func authorDetail(author AuthorStat, now time.Time) string {
 	parts := []string{plural(author.Commits, "commit")}
 	if len(author.Repos) > 0 {
 		parts = append(parts, strings.Join(author.Repos, ", "))

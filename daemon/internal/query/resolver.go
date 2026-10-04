@@ -6,13 +6,13 @@ package query
 type Resolver interface {
 	// Authors returns up to limit authors whose name or email contains
 	// fragment (case-insensitive), most commits first.
-	Authors(fragment string, limit int) []Author
+	Authors(fragment string, limit int) []AuthorStat
 	// RepoNames returns the display names of the open repos.
 	RepoNames() []string
 }
 
-// Author is one identity after .mailmap merging.
-type Author struct {
+// AuthorStat is one author identity (after .mailmap merging) with commit stats.
+type AuthorStat struct {
 	Name    string
 	Emails  []string
 	Commits int
@@ -23,5 +23,5 @@ type Author struct {
 // noResolver knows no authors or repos.
 type noResolver struct{}
 
-func (noResolver) Authors(string, int) []Author { return nil }
-func (noResolver) RepoNames() []string          { return nil }
+func (noResolver) Authors(string, int) []AuthorStat { return nil }
+func (noResolver) RepoNames() []string              { return nil }

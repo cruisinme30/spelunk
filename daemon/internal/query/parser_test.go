@@ -10,7 +10,7 @@ import (
 
 // testResolver knows the fixture workspace's authors and repos (test plan, "Fixture workspace").
 var testResolver = fakeResolver{
-	authors: []Author{
+	authors: []AuthorStat{
 		{Name: "Jane Doe", Emails: []string{"jane@payments.example", "jdoe@old.example"}, Commits: 214, Repos: []string{"payments-api", "shared-libs"}, LastAt: "2026-09-30T10:00:00Z"},
 		{Name: "Jason Kim", Emails: []string{"jason@checkout.example"}, Commits: 88, Repos: []string{"web-checkout"}, LastAt: "2026-09-26T10:00:00Z"},
 		{Name: "Marta Ruiz", Emails: []string{"jamarta@libs.example"}, Commits: 12, Repos: []string{"shared-libs"}, LastAt: "2026-08-03T10:00:00Z"},
@@ -19,12 +19,12 @@ var testResolver = fakeResolver{
 }
 
 type fakeResolver struct {
-	authors []Author
+	authors []AuthorStat
 	repos   []string
 }
 
-func (r fakeResolver) Authors(fragment string, limit int) []Author {
-	var found []Author
+func (r fakeResolver) Authors(fragment string, limit int) []AuthorStat {
+	var found []AuthorStat
 	for _, a := range r.authors {
 		haystack := strings.ToLower(a.Name + " " + strings.Join(a.Emails, " "))
 		if strings.Contains(haystack, strings.ToLower(fragment)) && len(found) < limit {
