@@ -19,7 +19,6 @@ import (
 // (QueryInvalid, RefStale, ...) are generated into package protocol.
 const (
 	CodeParseError       = -32700
-	CodeInvalidRequest   = -32600
 	CodeMethodNotFound   = -32601
 	CodeInvalidParams    = -32602
 	CodeInternalError    = -32603
@@ -47,15 +46,6 @@ func (e *Error) Error() string { return fmt.Sprintf("rpc error %d: %s", e.Code, 
 // Errorf builds an *Error with a formatted message.
 func Errorf(code int, format string, args ...any) *Error {
 	return &Error{Code: code, Message: fmt.Sprintf(format, args...)}
-}
-
-// WithData attaches v, as JSON, to the error and returns it. If v can't be
-// marshalled the error is returned without data.
-func (e *Error) WithData(v any) *Error {
-	if data, err := json.Marshal(v); err == nil {
-		e.Data = data
-	}
-	return e
 }
 
 var errRequestCancelled = Errorf(CodeRequestCancelled, "request cancelled")

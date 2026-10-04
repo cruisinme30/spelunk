@@ -21,10 +21,10 @@ func TestDetectAndResolve(t *testing.T) {
 	}
 	for v, want := range map[string]string{"py": "python", "Python": "python", "ts": "typescript", "cpp": "c++", "golang": "go"} {
 		if got, ok := Resolve(v); !ok || got != want {
-			t.Errorf("Resolve(%q) = %q, %v", v, got, ok)
+			t.Errorf("Resolve(%q) = %q, %v; want %q, true", v, got, ok, want)
 		}
 	}
 	if _, ok := Resolve("cobol"); ok {
-		t.Error("cobol should be unknown")
+		t.Error("Resolve(\"cobol\") ok = true, want false (unknown language)")
 	}
 }

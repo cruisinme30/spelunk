@@ -122,7 +122,7 @@ func (ix *Indexer) SetSettings(settings protocol.Settings) {
 		old.MaxFileSizeKB != settings.MaxFileSizeKB || old.Location != settings.Location
 	if changed {
 		for _, id := range ix.order {
-			ix.restart(id, true)
+			ix.restart(id)
 		}
 	}
 	ix.mu.Unlock()
@@ -141,7 +141,7 @@ func (ix *Indexer) Rebuild(repoID string) error {
 	}
 	for _, id := range ix.order {
 		if repoID == "" || id == repoID {
-			ix.restart(id, true)
+			ix.restart(id)
 		}
 	}
 	ix.mu.Unlock()
@@ -202,18 +202,16 @@ func (ix *Indexer) enqueue(id string) {
 	}
 }
 
-// restart abandons a repo's build in progress and queues a new one.
-// Callers hold mu.
-func (ix *Indexer) restart(id string, visible bool) {
+// restart abandons a repo's build in progress and queues a new one, shown
+// as queued and then indexing. Callers hold mu.
+func (ix *Indexer) restart(id string) {
 	r := ix.repos[id]
 	r.generation++
 	if r.cancelBuild != nil {
 		r.cancelBuild()
 	}
-	if visible {
-		r.visible = true
-		r.state = protocol.IndexStateQueued
-	}
+	r.visible = true
+	r.state = protocol.IndexStateQueued
 	ix.enqueue(id)
 }
 
@@ -228,6 +226,8 @@ func (ix *Indexer) drop(id string) {
 	ix.queue = slices.DeleteFunc(ix.queue, func(q string) bool { return q == id })
 }
 
+// publishStatus sends every repo's status to notify. Callers must not
+// hold mu.
 func (ix *Indexer) publishStatus() {
 	if ix.notify != nil {
 		ix.notify(ix.Status())
@@ -302,20 +302,20 @@ func (ix *Indexer) build(job buildJob) {
 	if job.ctx.Err() != nil {
 		return // superseded, dropped or shutting down
 	}
-	saveErr := error(nil)
+	var saveErr error
 	if err == nil {
 		saveErr = shard.Save(job.shardPath)
 	}
 	ix.update(job, func(r *repo) {
 		r.cancelBuild = nil
-		switch {
-		case err != nil:
+		if err != nil {
 			r.state, r.message = protocol.IndexStateError, err.Error()
-		default:
-			r.shard, r.state, r.message, r.visible = shard, protocol.IndexStateReady, "", false
-			if saveErr != nil {
-				r.message = "Index not saved: " + saveErr.Error()
-			}
+			return
+		}
+		// A shard that couldn't be saved still serves this session.
+		r.shard, r.state, r.message, r.visible = shard, protocol.IndexStateReady, "", false
+		if saveErr != nil {
+			r.message = "Index not saved: " + saveErr.Error()
 		}
 	})
 	ix.publishStatus()

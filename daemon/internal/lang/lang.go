@@ -106,10 +106,11 @@ func Values() []string {
 	return out
 }
 
-// Detect returns the language of a file from its name, falling back to
-// the shebang on its first line. "" means unknown.
-func Detect(p string, head []byte) string {
-	base := path.Base(p)
+// Detect returns the language of the file at filePath (slash-separated)
+// from its name, falling back to the shebang on the first line of head, the
+// start of its content. "" means unknown.
+func Detect(filePath string, head []byte) string {
+	base := path.Base(filePath)
 	if l, ok := byFilename[base]; ok {
 		return l
 	}

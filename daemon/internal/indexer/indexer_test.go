@@ -12,6 +12,8 @@ import (
 	"github.com/cruisinme30/unified-search/daemon/internal/trigram"
 )
 
+// writeFiles creates files (path to content) under a new temp directory
+// and returns it.
 func writeFiles(t *testing.T, files map[string]string) string {
 	t.Helper()
 	root := t.TempDir()
@@ -27,6 +29,7 @@ func writeFiles(t *testing.T, files map[string]string) string {
 	return root
 }
 
+// testSettings are default-like settings with the index in a temp directory.
 func testSettings(t *testing.T) protocol.Settings {
 	t.Helper()
 	return protocol.Settings{DefaultCount: 500, Exclude: []string{"**/vendor/**"}, MaxFileSizeKB: 1024, Location: t.TempDir()}
@@ -77,6 +80,7 @@ func waitFor(t *testing.T, ix *Indexer, state protocol.IndexState) []protocol.Re
 	}
 }
 
+// docPaths lists the paths of the files in repo's shard.
 func docPaths(repo trigram.Repo) []string {
 	var paths []string
 	for _, d := range repo.Shard.Docs {
@@ -98,7 +102,7 @@ func TestIndexesRootsAndReportsProgress(t *testing.T) {
 		t.Errorf("status = %+v, want app with history off", statuses[0])
 	}
 	if !rec.sawState("r1", protocol.IndexStateIndexing) {
-		t.Errorf("never reported indexing before ready")
+		t.Errorf("states reported for r1 = no indexing, want indexing before ready")
 	}
 	repos := ix.Repos()
 	if len(repos) != 1 || len(repos[0].Shard.Docs) != 1 || repos[0].Shard.Docs[0].Path != "main.go" {
@@ -181,7 +185,7 @@ func TestRebuildPicksUpNewFiles(t *testing.T) {
 		time.Sleep(5 * time.Millisecond)
 	}
 	if err := ix.Rebuild("nope"); err == nil {
-		t.Errorf("Rebuild of an unknown repo succeeded")
+		t.Errorf("Rebuild(\"nope\") error = nil, want an error for an unknown repo")
 	}
 }
 
@@ -191,10 +195,10 @@ func TestMissingFolderIsAnError(t *testing.T) {
 	ix.SetRoots([]protocol.Root{{ID: "r1", Path: filepath.Join(t.TempDir(), "gone"), Name: "gone"}})
 	statuses := waitFor(t, ix, protocol.IndexStateError)
 	if statuses[0].Message == "" {
-		t.Errorf("error status has no message")
+		t.Errorf("error status message = \"\", want why the build failed")
 	}
 	if len(ix.Repos()) != 0 {
-		t.Errorf("a failed repo was published")
+		t.Errorf("Repos() = %+v, want none: a failed repo is not published", ix.Repos())
 	}
 }
 
