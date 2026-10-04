@@ -11,11 +11,12 @@ import (
 	"time"
 
 	"github.com/cruisinme30/unified-search/daemon/internal/lang"
+	"github.com/cruisinme30/unified-search/daemon/internal/symbols"
 )
 
 // shardFormatVersion changes whenever the saved layout does; an index
 // written by another version is rebuilt rather than migrated.
-const shardFormatVersion = 1
+const shardFormatVersion = 2
 
 // maxDocs bounds a shard's files, so doc ids fit in a uint32.
 const maxDocs int64 = math.MaxUint32
@@ -29,6 +30,9 @@ type Doc struct {
 	Lang    string // canonical language name, "" if unknown
 	ModTime time.Time
 	Content []byte
+	// Symbols are the file's definitions, when the index keeps them
+	// (index.symbols), in line order.
+	Symbols []symbols.Symbol
 }
 
 // Shard is the immutable index of one repo's current files.
@@ -72,9 +76,17 @@ func trigramAt(text []byte, i int) uint32 {
 	return uint32(foldASCII(text[i]))<<16 | uint32(foldASCII(text[i+1]))<<8 | uint32(foldASCII(text[i+2]))
 }
 
-// Build reads files from root and indexes them. progress, if not nil, is
-// called now and then with the fraction of files read so far.
-func Build(ctx context.Context, root string, files []File, progress func(float64)) (*Shard, error) {
+// BuildOptions are what Build does besides indexing each file's text.
+type BuildOptions struct {
+	// Symbols finds each file's definitions, for sym:.
+	Symbols bool
+	// Progress, if not nil, is called now and then with the fraction of
+	// files read so far.
+	Progress func(float64)
+}
+
+// Build reads files from root and indexes them.
+func Build(ctx context.Context, root string, files []File, opts BuildOptions) (*Shard, error) {
 	if int64(len(files)) >= maxDocs {
 		return nil, fmt.Errorf("%d files is more than one index can hold (%d)", len(files), maxDocs)
 	}
@@ -83,8 +95,8 @@ func Build(ctx context.Context, root string, files []File, progress func(float64
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
 		}
-		if progress != nil && i%progressEvery == 0 {
-			progress(float64(i) / float64(len(files)))
+		if opts.Progress != nil && i%progressEvery == 0 {
+			opts.Progress(float64(i) / float64(len(files)))
 		}
 		full := filepath.Join(root, filepath.FromSlash(file.Path))
 		content, err := os.ReadFile(full) //nolint:gosec // G304: reading the indexed repo's files is the point
@@ -95,7 +107,11 @@ func Build(ctx context.Context, root string, files []File, progress func(float64
 		if err != nil {
 			continue
 		}
-		s.add(Doc{Path: file.Path, Lang: lang.Detect(file.Path, content), ModTime: info.ModTime(), Content: content})
+		doc := Doc{Path: file.Path, Lang: lang.Detect(file.Path, content), ModTime: info.ModTime(), Content: content}
+		if opts.Symbols {
+			doc.Symbols = symbols.Extract(doc.Lang, content)
+		}
+		s.add(doc)
 	}
 	return s, nil
 }

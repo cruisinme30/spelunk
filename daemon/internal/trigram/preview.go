@@ -9,6 +9,7 @@ import (
 	"github.com/cruisinme30/unified-search/daemon/internal/lang"
 	"github.com/cruisinme30/unified-search/daemon/internal/protocol"
 	"github.com/cruisinme30/unified-search/daemon/internal/query"
+	"github.com/cruisinme30/unified-search/daemon/internal/symbols"
 )
 
 // ErrStale means the file or line behind a ref is gone.
@@ -42,11 +43,12 @@ func Preview(repo *Repo, ref Ref, plan *query.Plan, contextLines int) (protocol.
 		last = min(len(lines), 1+2*contextLines) // the top of the file
 	}
 
+	language := lang.Detect(ref.Path, content)
 	var terms []*query.Content
 	// With type:file the words matched the file's name, not its text, so the
 	// text has nothing to mark.
 	if plan != nil && (!ref.IsFile() || plan.Kinds[query.KindLine]) {
-		doc := &Doc{Path: ref.Path, Lang: lang.Detect(ref.Path, content), ModTime: info.ModTime(), Content: content}
+		doc := &Doc{Path: ref.Path, Lang: language, ModTime: info.ModTime(), Content: content}
 		terms = query.Contributing(plan.Pred, contentLeaf(repo, doc, newLineMatcher(content, termCache{})))
 	}
 	hits := []protocol.LineHits{}
@@ -61,8 +63,29 @@ func Preview(repo *Repo, ref Ref, plan *query.Plan, contextLines int) (protocol.
 	}
 	return protocol.Preview{
 		Kind: protocol.PreviewKindFile, Path: ref.Path, FirstLine: first, Lines: lines[first-1 : last],
-		FocusLine: focus, Hits: hits, DirtyLines: []int{},
+		FocusLine: focus, Hits: hits, DirtyLines: []int{}, Symbols: outline(symbols.Extract(language, content), focus),
 	}, nil
+}
+
+// outline lists the definitions a preview names under the code: the
+// members of the class or interface defined on the focus line, or else
+// every definition in the file.
+func outline(found []symbols.Symbol, focus int) []protocol.OutlineSymbol {
+	start, end := 0, len(found)
+	for i, symbol := range found {
+		if symbol.Line != focus || (symbol.Kind != protocol.SymbolKindClass && symbol.Kind != protocol.SymbolKindInterface) {
+			continue
+		}
+		start, end = i+1, i+1
+		for end < len(found) && found[end].Kind == protocol.SymbolKindMethod {
+			end++
+		}
+	}
+	names := make([]protocol.OutlineSymbol, 0, end-start)
+	for _, symbol := range found[start:end] {
+		names = append(names, protocol.OutlineSymbol{Name: symbol.Name, Line: symbol.Line})
+	}
+	return names
 }
 
 // OpenTarget returns where opening a result goes: the line and column of

@@ -26,7 +26,7 @@ func BenchmarkLargeRepo(b *testing.B) {
 	if err != nil {
 		b.Fatal(err)
 	}
-	shard, err := Build(ctx, root, files, nil)
+	shard, err := Build(ctx, root, files, BuildOptions{Symbols: true})
 	if err != nil {
 		b.Fatal(err)
 	}

@@ -148,7 +148,7 @@ func buildShard(job buildJob, progress func(float64)) (*trigram.Shard, error) {
 	if err != nil {
 		return nil, fmt.Errorf("list files: %w", err)
 	}
-	return trigram.Build(job.ctx, job.root.Path, files, progress)
+	return trigram.Build(job.ctx, job.root.Path, files, trigram.BuildOptions{Symbols: job.settings.Symbols, Progress: progress})
 }
 
 // walkOptions are the index.* settings that decide which files are indexed.

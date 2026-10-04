@@ -7,11 +7,13 @@ import (
 	"regexp"
 	"regexp/syntax"
 	"slices"
+	"strings"
 	"time"
 	"unicode/utf8"
 
 	"github.com/cruisinme30/unified-search/daemon/internal/protocol"
 	"github.com/cruisinme30/unified-search/daemon/internal/query"
+	"github.com/cruisinme30/unified-search/daemon/internal/symbols"
 )
 
 // SearchBudget is how long one search may run before it returns what it
@@ -93,6 +95,9 @@ func Search(ctx context.Context, plan *query.Plan, repos []Repo, planID int, emi
 	s := &searcher{ctx: ctx, plan: plan, planID: planID, emit: emit, hidden: map[int]int{}, terms: termCache{}}
 	onlyFiles := plan.Kinds[query.KindFile] && !plan.Kinds[query.KindLine]
 
+	if plan.Kinds[query.KindSymbol] {
+		s.addSymbols(repos)
+	}
 	if plan.Kinds[query.KindFile] {
 		s.addFileNames(repos, onlyFiles)
 	}
@@ -110,7 +115,20 @@ func Search(ctx context.Context, plan *query.Plan, repos []Repo, planID int, emi
 	if errors.Is(ctx.Err(), context.Canceled) {
 		return Stats{}, context.Cause(ctx)
 	}
-	return s.stats(onlyFiles), nil
+	return s.stats(resultUnit(plan, onlyFiles)), nil
+}
+
+// resultUnit is what a hidden-results note counts: definitions for sym:,
+// files for file names alone, and matches otherwise.
+func resultUnit(plan *query.Plan, onlyFiles bool) string {
+	switch {
+	case plan.Kinds[query.KindSymbol]:
+		return "definitions"
+	case onlyFiles:
+		return "files"
+	default:
+		return "matches"
+	}
 }
 
 // countIgnoringCase counts the results plan would have without case:yes.
@@ -165,15 +183,11 @@ func (s *searcher) add(item protocol.ResultItem) {
 }
 
 // stats summarizes the search, with one hidden-results note per filter
-// that hid something.
-func (s *searcher) stats(onlyFiles bool) Stats {
+// that hid something, counting unit.
+func (s *searcher) stats(unit string) Stats {
 	stats := Stats{Total: s.counted, Truncated: s.truncated, Hidden: []protocol.HiddenNote{}}
 	if next := s.plan.Offset + s.plan.Limit; next < s.counted {
 		stats.NextOffset = next
-	}
-	unit := "matches"
-	if onlyFiles {
-		unit = "files"
 	}
 	for _, f := range s.plan.Filters {
 		if n := s.hidden[f.Index]; n > 0 {
@@ -355,6 +369,91 @@ func (s *searcher) addCodeLines(repos []Repo) {
 	}
 }
 
+// addSymbols adds a result for each definition whose name sym: matches, in
+// a file that satisfies the rest of the query (the "Definitions" section),
+// and credits a definition that only one filter removed to that filter.
+func (s *searcher) addSymbols(repos []Repo) {
+	for i := range repos {
+		repo := &repos[i]
+		s.forEachCandidate(repo, func(doc *Doc, _ *lineMatcher, leaf func(query.Pred) bool) {
+			for j := range doc.Symbols {
+				symbol := &doc.Symbols[j]
+				symbolLeaf := func(p query.Pred) bool {
+					if sym, ok := p.(*query.Symbol); ok {
+						return sym.Re.MatchString(symbol.Name)
+					}
+					return leaf(p)
+				}
+				if query.Eval(s.plan.Pred, symbolLeaf) {
+					s.add(s.symbolResult(repo, doc, symbol))
+				} else {
+					s.countHidden(symbolLeaf, func([]*query.Content) int { return 1 })
+				}
+			}
+		})
+	}
+}
+
+// symbolResult builds a definition result. Its ref points at the name in
+// the definition's line, so opening it selects the name.
+func (s *searcher) symbolResult(repo *Repo, doc *Doc, symbol *symbols.Symbol) protocol.ResultItem {
+	hits := []protocol.Hit{}
+	for _, kid := range s.plan.Pred.Kids {
+		walkSymbols(kid, func(sym *query.Symbol) {
+			for _, loc := range sym.Re.FindAllStringIndex(symbol.Name, -1) {
+				if loc[1] > loc[0] {
+					r := UTF16Range(symbol.Name, loc[0], loc[1])
+					hits = append(hits, protocol.Hit{Start: r.Start, End: r.End})
+				}
+			}
+		})
+	}
+	ref := Ref{PlanID: s.planID, RepoID: repo.ID, Path: doc.Path, Line: symbol.Line, Length: utf16Len(symbol.Name)}
+	if line, ok := lineOf(doc.Content, symbol.Line); ok {
+		if at := strings.Index(line, symbol.Name); at >= 0 {
+			ref.Column = utf16Len(line[:at])
+		}
+	}
+	return protocol.ResultItem{
+		Kind: query.KindSymbol, Ref: ref.String(), RepoID: repo.ID, Path: doc.Path, Line: symbol.Line,
+		Name: symbol.Name, SymbolKind: symbol.Kind, Hits: hits,
+	}
+}
+
+// walkSymbols calls visit for every sym: leaf of p that isn't negated.
+func walkSymbols(p query.Pred, visit func(*query.Symbol)) {
+	switch p := p.(type) {
+	case *query.And:
+		for _, kid := range p.Kids {
+			walkSymbols(kid, visit)
+		}
+	case *query.Or:
+		for _, kid := range p.Kids {
+			walkSymbols(kid, visit)
+		}
+	case *query.Symbol:
+		visit(p)
+	}
+}
+
+// lineOf returns line number (1-based) of content, without its line end.
+func lineOf(content []byte, number int) (string, bool) {
+	for rest := content; number > 0; number-- {
+		end := bytes.IndexByte(rest, '\n')
+		if number == 1 {
+			if end < 0 {
+				end = len(rest)
+			}
+			return strings.TrimSuffix(string(rest[:end]), "\r"), true
+		}
+		if end < 0 {
+			return "", false
+		}
+		rest = rest[end+1:]
+	}
+	return "", false
+}
+
 // countCodeLinesHiddenByType counts the code lines a type:file query
 // leaves out, for its "N code matches hidden by type:file" note. It adds
 // no results.
@@ -413,10 +512,15 @@ func (s *searcher) candidateDocs(shard *Shard) []uint32 {
 // narrowShard returns the docs that can satisfy p, or nil for "any doc".
 func narrowShard(shard *Shard, p query.Pred, caseSensitive bool) []uint32 {
 	return Narrow(p, func(leaf query.Pred) []uint32 {
-		if content, ok := leaf.(*query.Content); ok {
-			return shard.Candidates(ContentLiteral(content), caseSensitive)
+		switch leaf := leaf.(type) {
+		case *query.Content:
+			return shard.Candidates(ContentLiteral(leaf), caseSensitive)
+		case *query.Symbol:
+			// A definition's name is in the file's text.
+			return shard.Candidates(query.RequiredLiteral(leaf.Re), caseSensitive)
+		default:
+			return nil // paths, languages…: any doc may qualify
 		}
-		return nil // paths, languages…: any doc may qualify
 	})
 }
 

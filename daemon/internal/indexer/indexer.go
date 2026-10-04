@@ -197,7 +197,7 @@ func (ix *Indexer) SetSettings(settings protocol.Settings) {
 	old := ix.settings
 	ix.settings = settings
 	treeChanged := !slices.Equal(old.Exclude, settings.Exclude) || old.IncludeIgnored != settings.IncludeIgnored ||
-		old.MaxFileSizeKB != settings.MaxFileSizeKB || old.Location != settings.Location
+		old.MaxFileSizeKB != settings.MaxFileSizeKB || old.Location != settings.Location || old.Symbols != settings.Symbols
 	historyChanged := old.HistoryDepth != settings.HistoryDepth || old.Location != settings.Location ||
 		!slices.Equal(old.Exclude, settings.Exclude)
 	for _, id := range ix.order {

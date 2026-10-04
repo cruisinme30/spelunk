@@ -54,16 +54,20 @@ func TestIntersectAndUnion(t *testing.T) {
 }
 
 func TestBuildReadsListedFiles(t *testing.T) {
-	root := writeTree(t, map[string]string{"a.go": "package a\n", "b.py": "print(1)\n"})
+	root := writeTree(t, map[string]string{"a.go": "package a\n\nfunc A() {}\n", "b.py": "print(1)\n"})
 	var reports []float64
-	shard, err := Build(context.Background(), root, []File{{Path: "a.go"}, {Path: "b.py"}, {Path: "deleted.txt"}}, func(done float64) {
+	files := []File{{Path: "a.go"}, {Path: "b.py"}, {Path: "deleted.txt"}}
+	shard, err := Build(context.Background(), root, files, BuildOptions{Symbols: true, Progress: func(done float64) {
 		reports = append(reports, done)
-	})
+	}})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(shard.Docs) != 2 || shard.Docs[0].Lang != "go" || shard.Docs[1].Lang != "python" {
 		t.Errorf("docs = %+v, want a.go (go) and b.py (python); deleted files skipped", shard.Docs)
+	}
+	if got := shard.Docs[0].Symbols; len(got) != 1 || got[0].Name != "A" || got[0].Line != 3 {
+		t.Errorf("a.go symbols = %+v, want func A on line 3", got)
 	}
 	if len(reports) != 1 || reports[0] != 0 {
 		t.Errorf("progress reports = %v, want [0] for a small build", reports)
