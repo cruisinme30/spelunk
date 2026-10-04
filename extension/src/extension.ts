@@ -10,7 +10,7 @@ import { SearchController, type PersistedState, type Ui } from "./controller";
 import { Daemon, type DaemonState } from "./daemon";
 import { HelpPanel } from "./helpPanel";
 import { SearchPanel } from "./panel";
-import type { FileChange, OpenTarget, OpenWhere, ResultItem } from "./protocol.gen";
+import type { FileChange, IndexState, OpenTarget, OpenWhere, ResultItem } from "./protocol.gen";
 import { makeRoot } from "./roots";
 import { DEFAULTS, daemonSettings, uiSettings } from "./settings";
 
@@ -141,9 +141,8 @@ function createStatusBar(daemon: Daemon, panel: SearchPanel): vscode.Disposable 
   daemon.on("progress", (progress) => {
     panel.post("index.status", progress);
     if (daemon.state !== "ok") return; // health messages take priority over progress
-    const busy = progress.repos.filter(
-      (repo) => repo.tree !== "ready" || (repo.history !== "ready" && repo.history !== "off"),
-    );
+    const isBusy = (state: IndexState) => state === "queued" || state === "indexing";
+    const busy = progress.repos.filter((repo) => isBusy(repo.tree) || isBusy(repo.history));
     status.text = busy.length ? `$(sync~spin) Indexing ${busy.length} of ${progress.repos.length}` : READY_STATUS;
   });
   return status;
