@@ -92,8 +92,13 @@ export function toggleRegex(text: string, q: ParsedQuery | undefined): Edited {
     }
     return applyEdits(text, edits);
   }
-  return applyEdits(text, terms.filter((t) => t.match !== "regex").map((t) => ({
-    span: t.span,
-    newText: `/${t.value.replace(/[\\^$.|?*+()[\]{}/]/g, "\\$&")}/`,
-  })));
+  return applyEdits(
+    text,
+    terms
+      .filter((t) => t.match !== "regex")
+      .map((t) => ({
+        span: t.span,
+        newText: `/${t.value.replace(/[\\^$.|?*+()[\]{}/]/g, "\\$&")}/`,
+      })),
+  );
 }

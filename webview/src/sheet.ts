@@ -1,4 +1,5 @@
-// The operator cheat sheet (mock 4) and help-table data. 16 operators.
+// The operator cheat sheet (mock 4): 16 operators in five groups, plus the
+// labels and color tones the chips and completions use for each operator.
 export interface SheetItem {
   insert: string;
   label: string;
@@ -58,11 +59,27 @@ export const SHEET: SheetGroup[] = [
 ];
 
 export const OP_TONE: Record<string, SheetGroup["tone"]> = {
-  case: "match", f: "scope", repo: "scope", lang: "scope", type: "scope", sym: "scope",
-  author: "history", msg: "history", since: "history", count: "output",
+  case: "match",
+  f: "scope",
+  repo: "scope",
+  lang: "scope",
+  type: "scope",
+  sym: "scope",
+  author: "history",
+  msg: "history",
+  since: "history",
+  count: "output",
 };
 
 export const OP_LABEL: Record<string, string> = {
-  f: "path", repo: "repo", lang: "lang", type: "type", sym: "symbol",
-  author: "author", msg: "message", since: "since", case: "case", count: "count",
+  f: "path",
+  repo: "repo",
+  lang: "lang",
+  type: "type",
+  sym: "symbol",
+  author: "author",
+  msg: "message",
+  since: "since",
+  case: "case",
+  count: "count",
 };

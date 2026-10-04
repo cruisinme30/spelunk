@@ -1,4 +1,5 @@
-// Small display helpers shared by the renderers.
+// DOM and text helpers shared by the renderers: element builder, match
+// highlighting, relative times and plurals.
 import type { Hit, Range } from "./protocol.gen";
 
 export function el<K extends keyof HTMLElementTagNameMap>(
@@ -39,7 +40,14 @@ export function timeAgo(iso: string, now = Date.now()): string {
   const t = Date.parse(iso);
   if (Number.isNaN(t)) return iso;
   const s = Math.max(0, Math.round((now - t) / 1000));
-  const units: [number, string][] = [[31536000, "year"], [2592000, "month"], [604800, "week"], [86400, "day"], [3600, "hour"], [60, "minute"]];
+  const units: [number, string][] = [
+    [31536000, "year"],
+    [2592000, "month"],
+    [604800, "week"],
+    [86400, "day"],
+    [3600, "hour"],
+    [60, "minute"],
+  ];
   for (const [secs, name] of units) {
     const n = Math.floor(s / secs);
     if (n >= 1) return `${n} ${name}${n === 1 ? "" : "s"} ago`;
@@ -49,9 +57,4 @@ export function timeAgo(iso: string, now = Date.now()): string {
 
 export function plural(n: number, one: string, many = one + "s"): string {
   return `${n.toLocaleString("en-US")} ${n === 1 ? one : many}`;
-}
-
-export function splitPath(path: string): [string, string] {
-  const i = path.lastIndexOf("/");
-  return i < 0 ? ["", path] : [path.slice(0, i + 1), path.slice(i + 1)];
 }

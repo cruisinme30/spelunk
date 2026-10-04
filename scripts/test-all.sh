@@ -21,7 +21,7 @@ cd ..
 step "webview: typecheck + Playwright contract tests"
 cd webview
 tsc -p tsconfig.json
-node test/build-harness.mjs
+node test/buildHarness.mjs
 node --test "test/*.test.mjs"
 cd ..
 
