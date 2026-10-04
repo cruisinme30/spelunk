@@ -9,19 +9,26 @@ export interface EmptyStateHandlers {
 }
 
 export function renderEmptyState(body: HTMLElement, state: ViewState, handlers: EmptyStateHandlers): void {
+  const className = state.sheetOpen ? "empty sheet-open" : "empty";
+  body.replaceChildren(
+    el("div", { class: className }, renderRecent(state, handlers.onRunRecent), renderSheet(handlers.onInsert)),
+  );
+}
+
+function renderRecent(state: ViewState, onRunRecent: (query: string) => void): HTMLElement {
   const recent = el("div", { class: "recent" }, el("div", { class: "section-title" }, "Recent"));
   state.recent.forEach((query, index) => {
     const row = el(
       "button",
       {
         type: "button",
-        class: "recent-row" + (index === state.recentIndex ? " selected" : ""),
+        class: index === state.recentIndex ? "recent-row selected" : "recent-row",
         "data-recent": query,
         "data-testid": "recent",
       },
       el("code", {}, query),
     );
-    row.addEventListener("click", () => handlers.onRunRecent(query));
+    row.addEventListener("click", () => onRunRecent(query));
     recent.append(row);
   });
   if (!state.recent.length) recent.append(el("p", { class: "muted pad" }, "Queries you run show up here."));
@@ -34,7 +41,10 @@ export function renderEmptyState(body: HTMLElement, state: ViewState, handlers: 
       el("span", { class: "muted" }, "Spaces mean AND. AND binds tighter than OR."),
     ),
   );
+  return recent;
+}
 
+function renderSheet(onInsert: (snippet: string) => void): HTMLElement {
   const groups = el("div", { class: "groups" });
   for (const group of SHEET) {
     const card = el("div", { class: "card" }, el("span", { class: `gname tone-${group.tone}` }, group.name));
@@ -45,21 +55,16 @@ export function renderEmptyState(body: HTMLElement, state: ViewState, handlers: 
         el("code", { class: `tone-${group.tone}` }, item.label),
         el("span", { class: "muted" }, item.detail),
       );
-      button.addEventListener("click", () => handlers.onInsert(item.insert));
+      button.addEventListener("click", () => onInsert(item.insert));
       card.append(button);
     }
     groups.append(card);
   }
-  const sheet = el(
+  const title = el(
     "div",
-    { class: "sheet", "data-testid": "sheet" },
-    el(
-      "div",
-      { class: "section-title split" },
-      el("span", {}, "Operators"),
-      el("span", { class: "muted" }, "Click one to insert it"),
-    ),
-    groups,
+    { class: "section-title split" },
+    el("span", {}, "Operators"),
+    el("span", { class: "muted" }, "Click one to insert it"),
   );
-  body.replaceChildren(el("div", { class: "empty" + (state.sheetOpen ? " sheet-open" : "") }, recent, sheet));
+  return el("div", { class: "sheet", "data-testid": "sheet" }, title, groups);
 }

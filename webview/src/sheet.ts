@@ -1,13 +1,17 @@
 // The operator cheat sheet (mock 4): 16 operators in five groups, plus the
 // labels and color tones the chips and completions use for each operator.
+import type { OpName } from "./protocol.gen";
 export interface SheetItem {
   insert: string;
   label: string;
   detail: string;
 }
+/** The color family of an operator group. */
+export type Tone = "match" | "logic" | "scope" | "history" | "output";
+
 export interface SheetGroup {
   name: string;
-  tone: "match" | "logic" | "scope" | "history" | "output";
+  tone: Tone;
   items: SheetItem[];
 }
 
@@ -58,7 +62,8 @@ export const SHEET: SheetGroup[] = [
   },
 ];
 
-export const OP_TONE: Record<string, SheetGroup["tone"]> = {
+/** Typed by OpName, so adding an operator to the schema fails to compile until it has a tone. */
+export const OP_TONE: Record<OpName, Tone> = {
   case: "match",
   f: "scope",
   repo: "scope",
@@ -71,7 +76,8 @@ export const OP_TONE: Record<string, SheetGroup["tone"]> = {
   count: "output",
 };
 
-export const OP_LABEL: Record<string, string> = {
+/** How each operator reads in the parsed-query chips. */
+export const OP_LABEL: Record<OpName, string> = {
   f: "path",
   repo: "repo",
   lang: "lang",
@@ -83,3 +89,9 @@ export const OP_LABEL: Record<string, string> = {
   case: "case",
   count: "count",
 };
+
+/** The tone for a completion label such as "since:" (non-operators read as logic). */
+export function toneForLabel(label: string): Tone {
+  const name = label.replace(/:.*$/, "");
+  return name in OP_TONE ? OP_TONE[name as OpName] : "logic";
+}

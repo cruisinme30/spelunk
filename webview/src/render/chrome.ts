@@ -1,79 +1,94 @@
-// The panel chrome around the results: index status, banners, completions,
-// query diagnostics, parsed-query chips and the key hints footer.
-import { el, plural } from "../format";
+// The panel chrome around the results: index status, health and indexing
+// banners, completions, query diagnostics, parsed-query chips and the key
+// hints footer.
+import { el, plural, termClass } from "../format";
 import type { Layout } from "../layout";
-import type { Diagnostic, Fix, Node as QueryNode } from "../protocol.gen";
-import { OP_LABEL, OP_TONE } from "../sheet";
+import type { BannerMsg, Diagnostic, Fix, IndexState, Mode, Node as QueryNode, RepoStatus } from "../protocol.gen";
+import { OP_LABEL, OP_TONE, toneForLabel } from "../sheet";
 import { hasErrors, type ViewState } from "../state";
+
+const isBusy = (state: IndexState) => state === "indexing" || state === "queued";
 
 /** The header dot and text: up to date, indexing, or a problem. */
 export function renderIndexStatus(layout: Layout, state: ViewState): void {
   const repos = state.repos;
-  const isBusy = (s: string) => s === "indexing" || s === "queued";
-  const busy = repos.filter((r) => isBusy(r.tree) || isBusy(r.history));
-  const failed = repos.filter((r) => r.tree === "error" || r.history === "error");
-  layout.statusDot.className = "dot " + (failed.length ? "err" : busy.length ? "busy" : "ok");
-  if (failed.length) layout.statusText.textContent = `Index problem in ${failed.map((r) => r.name).join(", ")}`;
-  else if (busy.length) layout.statusText.textContent = `Indexing ${busy.length} of ${plural(repos.length, "repo")}`;
-  else layout.statusText.textContent = repos.length ? "Index up to date" : "No folders open";
+  const busy = repos.filter((repo) => isBusy(repo.tree) || isBusy(repo.history));
+  const failed = repos.filter((repo) => repo.tree === "error" || repo.history === "error");
+  let dot = "ok";
+  let text = repos.length ? "Index up to date" : "No folders open";
+  if (failed.length) {
+    dot = "err";
+    text = `Index problem in ${failed.map((repo) => repo.name).join(", ")}`;
+  } else if (busy.length) {
+    dot = "busy";
+    text = `Indexing ${busy.length} of ${plural(repos.length, "repo")}`;
+  }
+  layout.statusDot.className = `dot ${dot}`;
+  layout.statusText.textContent = text;
   layout.reposButton.textContent = `All repos · ${repos.length}`;
 }
 
-/** Daemon health (failure table) and per-repo indexing progress (mock 14). */
-export function renderBanner(layout: Layout, state: ViewState, onRestart: () => void): void {
+/** Daemon health (failure table) followed by one banner per indexing repo (mock 14). */
+export function renderBanners(layout: Layout, state: ViewState, onRestart: () => void): void {
   layout.banner.replaceChildren();
-  const banner = state.banner;
-  if (banner) {
-    const title =
-      banner.state === "restarting"
-        ? "Search restarting…"
-        : banner.state === "stopped"
-          ? "Search stopped"
-          : (banner.message ?? "Search unavailable");
-    const restart =
-      banner.state === "stopped"
-        ? el("button", { type: "button", class: "btn", "data-testid": "restart" }, "Restart")
-        : null;
-    restart?.addEventListener("click", onRestart);
-    const detail =
-      banner.message && banner.state !== "restarting" && banner.message !== title
-        ? el("span", {}, banner.message)
-        : null;
-    const tone = banner.state === "restarting" ? "warn" : "error";
-    layout.banner.append(
-      el("div", { class: `banner ${tone}`, role: "alert" }, el("span", { class: "strong" }, title), detail, restart),
-    );
-  }
+  if (state.banner) layout.banner.append(renderHealthBanner(state.banner, onRestart));
   for (const repo of state.repos) {
-    const what = repo.tree === "indexing" ? "files" : repo.history === "indexing" ? "history" : "";
-    if (!what) continue;
-    const percent = Math.round((repo.progress ?? 0) * 100);
-    const bar = el(
-      "span",
-      {
-        class: "progress",
-        role: "progressbar",
-        "aria-valuenow": percent,
-        "aria-valuemin": 0,
-        "aria-valuemax": 100,
-        "aria-label": `${repo.name} ${what} indexing`,
-      },
-      el("span", { style: `width:${percent}%` }),
-    );
-    const note = repo.message ?? "Results from this repo may be incomplete. Search keeps working while it finishes.";
-    layout.banner.append(
-      el(
-        "div",
-        { class: "banner index", "data-testid": "indexing-banner" },
-        el("span", { class: "strong" }, `Indexing ${repo.name} · ${percent}%`),
-        bar,
-        el("span", {}, note),
-      ),
-    );
+    const banner = renderIndexingBanner(repo);
+    if (banner) layout.banner.append(banner);
   }
 }
 
-const GROUP_TITLE: Record<string, string> = {
+function healthTitle(banner: BannerMsg): string {
+  switch (banner.state) {
+    case "restarting":
+      return "Search restarting…";
+    case "stopped":
+      return "Search stopped";
+    default:
+      return banner.message ?? "Search unavailable";
+  }
+}
+
+function renderHealthBanner(banner: BannerMsg, onRestart: () => void): HTMLElement {
+  const title = healthTitle(banner);
+  const detail =
+    banner.message && banner.state !== "restarting" && banner.message !== title ? el("span", {}, banner.message) : null;
+  let restart: HTMLElement | null = null;
+  if (banner.state === "stopped") {
+    restart = el("button", { type: "button", class: "btn", "data-testid": "restart" }, "Restart");
+    restart.addEventListener("click", onRestart);
+  }
+  const tone = banner.state === "restarting" ? "warn" : "error";
+  return el("div", { class: `banner ${tone}`, role: "alert" }, el("span", { class: "strong" }, title), detail, restart);
+}
+
+function renderIndexingBanner(repo: RepoStatus): HTMLElement | null {
+  const phase = repo.tree === "indexing" ? "files" : repo.history === "indexing" ? "history" : "";
+  if (!phase) return null;
+  const percent = Math.round((repo.progress ?? 0) * 100);
+  const bar = el(
+    "span",
+    {
+      class: "progress",
+      role: "progressbar",
+      "aria-valuenow": percent,
+      "aria-valuemin": 0,
+      "aria-valuemax": 100,
+      "aria-label": `${repo.name} ${phase} indexing`,
+    },
+    el("span", { style: `width:${percent}%` }),
+  );
+  const note = repo.message ?? "Results from this repo may be incomplete. Search keeps working while it finishes.";
+  return el(
+    "div",
+    { class: "banner index", "data-testid": "indexing-banner" },
+    el("span", { class: "strong" }, `Indexing ${repo.name} · ${percent}%`),
+    bar,
+    el("span", {}, note),
+  );
+}
+
+const COMPLETION_GROUP_TITLE: Record<string, string> = {
   operator: "Operators",
   author: "Authors",
   repo: "Repos",
@@ -93,24 +108,23 @@ export function renderCompletions(layout: Layout, state: ViewState, onPick: (ind
   state.completions.forEach((completion, index) => {
     if (completion.group !== group) {
       group = completion.group;
-      completions.append(el("div", { class: "cgroup", role: "presentation" }, GROUP_TITLE[group] ?? group));
+      completions.append(el("div", { class: "cgroup", role: "presentation" }, COMPLETION_GROUP_TITLE[group] ?? group));
     }
     const selected = index === state.completionIndex;
-    const tone = OP_TONE[completion.label.replace(/:.*$/, "")] ?? "logic";
     const option = el(
       "div",
       {
-        class: "copt" + (selected ? " selected" : ""),
+        class: selected ? "copt selected" : "copt",
         role: "option",
         id: `c${index}`,
         "aria-selected": String(selected),
         "data-testid": "completion",
       },
-      el("code", { class: `tone-${tone}` }, completion.label),
+      el("code", { class: `tone-${toneForLabel(completion.label)}` }, completion.label),
       el("span", { class: "detail" }, completion.detail),
       selected ? el("kbd", {}, "Tab") : null,
     );
-    // mousedown, not click: keep focus in the query box.
+    // mousedown, not click: picking must not move focus out of the query box.
     option.addEventListener("mousedown", (event) => {
       event.preventDefault();
       onPick(index);
@@ -121,19 +135,19 @@ export function renderCompletions(layout: Layout, state: ViewState, onPick: (ind
 
 /** Query errors and warnings with their fix-it buttons (mock 13). */
 export function renderDiagnostics(layout: Layout, state: ViewState, onFix: (fix: Fix) => void): void {
-  layout.diagnostics.replaceChildren();
   const raw = state.parsed?.raw ?? "";
-  for (const diagnostic of state.parsed?.diagnostics ?? []) {
-    layout.diagnostics.append(renderDiagnostic(raw, diagnostic, onFix));
-  }
+  const diagnostics = state.parsed?.diagnostics ?? [];
+  layout.diagnostics.replaceChildren(...diagnostics.map((diagnostic) => renderDiagnostic(raw, diagnostic, onFix)));
 }
 
 function renderDiagnostic(raw: string, diagnostic: Diagnostic, onFix: (fix: Fix) => void): HTMLElement {
   const { start, end } = diagnostic.span;
-  const snippet = el("code", { class: "snippet" });
-  snippet.append(
+  const offending = raw.slice(start, Math.max(end, start + 1)) || " ";
+  const snippet = el(
+    "code",
+    { class: "snippet" },
     raw.slice(0, start),
-    el("span", { class: "bad" }, raw.slice(start, Math.max(end, start + 1)) || " "),
+    el("span", { class: "bad" }, offending),
     raw.slice(end),
   );
   const caret = el("code", { class: "caret" }, " ".repeat(start) + "^");
@@ -156,7 +170,7 @@ function renderDiagnostic(raw: string, diagnostic: Diagnostic, onFix: (fix: Fix)
   );
 }
 
-/** The parsed query as chips, with the mode and a result summary (mocks 1-3). */
+/** The parsed query as chips, with the mode and the result summary (mocks 1-3). */
 export function renderChips(layout: Layout, state: ViewState, summary: HTMLElement): void {
   layout.chips.replaceChildren();
   const query = state.parsed;
@@ -170,19 +184,19 @@ export function renderChips(layout: Layout, state: ViewState, summary: HTMLEleme
   );
 }
 
-function chipsFor(node: QueryNode, mode: "workingTree" | "history"): (Node | string)[] {
-  const joiner = (text: string, extra = "") => el("span", { class: `joiner ${extra}`.trim() }, text);
+const joiner = (text: string, extraClass = "") => el("span", { class: `joiner ${extraClass}`.trim() }, text);
+
+/** Children's chips separated by AND or OR. */
+function joinChips(children: QueryNode[], word: "AND" | "OR", mode: Mode): Node[] {
+  return children.flatMap((child, index) => (index ? [joiner(word), ...chipsFor(child, mode)] : chipsFor(child, mode)));
+}
+
+function chipsFor(node: QueryNode, mode: Mode): Node[] {
   switch (node.kind) {
     case "and":
-      return node.children.flatMap((child, i) =>
-        i ? [joiner("AND"), ...chipsFor(child, mode)] : chipsFor(child, mode),
-      );
+      return joinChips(node.children, "AND", mode);
     case "or":
-      return [
-        joiner("("),
-        ...node.children.flatMap((child, i) => (i ? [joiner("OR"), ...chipsFor(child, mode)] : chipsFor(child, mode))),
-        joiner(")"),
-      ];
+      return [joiner("("), ...joinChips(node.children, "OR", mode), joiner(")")];
     case "not":
       return [joiner("NOT", "not"), ...chipsFor(node.child, mode)];
     case "text": {
@@ -190,7 +204,7 @@ function chipsFor(node: QueryNode, mode: "workingTree" | "history"): (Node | str
       return [
         el(
           "span",
-          { class: `chip term t${node.termIndex % 4}` },
+          { class: `chip term ${termClass(node.termIndex)}` },
           el("span", { class: "k" }, label),
           el("code", {}, node.value),
         ),
@@ -202,7 +216,7 @@ function chipsFor(node: QueryNode, mode: "workingTree" | "history"): (Node | str
         el(
           "span",
           { class: `chip tone-${OP_TONE[node.op]}` },
-          el("span", { class: "k" }, OP_LABEL[node.op] ?? node.op),
+          el("span", { class: "k" }, OP_LABEL[node.op]),
           el("code", {}, value),
           node.resolved ? el("span", { class: "resolved" }, `→ ${node.resolved.label}`) : null,
         ),
@@ -216,16 +230,16 @@ export type FooterMode = "empty" | "errors" | "results";
 /** Key hints along the bottom, which change with what the panel shows. */
 export function renderFooter(layout: Layout, mode: FooterMode, isHistory: boolean): void {
   const hint = (key: string, what: string) => el("span", {}, el("kbd", {}, key), what);
-  const pushed = (key: string, what: string) => el("span", { class: "push" }, el("kbd", {}, key), what);
+  const hintAtEnd = (key: string, what: string) => el("span", { class: "push" }, el("kbd", {}, key), what);
   const hints: Record<FooterMode, HTMLElement[]> = {
-    empty: [hint("↑↓", "move"), hint("↵", "run recent query"), pushed("?", "opens this sheet anytime")],
-    errors: [hint("⌘.", "apply first fix"), hint("Tab", "complete operator"), pushed("?", "all operators")],
+    empty: [hint("↑↓", "move"), hint("↵", "run recent query"), hintAtEnd("?", "opens this sheet anytime")],
+    errors: [hint("⌘.", "apply first fix"), hint("Tab", "complete operator"), hintAtEnd("?", "all operators")],
     results: [
       hint("↑↓", "move"),
       hint("↵", isHistory ? "open diff" : "open"),
       hint("⌘↵", "open to side"),
       hint("Tab", "complete operator"),
-      pushed("Esc", "close"),
+      hintAtEnd("Esc", "close"),
     ],
   };
   layout.footer.replaceChildren(...hints[mode]);

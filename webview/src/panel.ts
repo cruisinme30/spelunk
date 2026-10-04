@@ -3,13 +3,14 @@
 //
 // The panel is a pure view (Contract 2). Fix-its, completions and the Aa / .*
 // toggles all edit the query text, then send an ordinary query.changed.
+import { clamp, el, plural, wrapIndex } from "./format";
 import { type HostMessage, loadDraft, onHostMessage, saveDraft, send } from "./host";
 import { createLayout, type Layout } from "./layout";
-import type { Completion, Fix, ParsedQuery, SearchDoneMsg } from "./protocol.gen";
+import type { Completion, Fix, OpenWhere, ParsedQuery, SearchDoneMsg } from "./protocol.gen";
 import { applyEdits, isCasePressed, isRegexPressed, toggleCase, toggleRegex } from "./queryEdit";
 import {
   type FooterMode,
-  renderBanner,
+  renderBanners,
   renderChips,
   renderCompletions,
   renderDiagnostics,
@@ -18,12 +19,13 @@ import {
 } from "./render/chrome";
 import { renderEmptyState } from "./render/emptyState";
 import { renderPreview } from "./render/preview";
-import { ResultsView, rowId } from "./render/results";
+import { ResultsView } from "./render/results";
 import { createViewState, hasErrors, type ViewState } from "./state";
-import { el, plural } from "./format";
 
-/** Snippets inserted from the cheat sheet that put the cursor between a pair. */
+/** Cheat-sheet snippets that put the cursor between a pair: "|", /|/, (|). */
 const PAIRED_SNIPPETS = new Set(['""', "//", "()"]);
+/** Holding ↓ shouldn't request a preview for every row it passes. */
+const PREVIEW_DEBOUNCE_MS = 30;
 
 export class SearchPanel {
   private readonly state: ViewState = createViewState();
@@ -31,7 +33,7 @@ export class SearchPanel {
   private readonly summary = el("span", { class: "summary", "data-testid": "summary" });
   private results?: ResultsView;
   private debounceTimer?: ReturnType<typeof setTimeout>;
-  private selectTimer?: ReturnType<typeof setTimeout>;
+  private previewTimer?: ReturnType<typeof setTimeout>;
 
   constructor(root: HTMLElement) {
     this.layout = createLayout(root);
@@ -50,10 +52,10 @@ export class SearchPanel {
 
   // ------------------------------------------------------------ query text
 
-  /** Reports the box to the host, after the typing delay unless `immediate`. */
+  /** Reports the box to the host: after the typing delay, or now if `immediate`. */
   private queryChanged(immediate = false): void {
     clearTimeout(this.debounceTimer);
-    const fire = () => {
+    const report = () => {
       const { input } = this.layout;
       this.state.seq++;
       saveDraft(input.value);
@@ -63,8 +65,8 @@ export class SearchPanel {
         seq: this.state.seq,
       });
     };
-    if (immediate || this.state.ui.typingDelayMs <= 0) fire();
-    else this.debounceTimer = setTimeout(fire, this.state.ui.typingDelayMs);
+    if (immediate || this.state.ui.typingDelayMs <= 0) report();
+    else this.debounceTimer = setTimeout(report, this.state.ui.typingDelayMs);
   }
 
   private setQuery(text: string, cursor = text.length): void {
@@ -91,13 +93,14 @@ export class SearchPanel {
     this.state.completionsOpen = true; // keep suggesting values after an operator
   }
 
+  /** Inserts a cheat-sheet snippet at the cursor, separated from the word before it. */
   private insertAtCursor(snippet: string): void {
     const { input } = this.layout;
     const position = input.selectionStart ?? input.value.length;
     const before = input.value.slice(0, position);
-    const pad = before && !before.endsWith(" ") && !snippet.startsWith(" ") ? " " : "";
-    const cursor = before.length + pad.length + snippet.length - (PAIRED_SNIPPETS.has(snippet) ? 1 : 0);
-    input.value = before + pad + snippet + input.value.slice(position);
+    const separator = before && !before.endsWith(" ") && !snippet.startsWith(" ") ? " " : "";
+    const cursor = before.length + separator.length + snippet.length - (PAIRED_SNIPPETS.has(snippet) ? 1 : 0);
+    input.value = before + separator + snippet + input.value.slice(position);
     input.focus();
     input.setSelectionRange(cursor, cursor);
     this.state.completionsOpen = true;
@@ -118,6 +121,7 @@ export class SearchPanel {
     });
     input.addEventListener("keydown", (event) => this.onKeyDown(event));
     input.addEventListener("focus", () => this.renderCompletions());
+    // On blur, wait a tick: activeElement is still the input during the event.
     input.addEventListener("blur", () => setTimeout(() => this.renderCompletions(), 0));
 
     caseButton.addEventListener("click", () => {
@@ -136,83 +140,121 @@ export class SearchPanel {
     });
 
     body.addEventListener("click", (event) => {
-      const row = (event.target as HTMLElement).closest<HTMLElement>("[data-ref]");
-      if (!row?.dataset.ref) return;
-      this.select(row.dataset.ref);
-      if (this.state.ui.openTrigger === "singleClick") this.open(row.dataset.ref, event);
+      const ref = rowRef(event);
+      if (!ref) return;
+      this.select(ref);
+      if (this.state.ui.openTrigger === "singleClick") this.open(ref, event);
     });
     body.addEventListener("dblclick", (event) => {
-      const row = (event.target as HTMLElement).closest<HTMLElement>("[data-ref]");
-      if (row?.dataset.ref && this.state.ui.openTrigger === "doubleClick") this.open(row.dataset.ref, event);
+      const ref = rowRef(event);
+      if (ref && this.state.ui.openTrigger === "doubleClick") this.open(ref, event);
     });
   }
 
+  /** ⌘ or Ctrl opens to the side. */
   private open(ref: string, event: MouseEvent | KeyboardEvent): void {
-    send("result.open", { ref, where: event.metaKey || event.ctrlKey ? "side" : "current" });
+    const where: OpenWhere = event.metaKey || event.ctrlKey ? "side" : "current";
+    send("result.open", { ref, where });
+  }
+
+  private get completionsVisible(): boolean {
+    return this.state.completionsOpen && this.state.completions.length > 0;
   }
 
   private onKeyDown(event: KeyboardEvent): void {
-    const { input } = this.layout;
-    const state = this.state;
-    const modifier = event.metaKey || event.ctrlKey;
-    const completionsVisible = state.completionsOpen && state.completions.length > 0;
+    const handled = this.handleKey(event);
+    if (handled) event.preventDefault();
+  }
 
-    if (event.key === "?" && !input.value) {
-      event.preventDefault();
-      state.sheetOpen = !state.sheetOpen;
-      this.showEmptyState();
-    } else if (modifier && event.key === ".") {
-      event.preventDefault();
-      const firstFix = state.parsed?.diagnostics.find((d) => d.fixes.length)?.fixes[0];
-      if (firstFix) this.applyFix(firstFix);
-    } else if (event.key === "Tab" && completionsVisible) {
-      event.preventDefault();
-      this.acceptCompletion(state.completionIndex);
-    } else if (event.key === "Escape") {
-      event.preventDefault();
-      if (completionsVisible) {
-        state.completionsOpen = false;
-        this.renderCompletions();
-      } else {
-        send("panel.close", {});
-      }
-    } else if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-      event.preventDefault();
-      const step = event.key === "ArrowDown" ? 1 : -1;
-      if (completionsVisible) {
-        state.completionIndex = (state.completionIndex + step + state.completions.length) % state.completions.length;
-        this.renderCompletions();
-      } else {
-        this.moveSelection(step);
-      }
-    } else if (event.key === "Enter") {
-      event.preventDefault();
-      if (completionsVisible && !modifier) this.acceptCompletion(state.completionIndex);
-      else if (!input.value) this.runRecent(state.recent[state.recentIndex]);
-      else if (state.selectedRef) this.open(state.selectedRef, event);
+  /** Returns whether the key was handled (and its default should be prevented). */
+  private handleKey(event: KeyboardEvent): boolean {
+    const modifier = event.metaKey || event.ctrlKey;
+    switch (event.key) {
+      case "?":
+        if (this.layout.input.value) return false; // a literal ? in a query
+        this.state.sheetOpen = !this.state.sheetOpen;
+        this.showEmptyState();
+        return true;
+      case ".":
+        if (!modifier) return false;
+        this.applyFirstFix();
+        return true;
+      case "Tab":
+        if (!this.completionsVisible) return false;
+        this.acceptCompletion(this.state.completionIndex);
+        return true;
+      case "Escape":
+        this.onEscape();
+        return true;
+      case "ArrowDown":
+      case "ArrowUp":
+        this.onArrow(event.key === "ArrowDown" ? 1 : -1);
+        return true;
+      case "Enter":
+        this.onEnter(event, modifier);
+        return true;
+      default:
+        return false;
     }
+  }
+
+  /** ⌘. applies the first fix of the first diagnostic that has one. */
+  private applyFirstFix(): void {
+    const firstFix = this.state.parsed?.diagnostics.find((diagnostic) => diagnostic.fixes.length)?.fixes[0];
+    if (firstFix) this.applyFix(firstFix);
+  }
+
+  /** Esc closes the suggestions first, then the panel. */
+  private onEscape(): void {
+    if (this.completionsVisible) {
+      this.state.completionsOpen = false;
+      this.renderCompletions();
+    } else {
+      send("panel.close", {});
+    }
+  }
+
+  /** ↑↓ move through suggestions when they are open, otherwise through rows. */
+  private onArrow(step: 1 | -1): void {
+    if (this.completionsVisible) {
+      this.state.completionIndex = wrapIndex(this.state.completionIndex, step, this.state.completions.length);
+      this.renderCompletions();
+    } else if (!this.layout.input.value) {
+      this.moveRecentSelection(step);
+    } else {
+      this.moveResultSelection(step);
+    }
+  }
+
+  /** Enter accepts a suggestion, runs a recent query, or opens the selected result. */
+  private onEnter(event: KeyboardEvent, modifier: boolean): void {
+    if (this.completionsVisible && !modifier) this.acceptCompletion(this.state.completionIndex);
+    else if (!this.layout.input.value) this.runRecent(this.state.recent[this.state.recentIndex]);
+    else if (this.state.selectedRef) this.open(this.state.selectedRef, event);
   }
 
   private runRecent(query: string | undefined): void {
     if (query) this.setQuery(query);
   }
 
-  private moveSelection(step: number): void {
-    if (!this.layout.input.value) {
-      const rows = Array.from(this.layout.body.querySelectorAll<HTMLElement>("[data-recent]"));
-      if (!rows.length) return;
-      this.state.recentIndex = (this.state.recentIndex + step + rows.length) % rows.length;
-      rows.forEach((row, i) => row.classList.toggle("selected", i === this.state.recentIndex));
-      return;
-    }
+  private moveRecentSelection(step: 1 | -1): void {
+    const rows = Array.from(this.layout.body.querySelectorAll<HTMLElement>("[data-recent]"));
+    if (!rows.length) return;
+    this.state.recentIndex = wrapIndex(this.state.recentIndex, step, rows.length);
+    rows.forEach((row, index) => row.classList.toggle("selected", index === this.state.recentIndex));
+  }
+
+  /** Results don't wrap: ↓ on the last row stays there. */
+  private moveResultSelection(step: 1 | -1): void {
     const rows = this.results?.rows() ?? [];
     if (!rows.length) return;
     const current = rows.findIndex((row) => row.dataset.ref === this.state.selectedRef);
-    const next = rows[Math.max(0, Math.min(rows.length - 1, current < 0 ? 0 : current + step))];
-    if (next.dataset.ref) this.select(next.dataset.ref);
+    const next = current < 0 ? 0 : clamp(current + step, 0, rows.length - 1);
+    const ref = rows[next].dataset.ref;
+    if (ref) this.select(ref);
   }
 
-  /** Highlights a row and asks the host for its preview (debounced for key repeat). */
+  /** Highlights a row and asks the host for its preview. */
   private select(ref: string): void {
     if (this.state.selectedRef === ref) return;
     this.state.selectedRef = ref;
@@ -225,8 +267,8 @@ export class SearchPanel {
         this.layout.input.setAttribute("aria-activedescendant", row.id);
       }
     }
-    clearTimeout(this.selectTimer);
-    this.selectTimer = setTimeout(() => send("result.select", { ref }), 30);
+    clearTimeout(this.previewTimer);
+    this.previewTimer = setTimeout(() => send("result.select", { ref }), PREVIEW_DEBOUNCE_MS);
   }
 
   // ------------------------------------------------------------ host messages
@@ -234,20 +276,9 @@ export class SearchPanel {
   private onHostMessage(message: HostMessage): void {
     const state = this.state;
     switch (message.type) {
-      case "state.restore": {
-        const { input } = this.layout;
-        if (message.payload.settings) state.ui = message.payload.settings;
-        state.recent = message.payload.recent;
-        if (message.payload.text !== input.value) {
-          input.value = message.payload.text;
-          input.setSelectionRange(input.value.length, input.value.length);
-        }
-        if (input.value) this.queryChanged(true);
-        else this.showEmptyState();
-        this.renderFooter();
-        input.focus();
+      case "state.restore":
+        this.onRestore(message.payload.text, message.payload.recent, message.payload.settings);
         return;
-      }
       case "focus":
         this.layout.input.focus();
         this.layout.input.select();
@@ -257,34 +288,47 @@ export class SearchPanel {
         return;
       case "search.batch":
         if (!this.isCurrent(message.payload.seq, message.payload.searchId)) return;
-        this.ensureResults(message.payload.searchId).append(message.payload.items);
+        this.resultsFor(message.payload.searchId).append(message.payload.items);
         this.renderSummary();
         this.selectFirstRow();
         return;
       case "search.done":
-        if (!this.isCurrent(message.payload.seq, message.payload.searchId)) return;
-        this.onSearchDone(message.payload);
+        if (this.isCurrent(message.payload.seq, message.payload.searchId)) this.onSearchDone(message.payload);
         return;
       case "preview.result":
         if (message.payload.ref !== state.selectedRef) return;
         state.preview = message.payload;
         state.showHiddenFiles = false;
         this.renderPreview();
-        if (message.payload.stale) document.getElementById(rowId(message.payload.ref))?.classList.add("stale");
+        if (message.payload.stale) this.results?.markStale(message.payload.ref);
         return;
       case "index.status":
         state.repos = message.payload.repos;
         renderIndexStatus(this.layout, state);
-        this.renderBanner();
+        this.renderBanners();
         return;
       case "banner":
         state.banner = message.payload.state === "ok" ? undefined : message.payload;
-        this.renderBanner();
+        this.renderBanners();
         return;
     }
   }
 
-  /** A batch or done message belongs to the newest query, or extends the search on screen. */
+  private onRestore(text: string, recent: string[], settings: ViewState["ui"] | undefined): void {
+    const { input } = this.layout;
+    if (settings) this.state.ui = settings;
+    this.state.recent = recent;
+    if (text !== input.value) {
+      input.value = text;
+      input.setSelectionRange(text.length, text.length);
+    }
+    if (input.value) this.queryChanged(true);
+    else this.showEmptyState();
+    this.renderFooter();
+    input.focus();
+  }
+
+  /** A batch or done message belongs to the newest query, or extends the search on screen (Load more). */
   private isCurrent(seq: number, searchId: string): boolean {
     return seq === this.state.seq || searchId === this.state.searchId;
   }
@@ -311,21 +355,22 @@ export class SearchPanel {
     this.renderFooter();
   }
 
-  /** Starts a fresh result list the first time a search id is seen. */
-  private ensureResults(searchId: string): ResultsView {
+  /** The results view for `searchId`, starting a fresh one the first time an id is seen. */
+  private resultsFor(searchId: string): ResultsView {
     if (this.results && searchId === this.state.searchId) return this.results;
     const state = this.state;
     state.searchId = searchId;
     state.done = undefined;
     state.selectedRef = "";
     state.preview = undefined;
+    const handlers = {
+      onApplyFix: (fix: Fix) => this.applyFix(fix),
+      onLoadMore: (id: string, cursor: string) => send("results.more", { searchId: id, cursor }),
+    };
     this.results = new ResultsView(
       this.layout.body,
       state,
-      {
-        onApplyFix: (fix) => this.applyFix(fix),
-        onLoadMore: (id, cursor) => send("results.more", { searchId: id, cursor }),
-      },
+      handlers,
       hasErrors(state) ? state.lastGoodText : undefined,
     );
     return this.results;
@@ -339,7 +384,7 @@ export class SearchPanel {
 
   private onSearchDone(done: SearchDoneMsg): void {
     this.state.done = done;
-    this.ensureResults(done.searchId).finish(done);
+    this.resultsFor(done.searchId).finish(done);
     this.renderSummary();
   }
 
@@ -364,18 +409,20 @@ export class SearchPanel {
     renderCompletions(this.layout, this.state, (index) => this.acceptCompletion(index));
   }
 
-  private renderBanner(): void {
-    renderBanner(this.layout, this.state, () => send("daemon.restart", {}));
+  private renderBanners(): void {
+    renderBanners(this.layout, this.state, () => send("daemon.restart", {}));
   }
 
   private renderFooter(): void {
-    const mode: FooterMode = !this.layout.input.value ? "empty" : hasErrors(this.state) ? "errors" : "results";
+    let mode: FooterMode = "results";
+    if (!this.layout.input.value) mode = "empty";
+    else if (hasErrors(this.state)) mode = "errors";
     renderFooter(this.layout, mode, this.state.parsed?.mode === "history");
   }
 
   private renderPreview(): void {
     if (!this.results) return;
-    const item = this.results.items.find((i) => i.ref === this.state.preview?.ref);
+    const item = this.results.items.find((result) => result.ref === this.state.preview?.ref);
     renderPreview(this.results.preview, this.state, item?.repoId, {
       onOpen: (ref, where) => send("result.open", { ref, where }),
       onShowHiddenFiles: () => {
@@ -385,7 +432,7 @@ export class SearchPanel {
     });
   }
 
-  /** "3 file names · 5 code matches" or "4 commits in 3 repos" beside the chips. */
+  /** "3 file names · 5 code matches" or "4 commits in 3 repos", beside the chips. */
   private renderSummary(): void {
     const counts = this.results?.counts();
     const parts: string[] = [];
@@ -400,4 +447,9 @@ export class SearchPanel {
     if (this.state.done?.truncated) parts.push("truncated");
     this.summary.textContent = parts.join(" · ");
   }
+}
+
+/** The ref of the result row an event happened in, if any. */
+function rowRef(event: Event): string | undefined {
+  return (event.target as HTMLElement).closest<HTMLElement>("[data-ref]")?.dataset.ref;
 }
