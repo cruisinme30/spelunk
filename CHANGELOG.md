@@ -40,6 +40,8 @@ All notable changes to this project are documented here. The format follows
   preview lists the members of the class it shows.
 - A welcome page, shown once after installing and by **Unified Search: Show Welcome**: pick the search shortcut and
   how much to index, and watch each repo's indexing.
+- After opening a result, the status bar says which one it is ("Opened from search · result 2 of 5"); F4 and ⇧F4
+  step through the rest, and clicking it goes back to the results.
 - When a search finds nothing, the panel says why (for example that `case:yes` is on) above what each filter hid.
 
 ### Fixed

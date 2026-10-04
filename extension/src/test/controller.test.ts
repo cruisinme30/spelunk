@@ -23,6 +23,7 @@ import type {
   OpenTarget,
   ParsedQuery,
   ParseResult,
+  ResultItem,
   RpcRequests,
   SearchResult,
   UiSettings,
@@ -48,6 +49,7 @@ type PostedMessage = { [K in keyof HostToWebview]: { type: K; payload: HostToWeb
 function recordingUi() {
   const posted: PostedMessage[] = [];
   const opened: { target: OpenTarget; where: string }[] = [];
+  const shown: string[] = [];
   const contextKeys: Record<string, boolean> = {};
   let closedPanels = 0;
   const ui: Ui = {
@@ -64,11 +66,12 @@ function recordingUi() {
     restartDaemon: () => {},
     setContext: (key, value) => void (contextKeys[key] = value),
     saveState: () => {},
+    showOpened: (position, total) => void shown.push(`${position} of ${total}`),
   };
   /** The payloads of every posted message of `type`, oldest first. */
   const payloads = <T extends keyof HostToWebview>(type: T) =>
     posted.filter((message) => message.type === type).map((message) => message.payload as HostToWebview[T]);
-  return { ui, posted, payloads, opened, contextKeys, closedPanels: () => closedPanels };
+  return { ui, posted, payloads, opened, shown, contextKeys, closedPanels: () => closedPanels };
 }
 
 function newController(backend: Backend, ui: Ui, options: Partial<ControllerOptions> = {}, initial?: PersistedState) {
@@ -104,6 +107,7 @@ const sinceCompletion = (start: number, end: number): Completion => ({
 interface ScriptedParams {
   text: string;
   searchId?: string;
+  ref?: string;
 }
 
 /**
@@ -210,6 +214,7 @@ test("a reopened panel's first query is answered even though its seq starts agai
 });
 
 test("recent queries are deduplicated, newest first, and capped", () => {
+  // @covers setting:ui.recentQueries
   const host = recordingUi();
   const controller = newController(
     parseOnlyBackend().backend,
@@ -294,4 +299,82 @@ test("while a word is being completed the search runs without it, and Esc search
   await controller.handle(queryChanged("timeout s", 2, true));
   assert.deepEqual(searched, ["timeout", "timeout s"]);
   assert.equal(host.payloads("parse.result").at(-1)?.searchText, undefined);
+});
+
+/** A code-line result. */
+type LineResult = Extract<ResultItem, { kind: "line" }>;
+
+/** Three code results for "retry", as one batch. */
+const THREE_RESULTS = ["a.py", "b.py", "c.py"].map((path, index): LineResult => ({
+  kind: "line",
+  ref: `ref-${index}`,
+  repoId: "r1",
+  path,
+  line: index + 1,
+  text: "retry()",
+  hits: [{ start: 0, end: 5, termIndex: 0 }],
+}));
+
+/** A backend that finds THREE_RESULTS for any query and opens each at its path. */
+function threeResultsBackend() {
+  const scripted = scriptedBackend((method, { text, searchId, ref }) => {
+    switch (method) {
+      case "query/parse": {
+        return { query: parsedQuery(text, true), completions: [] };
+      }
+      case "search/start": {
+        scripted.listeners.get("batch")?.({ searchId, items: THREE_RESULTS });
+        return { ...NO_RESULTS, total: THREE_RESULTS.length };
+      }
+      case "open/resolve": {
+        const result = THREE_RESULTS.find((item) => item.ref === ref);
+        return {
+          path: `/work/${result?.path ?? ""}`,
+          line: result?.line ?? 1,
+          column: 1,
+          length: 5,
+        };
+      }
+      case "initialize":
+      case "shutdown":
+      case "preview/get":
+      case "index/status":
+      case "index/rebuild": {
+        throw new Error(`unexpected request ${method}`);
+      }
+    }
+  });
+  return scripted.backend;
+}
+
+test("opening a result says which of the results it is, and F4 steps through the rest", async () => {
+  // @covers screen:opened-file
+  const host = recordingUi();
+  const controller = newController(threeResultsBackend(), host.ui);
+  await controller.handle(queryChanged("retry", 1));
+  await controller.handle({ v: MESSAGE_VERSION, type: "result.open", payload: { ref: "ref-1", where: "current" } });
+  assert.deepEqual(host.opened[0]?.target, { path: "/work/b.py", line: 2, column: 1, length: 5 });
+  assert.equal(host.closedPanels(), 1);
+
+  await controller.step(1);
+  await controller.step(1);
+  await controller.step(-1);
+  assert.deepEqual(
+    host.opened.map((open) => open.target.path),
+    ["/work/b.py", "/work/c.py", "/work/a.py", "/work/c.py"],
+  );
+  assert.deepEqual(host.shown, ["2 of 3", "3 of 3", "1 of 3", "3 of 3"]);
+
+  controller.restore(); // ⌘P brings the list back with the same query
+  assert.equal(host.payloads("state.restore").at(-1)?.text, "retry");
+});
+
+test("with closeOnOpen off, opening a result leaves the panel open", async () => {
+  // @covers setting:open.closeOnOpen
+  const host = recordingUi();
+  const controller = newController(threeResultsBackend(), host.ui, { closeOnOpen: () => false });
+  await controller.handle(queryChanged("retry", 1));
+  await controller.handle({ v: MESSAGE_VERSION, type: "result.open", payload: { ref: "ref-0", where: "side" } });
+  assert.equal(host.opened.length, 1);
+  assert.equal(host.closedPanels(), 0);
 });

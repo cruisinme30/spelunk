@@ -65,15 +65,17 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi {
   });
   activeDaemon = daemon;
   const commitDocuments = new CommitDocuments(daemon);
+  const openedStatus = createOpenedStatus();
   // The panel forwards messages only after show(), by which time `controller` below exists.
   const panel = new SearchPanel(
     context.extensionUri,
     (message) => void controller.handle(message).catch(logError("panel")),
     (open) => {
       setContext("unifiedSearch.panelOpen", open);
+      if (open) openedStatus.hide();
     },
   );
-  const ui = createUi({ panel, daemon, commitDocuments, globalState: context.globalState, logError });
+  const ui = createUi({ panel, daemon, commitDocuments, openedStatus, globalState: context.globalState, logError });
   const controller = new SearchController(
     daemon,
     ui,
@@ -85,28 +87,15 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi {
     if (message.type === "help.try") void vscode.commands.executeCommand("unifiedSearch.open", message.payload);
     else if (message.type === "settings.open") ui.openSettings();
   });
-  const welcome = new WelcomePanel(
-    context.extensionUri,
-    {
-      settings: (): WelcomeState => welcomeSettings(configuration(), process.platform === "darwin"),
-      indexStatus: () => daemon.request("index/status", {}),
-    },
-    (message) => {
-      handleWelcome(message, welcome, () => {
-        ui.openSettings();
-      });
-    },
-  );
+  const welcome = createWelcomePanel(context.extensionUri, daemon, ui);
   forwardDaemonEventsToPanel(daemon, panel);
-  daemon.on("progress", (progress) => {
-    welcome.indexStatus(progress);
-  });
 
   context.subscriptions.push(
     log,
     panel,
     help,
     welcome,
+    openedStatus,
     vscode.workspace.registerTextDocumentContentProvider(CommitDocuments.scheme, commitDocuments),
     createStatusBar(daemon),
     ...registerCommands(daemon, controller, panel, help),
@@ -131,6 +120,26 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi {
     void context.globalState.update(WELCOMED_KEY, true);
   }
   return { daemon, controller };
+}
+
+/** The welcome page, fed the settings it shows and the daemon's indexing progress. */
+function createWelcomePanel(extensionUri: vscode.Uri, daemon: Daemon, ui: Ui): WelcomePanel {
+  const welcome = new WelcomePanel(
+    extensionUri,
+    {
+      settings: (): WelcomeState => welcomeSettings(configuration(), process.platform === "darwin"),
+      indexStatus: () => daemon.request("index/status", {}),
+    },
+    (message) => {
+      handleWelcome(message, welcome, () => {
+        ui.openSettings();
+      });
+    },
+  );
+  daemon.on("progress", (progress) => {
+    welcome.indexStatus(progress);
+  });
+  return welcome;
 }
 
 /**
@@ -232,12 +241,13 @@ interface UiParts {
   panel: SearchPanel;
   daemon: Daemon;
   commitDocuments: CommitDocuments;
+  openedStatus: vscode.StatusBarItem;
   globalState: vscode.Memento;
   logError: (source: string) => (error: unknown) => void;
 }
 
 /** The controller's view of VS Code. */
-function createUi({ panel, daemon, commitDocuments, globalState, logError }: UiParts): Ui {
+function createUi({ panel, daemon, commitDocuments, openedStatus, globalState, logError }: UiParts): Ui {
   return {
     post: (type, payload) => {
       panel.post(type, payload);
@@ -252,7 +262,22 @@ function createUi({ panel, daemon, commitDocuments, globalState, logError }: UiP
     restartDaemon: () => void daemon.restart().catch(logError("daemon restart")),
     setContext,
     saveState: (state) => void globalState.update(STATE_KEY, state),
+    showOpened: (position, total) => {
+      openedStatus.text = `$(search) Opened from search · result ${position} of ${total}`;
+      openedStatus.show();
+    },
   };
+}
+
+/**
+ * The status bar item that says which search result is open. Clicking it
+ * goes back to the results; it hides when the panel opens.
+ */
+function createOpenedStatus(): vscode.StatusBarItem {
+  const item = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, STATUS_BAR_PRIORITY);
+  item.command = "unifiedSearch.open";
+  item.tooltip = "F4: next result · ⇧F4: previous result · Click to go back to the results";
+  return item;
 }
 
 /** The status bar text for each daemon state. */

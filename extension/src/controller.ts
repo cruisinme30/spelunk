@@ -65,6 +65,8 @@ export interface Ui {
   restartDaemon(): void;
   setContext(key: string, value: boolean): void;
   saveState(state: PersistedState): void;
+  /** Says which result is open, `position` of `total` (1-based), once one was opened from search or F4. */
+  showOpened(position: number, total: number): void;
 }
 
 /** Survives window reloads (globalState): the last query and recent queries. */
@@ -206,7 +208,9 @@ export class SearchController {
     if (this.results.length === 0) return;
     this.stepIndex = (this.stepIndex + direction + this.results.length) % this.results.length;
     const result = this.results[this.stepIndex];
-    if (result) await this.openRef(result.ref, "current");
+    if (result && (await this.openRef(result.ref, "current"))) {
+      this.ui.showOpened(this.stepIndex + 1, this.results.length);
+    }
   }
 
   /** Puts the current query at the top of the recent list. */
@@ -362,6 +366,7 @@ export class SearchController {
     const index = this.results.findIndex((result) => result.ref === ref);
     if (index !== -1) this.stepIndex = index;
     if (!(await this.openRef(ref, where))) return;
+    if (index !== -1) this.ui.showOpened(index + 1, this.results.length);
     this.rememberQuery();
     if (this.options.closeOnOpen()) this.ui.hidePanel();
   }
