@@ -18,7 +18,7 @@ export type DaemonState = "starting" | "ok" | "restarting" | "stopped" | "protoc
 
 /** Crashes are counted over a rolling window of this length. */
 const CRASH_WINDOW_MS = 60_000;
-/** Failure table: "restarts it, up to 3 times per minute". */
+/** A crashed daemon is restarted at most this many times a minute; then the panel shows "Search stopped". */
 const DEFAULT_MAX_RESTARTS_PER_MINUTE = 3;
 const DEFAULT_RESTART_DELAY_MS = 200;
 /** After a shutdown request the daemon finishes its work within 2 seconds. */
@@ -56,6 +56,8 @@ export class Daemon extends EventEmitter {
   private connection: Connection | undefined;
   private stopping = false;
   private crashTimes: number[] = [];
+  /** The restart scheduled after a crash, until it runs. */
+  private restartTimer: NodeJS.Timeout | undefined;
 
   constructor(private readonly options: DaemonOptions) {
     super();
@@ -74,6 +76,7 @@ export class Daemon extends EventEmitter {
   /** The "Search stopped — Restart" button: forgets earlier crashes and starts again. */
   restart(): Promise<void> {
     this.crashTimes = [];
+    this.cancelScheduledRestart();
     this.killChild();
     return this.start();
   }
@@ -81,6 +84,7 @@ export class Daemon extends EventEmitter {
   /** Graceful stop: shutdown, exit, then SIGKILL if the process lingers. */
   async stop(): Promise<void> {
     this.stopping = true;
+    this.cancelScheduledRestart();
     const child = this.child;
     const connection = this.connection;
     if (!child || !connection) {
@@ -211,9 +215,15 @@ export class Daemon extends EventEmitter {
       return;
     }
     this.setState("restarting", "Search restarting…");
-    setTimeout(() => {
+    this.restartTimer = setTimeout(() => {
+      this.restartTimer = undefined;
       if (!this.stopping) this.start().catch(() => undefined);
     }, this.options.restartDelayMs ?? DEFAULT_RESTART_DELAY_MS);
+  }
+
+  private cancelScheduledRestart(): void {
+    clearTimeout(this.restartTimer);
+    this.restartTimer = undefined;
   }
 
   private killChild(): void {

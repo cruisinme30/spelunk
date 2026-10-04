@@ -13,13 +13,13 @@ const DAEMON_BINARY = process.env["UNIFIED_SEARCH_DAEMON"] ?? join(__dirname, ".
 const skip = !existsSync(DAEMON_BINARY) && "daemon not built";
 const RESTART_BUDGET = 3;
 
-function newDaemon(states: DaemonState[] = []): Daemon {
+function newDaemon(states: DaemonState[] = [], restartDelayMs = 10): Daemon {
   const root = makeRoot(mkdtempSync(join(tmpdir(), "us-root-")));
   const daemon = new Daemon({
     binary: DAEMON_BINARY,
     roots: () => [root],
     settings: () => ({ ...DEFAULTS, exclude: [...DEFAULTS.exclude], location: mkdtempSync(join(tmpdir(), "us-idx-")) }),
-    restartDelayMs: 10,
+    restartDelayMs,
     maxRestartsPerMinute: RESTART_BUDGET,
   });
   daemon.on("state", (state) => states.push(state));
@@ -57,5 +57,19 @@ test("crashes restart the daemon until the per-minute budget is spent", { skip }
   await waitFor("stopped after one crash too many", () => daemon.state === "stopped");
   await daemon.restart();
   assert.equal(daemon.state, "ok", "a manual restart works after the budget is spent");
+  await daemon.stop();
+});
+
+test("a manual restart cancels the restart scheduled after a crash", { skip }, async () => {
+  const restartDelayMs = 300;
+  const daemon = newDaemon([], restartDelayMs);
+  await daemon.start();
+  process.kill(daemon.pid!, "SIGKILL");
+  await waitFor("the crash is noticed", () => daemon.state === "restarting");
+  await daemon.restart();
+  const pid = daemon.pid;
+  await new Promise((resolve) => setTimeout(resolve, restartDelayMs * 2));
+  assert.equal(daemon.pid, pid, "the scheduled restart must not replace the daemon the manual restart started");
+  assert.equal(daemon.state, "ok");
   await daemon.stop();
 });
