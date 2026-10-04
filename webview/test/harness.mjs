@@ -9,7 +9,7 @@ import { chromium } from "playwright";
 const out = join(dirname(fileURLToPath(import.meta.url)), "out");
 
 /** Settings for a test panel: no typing delay, so every keystroke is sent at once. */
-const UI_SETTINGS = {
+export const UI_SETTINGS = {
   typingDelayMs: 0,
   openTrigger: "doubleClick",
   preview: true,

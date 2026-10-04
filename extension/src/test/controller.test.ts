@@ -49,13 +49,15 @@ type PostedMessage = { [K in keyof HostToWebview]: { type: K; payload: HostToWeb
 function recordingUi() {
   const posted: PostedMessage[] = [];
   const opened: { target: OpenTarget; where: string }[] = [];
+  const previews: boolean[] = [];
   const shown: string[] = [];
   const contextKeys: Record<string, boolean> = {};
   let closedPanels = 0;
   const ui: Ui = {
     post: (type, payload) => void posted.push({ type, payload } as PostedMessage),
-    openTarget: (target, where) => {
+    openTarget: (target, where, preview) => {
       opened.push({ target, where });
+      previews.push(preview);
       return Promise.resolve();
     },
     hidePanel: () => {
@@ -71,7 +73,7 @@ function recordingUi() {
   /** The payloads of every posted message of `type`, oldest first. */
   const payloads = <T extends keyof HostToWebview>(type: T) =>
     posted.filter((message) => message.type === type).map((message) => message.payload as HostToWebview[T]);
-  return { ui, posted, payloads, opened, shown, contextKeys, closedPanels: () => closedPanels };
+  return { ui, posted, payloads, opened, previews, shown, contextKeys, closedPanels: () => closedPanels };
 }
 
 function newController(backend: Backend, ui: Ui, options: Partial<ControllerOptions> = {}, initial?: PersistedState) {
@@ -377,4 +379,18 @@ test("with closeOnOpen off, opening a result leaves the panel open", async () =>
   await controller.handle({ v: MESSAGE_VERSION, type: "result.open", payload: { ref: "ref-0", where: "side" } });
   assert.equal(host.opened.length, 1);
   assert.equal(host.closedPanels(), 0);
+});
+
+test("results open in a preview editor unless open.preview is off", async () => {
+  // @covers setting:open.preview
+  let preview = true;
+  const host = recordingUi();
+  const controller = newController(threeResultsBackend(), host.ui, {
+    uiSettings: () => ({ ...TEST_UI_SETTINGS, preview }),
+  });
+  await controller.handle(queryChanged("retry", 1));
+  await controller.step(1);
+  preview = false; // read again on every open, so a change applies at once
+  await controller.step(1);
+  assert.deepEqual(host.previews, [true, false]);
 });

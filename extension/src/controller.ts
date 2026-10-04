@@ -58,7 +58,8 @@ export interface Backend {
 /** What the controller needs from VS Code. */
 export interface Ui {
   post<T extends keyof HostToWebview>(type: T, payload: HostToWebview[T]): void;
-  openTarget(target: OpenTarget, where: OpenWhere, item?: ResultItem): Promise<void>;
+  /** Opens a resolved result; `preview` opens it in a preview editor that the next result replaces. */
+  openTarget(target: OpenTarget, where: OpenWhere, preview: boolean, item?: ResultItem): Promise<void>;
   hidePanel(): void;
   openHelp(): void;
   openSettings(): void;
@@ -378,6 +379,7 @@ export class SearchController {
       await this.ui.openTarget(
         target,
         where,
+        this.options.uiSettings().preview,
         this.results.find((result) => result.ref === ref),
       );
       return true;

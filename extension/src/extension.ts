@@ -252,7 +252,7 @@ function createUi({ panel, daemon, commitDocuments, openedStatus, globalState, l
     post: (type, payload) => {
       panel.post(type, payload);
     },
-    openTarget: (target, where, item) => openTarget(target, where, item, commitDocuments),
+    openTarget: (target, where, preview, item) => openTarget({ target, where, preview, item }, commitDocuments),
     hidePanel: () => {
       panel.close();
     },
@@ -442,14 +442,16 @@ function forwardFileChanges(daemon: Daemon): vscode.Disposable {
 }
 
 /** Opens a resolved result: a commit as a diff document, or a file with the match selected. */
-async function openTarget(
-  target: OpenTarget,
-  where: OpenWhere,
-  item: ResultItem | undefined,
-  commitDocuments: CommitDocuments,
-): Promise<void> {
+/** A resolved result to open: where, whether in a preview editor, and the result it came from. */
+interface Opening {
+  target: OpenTarget;
+  where: OpenWhere;
+  preview: boolean;
+  item: ResultItem | undefined;
+}
+
+async function openTarget({ target, where, preview, item }: Opening, commitDocuments: CommitDocuments): Promise<void> {
   const viewColumn = where === "side" ? vscode.ViewColumn.Beside : vscode.ViewColumn.Active;
-  const preview = configuration().get("open.preview", DEFAULTS.openPreview);
   if (target.sha && item) {
     const uri = commitDocuments.uriFor(item.ref, target.sha, item.kind === "commit" ? item.subject : undefined);
     const document = await vscode.workspace.openTextDocument(uri);
