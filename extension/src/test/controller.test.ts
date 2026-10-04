@@ -189,3 +189,36 @@ test("recent queries are deduplicated, newest first, and capped", async () => {
   controller.restore();
   assert.deepEqual(host.posted.at(-1)!.payload.recent, ["c", "a"]);
 });
+
+test("a search typed while a repo was indexing runs again when the repo is ready", async () => {
+  const host = recordingUi();
+  const listeners = new Map<string, (payload: any) => void>();
+  const searches: string[] = [];
+  const backend: Backend = {
+    on: (event: string, listener: (payload: any) => void) => listeners.set(event, listener),
+    request: async (method, params: any): Promise<any> => {
+      if (method === "query/parse") {
+        const root = { kind: "text", span: { start: 0, end: params.text.length }, value: params.text };
+        return { query: { ...emptyQuery(params.text), root }, completions: [] };
+      }
+      searches.push(params.searchId);
+      return { total: 0, truncated: false, hidden: [], ms: 0 };
+    },
+  };
+  const controller = newController(backend, host.ui);
+  const progress = (tree: string) =>
+    listeners.get("progress")!({ repos: [{ repoId: "r1", name: "r", tree, history: "off" }] });
+
+  progress("indexing");
+  await controller.handle(queryChanged("retry", 1));
+  assert.equal(searches.length, 1);
+
+  progress("indexing");
+  assert.equal(searches.length, 1, "no re-run while still indexing");
+  progress("ready");
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(searches.length, 2, "re-run once the repo is ready");
+  progress("ready");
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(searches.length, 2, "no re-run when nothing new became ready");
+});

@@ -5,6 +5,7 @@ import { CancelSource, RpcError } from "./jsonRpc";
 import {
   ErrorCodes,
   type HostToWebview,
+  type IndexStatusResult,
   type OpenTarget,
   type OpenWhere,
   type ResultItem,
@@ -25,6 +26,7 @@ export interface Backend {
     cancel?: CancelSource,
   ): Promise<RpcRequests[M][1]>;
   on(event: "batch", listener: (batch: SearchBatchParams) => void): unknown;
+  on(event: "progress", listener: (progress: IndexStatusResult) => void): unknown;
 }
 
 /** What the controller needs from VS Code. */
@@ -74,6 +76,8 @@ export class SearchController {
   private searchCount = 0;
   /** Position in `results` for F4 stepping; -1 before the first step. */
   private stepIndex = -1;
+  /** Repos whose working-tree index is ready, from the last index/progress. */
+  private readyRepos = new Set<string>();
 
   constructor(
     private readonly backend: Backend,
@@ -83,6 +87,7 @@ export class SearchController {
   ) {
     this.state = initial ?? { text: "", recent: [] };
     backend.on("batch", (batch) => this.onBatch(batch));
+    backend.on("progress", (progress) => this.onIndexProgress(progress));
   }
 
   get text(): string {
@@ -186,6 +191,20 @@ export class SearchController {
       if (error instanceof RpcError && error.code === ErrorCodes.RequestCancelled) return;
       if (this.search?.id === id) this.postSearchFailed(seq, id, error);
     }
+  }
+
+  /**
+   * Runs the current search again when a repo finishes indexing: a search
+   * typed while it was indexing could not include its results.
+   */
+  private onIndexProgress(progress: IndexStatusResult): void {
+    const ready = progress.repos.filter((repo) => repo.tree === "ready").map((repo) => repo.repoId);
+    const newlyReady = ready.some((id) => !this.readyRepos.has(id));
+    this.readyRepos = new Set(ready);
+    const search = this.search;
+    if (!newlyReady || !search || search.cancel.cancelled) return;
+    search.cancel.cancel();
+    void this.runSearch(search.text, search.seq);
   }
 
   private postSearchFailed(seq: number, searchId: string, error: unknown): void {
