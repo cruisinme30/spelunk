@@ -141,3 +141,44 @@ yet run**); everything under them is tested.
 `searchText`, and the help page sends `help.try`.
 
 Totals at sign-off: 98 Go tests, 15 extension tests, 22 webview tests; spec coverage 77/111.
+
+## M3 · History — done
+
+Exit gate: *mocks 3, 6, 7 and 11; history under 250 ms.* Scope: commit ingest newest first; `author:`, `msg:`,
+`since:` on commits; OR colors; author autocomplete with `.mailmap`.
+
+The plan named SQLite FTS5 for the commit index. The Go standard library has no SQLite driver and modules can't be
+fetched, so the history index reuses the trigram package ([ADR 0004](../adr/0004-in-house-history-index.md)).
+
+| Scope item | Evidence |
+| --- | --- |
+| Ingest newest first, published as it fills | `history/history_test.go`: commits newest first with their changed lines and `.mailmap` applied; `TestUpdateReadsNewCommitsOrRereadsRewrittenHistory`; saved and loaded; a folder outside Git |
+| `author:`, `msg:`, `since:`, `f:`, `lang:` on commits | `TestHistoryQueries` and `TestFiltersReportTheCommitsTheyHid` on a fixture repo with fixed authors and dates. A differential test against `git log -G` is not written yet |
+| Files `index.exclude` leaves out | `TestSkippedFilesAreListedWithoutTheirLines`: listed and counted, lines not kept |
+| Search, preview and open (mock 3) | `server/history_test.go` `TestHistorySearchPreviewAndOpen`: `author:jane timeout` → the one commit, its diff of `src/retry.py`, and an open target |
+| Author and message suggestions (mocks 6, 19) | `TestAuthorAndMessageSuggestionsComeFromHistory`: `author:ja` → Jane (2 commits, last 3 days ago) then Jason; `msg:fl` → flaky |
+| AND / OR / NOT / `since:` with hidden notes (mock 7) | `TestBooleanHistoryQueriesCountWhatTheyHide`: `type:commit (timeout OR attempts) -f:tests/ since:2w` → one commit, "1 hidden by -f:tests/" and "1 hidden by since:2w" |
+| `msg:"phrase"`, `repo:`, `count:` (mock 11) | `TestMessagePhraseRepoAndCount`: three commits across two repos newest first; with `repo:` and `count:1` the newest of two and a next page |
+| OR colors | Each commit result carries the terms it matched (`matchedTerms`); the webview colors them, as for files |
+| A folder outside Git | `TestAFolderOutsideGitSaysHistoryIsOff` (`failure:no-git`) |
+
+**History under 250 ms.** `BenchmarkLargeHistory` on Prometheus (8,532 first-parent commits, all of its history,
+default `index.exclude`): the newest 200 commits are searchable 0.6 s after reading starts, and all of them after
+18 s; the index takes 188 MB. First results arrive in under 1 ms, because results stream newest first as they are
+found; complete searches, which count every match and hidden commit, take 5–65 ms. Before streaming and the shared
+line matcher, the same queries took up to 2 s and the index 785 MB.
+
+Screenshots, rendered end to end by `scripts/screenshotPanel.mjs` over a fixture repo:
+
+| Mock | Screenshot |
+| --- | --- |
+| 3 | [author-history.png](proof/author-history.png) |
+| 19 | [author-values.png](proof/author-values.png) |
+
+**Also done from M4:** `since:` on current files uses Git's change dates and uncommitted edits
+(`TestSinceOnFilesUsesCommitDatesAndUncommittedEdits`), and saved files go into an overlay that is searchable at once
+and folded into the next build (`TestSavedFilesAreSearchableWithoutARebuild`,
+`TestSavedFilesGoIntoTheOverlayUntilTheNextBuild`). Failure modes now covered: `index-corrupt` (rebuilt, with a
+message) and `disk-full` (keeps serving from memory, with a warning).
+
+Totals at sign-off: spec coverage 89/114.

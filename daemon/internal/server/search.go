@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/cruisinme30/unified-search/daemon/internal/history"
 	"github.com/cruisinme30/unified-search/daemon/internal/protocol"
 	"github.com/cruisinme30/unified-search/daemon/internal/query"
 	"github.com/cruisinme30/unified-search/daemon/internal/rpc"
@@ -101,16 +102,20 @@ func (s *Server) search(ctx context.Context, raw json.RawMessage) (any, error) {
 	if err != nil {
 		return nil, rpc.Errorf(protocol.CodeQueryInvalid, "%v", err)
 	}
-	if plan.Mode == protocol.ModeHistory || plan.Kinds[query.KindSymbol] {
-		// History search and sym: are not built yet (they need a commit
-		// index and a symbol index), so these queries return no results
-		// rather than wrong ones.
+	if plan.Kinds[query.KindSymbol] {
+		// sym: needs the symbol index, which is not built yet, so it returns
+		// no results rather than wrong ones.
 		return protocol.SearchResult{Ms: int(time.Since(started).Milliseconds())}, nil
 	}
 
 	planID := s.plans.remember(plan)
 	batch := &batcher{conn: s.conn, searchID: params.SearchID}
-	stats, err := trigram.Search(ctx, plan, s.index.Repos(), planID, batch.add)
+	var stats trigram.Stats
+	if plan.Mode == protocol.ModeHistory {
+		stats, err = history.Search(ctx, plan, s.index.HistoryRepos(), planID, batch.add)
+	} else {
+		stats, err = trigram.Search(ctx, plan, s.index.Repos(), planID, batch.add)
+	}
 	if err != nil {
 		batch.discard() // no batches may follow the error response
 		return nil, err

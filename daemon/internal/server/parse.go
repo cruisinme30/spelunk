@@ -3,6 +3,9 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"slices"
+	"strings"
+	"time"
 
 	"github.com/cruisinme30/unified-search/daemon/internal/protocol"
 	"github.com/cruisinme30/unified-search/daemon/internal/query"
@@ -28,8 +31,8 @@ func (s *Server) parse(_ context.Context, raw json.RawMessage) (any, error) {
 	}, nil
 }
 
-// resolver gives the parser and completions the open repos and their
-// indexed files. It knows no authors: history search is not built yet.
+// resolver gives the parser and completions the open repos, their
+// indexed files, and their histories' authors and message words.
 func (s *Server) resolver() query.Resolver {
 	return workspaceResolver{server: s}
 }
@@ -37,8 +40,90 @@ func (s *Server) resolver() query.Resolver {
 // workspaceResolver answers the parser's lookups from the server's state.
 type workspaceResolver struct{ server *Server }
 
-// Authors returns nothing: history search is not built yet.
-func (workspaceResolver) Authors(string, int) []query.AuthorStat { return nil }
+// messageWordsWindow is how far back msg: suggestions look: the words of
+// recent commits are the ones people search for.
+const messageWordsWindow = 90 * 24 * time.Hour
+
+// Authors returns the authors of every open repo's history whose name or
+// email contains fragment, most commits first.
+func (r workspaceResolver) Authors(fragment string, limit int) []query.AuthorStat {
+	var found []query.AuthorStat
+	for _, author := range r.mergedAuthors() {
+		if strings.Contains(strings.ToLower(author.Name+" "+strings.Join(author.Emails, " ")), fragment) {
+			found = append(found, author)
+		}
+	}
+	slices.SortFunc(found, func(a, b query.AuthorStat) int {
+		if a.Commits != b.Commits {
+			return b.Commits - a.Commits
+		}
+		return strings.Compare(a.Name, b.Name)
+	})
+	return found[:min(len(found), limit)]
+}
+
+// mergedAuthors merges the authors of every open repo's history by name.
+func (r workspaceResolver) mergedAuthors() []query.AuthorStat {
+	byName := map[string]*query.AuthorStat{}
+	lastAt := map[string]time.Time{}
+	for _, repo := range r.server.index.HistoryRepos() {
+		for _, author := range repo.Store.Authors() {
+			stat, ok := byName[author.Name]
+			if !ok {
+				stat = &query.AuthorStat{Name: author.Name}
+				byName[author.Name] = stat
+			}
+			stat.Commits += author.Commits
+			stat.Repos = append(stat.Repos, repo.Name)
+			for _, email := range author.Emails {
+				if !slices.Contains(stat.Emails, email) {
+					stat.Emails = append(stat.Emails, email)
+				}
+			}
+			if author.LastAt.After(lastAt[author.Name]) {
+				lastAt[author.Name] = author.LastAt
+			}
+		}
+	}
+	authors := make([]query.AuthorStat, 0, len(byName))
+	for name, stat := range byName {
+		stat.LastAt = lastAt[name].UTC().Format(time.RFC3339)
+		authors = append(authors, *stat)
+	}
+	return authors
+}
+
+// MessageWords merges the recent subject words of every open repo's history
+// and returns those that start with fragment, most used first. A phrase is
+// offered only when more than one commit used it.
+func (r workspaceResolver) MessageWords(fragment string, limit int) []query.WordStat {
+	merged := map[string]query.WordStat{}
+	after := r.server.now().Add(-messageWordsWindow)
+	for _, repo := range r.server.index.HistoryRepos() {
+		for text, count := range repo.Store.Words(after) {
+			stat := merged[text]
+			stat.Text = text
+			stat.Commits += count.Commits
+			if count.LastAt.After(stat.LastAt) {
+				stat.LastAt = count.LastAt
+			}
+			merged[text] = stat
+		}
+	}
+	var found []query.WordStat
+	for text, stat := range merged {
+		if strings.HasPrefix(text, fragment) && (!strings.Contains(text, " ") || stat.Commits > 1) {
+			found = append(found, stat)
+		}
+	}
+	slices.SortFunc(found, func(a, b query.WordStat) int {
+		if a.Commits != b.Commits {
+			return b.Commits - a.Commits
+		}
+		return strings.Compare(a.Text, b.Text)
+	})
+	return found[:min(len(found), limit)]
+}
 
 // Repos describes the open workspace roots with their index state.
 func (r workspaceResolver) Repos() []query.RepoStat {

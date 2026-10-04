@@ -134,3 +134,18 @@ func TestFixedValuesExplainThemselves(t *testing.T) {
 		t.Errorf("type:file = %q, want %q", got, want)
 	}
 }
+
+func TestMessageSuggestionsOfferPhrasesThenWords(t *testing.T) {
+	want := strings.Join([]string{
+		"[Phrases] fix flaky | fix flaky | In 12 commit messages | last 2 days ago",
+		"[Words] retry | retry | In 17 commit messages | last 3 days ago",
+		"timeout | timeout | In 11 commit messages | last 5 days ago",
+	}, "\n")
+	if got := shown(Complete("msg:", len("msg:"), testResolver, fixedNow)); got != want {
+		t.Errorf("Complete(msg:) =\n%s\nwant\n%s", got, want)
+	}
+	completions := Complete("msg:", len("msg:"), testResolver, fixedNow)
+	if got := applyFix("msg:", completions[0].Insert); got != `msg:"fix flaky" ` {
+		t.Errorf("accepting a phrase gives %q, want it quoted", got)
+	}
+}

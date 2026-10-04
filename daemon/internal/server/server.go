@@ -55,6 +55,7 @@ func New(conn *rpc.Conn, opts Options) *Server {
 	conn.OnNotify(protocol.MethodExit, func(json.RawMessage) { s.exit() })
 	conn.OnNotify(protocol.MethodWorkspaceSetRoots, s.setRoots)
 	conn.OnNotify(protocol.MethodSettingsUpdate, s.updateSettings)
+	conn.OnNotify(protocol.MethodWorkspaceDidChangeFiles, s.didChangeFiles)
 	conn.Handle(protocol.MethodQueryParse, s.parse)
 	s.registerSearch()
 	s.registerIndex()
@@ -134,6 +135,15 @@ func (s *Server) setRoots(raw json.RawMessage) {
 	var params protocol.SetRootsParams
 	if decode(raw, &params) == nil {
 		s.applyRoots(params.Roots)
+	}
+}
+
+// didChangeFiles handles workspace/didChangeFiles: the editor saw files
+// saved, created or deleted, and the indexer re-reads them.
+func (s *Server) didChangeFiles(raw json.RawMessage) {
+	var params protocol.DidChangeFilesParams
+	if decode(raw, &params) == nil {
+		s.index.FilesChanged(params.Changes)
 	}
 }
 

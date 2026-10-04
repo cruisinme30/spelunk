@@ -19,6 +19,16 @@ type Resolver interface {
 	// Value suggestions summarize them: file types and folders for f:,
 	// languages for lang:, and how many files changed in each since: window.
 	Files() []FileStat
+	// MessageWords returns up to limit words and two-word phrases of recent
+	// commit subjects that start with fragment (lowercase), most used first.
+	MessageWords(fragment string, limit int) []WordStat
+}
+
+// WordStat is a word or phrase of commit subjects, and how much it is used.
+type WordStat struct {
+	Text    string // lowercase; a phrase has a space
+	Commits int
+	LastAt  time.Time
 }
 
 // AuthorStat is one author identity (after .mailmap merging) with commit stats.
@@ -59,6 +69,9 @@ func (noResolver) Repos() []RepoStat { return nil }
 
 // Files knows no files.
 func (noResolver) Files() []FileStat { return nil }
+
+// MessageWords knows no commits.
+func (noResolver) MessageWords(string, int) []WordStat { return nil }
 
 // repoNames lists the display names of the open repos.
 func repoNames(resolver Resolver) []string {

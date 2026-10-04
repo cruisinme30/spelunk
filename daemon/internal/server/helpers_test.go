@@ -8,6 +8,9 @@ import (
 	"errors"
 	"io"
 	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -35,6 +38,7 @@ func newTestClient(t *testing.T) *testClient {
 	go func() { _ = serverConn.Serve(ctx) }()
 	go func() { _ = clientConn.Serve(ctx) }()
 	t.Cleanup(func() {
+		srv.index.Close(shutdownGrace)
 		cancel()
 		_ = clientOut.Close() // ends the peers' read loops; nothing to report
 		_ = serverOut.Close()
@@ -56,6 +60,8 @@ func (c *testClient) mustInitialize(t *testing.T, roots ...protocol.Root) {
 	t.Helper()
 	settings := DefaultSettings()
 	settings.Location = t.TempDir()
+	// Cleanups run last first: stop index work before the folder goes.
+	t.Cleanup(func() { c.server.index.Close(shutdownGrace) })
 	params := protocol.InitializeParams{Protocol: protocol.Version, Roots: roots, Settings: settings}
 	if err := c.call(protocol.MethodInitialize, params, nil); err != nil {
 		t.Fatalf("initialize: %v", err)
@@ -135,4 +141,72 @@ func wantRPCCode(t *testing.T, call string, err error, want int) {
 	if !errors.As(err, &rpcErr) || rpcErr.Code != want {
 		t.Fatalf("%s error = %v, want code %d", call, err, want)
 	}
+}
+
+// waitUntil polls condition every few milliseconds, failing the test after 5s.
+func waitUntil(t *testing.T, what string, condition func() bool) {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for !condition() {
+		if time.Now().After(deadline) {
+			t.Fatalf("timed out waiting for %s", what)
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+}
+
+// waitForHistory waits until every repo's history index is ready (or off).
+func (c *testClient) waitForHistory(t *testing.T) {
+	t.Helper()
+	waitUntil(t, "history indexes", func() bool {
+		for _, status := range c.server.index.Status() {
+			if status.History != protocol.IndexStateReady && status.History != protocol.IndexStateOff {
+				return false
+			}
+		}
+		return true
+	})
+}
+
+// gitRepo creates a Git repo with one commit per entry of commits, oldest
+// first: author, subject and the files it writes. It skips the test
+// without git.
+func gitRepo(t *testing.T, commits ...gitCommit) string {
+	t.Helper()
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git is not installed")
+	}
+	root := t.TempDir()
+	run := func(env []string, args ...string) {
+		t.Helper()
+		cmd := exec.CommandContext(context.Background(), "git", append([]string{"-C", root}, args...)...)
+		cmd.Env = append(os.Environ(), env...)
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
+	}
+	run(nil, "init", "--quiet")
+	run(nil, "config", "user.email", "test@example.com")
+	run(nil, "config", "user.name", "Test")
+	for _, c := range commits {
+		for path, content := range c.files {
+			full := filepath.Join(root, filepath.FromSlash(path))
+			if err := os.MkdirAll(filepath.Dir(full), 0o750); err != nil {
+				t.Fatal(err)
+			}
+			mustWriteFile(t, full, content)
+		}
+		run(nil, "add", "--all")
+		date := c.at.Format(time.RFC3339)
+		run([]string{"GIT_AUTHOR_NAME=" + c.author, "GIT_AUTHOR_EMAIL=" + strings.ToLower(strings.ReplaceAll(c.author, " ", ".")) + "@example.com",
+			"GIT_AUTHOR_DATE=" + date, "GIT_COMMITTER_DATE=" + date}, "commit", "--quiet", "-m", c.subject)
+	}
+	return root
+}
+
+// gitCommit is one commit gitRepo makes.
+type gitCommit struct {
+	author, subject string
+	at              time.Time
+	files           map[string]string
 }

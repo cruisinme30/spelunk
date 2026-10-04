@@ -38,11 +38,40 @@ func valueCandidates(op operator, fragment string, resolver Resolver, now time.T
 		return pathCandidates(fragment, resolver.Files())
 	case protocol.OpNameSince:
 		return sinceCandidates(fragment, resolver.Files(), now)
+	case protocol.OpNameMsg:
+		return messageCandidates(resolver.MessageWords(fragment, maxValueCompletions+1), now)
 	case protocol.OpNameType, protocol.OpNameCase, protocol.OpNameCount:
 		return fixedCandidates(fixedValues[op.name], fragment)
 	default:
-		return nil // sym: and msg: need the symbol and history indexes
+		return nil // sym: needs the symbol index
 	}
+}
+
+// ------------------------------------------------------------ msg:
+
+// messageCandidates offers the phrases, then the words, of recent commit
+// subjects. A phrase is inserted quoted, so it matches as written.
+func messageCandidates(words []WordStat, now time.Time) []valueCandidate {
+	var phrases, singles []valueCandidate
+	for _, word := range words {
+		candidate := valueCandidate{
+			value: word.Text, detail: word.Text,
+			context: "In " + plural(word.Commits, "commit message"), note: "last " + timeAgo(now.Sub(word.LastAt)),
+			group: "value",
+		}
+		if strings.Contains(word.Text, " ") {
+			phrases = append(phrases, candidate)
+		} else {
+			singles = append(singles, candidate)
+		}
+	}
+	if len(phrases) > 0 {
+		phrases[0].section = "Phrases"
+	}
+	if len(singles) > 0 && len(phrases) > 0 {
+		singles[0].section = "Words"
+	}
+	return append(phrases, singles...)
 }
 
 // ------------------------------------------------------------ author:

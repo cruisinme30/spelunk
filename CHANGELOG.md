@@ -28,6 +28,13 @@ All notable changes to this project are documented here. The format follows
 - `since:` also takes `today`, `yesterday`, minutes (`30min`) and hours (`2h`). `since:30m` (30 months) warns and
   offers `30min`.
 - `npm run package` builds a `.vsix` for any platform, and F5 runs the extension on the sample repos.
+- Git history search: `author:`, `msg:` and `type:commit` find commits by their added and removed lines, messages and
+  authors (after `.mailmap`), newest first, with the diff in the preview. Recent commits are searchable while older
+  history is still being read, and new commits within seconds. `index.historyDepth` sets how far back.
+- `since:` on current files uses each file's last commit, and counts files with uncommitted edits as changed now.
+- `author:` lists the workspace's authors with their commit counts, and `msg:` suggests the words and phrases of
+  recent commit subjects.
+- Saved, created and deleted files are searchable within a second, without rebuilding the index.
 
 ### Removed
 
@@ -36,6 +43,10 @@ All notable changes to this project are documented here. The format follows
 ### Fixed
 
 - A reopened search panel no longer ignores the queries typed into it.
+- A saved index that can't be read says so while it is rebuilt, and an index that can't be saved (a full disk) keeps
+  serving with a warning.
+- Case-insensitive searches no longer copy each file to lowercase it, and regex terms are found by their literal
+  part first, so both are faster.
 - Files inside a folder named in `unifiedSearch.index.exclude`, such as `node_modules`, are no longer indexed.
 - A query whose words never occur in the same file no longer scans every file.
 - Restarting the search from the panel while a crash restart was pending no longer starts a second daemon.

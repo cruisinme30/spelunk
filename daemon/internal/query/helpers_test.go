@@ -29,6 +29,11 @@ var testResolver = fakeResolver{
 		{Name: "web-checkout", Path: "/work/web-checkout", Files: 3, State: protocol.IndexStateReady},
 		{Name: "shared-libs", Path: "/work/shared-libs", Files: 4, State: protocol.IndexStateIndexing, Progress: 0.64},
 	},
+	words: []WordStat{
+		{Text: "fix flaky", Commits: 12, LastAt: fixedNow.AddDate(0, 0, -2)},
+		{Text: "retry", Commits: 17, LastAt: fixedNow.AddDate(0, 0, -3)},
+		{Text: "timeout", Commits: 11, LastAt: fixedNow.AddDate(0, 0, -5)},
+	},
 	files: []FileStat{
 		{Repo: "payments-api", Path: "src/payments/client.py", Lang: "python", ModTime: fixedNow.Add(-20 * time.Minute)},
 		{Repo: "payments-api", Path: "src/payments/retry_policy.py", Lang: "python", ModTime: fixedNow.Add(-3 * time.Hour)},
@@ -52,6 +57,7 @@ type fakeResolver struct {
 	authors []AuthorStat
 	repos   []RepoStat
 	files   []FileStat
+	words   []WordStat
 }
 
 // Authors returns up to limit authors whose name or email contains fragment.
@@ -71,6 +77,17 @@ func (r fakeResolver) Repos() []RepoStat { return r.repos }
 
 // Files returns every file.
 func (r fakeResolver) Files() []FileStat { return r.files }
+
+// MessageWords returns the words that start with fragment.
+func (r fakeResolver) MessageWords(fragment string, limit int) []WordStat {
+	var found []WordStat
+	for _, w := range r.words {
+		if strings.HasPrefix(w.Text, fragment) && len(found) < limit {
+			found = append(found, w)
+		}
+	}
+	return found
+}
 
 // codes lists the codes of diagnostics, in order.
 func codes(diagnostics []protocol.Diagnostic) []string {

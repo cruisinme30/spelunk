@@ -41,10 +41,16 @@ Nothing else defines a cross-boundary type.
 - `internal/lang` detects a file's language from its name and shebang, and resolves `lang:` values.
 - `internal/trigram` is the working-tree index and engine: it lists the files to index, builds and saves shards
   (trigram posting lists), runs a `Plan` over them, and previews and resolves its own results.
-- `internal/indexer` keeps one shard per workspace root up to date on a background worker and publishes each new
-  shard in one step. It is the only writer to the index directory.
-- Not built yet: the commit index and engine behind `author:`, `msg:` and `type:commit`, and the symbol index
-  behind `sym:`. Until they exist, `search/start` returns no results for those queries.
+- `internal/history` is the commit index and engine behind `author:`, `msg:` and `type:commit`. It reads first-parent
+  history newest first with `git log -p -U0`, keeps each commit's author, date, message and changed lines in segments
+  with trigram indexes over the lines and the messages, and runs a history `Plan` over them. It also tells the
+  working-tree engine each file's newest commit and which files have uncommitted edits (for `since:` on files), and
+  the completions which authors and message words exist.
+- `internal/indexer` keeps both indexes of every workspace root up to date and publishes each new snapshot in one
+  step. Working-tree builds and history reads have a worker each. Saved files arrive as `workspace/didChangeFiles`
+  and are re-read into a small overlay shard that masks their old copies until the next build folds them in; HEAD
+  is polled so new commits are searchable within seconds. It is the only writer to the index directory.
+- Not built yet: the symbol index behind `sym:`. Until it exists, `search/start` returns no results for `sym:`.
 
 ### `extension/` (TypeScript, VS Code extension host)
 
