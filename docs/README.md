@@ -19,7 +19,7 @@ extension (Unified Search: Open Help) is the query-language reference.
 - [ARCHITECTURE.md](../ARCHITECTURE.md): the code map and the rules that always hold.
 - [CONTRIBUTING.md](../CONTRIBUTING.md): setup, commit and code conventions, tests.
 - [dev/implementation-plan.md](dev/implementation-plan.md): the original build plan: scope, interfaces between the
-  parts, indexing, performance budgets, the order of work (M0–M5) and risks.
+  parts, indexing, performance budgets, the order of work and risks.
 - [dev/test-plan.md](dev/test-plan.md): test layers, the end-to-end harness, its scenarios and CI gates.
 - [dev/mocks.md](dev/mocks.md): the 18 design mockups, with the screen ids tests use in `@covers screen:…`.
 - [dev/progress.md](dev/progress.md): what each stage of the plan delivered, with the tests that prove it.

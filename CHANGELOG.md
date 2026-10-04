@@ -22,6 +22,16 @@ All notable changes to this project are documented here. The format follows
   `case:yes`.
 - The help page: every operator with an example to try, worked examples, keys and settings.
 
+### Removed
+
+- The Show Welcome command, which was listed but did nothing; it returns with the first-run page.
+
 ### Fixed
 
 - A reopened search panel no longer ignores the queries typed into it.
+- Files inside a folder named in `unifiedSearch.index.exclude`, such as `node_modules`, are no longer indexed.
+- A query whose words never occur in the same file no longer scans every file.
+- Restarting the search from the panel while a crash restart was pending no longer starts a second daemon.
+- A repo whose index failed no longer shows as "Indexing" in the status bar.
+- The `case:` suggestion shows its description and values like the other operators.
+- `sym:` queries return no results instead of wrong ones until symbol search exists.

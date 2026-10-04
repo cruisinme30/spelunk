@@ -28,4 +28,5 @@ framing on stdin/stdout.
 - We ship a daemon binary per platform (platform-specific VSIXs).
 - A crash in the daemon can't take the editor down; the host restarts it up to 3 times a minute.
 - The protocol is a real boundary, so it needs versioning and contract tests ([0002](0002-json-schema-as-protocol-source.md)).
-- The history engine could later move to C++ behind the same `HistoryEngine` contract.
+- Parts of the daemon, such as a future history engine, could move to another language without changing the
+  extension, because only the JSON-RPC protocol is shared.

@@ -11,10 +11,12 @@ removed `timeout` or `retry`. Drop `author:` and the same box searches current f
 
 ![The search panel showing code matches for retry_policy, with a preview](docs/dev/proof/search-panel-results-and-preview.png)
 
-> **Status: early development.** The skeleton works end to end and the query language is parsed in full. The indexes
-> are being built now; see [progress](docs/dev/progress.md). There is no Marketplace release yet.
+> **Status: early development, no Marketplace release yet.** Searching current files works: file names and code
+> lines, with the whole query language, previews and opening results. Git history search (`author:`, `msg:`,
+> `type:commit`) and symbol search (`sym:`) are parsed and checked but return no results until their indexes are
+> built. See [progress](docs/dev/progress.md).
 
-## Features (v1 scope)
+## Features (planned for the first release)
 
 - **One query language.** Combine text, `"phrases"`, `/regex/`, `AND`, `OR`, `( )` and `-exclusions` with
   operators: `f:` (path), `repo:`, `lang:`, `type:`, `sym:`, `author:`, `msg:`, `since:`, `case:`, `count:`.
@@ -36,7 +38,7 @@ removed `timeout` or `retry`. Drop `author:` and the same box searches current f
 | [`protocol/`](protocol/) | JSON Schema for every cross-process message, plus the type generator |
 | [`docs/`](docs/) | User docs, decision records, and planning docs |
 | [`scripts/`](scripts/) | `test-all.sh`, the spec-coverage check and the panel screenshot tool |
-| [`testdata/`](testdata/) | A fixture workspace whose files match the mocks |
+| [`testdata/`](testdata/) | A fixture workspace whose files match the design mockups |
 
 [ARCHITECTURE.md](ARCHITECTURE.md) explains how the pieces fit together.
 

@@ -43,7 +43,8 @@ Nothing else defines a cross-boundary type.
   (trigram posting lists), runs a `Plan` over them, and previews and resolves its own results.
 - `internal/indexer` keeps one shard per workspace root up to date on a background worker and publishes each new
   shard in one step. It is the only writer to the index directory.
-- Planned: `internal/history` (commit store and engine).
+- Not built yet: the commit index and engine behind `author:`, `msg:` and `type:commit`, and the symbol index
+  behind `sym:`. Until they exist, `search/start` returns no results for those queries.
 
 ### `extension/` (TypeScript, VS Code extension host)
 
@@ -61,15 +62,18 @@ Nothing else defines a cross-boundary type.
 - `src/state.ts` holds `ViewState`; `src/host.ts` is the only code that talks to VS Code.
 - `src/render/` contains functions that take state and callbacks and write DOM: the chrome, the suggestion list,
   the repo menu, the empty state, results and the preview.
+- `src/operators.ts` is the one operator reference: the empty box's sheet, the suggestions and the help page all
+  read it.
 - `src/queryEdit.ts` holds the pure text edits behind fix-its, the Aa / .* toggles and the repo menu.
 - `src/helpPage.ts` is the help page's entry point; its words, including every example, are data in
   `src/helpContent.ts`, so a test can run each example against the real daemon.
 
 ### `testdata/`, `scripts/`
 
-`testdata/workspace/` holds three small repos whose files match the mocks; the daemon tests search them for the
-mocks' queries. `scripts/test-all.sh` runs every test layer, and `scripts/screenshotPanel.mjs` renders the panel for a
-query end to end (real daemon, controller and webview) to compare it with the mocks.
+`testdata/workspace/` holds three small repos whose files match the design mockups
+([docs/dev/mocks.md](docs/dev/mocks.md)); the daemon tests search them with the mockups' queries.
+`scripts/test-all.sh` runs every linter and test layer, and `scripts/screenshotPanel.mjs` renders the panel for a
+query end to end (real daemon, controller and webview) to compare it with the mockups.
 
 ## Invariants
 
