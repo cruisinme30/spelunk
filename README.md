@@ -22,8 +22,8 @@ removed `timeout` or `retry`. Drop `author:` and the same box searches current f
   diffs, messages and authors.
 - **Helpful when you're wrong:** errors with one-key fixes, completions for operators and values (authors, repos,
   languages), and notes like "3 commits hidden by `-f:vendor/`".
-- **Keyboard first:** ⌘P or ⇧⌘F (you choose on first run), ↵ to open at the match, ⌘↵ to open to the side,
-  F4 to step through results.
+- **Keyboard first:** ⌘P or ⇧⌘F (the `unifiedSearch.shortcut.preset` setting), ↵ to open at the match, ⌘↵ to
+  open to the side, F4 to step through results.
 - Works the same in desktop VS Code and code-server.
 
 ## Repository layout

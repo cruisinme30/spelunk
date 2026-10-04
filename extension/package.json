@@ -58,10 +58,6 @@
         "title": "Unified Search: Open Help"
       },
       {
-        "command": "unifiedSearch.showWelcome",
-        "title": "Unified Search: Show Welcome"
-      },
-      {
         "command": "unifiedSearch.nextResult",
         "title": "Unified Search: Next Result"
       },

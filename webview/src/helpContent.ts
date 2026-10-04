@@ -126,7 +126,7 @@ export const EXAMPLES: Example[] = [
 ];
 
 export const KEYS: [what: string, keys: string][] = [
-  ["Open search", "⌘P or the key you picked"],
+  ["Open search", "⌘P, or the key set by unifiedSearch.shortcut.preset"],
   ["Preview a result", "Single click or ↑ ↓"],
   ["Open the file at that line", "Double-click or ↵"],
   ["Open beside the current editor", "⌘↵"],
