@@ -408,6 +408,8 @@ export interface QueryChangedMsg {
   text: string;
   cursor: number;
   seq: number;
+  /** True when the user dismissed the suggestions (Esc or Enter): search the box exactly as typed, including the word at the cursor. */
+  asTyped?: boolean;
 }
 
 /** ResultSelectMsg asks for a result's preview. */
@@ -427,11 +429,18 @@ export interface ResultsMoreMsg {
   cursor: string;
 }
 
+/** HelpTryMsg runs an example from the help page in the search panel. */
+export interface HelpTryMsg {
+  query: string;
+}
+
 /** ParseResultMsg drives the chips, diagnostics, completions and toggles. */
 export interface ParseResultMsg {
   seq: number;
   query: ParsedQuery;
   completions: Completion[];
+  /** The text the search runs on when it leaves out the word being completed (mocks 5 and 6). Absent when the whole box is searched. */
+  searchText?: string;
 }
 
 /** SearchBatchMsg appends streamed results. */
@@ -518,6 +527,7 @@ export interface WebviewToHost {
   "results.more": ResultsMoreMsg;
   "panel.close": Empty;
   "help.open": Empty;
+  "help.try": HelpTryMsg;
   "settings.open": Empty;
   "ready": Empty;
   "daemon.restart": Empty;

@@ -1070,6 +1070,10 @@
         },
         "seq": {
           "type": "integer"
+        },
+        "asTyped": {
+          "type": "boolean",
+          "description": "True when the user dismissed the suggestions (Esc or Enter): search the box exactly as typed, including the word at the cursor."
         }
       },
       "required": ["text", "cursor", "seq"]
@@ -1110,6 +1114,16 @@
       },
       "required": ["searchId", "cursor"]
     },
+    "HelpTryMsg": {
+      "description": "HelpTryMsg runs an example from the help page in the search panel.",
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string"
+        }
+      },
+      "required": ["query"]
+    },
     "ParseResultMsg": {
       "description": "ParseResultMsg drives the chips, diagnostics, completions and toggles.",
       "type": "object",
@@ -1125,6 +1139,10 @@
           "items": {
             "$ref": "#/$defs/Completion"
           }
+        },
+        "searchText": {
+          "type": "string",
+          "description": "The text the search runs on when it leaves out the word being completed (mocks 5 and 6). Absent when the whole box is searched."
         }
       },
       "required": ["seq", "query", "completions"]
@@ -1369,6 +1387,10 @@
     "help.open": {
       "direction": "webview->host",
       "payload": "Empty"
+    },
+    "help.try": {
+      "direction": "webview->host",
+      "payload": "HelpTryMsg"
     },
     "settings.open": {
       "direction": "webview->host",

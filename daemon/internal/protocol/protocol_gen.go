@@ -716,6 +716,8 @@ type QueryChangedMsg struct {
 	Text   string `json:"text"`
 	Cursor int    `json:"cursor"`
 	Seq    int    `json:"seq"`
+	// AsTyped is true when the user dismissed the suggestions (Esc or Enter): search the box exactly as typed, including the word at the cursor.
+	AsTyped bool `json:"asTyped,omitempty"`
 }
 
 // ResultSelectMsg asks for a result's preview.
@@ -735,11 +737,18 @@ type ResultsMoreMsg struct {
 	Cursor   string `json:"cursor"`
 }
 
+// HelpTryMsg runs an example from the help page in the search panel.
+type HelpTryMsg struct {
+	Query string `json:"query"`
+}
+
 // ParseResultMsg drives the chips, diagnostics, completions and toggles.
 type ParseResultMsg struct {
 	Seq         int          `json:"seq"`
 	Query       ParsedQuery  `json:"query"`
 	Completions []Completion `json:"completions"`
+	// SearchText is the text the search runs on when it leaves out the word being completed (mocks 5 and 6). Absent when the whole box is searched.
+	SearchText string `json:"searchText,omitempty"`
 }
 
 // MarshalJSON emits [] rather than null for required arrays.
@@ -872,6 +881,7 @@ const (
 	MsgResultsMore   = "results.more"
 	MsgPanelClose    = "panel.close"
 	MsgHelpOpen      = "help.open"
+	MsgHelpTry       = "help.try"
 	MsgSettingsOpen  = "settings.open"
 	MsgReady         = "ready"
 	MsgDaemonRestart = "daemon.restart"
