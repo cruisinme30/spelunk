@@ -18,7 +18,7 @@ func repoOf(name string, files map[string]string) Repo {
 	return Repo{ID: name, Name: name, Root: "/repos/" + name, Shard: shardOf(files)}
 }
 
-func mustPlan(t *testing.T, text string, settings protocol.Settings, cursor string) *query.Plan {
+func mustPlan(t testing.TB, text string, settings protocol.Settings, cursor string) *query.Plan {
 	t.Helper()
 	parsed := query.Parse(text, nil)
 	plan, _, err := query.NewPlan(parsed, settings, fixedNow, cursor)

@@ -350,6 +350,7 @@ type matchedLine struct {
 // lineMatcher finds, and remembers, which lines each term matches in one file.
 type lineMatcher struct {
 	content []byte
+	lowered []byte // content with ASCII lowercased, made on first use
 	anchors anchorCache
 	cache   map[*query.Content][]matchedLine
 }
@@ -362,10 +363,9 @@ func newLineMatcher(content []byte, anchors anchorCache) *lineMatcher {
 // Shared by every file of one search.
 type anchorCache map[*query.Content]bool
 
-// wholeTextCheck reports whether matching term against the whole file is
-// a safe first check: true whenever some line would match. Anchors break
-// that (^ means the start of the file, not of a line), so anchored terms
-// skip the check.
+// wholeTextCheck reports whether matching term against the whole file finds
+// every line that matches on its own. Anchors break that (^ means the start
+// of the file, not of a line), so anchored terms are matched line by line.
 func (a anchorCache) wholeTextCheck(term *query.Content) bool {
 	anchored, ok := a[term]
 	if !ok {
@@ -404,32 +404,97 @@ func (m *lineMatcher) matches(term *query.Content) []matchedLine {
 		return found
 	}
 	var found []matchedLine
-	// One match against the whole file rejects most files before any line splitting.
-	if !m.anchors.wholeTextCheck(term) || term.Re.Match(m.content) {
-		number := 0
-		for rest := m.content; len(rest) > 0; {
-			number++
-			end := bytes.IndexByte(rest, '\n')
-			line := rest
-			if end >= 0 {
-				line, rest = rest[:end], rest[end+1:]
-			} else {
-				rest = nil
-			}
-			line = bytes.TrimSuffix(line, []byte("\r"))
-			var hits []byteHit
-			for _, loc := range term.Re.FindAllIndex(line, -1) {
-				if loc[1] > loc[0] { // empty matches highlight nothing
-					hits = append(hits, byteHit{start: loc[0], end: loc[1], termIndex: term.TermIndex})
-				}
-			}
-			if len(hits) > 0 {
-				found = append(found, matchedLine{number: number, text: string(line), hits: hits})
-			}
-		}
+	if m.anchors.wholeTextCheck(term) {
+		found = m.scanForLines(term)
+	} else {
+		found = m.everyLine(term)
 	}
 	m.cache[term] = found
 	return found
+}
+
+// scanForLines finds candidate lines by matching the whole file, then
+// matches each candidate line on its own. That skips the many lines with
+// no match, and it is sound for terms without anchors: a line that
+// matches on its own also matches the file at that line.
+func (m *lineMatcher) scanForLines(term *query.Content) []matchedLine {
+	content := m.content
+	next := m.finder(term)
+	var found []matchedLine
+	number, lineStart := 1, 0 // lineStart begins line number
+	for {
+		at := next(lineStart)
+		if at < 0 {
+			return found
+		}
+		start := bytes.LastIndexByte(content[:at], '\n') + 1
+		number += bytes.Count(content[lineStart:start], []byte("\n"))
+		end := len(content)
+		if i := bytes.IndexByte(content[at:], '\n'); i >= 0 {
+			end = at + i
+		}
+		if line, ok := matchLine(term, content[start:end], number); ok {
+			found = append(found, line)
+		}
+		if end == len(content) {
+			return found
+		}
+		lineStart, number = end+1, number+1
+	}
+}
+
+// finder returns how to find the next position, at or after a line start,
+// where term may match: a fast literal search when that is sound, or the
+// regex itself.
+func (m *lineMatcher) finder(term *query.Content) func(from int) int {
+	if literal, ok := newLiteralFinder(term); ok && literal.usableOn(m.content) {
+		if literal.folded && m.lowered == nil {
+			m.lowered = lowerASCII(m.content)
+		}
+		return func(from int) int { return literal.index(m.content, m.lowered, from) }
+	}
+	return func(from int) int {
+		loc := term.Re.FindIndex(m.content[from:])
+		if loc == nil {
+			return -1
+		}
+		return from + loc[0]
+	}
+}
+
+// everyLine matches term against each line in turn.
+func (m *lineMatcher) everyLine(term *query.Content) []matchedLine {
+	var found []matchedLine
+	number := 0
+	for rest := m.content; len(rest) > 0; {
+		number++
+		line := rest
+		if end := bytes.IndexByte(rest, '\n'); end >= 0 {
+			line, rest = rest[:end], rest[end+1:]
+		} else {
+			rest = nil
+		}
+		if matched, ok := matchLine(term, line, number); ok {
+			found = append(found, matched)
+		}
+	}
+	return found
+}
+
+// matchLine returns the non-empty matches of term in one line, without
+// its trailing "\r".
+func matchLine(term *query.Content, line []byte, number int) (matchedLine, bool) {
+	line = bytes.TrimSuffix(line, []byte("\r"))
+	var hits []byteHit
+	for _, loc := range term.Re.FindAllIndex(line, -1) {
+		if loc[1] > loc[0] { // empty matches highlight nothing
+			hits = append(hits, byteHit{start: loc[0], end: loc[1], termIndex: term.TermIndex})
+		}
+	}
+	if len(hits) == 0 {
+		return matchedLine{}, false
+	}
+	return matchedLine{number: number, text: string(line), hits: hits}, true
 }
 
 // lines merges the matched lines of several terms, in line order.

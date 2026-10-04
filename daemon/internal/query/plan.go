@@ -73,8 +73,10 @@ type (
 		Re *regexp.Regexp
 		// Literal is the text to search for when the term is not a regex;
 		// engines use it (or Re) to narrow candidates with trigrams.
-		Literal   string
-		TermIndex int
+		Literal string
+		// IgnoreCase is true when Re ignores case.
+		IgnoreCase bool
+		TermIndex  int
 	}
 	// Path matches the repo-relative path (f:).
 	Path struct{ Re *regexp.Regexp }
@@ -243,7 +245,7 @@ func (l *lowering) lower(node *protocol.Node) Pred {
 		}
 		return nil
 	case "text":
-		content := &Content{Re: l.regex(node.Value, node.Match), TermIndex: node.TermIndex}
+		content := &Content{Re: l.regex(node.Value, node.Match), IgnoreCase: !l.caseSensitive, TermIndex: node.TermIndex}
 		if node.Match != protocol.MatchRegex {
 			content.Literal = node.Value
 		}
