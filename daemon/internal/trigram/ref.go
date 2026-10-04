@@ -1,6 +1,7 @@
 package trigram
 
 import (
+	"path/filepath"
 	"strconv"
 	"strings"
 )
@@ -48,6 +49,11 @@ func ParseRef(text string) (ref Ref, ok bool) {
 			return Ref{}, false
 		}
 		numbers = append(numbers, n)
+	}
+	// A ref names a file inside its repo; "../" or an absolute path would
+	// let a crafted ref read any file on disk.
+	if !filepath.IsLocal(filepath.FromSlash(parts[6])) {
+		return Ref{}, false
 	}
 	return Ref{
 		PlanID: numbers[0], RepoID: parts[2], Line: numbers[1],

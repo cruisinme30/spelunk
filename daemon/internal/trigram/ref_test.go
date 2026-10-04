@@ -19,6 +19,7 @@ func TestMalformedRefsAreRejected(t *testing.T) {
 	for _, text := range []string{
 		"", "tree", "commit|1|r|abc", "tree|x|r|1|0|1|a.go", "tree|1|r|-1|0|1|a.go",
 		"tree|1||1|0|1|a.go", "tree|1|r|1|0|1|",
+		"tree|1|r|1|0|1|../outside.go", "tree|1|r|1|0|1|/etc/passwd", "tree|1|r|1|0|1|a/../../b",
 	} {
 		if ref, ok := ParseRef(text); ok {
 			t.Errorf("ParseRef(%q) = %+v, want rejected", text, ref)
