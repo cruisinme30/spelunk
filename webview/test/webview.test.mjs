@@ -146,6 +146,19 @@ test("Enter opens the selected result; ⌘Enter opens it to the side", async (t)
   assert.deepEqual(await lastSent(page, "result.open"), { ref: "f1", where: "side" });
 });
 
+test("a single click selects a result and a double-click opens it", async (t) => {
+  // @covers setting:open.trigger
+  const page = await panelWithResults(t);
+  const row = page.locator('[data-ref="l1"]');
+  await row.click();
+  await page.waitForFunction(
+    () => window.__sent.filter((m) => m.type === "result.select").at(-1)?.payload.ref === "l1",
+  );
+  assert.equal(await lastSent(page, "result.open"), undefined, "one click only selects");
+  await row.dblclick();
+  assert.deepEqual(await lastSent(page, "result.open"), { ref: "l1", where: "current" });
+});
+
 test("a parse result for an older seq is dropped and the newest one renders", async (t) => {
   const page = await openPanel(t);
   await restore(page);
