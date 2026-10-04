@@ -1,0 +1,30 @@
+# OS / editors
+.DS_Store
+*.swp
+.idea/
+
+# Node / TypeScript
+node_modules/
+out/
+dist/
+*.tsbuildinfo
+*.vsix
+.vscode-test/
+
+# Go
+/daemon/bin/
+*.test
+*.out
+coverage.*
+
+# Generated protocol types
+/extension/src/generated/
+/webview/src/generated/
+/daemon/internal/protocol/gen/
+
+# Fixtures built by testdata/build-fixtures
+/testdata/repos/
+
+# Local index / traces
+.unified-search/
+*.trace.jsonl
