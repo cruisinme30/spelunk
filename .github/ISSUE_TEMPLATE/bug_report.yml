@@ -1,0 +1,36 @@
+name: Bug report
+description: Something doesn't work as documented.
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what did you expect?
+    validations:
+      required: true
+  - type: input
+    id: query
+    attributes:
+      label: The query you typed
+      placeholder: author:jane f:.*test\.py$ timeout
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: "1. Open a workspace with …\n2. Press ⌘P and type …"
+    validations:
+      required: true
+  - type: input
+    id: versions
+    attributes:
+      label: Versions
+      description: Extension version, VS Code or code-server version, OS.
+      placeholder: Unified Search 0.1.0, VS Code 1.95, macOS 15
+    validations:
+      required: true
+  - type: textarea
+    id: log
+    attributes:
+      label: Log
+      description: From the "Unified Search" output channel (View → Output).
+      render: text

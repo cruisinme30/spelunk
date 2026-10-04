@@ -1,0 +1,9 @@
+# Normalize line endings; keep binaries binary.
+* text=auto eol=lf
+*.png binary
+*.vsix binary
+
+# Generated from protocol/protocol.schema.json: collapsed in GitHub diffs.
+extension/src/protocol.gen.ts linguist-generated=true
+webview/src/protocol.gen.ts linguist-generated=true
+daemon/internal/protocol/protocol_gen.go linguist-generated=true

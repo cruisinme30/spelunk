@@ -1,0 +1,4 @@
+# The last matching pattern takes precedence.
+*                    @cruisinme30
+/protocol/           @cruisinme30
+/.github/CODEOWNERS  @cruisinme30

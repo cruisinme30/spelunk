@@ -1,0 +1,19 @@
+name: Feature request
+description: Suggest an operator, a setting, or a change to how search behaves.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to find, and what gets in the way today?
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would you like to type, and what should come back?
+      placeholder: "branch:release-2.4 timeout → matches only on that branch"
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Workarounds you've tried
