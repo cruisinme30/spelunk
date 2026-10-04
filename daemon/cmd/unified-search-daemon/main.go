@@ -9,12 +9,13 @@
 //
 // Environment, for tests and debugging:
 //
-//	UNIFIED_SEARCH_TRACE=<file>  append every JSON-RPC message to <file>
+//	UNIFIED_SEARCH_TRACE=<file>  append every JSON-RPC message to <file>, one JSON object per line
 //	UNIFIED_SEARCH_NOW=<RFC3339> freeze the clock (relative dates in tests)
 package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/signal"
@@ -33,39 +34,67 @@ func main() {
 	}
 	conn := rpc.NewConn(os.Stdin, os.Stdout)
 	if path := os.Getenv("UNIFIED_SEARCH_TRACE"); path != "" {
-		if f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644); err == nil {
-			defer f.Close()
-			var mu sync.Mutex
-			conn.Trace = func(dir string, raw []byte) {
-				mu.Lock()
-				defer mu.Unlock()
-				fmt.Fprintf(f, "{\"t\":%q,\"dir\":%q,\"msg\":%s}\n", time.Now().UTC().Format(time.RFC3339Nano), dir, raw)
-			}
+		closeTrace, err := traceTo(conn, path)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "unified-search-daemon: trace disabled: %v\n", err)
+		} else {
+			defer closeTrace()
 		}
 	}
-	opts := server.Options{}
-	if v := os.Getenv("UNIFIED_SEARCH_NOW"); v != "" {
-		if t, err := time.Parse(time.RFC3339, v); err == nil {
-			opts.Now = func() time.Time { return t }
-		}
-	}
-	s := server.New(conn, opts)
+	srv := server.New(conn, optionsFromEnv())
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	sigs := make(chan os.Signal, 1)
-	signal.Notify(sigs, syscall.SIGTERM, syscall.SIGINT)
-	done := make(chan error, 1)
-	go func() { done <- conn.Serve(ctx) }()
+	signals := make(chan os.Signal, 1)
+	signal.Notify(signals, syscall.SIGTERM, syscall.SIGINT)
+	served := make(chan error, 1)
+	go func() { served <- conn.Serve(ctx) }()
 
 	select {
-	case code := <-s.Exited():
+	case code := <-srv.Exited():
 		os.Exit(code)
-	case err := <-done: // stdin closed: the host is gone
+	case err := <-served: // stdin closed: the host is gone
 		if err != nil {
 			fmt.Fprintln(os.Stderr, "unified-search-daemon:", err)
 			os.Exit(1)
 		}
-	case <-sigs:
+	case <-signals:
 	}
+}
+
+// traceEntry is one line of the UNIFIED_SEARCH_TRACE file.
+type traceEntry struct {
+	Time      string          `json:"t"`
+	Direction string          `json:"dir"`
+	Message   json.RawMessage `json:"msg"`
+}
+
+// traceTo appends every message on conn to the file at path.
+func traceTo(conn *rpc.Conn, path string) (closeTrace func(), err error) {
+	traceFile, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+	if err != nil {
+		return nil, err
+	}
+	var mu sync.Mutex
+	encoder := json.NewEncoder(traceFile)
+	conn.Trace = func(direction string, body []byte) {
+		mu.Lock()
+		defer mu.Unlock()
+		_ = encoder.Encode(traceEntry{Time: time.Now().UTC().Format(time.RFC3339Nano), Direction: direction, Message: body})
+	}
+	return func() { traceFile.Close() }, nil
+}
+
+// optionsFromEnv reads UNIFIED_SEARCH_NOW.
+func optionsFromEnv() server.Options {
+	value := os.Getenv("UNIFIED_SEARCH_NOW")
+	if value == "" {
+		return server.Options{}
+	}
+	frozen, err := time.Parse(time.RFC3339, value)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "unified-search-daemon: ignoring UNIFIED_SEARCH_NOW: %v\n", err)
+		return server.Options{}
+	}
+	return server.Options{Now: func() time.Time { return frozen }}
 }

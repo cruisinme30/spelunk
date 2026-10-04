@@ -2,68 +2,141 @@ package server
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"sync"
 	"testing"
 
 	"github.com/cruisinme30/unified-search/daemon/internal/protocol"
+	"github.com/cruisinme30/unified-search/daemon/internal/rpc"
 )
+
+const clientSource = "import logging\n\nclass Client:\n    def __init__(self):\n        self.retry_policy = RetryPolicy(max_attempts=3)\n"
+
+// collectBatches records every search/batch item the client receives.
+func collectBatches(client *testClient) func() []protocol.ResultItem {
+	var mu sync.Mutex
+	var items []protocol.ResultItem
+	client.conn.OnNotify(protocol.MethodSearchBatch, func(raw json.RawMessage) {
+		var batch protocol.SearchBatchParams
+		_ = json.Unmarshal(raw, &batch)
+		mu.Lock()
+		items = append(items, batch.Items...)
+		mu.Unlock()
+	})
+	return func() []protocol.ResultItem {
+		mu.Lock()
+		defer mu.Unlock()
+		return append([]protocol.ResultItem(nil), items...)
+	}
+}
+
+func mustWriteFile(t *testing.T, path, content string) {
+	t.Helper()
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func wantRPCCode(t *testing.T, call string, err error, want int) {
+	t.Helper()
+	var rpcErr *rpc.Error
+	if !errors.As(err, &rpcErr) || rpcErr.Code != want {
+		t.Fatalf("%s error = %v, want code %d", call, err, want)
+	}
+}
 
 // M0 exit gate: one hard-coded search round-trips, and opening a result
 // resolves to the file, line and column of the match.
+//
 // @covers rpc:search/start rpc:search/batch rpc:preview/get rpc:open/resolve failure:ref-stale
-func TestM0SearchRoundTrip(t *testing.T) {
+func TestSearchPreviewAndOpenRoundTrip(t *testing.T) {
 	dir := t.TempDir()
-	src := "import logging\n\nclass Client:\n    def __init__(self):\n        self.retry_policy = RetryPolicy(max_attempts=3)\n"
-	if err := os.WriteFile(filepath.Join(dir, "client.py"), []byte(src), 0o644); err != nil {
+	mustWriteFile(t, filepath.Join(dir, "client.py"), clientSource)
+	client := newTestClient(t, Options{})
+	batches := collectBatches(client)
+	client.mustInitialize(t, protocol.Root{ID: "r1", Path: dir, Name: "payments-api"})
+
+	var result protocol.SearchResult
+	if err := client.call(protocol.MethodSearchStart, protocol.SearchStartParams{SearchID: "s1", Text: "retry_policy"}, &result); err != nil {
 		t.Fatal(err)
 	}
-	h := newHarness(t, Options{})
-	var mu sync.Mutex
-	var got []protocol.ResultItem
-	h.client.OnNotify(protocol.MethodSearchBatch, func(p json.RawMessage) {
-		var b protocol.SearchBatchParams
-		_ = json.Unmarshal(p, &b)
-		mu.Lock()
-		got = append(got, b.Items...)
-		mu.Unlock()
-	})
-	root := protocol.Root{ID: "r1", Path: dir, Name: "payments-api"}
-	if err := h.call(protocol.MethodInitialize, protocol.InitializeParams{Protocol: 1, Roots: []protocol.Root{root}, Settings: DefaultSettings()}, nil); err != nil {
+	items := batches()
+	if result.Total != 1 || len(items) != 1 {
+		t.Fatalf("search retry_policy: total %d, %d items; want 1 and 1", result.Total, len(items))
+	}
+	item := items[0]
+	if item.Path != "client.py" || item.Line != 5 || item.Hits[0] != (protocol.Hit{Start: 13, End: 25}) {
+		t.Fatalf("result = %s:%d hits %+v, want client.py:5 hits [{13 25 0}]", item.Path, item.Line, item.Hits)
+	}
+
+	var preview protocol.Preview
+	if err := client.call(protocol.MethodPreviewGet, protocol.PreviewParams{Ref: item.Ref, ContextLines: 2}, &preview); err != nil {
 		t.Fatal(err)
 	}
-	var res protocol.SearchResult
-	if err := h.call(protocol.MethodSearchStart, protocol.SearchStartParams{SearchID: "s1", Text: "retry_policy"}, &res); err != nil {
-		t.Fatal(err)
+	if preview.FocusLine != 5 || preview.FirstLine != 3 || len(preview.Lines) != 4 {
+		t.Fatalf("preview = focus %d, first %d, %d lines; want 5, 3, 4", preview.FocusLine, preview.FirstLine, len(preview.Lines))
 	}
-	mu.Lock()
-	defer mu.Unlock()
-	if res.Total != 1 || len(got) != 1 {
-		t.Fatalf("total=%d items=%d", res.Total, len(got))
-	}
-	it := got[0]
-	if it.Path != "client.py" || it.Line != 5 || it.Hits[0].Start != 13 || it.Hits[0].End != 25 {
-		t.Fatalf("item = %+v", it)
-	}
-	var pv protocol.Preview
-	if err := h.call(protocol.MethodPreviewGet, protocol.PreviewParams{Ref: it.Ref, ContextLines: 2}, &pv); err != nil {
-		t.Fatal(err)
-	}
-	if pv.FocusLine != 5 || pv.FirstLine != 3 || len(pv.Lines) != 4 {
-		t.Fatalf("preview = %+v", pv)
-	}
+
 	var target protocol.OpenTarget
-	if err := h.call(protocol.MethodOpenResolve, protocol.OpenResolveParams{Ref: it.Ref}, &target); err != nil {
+	if err := client.call(protocol.MethodOpenResolve, protocol.OpenResolveParams{Ref: item.Ref}, &target); err != nil {
 		t.Fatal(err)
 	}
-	if target.Path != filepath.Join(dir, "client.py") || target.Line != 5 || target.Column != 14 || target.Length != 12 {
-		t.Fatalf("target = %+v", target)
+	want := protocol.OpenTarget{Path: filepath.Join(dir, "client.py"), Line: 5, Column: 14, Length: 12}
+	if target != want {
+		t.Fatalf("open/resolve = %+v, want %+v", target, want)
 	}
-	// A deleted file makes the ref stale.
-	os.Remove(filepath.Join(dir, "client.py"))
-	err := h.call(protocol.MethodOpenResolve, protocol.OpenResolveParams{Ref: it.Ref}, nil)
-	if err == nil {
-		t.Fatal("want RefStale")
+
+	if err := os.Remove(filepath.Join(dir, "client.py")); err != nil {
+		t.Fatal(err)
+	}
+	err := client.call(protocol.MethodOpenResolve, protocol.OpenResolveParams{Ref: item.Ref}, nil)
+	wantRPCCode(t, "open/resolve after delete", err, protocol.CodeRefStale)
+}
+
+func TestMatchOffsetsAreUTF16EvenWhenCaseFoldingChangesByteLength(t *testing.T) {
+	dir := t.TempDir()
+	// U+212A KELVIN SIGN lowercases to ASCII "k": 3 bytes become 1.
+	mustWriteFile(t, filepath.Join(dir, "units.txt"), "KK = kelvin_scale\n")
+	client := newTestClient(t, Options{})
+	batches := collectBatches(client)
+	client.mustInitialize(t, protocol.Root{ID: "r1", Path: dir, Name: "r"})
+	if err := client.call(protocol.MethodSearchStart, protocol.SearchStartParams{SearchID: "s1", Text: "kelvin"}, nil); err != nil {
+		t.Fatal(err)
+	}
+	items := batches()
+	if len(items) != 1 || items[0].Hits[0] != (protocol.Hit{Start: 5, End: 11}) {
+		t.Fatalf("search kelvin = %+v, want one hit at UTF-16 [5,11)", items)
+	}
+}
+
+func TestPreviewOfCRLFFileHasNoCarriageReturns(t *testing.T) {
+	dir := t.TempDir()
+	mustWriteFile(t, filepath.Join(dir, "a.txt"), "one\r\ntwo needle\r\nthree\r\n")
+	client := newTestClient(t, Options{})
+	batches := collectBatches(client)
+	client.mustInitialize(t, protocol.Root{ID: "r1", Path: dir, Name: "r"})
+	if err := client.call(protocol.MethodSearchStart, protocol.SearchStartParams{SearchID: "s1", Text: "needle"}, nil); err != nil {
+		t.Fatal(err)
+	}
+	var preview protocol.Preview
+	if err := client.call(protocol.MethodPreviewGet, protocol.PreviewParams{Ref: batches()[0].Ref, ContextLines: 1}, &preview); err != nil {
+		t.Fatal(err)
+	}
+	if got := preview.Lines[1]; got != "two needle" {
+		t.Fatalf("preview line 2 = %q, want %q", got, "two needle")
+	}
+}
+
+func TestMalformedRefIsStale(t *testing.T) {
+	for _, ref := range []string{"", "m0|r1|x|0|1|a.txt", "m0|r1|1|-2|1|a.txt", "other|r1|1|0|1|a.txt"} {
+		if _, err := parseM0Ref(ref); err == nil {
+			t.Errorf("parseM0Ref(%q) = nil error, want malformed ref", ref)
+		}
+	}
+	original := m0Ref{rootID: "r1", line: 3, column: 4, length: 5, path: "dir/a|b.txt"}
+	if got, err := parseM0Ref(original.String()); err != nil || got != original {
+		t.Errorf("parseM0Ref(%q) = %+v, %v; want %+v", original.String(), got, err, original)
 	}
 }

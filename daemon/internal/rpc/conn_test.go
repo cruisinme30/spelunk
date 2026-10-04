@@ -11,73 +11,85 @@ import (
 	"time"
 )
 
-func pipePair(t *testing.T) (server, client *Conn, stop func()) {
+// connectedPair returns two Conns wired to each other through pipes, both
+// serving until the test ends.
+func connectedPair(t *testing.T) (server, client *Conn) {
 	t.Helper()
-	sr, cw := io.Pipe()
-	cr, sw := io.Pipe()
-	server = NewConn(sr, sw)
-	client = NewConn(cr, cw)
+	serverIn, clientOut := io.Pipe()
+	clientIn, serverOut := io.Pipe()
+	server = NewConn(serverIn, serverOut)
+	client = NewConn(clientIn, clientOut)
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{}, 2)
 	go func() { _ = server.Serve(ctx); done <- struct{}{} }()
 	go func() { _ = client.Serve(ctx); done <- struct{}{} }()
-	return server, client, func() {
+	t.Cleanup(func() {
 		cancel()
-		cw.Close()
-		sw.Close()
+		clientOut.Close()
+		serverOut.Close()
 		<-done
 		<-done
+	})
+	return server, client
+}
+
+func wantCode(t *testing.T, call string, err error, want int) {
+	t.Helper()
+	var rpcErr *Error
+	if !errors.As(err, &rpcErr) || rpcErr.Code != want {
+		t.Fatalf("%s error = %v, want code %d", call, err, want)
 	}
 }
 
-func TestFraming(t *testing.T) {
-	var buf bytes.Buffer
-	if err := WriteMessage(&buf, []byte(`{"a":1}`)); err != nil {
+func TestWriteMessageThenReadMessageRoundTrips(t *testing.T) {
+	var wire bytes.Buffer
+	if err := WriteMessage(&wire, []byte(`{"a":1}`)); err != nil {
 		t.Fatal(err)
 	}
-	if got := buf.String(); got != "Content-Length: 7\r\n\r\n{\"a\":1}" {
-		t.Fatalf("framing = %q", got)
+	if got, want := wire.String(), "Content-Length: 7\r\n\r\n{\"a\":1}"; got != want {
+		t.Fatalf("WriteMessage wrote %q, want %q", got, want)
 	}
-	body, err := ReadMessage(bufio.NewReader(&buf))
+	body, err := ReadMessage(bufio.NewReader(&wire))
 	if err != nil || string(body) != `{"a":1}` {
-		t.Fatalf("read = %q, %v", body, err)
+		t.Fatalf("ReadMessage = %q, %v; want {\"a\":1}, nil", body, err)
 	}
 }
 
-func TestCallAndNotify(t *testing.T) {
-	server, client, stop := pipePair(t)
-	defer stop()
-	server.Handle("echo", func(ctx context.Context, p json.RawMessage) (any, error) {
+func TestRequestsAndNotifications(t *testing.T) {
+	server, client := connectedPair(t)
+	server.Handle("echo", func(_ context.Context, params json.RawMessage) (any, error) {
 		var v map[string]any
-		_ = json.Unmarshal(p, &v)
+		_ = json.Unmarshal(params, &v)
 		return v, nil
 	})
-	got := make(chan string, 1)
-	server.OnNotify("ping", func(p json.RawMessage) { got <- string(p) })
+	received := make(chan string, 1)
+	server.OnNotify("ping", func(params json.RawMessage) { received <- string(params) })
 
-	var out map[string]any
-	if err := client.Call(context.Background(), "echo", map[string]any{"x": 1.0}, &out); err != nil {
-		t.Fatal(err)
-	}
-	if out["x"] != 1.0 {
-		t.Fatalf("echo = %v", out)
-	}
-	if err := client.Notify("ping", 7); err != nil {
-		t.Fatal(err)
-	}
-	if v := <-got; v != "7" {
-		t.Fatalf("notify = %s", v)
-	}
-	var rerr *Error
-	if err := client.Call(context.Background(), "nope", nil, nil); !errors.As(err, &rerr) || rerr.Code != CodeMethodNotFound {
-		t.Fatalf("want method not found, got %v", err)
-	}
+	t.Run("call_returns_the_result", func(t *testing.T) {
+		var got map[string]any
+		if err := client.Call(context.Background(), "echo", map[string]any{"x": 1.0}, &got); err != nil {
+			t.Fatal(err)
+		}
+		if got["x"] != 1.0 {
+			t.Fatalf("Call(echo, {x:1}) = %v, want map[x:1]", got)
+		}
+	})
+	t.Run("notification_reaches_its_handler", func(t *testing.T) {
+		if err := client.Notify("ping", 7); err != nil {
+			t.Fatal(err)
+		}
+		if got := <-received; got != "7" {
+			t.Fatalf("ping handler got %s, want 7", got)
+		}
+	})
+	t.Run("unknown_method_returns_method_not_found", func(t *testing.T) {
+		wantCode(t, "Call(nope)", client.Call(context.Background(), "nope", nil, nil), CodeMethodNotFound)
+	})
 }
 
 // @covers rpc:$/cancelRequest
-func TestCancel(t *testing.T) {
-	server, client, stop := pipePair(t)
-	defer stop()
+func TestCancellingACallCancelsTheHandler(t *testing.T) {
+	server, client := connectedPair(t)
 	started := make(chan struct{})
 	server.Handle("slow", func(ctx context.Context, _ json.RawMessage) (any, error) {
 		close(started)
@@ -85,27 +97,42 @@ func TestCancel(t *testing.T) {
 		return nil, ctx.Err()
 	})
 	ctx, cancel := context.WithCancel(context.Background())
-	errc := make(chan error, 1)
-	go func() { errc <- client.Call(ctx, "slow", nil, nil) }()
+	errs := make(chan error, 1)
+	go func() { errs <- client.Call(ctx, "slow", nil, nil) }()
 	<-started
 	cancel()
 	select {
-	case err := <-errc:
-		var rerr *Error
-		if !errors.As(err, &rerr) || rerr.Code != CodeRequestCancelled {
-			t.Fatalf("want RequestCancelled, got %v", err)
-		}
+	case err := <-errs:
+		wantCode(t, "Call(slow) after cancel", err, CodeRequestCancelled)
 	case <-time.After(2 * time.Second):
-		t.Fatal("cancel did not finish the request")
+		t.Fatal("Call(slow) still waiting 2s after cancel, want RequestCancelled")
+	}
+}
+
+func TestCancelledCallGivesUpWhenThePeerNeverAnswers(t *testing.T) {
+	cancelGrace = 50 * time.Millisecond
+	t.Cleanup(func() { cancelGrace = 2 * time.Second })
+	server, client := connectedPair(t)
+	release := make(chan struct{})
+	t.Cleanup(func() { close(release) })
+	server.Handle("stuck", func(context.Context, json.RawMessage) (any, error) {
+		<-release // ignores cancellation entirely
+		return nil, nil
+	})
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+	start := time.Now()
+	err := client.Call(ctx, "stuck", nil, nil)
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("Call(stuck) error = %v, want context.DeadlineExceeded", err)
+	}
+	if elapsed := time.Since(start); elapsed > time.Second {
+		t.Fatalf("Call(stuck) took %v, want about 70ms", elapsed)
 	}
 }
 
 func TestHandlerPanicBecomesInternalError(t *testing.T) {
-	server, client, stop := pipePair(t)
-	defer stop()
+	server, client := connectedPair(t)
 	server.Handle("boom", func(context.Context, json.RawMessage) (any, error) { panic("x") })
-	var rerr *Error
-	if err := client.Call(context.Background(), "boom", nil, nil); !errors.As(err, &rerr) || rerr.Code != CodeInternalError {
-		t.Fatalf("got %v", err)
-	}
+	wantCode(t, "Call(boom)", client.Call(context.Background(), "boom", nil, nil), CodeInternalError)
 }
