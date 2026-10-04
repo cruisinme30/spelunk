@@ -166,6 +166,12 @@ func TestCaseYesIsACaseFilterThatCanBeIgnored(t *testing.T) {
 	}
 }
 
+func TestPositivePathIsTheScopeNotAFilter(t *testing.T) {
+	if filters := mustPlan(t, `f:.*test\.py$ timeout`, defaultSettings).Filters; len(filters) != 0 {
+		t.Errorf("Filters of f:… timeout = %+v, want none", filters)
+	}
+}
+
 func TestIgnoringCaseFoldsEveryRegex(t *testing.T) {
 	plan := mustPlan(t, "case:yes Retry f:Src/ -Draft", defaultSettings)
 	folded := plan.IgnoringCase()

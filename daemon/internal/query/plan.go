@@ -320,15 +320,15 @@ func since(now time.Time, value string) time.Time {
 }
 
 // filterReason says whether a top-level conjunct can hide results, and
-// how the hidden-results note describes it ("" if it can't).
+// how the hidden-results note describes it ("" if it can't). A positive f:
+// is the search's scope rather than a filter (mock 2 explains it instead
+// of counting what lies outside it).
 func filterReason(node *protocol.Node) string {
 	switch {
 	case node.Kind == "not" && node.Child.Kind == "op" && node.Child.Op == protocol.OpNameF:
 		return "pathFilter"
 	case node.Kind == "not":
 		return "not"
-	case node.Kind == "op" && node.Op == protocol.OpNameF:
-		return "pathFilter"
 	case node.Kind == "op" && node.Op == protocol.OpNameSince:
 		return "since"
 	default:
