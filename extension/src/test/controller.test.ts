@@ -1,160 +1,175 @@
-// Host side of Contract 2 against the real daemon binary: a query typed
-// in the webview round-trips to results, preview and open.
+// Host side of Contract 2. The round-trip test drives the real daemon binary;
+// the others use a scripted backend to pin down ordering rules.
 // @covers msg:query.changed msg:parse.result msg:search.batch msg:search.done msg:result.select msg:preview.result msg:result.open msg:panel.close
-import { test } from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, mkdtempSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
 import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { test } from "node:test";
+import { type Backend, SearchController, type Ui, type WebviewMessage } from "../controller";
 import { Daemon } from "../daemon";
-import { SearchController, type Ui } from "../controller";
-import type { OpenTarget } from "../protocol.gen";
+import type { HostToWebview, OpenTarget, ParsedQuery, UiSettings } from "../protocol.gen";
 import { makeRoot } from "../roots";
 import { DEFAULTS } from "../settings";
 
-const binary = process.env.UNIFIED_SEARCH_DAEMON ?? join(__dirname, "../../daemon/bin/unified-search-daemon");
+const DAEMON_BINARY = process.env.UNIFIED_SEARCH_DAEMON ?? join(__dirname, "../../daemon/bin/unified-search-daemon");
 
-function fakeUi() {
-  const posted: { type: string; payload: any }[] = [];
+const TEST_UI_SETTINGS: UiSettings = {
+  typingDelayMs: 0,
+  openTrigger: "doubleClick",
+  preview: true,
+  showParsedQuery: true,
+  caseSensitive: false,
+};
+
+interface Posted {
+  type: keyof HostToWebview;
+  payload: any;
+}
+
+/** A Ui that records everything the controller does. */
+function recordingUi() {
+  const posted: Posted[] = [];
   const opened: { target: OpenTarget; where: string }[] = [];
-  const ctx: Record<string, boolean> = {};
-  let hidden = 0;
+  const contextKeys: Record<string, boolean> = {};
+  let closedPanels = 0;
   const ui: Ui = {
     post: (type, payload) => void posted.push({ type, payload }),
     openTarget: async (target, where) => void opened.push({ target, where }),
-    hidePanel: () => void hidden++,
+    hidePanel: () => void closedPanels++,
     openHelp: () => undefined,
     openSettings: () => undefined,
     restartDaemon: () => undefined,
-    setContext: (k, v) => void (ctx[k] = v),
+    setContext: (key, value) => void (contextKeys[key] = value),
     saveState: () => undefined,
   };
-  return { ui, posted, opened, ctx, hidden: () => hidden };
+  return { ui, posted, opened, contextKeys, closedPanels: () => closedPanels };
 }
 
+function newController(backend: Backend, ui: Ui, recentLimit = 20, closeOnOpen = true) {
+  return new SearchController(backend, ui, {
+    recentLimit: () => recentLimit,
+    closeOnOpen: () => closeOnOpen,
+    uiSettings: () => TEST_UI_SETTINGS,
+  });
+}
+
+const emptyQuery = (raw: string): ParsedQuery => ({
+  version: 1,
+  raw,
+  root: null,
+  globals: { case: null, count: null, type: null },
+  mode: "workingTree",
+  diagnostics: [],
+});
+
+/** A backend whose query/parse answers immediately, except for texts in `slow`, which wait for release(). */
+function scriptedBackend(slow = new Set<string>()) {
+  const waiting: (() => void)[] = [];
+  const backend: Backend = {
+    on: () => undefined,
+    request: async (method, params: any): Promise<any> => {
+      if (method !== "query/parse") throw new Error(`unexpected request ${method}`);
+      if (slow.has(params.text)) await new Promise<void>((resolve) => waiting.push(resolve));
+      return { query: emptyQuery(params.text), completions: [] };
+    },
+  };
+  return { backend, release: () => waiting.splice(0).forEach((resolve) => resolve()) };
+}
+
+const queryChanged = (text: string, seq: number): WebviewMessage => ({
+  v: 1,
+  type: "query.changed",
+  payload: { text, cursor: text.length, seq },
+});
+
 test(
-  "query -> results -> preview -> open, through the real daemon",
-  { skip: !existsSync(binary) && "daemon not built" },
+  "a query round-trips to results, preview and open through the real daemon",
+  { skip: !existsSync(DAEMON_BINARY) && "daemon not built" },
   async () => {
-    const dir = mkdtempSync(join(tmpdir(), "us-ws-"));
-    writeFileSync(join(dir, "client.py"), "class C:\n    def go(self):\n        self.retry_policy.run()\n");
-    const d = new Daemon({
-      binary,
-      roots: () => [makeRoot(dir, "payments-api")],
-      settings: () => ({ ...DEFAULTS, location: dir }),
+    const workspace = mkdtempSync(join(tmpdir(), "us-ws-"));
+    writeFileSync(join(workspace, "client.py"), "class C:\n    def go(self):\n        self.retry_policy.run()\n");
+    const daemon = new Daemon({
+      binary: DAEMON_BINARY,
+      roots: () => [makeRoot(workspace, "payments-api")],
+      settings: () => ({ ...DEFAULTS, exclude: [...DEFAULTS.exclude], location: workspace }),
     });
-    await d.start();
-    const f = fakeUi();
-    const c = new SearchController(d, f.ui, {
-      recentLimit: () => 20,
-      closeOnOpen: () => true,
-      uiSettings: () => ({
-        typingDelayMs: 0,
-        openTrigger: "doubleClick",
-        preview: true,
-        showParsedQuery: true,
-        caseSensitive: false,
-      }),
-    });
+    await daemon.start();
+    try {
+      const host = recordingUi();
+      const controller = newController(daemon, host.ui);
 
-    await c.handle({ v: 1, type: "query.changed", payload: { text: "retry_policy", cursor: 12, seq: 1 } });
-    const types = f.posted.map((p) => p.type);
-    assert.deepEqual(types, ["parse.result", "search.batch", "search.done"]);
-    const batch = f.posted[1].payload;
-    assert.equal(batch.seq, 1);
-    assert.equal(batch.items.length, 1);
-    assert.equal(f.posted[2].payload.total, 1);
-    assert.equal(f.ctx["unifiedSearch.hasResults"], true);
+      await controller.handle(queryChanged("retry_policy", 1));
+      assert.deepEqual(
+        host.posted.map((message) => message.type),
+        ["parse.result", "search.batch", "search.done"],
+      );
+      const batch = host.posted[1].payload;
+      assert.equal(batch.seq, 1);
+      assert.equal(batch.items.length, 1);
+      assert.equal(host.posted[2].payload.total, 1);
+      assert.equal(host.contextKeys["unifiedSearch.hasResults"], true);
 
-    const ref = batch.items[0].ref;
-    await c.handle({ v: 1, type: "result.select", payload: { ref } });
-    const pv = f.posted.at(-1)!;
-    assert.equal(pv.type, "preview.result");
-    assert.equal(pv.payload.preview.focusLine, 3);
+      const ref = batch.items[0].ref;
+      await controller.handle({ v: 1, type: "result.select", payload: { ref } });
+      const preview = host.posted.at(-1)!;
+      assert.equal(preview.type, "preview.result");
+      assert.equal(preview.payload.preview.focusLine, 3);
 
-    await c.handle({ v: 1, type: "result.open", payload: { ref, where: "side" } });
-    assert.equal(f.opened.length, 1);
-    assert.deepEqual(f.opened[0], {
-      target: { path: join(dir, "client.py"), line: 3, column: 14, length: 12 },
-      where: "side",
-    });
-    assert.equal(f.hidden(), 1, "closeOnOpen hides the panel");
+      await controller.handle({ v: 1, type: "result.open", payload: { ref, where: "side" } });
+      assert.deepEqual(host.opened[0], {
+        target: { path: join(workspace, "client.py"), line: 3, column: 14, length: 12 },
+        where: "side",
+      });
+      assert.equal(host.closedPanels(), 1, "closeOnOpen closes the panel");
 
-    // F4 steps through the last results without the panel.
-    await c.step(1);
-    assert.equal(f.opened.length, 2);
-    await d.stop();
+      await controller.step(1);
+      assert.equal(host.opened.length, 2, "F4 opens a result without the panel");
+    } finally {
+      await daemon.stop();
+    }
   },
 );
 
 test("an older seq never overwrites a newer query", async () => {
-  const f = fakeUi();
-  let resolveOld!: () => void;
-  const backend = {
-    on: () => undefined,
-    request: async (method: string, params: any): Promise<any> => {
-      if (method === "query/parse") {
-        if (params.text === "old") await new Promise<void>((r) => (resolveOld = r));
-        return {
-          query: {
-            version: 1,
-            raw: params.text,
-            root: null,
-            globals: { case: null, count: null, type: null },
-            mode: "workingTree",
-            diagnostics: [],
-          },
-          completions: [],
-        };
-      }
-      throw new Error("unexpected " + method);
-    },
-  };
-  const c = new SearchController(backend as any, f.ui, {
-    recentLimit: () => 5,
-    closeOnOpen: () => true,
-    uiSettings: () => ({
-      typingDelayMs: 0,
-      openTrigger: "doubleClick",
-      preview: true,
-      showParsedQuery: true,
-      caseSensitive: false,
-    }),
-  });
-  const old = c.handle({ v: 1, type: "query.changed", payload: { text: "old", cursor: 3, seq: 1 } });
-  await c.handle({ v: 1, type: "query.changed", payload: { text: "new", cursor: 3, seq: 2 } });
-  resolveOld();
-  await old;
+  const host = recordingUi();
+  const { backend, release } = scriptedBackend(new Set(["old"]));
+  const controller = newController(backend, host.ui);
+  const older = controller.handle(queryChanged("old", 1));
+  await controller.handle(queryChanged("new", 2));
+  release();
+  await older;
   assert.deepEqual(
-    f.posted.map((p) => p.payload.seq),
+    host.posted.map((message) => message.payload.seq),
     [2],
   );
 });
 
-test("recent queries are deduplicated and capped", async () => {
-  const f = fakeUi();
-  const backend = { on: () => undefined, request: async () => ({}) };
-  const c = new SearchController(
-    backend as any,
-    f.ui,
-    {
-      recentLimit: () => 2,
-      closeOnOpen: () => false,
-      uiSettings: () => ({
-        typingDelayMs: 0,
-        openTrigger: "doubleClick",
-        preview: true,
-        showParsedQuery: true,
-        caseSensitive: false,
-      }),
-    },
+test("a reopened panel's first query is answered even though its seq starts again at 1", async () => {
+  const host = recordingUi();
+  const { backend } = scriptedBackend();
+  const controller = newController(backend, host.ui);
+  await controller.handle(queryChanged("first panel", 7));
+  await controller.handle({ v: 1, type: "ready", payload: {} }); // a new webview
+  await controller.handle(queryChanged("second panel", 1));
+  const parsed = host.posted
+    .filter((message) => message.type === "parse.result")
+    .map((message) => message.payload.query.raw);
+  assert.deepEqual(parsed, ["first panel", "second panel"]);
+});
+
+test("recent queries are deduplicated, newest first, and capped", async () => {
+  const host = recordingUi();
+  const backend: Backend = { on: () => undefined, request: async () => ({}) as never };
+  const controller = new SearchController(
+    backend,
+    host.ui,
+    { recentLimit: () => 2, closeOnOpen: () => false, uiSettings: () => TEST_UI_SETTINGS },
     { text: "a", recent: ["b", "a"] },
   );
-  c.rememberQuery();
-  c.restore("c");
-  c.rememberQuery();
-  const restore = f.posted.filter((p) => p.type === "state.restore").at(-1)!;
-  assert.equal(restore.payload.text, "c");
-  c.restore();
-  assert.deepEqual(f.posted.at(-1)!.payload.recent, ["c", "a"]);
+  controller.rememberQuery();
+  controller.restore("c");
+  controller.rememberQuery();
+  controller.restore();
+  assert.deepEqual(host.posted.at(-1)!.payload.recent, ["c", "a"]);
 });

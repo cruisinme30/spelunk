@@ -1,8 +1,9 @@
-// Spawns and supervises the search daemon (Contract 3 lifecycle).
-// Pure Node: the vscode glue lives in extension.ts.
+// Spawns and supervises the search daemon: handshake, protocol check, crash
+// restarts and graceful stop (Contract 3 lifecycle, plan failure table).
+// Pure Node; the vscode glue lives in extension.ts.
 import { spawn as nodeSpawn, type ChildProcess } from "node:child_process";
 import { EventEmitter } from "node:events";
-import { Connection, CancelSource } from "./jsonRpc";
+import { Connection, type CancelSource } from "./jsonRpc";
 import {
   PROTOCOL_VERSION,
   type FileChange,
@@ -15,6 +16,17 @@ import {
 
 export type DaemonState = "starting" | "ok" | "restarting" | "stopped" | "protocolMismatch";
 
+/** Crashes are counted over a rolling window of this length. */
+const CRASH_WINDOW_MS = 60_000;
+/** Failure table: "restarts it, up to 3 times per minute". */
+const DEFAULT_MAX_RESTARTS_PER_MINUTE = 3;
+const DEFAULT_RESTART_DELAY_MS = 200;
+/** Contract 3: after shutdown the daemon must flush within 2 seconds. */
+const SHUTDOWN_GRACE_MS = 2000;
+/** How long a request waits for a restarting daemon before failing. */
+const CONNECTION_WAIT_MS = 5000;
+const CONNECTION_POLL_MS = 25;
+
 export interface DaemonOptions {
   binary: string;
   args?: string[];
@@ -22,10 +34,11 @@ export interface DaemonOptions {
   roots(): Root[];
   settings(): Settings;
   log?(line: string): void;
-  /** Crashes tolerated per rolling minute before giving up (failure table: 3). */
   maxRestartsPerMinute?: number;
   restartDelayMs?: number;
+  /** For tests: replaces child_process.spawn. */
   spawn?: typeof nodeSpawn;
+  /** For tests: replaces Date.now. */
   now?(): number;
 }
 
@@ -35,155 +48,53 @@ export interface DaemonEvents {
   progress: [IndexStatusResult];
 }
 
+/** One supervised daemon process. Emits "state", "batch" and "progress". */
 export class Daemon extends EventEmitter {
   state: DaemonState = "stopped";
   daemonVersion?: string;
   private child?: ChildProcess;
-  private conn?: Connection;
+  private connection?: Connection;
   private stopping = false;
-  private crashes: number[] = [];
-  private ready?: Promise<void>;
+  private crashTimes: number[] = [];
 
-  constructor(private readonly opts: DaemonOptions) {
+  constructor(private readonly options: DaemonOptions) {
     super();
   }
 
-  override on<E extends keyof DaemonEvents>(event: E, cb: (...args: DaemonEvents[E]) => void): this {
-    return super.on(event, cb as (...a: unknown[]) => void);
+  override on<E extends keyof DaemonEvents>(event: E, listener: (...args: DaemonEvents[E]) => void): this {
+    return super.on(event, listener as (...args: unknown[]) => void);
   }
 
-  private setState(s: DaemonState, message?: string): void {
-    this.state = s;
-    this.emit("state", s, message);
-  }
-
-  /** Starts the daemon; resolves once initialize succeeded. */
+  /** Starts the daemon; resolves once initialize succeeded and the protocol matches. */
   start(): Promise<void> {
     this.stopping = false;
-    this.ready = this.spawnOnce();
-    return this.ready;
+    return this.spawnAndInitialize();
   }
 
-  /** Manual restart from the "Search stopped — Restart" banner: clears the crash budget. */
+  /** The "Search stopped — Restart" button: forgets earlier crashes and starts again. */
   restart(): Promise<void> {
-    this.crashes = [];
+    this.crashTimes = [];
     this.killChild();
     return this.start();
   }
 
-  private async spawnOnce(): Promise<void> {
-    if (this.state !== "restarting") this.setState("starting");
-    const spawn = this.opts.spawn ?? nodeSpawn;
-    const child = spawn(this.opts.binary, this.opts.args ?? [], {
-      env: { ...process.env, ...this.opts.env },
-      stdio: ["pipe", "pipe", "pipe"],
-    });
-    this.child = child;
-    child.stderr?.on("data", (d: Buffer) => this.opts.log?.(`[daemon] ${d.toString().trimEnd()}`));
-    const conn = new Connection(child.stdout!, child.stdin!);
-    this.conn = conn;
-    conn.onNotification("search/batch", (p) => this.emit("batch", p));
-    conn.onNotification("index/progress", (p) => this.emit("progress", p));
-    conn.on("error", (e) => this.opts.log?.(`[rpc] ${String(e)}`));
-
-    const exited = new Promise<number | null>((resolve) => {
-      child.on("exit", (code) => resolve(code));
-      child.on("error", (err) => {
-        this.opts.log?.(`[daemon] failed to start: ${err.message}`);
-        resolve(-1);
-      });
-    });
-    exited.then((code) => this.onExit(child, code));
-
-    try {
-      const res = await Promise.race([
-        conn.request("initialize", {
-          protocol: PROTOCOL_VERSION,
-          roots: this.opts.roots(),
-          settings: this.opts.settings(),
-        }),
-        exited.then(() => {
-          throw new Error("daemon exited during initialize");
-        }),
-      ]);
-      if (res.protocol !== PROTOCOL_VERSION) {
-        this.setState(
-          "protocolMismatch",
-          `Search daemon speaks protocol ${res.protocol}, extension needs ${PROTOCOL_VERSION}. Reinstall the extension.`,
-        );
-        this.stopping = true;
-        this.killChild();
-        throw new Error("protocol mismatch");
-      }
-      this.daemonVersion = res.daemonVersion;
-      this.setState("ok");
-    } catch (e) {
-      if (this.state !== "protocolMismatch" && this.state !== "stopped") this.opts.log?.(`[daemon] ${String(e)}`);
-      throw e;
-    }
-  }
-
-  private onExit(child: ChildProcess, code: number | null): void {
-    if (child !== this.child) return;
-    this.conn?.dispose(new Error("daemon exited"));
-    this.conn = undefined;
-    this.child = undefined;
-    if (this.stopping) {
-      if (this.state !== "protocolMismatch") this.setState("stopped");
-      return;
-    }
-    const now = (this.opts.now ?? Date.now)();
-    this.crashes = this.crashes.filter((t) => now - t < 60_000);
-    this.crashes.push(now);
-    const budget = this.opts.maxRestartsPerMinute ?? 3;
-    this.opts.log?.(`[daemon] exited with ${code}; crash ${this.crashes.length} in the last minute`);
-    if (this.crashes.length > budget) {
-      this.setState("stopped", "Search stopped");
-      return;
-    }
-    this.setState("restarting", "Search restarting…");
-    setTimeout(() => {
-      if (!this.stopping) this.start().catch(() => undefined);
-    }, this.opts.restartDelayMs ?? 200);
-  }
-
-  private killChild(): void {
-    const c = this.child;
-    this.child = undefined;
-    this.conn?.dispose();
-    this.conn = undefined;
-    if (c && c.exitCode === null) c.kill("SIGKILL");
-  }
-
-  /** Graceful stop: shutdown, exit, then kill if it lingers past 2 seconds. */
+  /** Graceful stop: shutdown, exit, then SIGKILL if the process lingers. */
   async stop(): Promise<void> {
     this.stopping = true;
-    const child = this.child,
-      conn = this.conn;
-    if (!child || !conn) {
+    const child = this.child;
+    const connection = this.connection;
+    if (!child || !connection) {
       this.setState("stopped");
       return;
     }
-    const exited = new Promise<void>((r) => child.once("exit", () => r()));
+    const exited = new Promise<void>((resolve) => child.once("exit", () => resolve()));
     try {
-      await Promise.race([conn.request("shutdown", {}), delay(2000)]);
-      conn.notify("exit", {});
+      await Promise.race([connection.request("shutdown", {}), delay(SHUTDOWN_GRACE_MS)]);
+      connection.notify("exit", {});
     } catch {
-      /* already gone */
+      // Already gone: nothing to shut down.
     }
-    await Promise.race([exited, delay(2000).then(() => child.kill("SIGKILL"))]);
-  }
-
-  /** Waits for a usable connection (during restarts) up to timeoutMs. */
-  private async connection(timeoutMs = 5000): Promise<Connection> {
-    const deadline = Date.now() + timeoutMs;
-    for (;;) {
-      if (this.conn && this.state === "ok") return this.conn;
-      if (this.state === "stopped" || this.state === "protocolMismatch")
-        throw new Error(`search daemon is ${this.state}`);
-      if (Date.now() > deadline) throw new Error("search daemon not ready");
-      await delay(25);
-    }
+    await Promise.race([exited, delay(SHUTDOWN_GRACE_MS).then(() => child.kill("SIGKILL"))]);
   }
 
   async request<M extends keyof RpcRequests>(
@@ -191,25 +102,141 @@ export class Daemon extends EventEmitter {
     params: RpcRequests[M][0],
     cancel?: CancelSource,
   ): Promise<RpcRequests[M][1]> {
-    const conn = await this.connection();
-    return conn.request(method, params, cancel?.token);
+    const connection = await this.readyConnection();
+    return connection.request(method, params, cancel?.token);
   }
 
   setRoots(roots: Root[]): void {
-    this.conn?.notify("workspace/setRoots", { roots });
+    this.connection?.notify("workspace/setRoots", { roots });
   }
+
   updateSettings(settings: Settings): void {
-    this.conn?.notify("settings/update", { settings });
+    this.connection?.notify("settings/update", { settings });
   }
+
   didChangeFiles(changes: FileChange[]): void {
-    if (changes.length) this.conn?.notify("workspace/didChangeFiles", { changes });
+    if (changes.length) this.connection?.notify("workspace/didChangeFiles", { changes });
   }
-  /** Test hook: the daemon process id. */
+
+  /** The daemon's process id, for tests. */
   get pid(): number | undefined {
     return this.child?.pid;
+  }
+
+  private setState(state: DaemonState, message?: string): void {
+    this.state = state;
+    this.emit("state", state, message);
+  }
+
+  private log(line: string): void {
+    this.options.log?.(line);
+  }
+
+  private now(): number {
+    return (this.options.now ?? Date.now)();
+  }
+
+  private async spawnAndInitialize(): Promise<void> {
+    if (this.state !== "restarting") this.setState("starting");
+    const child = this.spawnChild();
+    const connection = new Connection(child.stdout!, child.stdin!);
+    this.connection = connection;
+    connection.onNotification("search/batch", (batch) => this.emit("batch", batch));
+    connection.onNotification("index/progress", (progress) => this.emit("progress", progress));
+    connection.on("error", (error) => this.log(`[rpc] ${String(error)}`));
+
+    const exited = new Promise<number | null>((resolve) => {
+      child.on("exit", (code) => resolve(code));
+      child.on("error", (error) => {
+        this.log(`[daemon] failed to start: ${error.message}`);
+        resolve(-1);
+      });
+    });
+    void exited.then((code) => this.onExit(child, code));
+
+    const initialized = connection.request("initialize", {
+      protocol: PROTOCOL_VERSION,
+      roots: this.options.roots(),
+      settings: this.options.settings(),
+    });
+    const diedFirst = exited.then(() => {
+      throw new Error("daemon exited during initialize");
+    });
+    try {
+      const result = await Promise.race([initialized, diedFirst]);
+      if (result.protocol !== PROTOCOL_VERSION) {
+        this.setState(
+          "protocolMismatch",
+          `The search daemon speaks protocol ${result.protocol} but the extension needs ${PROTOCOL_VERSION}. Reinstall the extension.`,
+        );
+        this.stopping = true;
+        this.killChild();
+        throw new Error("protocol mismatch");
+      }
+      this.daemonVersion = result.daemonVersion;
+      this.setState("ok");
+    } catch (error) {
+      if (this.state !== "protocolMismatch" && this.state !== "stopped") this.log(`[daemon] ${String(error)}`);
+      throw error;
+    }
+  }
+
+  private spawnChild(): ChildProcess {
+    const spawn = this.options.spawn ?? nodeSpawn;
+    const child = spawn(this.options.binary, this.options.args ?? [], {
+      env: { ...process.env, ...this.options.env },
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+    this.child = child;
+    child.stderr?.on("data", (data: Buffer) => this.log(`[daemon] ${data.toString().trimEnd()}`));
+    return child;
+  }
+
+  /** Restarts after a crash, unless that would exceed the per-minute budget. */
+  private onExit(child: ChildProcess, code: number | null): void {
+    if (child !== this.child) return; // an old process we already replaced
+    this.connection?.dispose(new Error("daemon exited"));
+    this.connection = undefined;
+    this.child = undefined;
+    if (this.stopping) {
+      if (this.state !== "protocolMismatch") this.setState("stopped");
+      return;
+    }
+    const now = this.now();
+    this.crashTimes = this.crashTimes.filter((time) => now - time < CRASH_WINDOW_MS);
+    this.crashTimes.push(now);
+    this.log(`[daemon] exited with ${code}; crash ${this.crashTimes.length} in the last minute`);
+    if (this.crashTimes.length > (this.options.maxRestartsPerMinute ?? DEFAULT_MAX_RESTARTS_PER_MINUTE)) {
+      this.setState("stopped", "Search stopped");
+      return;
+    }
+    this.setState("restarting", "Search restarting…");
+    setTimeout(() => {
+      if (!this.stopping) this.start().catch(() => undefined);
+    }, this.options.restartDelayMs ?? DEFAULT_RESTART_DELAY_MS);
+  }
+
+  private killChild(): void {
+    const child = this.child;
+    this.child = undefined;
+    this.connection?.dispose();
+    this.connection = undefined;
+    if (child && child.exitCode === null) child.kill("SIGKILL");
+  }
+
+  /** The connection once the daemon is ready, waiting through a restart. */
+  private async readyConnection(): Promise<Connection> {
+    const deadline = this.now() + CONNECTION_WAIT_MS;
+    for (;;) {
+      if (this.connection && this.state === "ok") return this.connection;
+      if (this.state === "stopped" || this.state === "protocolMismatch")
+        throw new Error(`search daemon is ${this.state}`);
+      if (this.now() > deadline) throw new Error("search daemon not ready");
+      await delay(CONNECTION_POLL_MS);
+    }
   }
 }
 
 function delay(ms: number): Promise<void> {
-  return new Promise((r) => setTimeout(r, ms));
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }

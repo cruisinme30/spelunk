@@ -1,49 +1,61 @@
-// Runs the real daemon binary (built by `go build` into daemon/bin).
+// Supervision of the real daemon binary (built by `go build` into daemon/bin).
 // @covers rpc:initialize failure:daemon-crash
-import { test } from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, mkdtempSync } from "node:fs";
-import { join } from "node:path";
 import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { test } from "node:test";
 import { Daemon, type DaemonState } from "../daemon";
 import { makeRoot } from "../roots";
 import { DEFAULTS } from "../settings";
 
-const binary = process.env.UNIFIED_SEARCH_DAEMON ?? join(__dirname, "../../daemon/bin/unified-search-daemon");
-const settings = () => ({ ...DEFAULTS, historyDepth: "2y" as const, location: mkdtempSync(join(tmpdir(), "us-idx-")) });
+const DAEMON_BINARY = process.env.UNIFIED_SEARCH_DAEMON ?? join(__dirname, "../../daemon/bin/unified-search-daemon");
+const skip = !existsSync(DAEMON_BINARY) && "daemon not built";
+const RESTART_BUDGET = 3;
 
-test(
-  "handshake, crash restarts, and the 3-per-minute budget",
-  { skip: !existsSync(binary) && "daemon not built" },
-  async () => {
-    const root = makeRoot(mkdtempSync(join(tmpdir(), "us-root-")));
-    const states: DaemonState[] = [];
-    const d = new Daemon({ binary, roots: () => [root], settings, restartDelayMs: 10 });
-    d.on("state", (s) => states.push(s));
-    await d.start();
-    assert.equal(d.state, "ok");
-    assert.ok(d.daemonVersion);
+function newDaemon(states: DaemonState[] = []): Daemon {
+  const root = makeRoot(mkdtempSync(join(tmpdir(), "us-root-")));
+  const daemon = new Daemon({
+    binary: DAEMON_BINARY,
+    roots: () => [root],
+    settings: () => ({ ...DEFAULTS, exclude: [...DEFAULTS.exclude], location: mkdtempSync(join(tmpdir(), "us-idx-")) }),
+    restartDelayMs: 10,
+    maxRestartsPerMinute: RESTART_BUDGET,
+  });
+  daemon.on("state", (state) => states.push(state));
+  return daemon;
+}
 
-    for (let i = 0; i < 3; i++) {
-      const pid = d.pid!;
-      process.kill(pid, "SIGKILL");
-      await waitFor(() => d.state === "ok" && d.pid !== pid);
-    }
-    process.kill(d.pid!, "SIGKILL");
-    await waitFor(() => d.state === "stopped");
-    assert.ok(states.includes("restarting"));
-
-    await d.restart();
-    assert.equal(d.state, "ok");
-    await d.stop();
-    assert.equal(d.state, "stopped");
-  },
-);
-
-async function waitFor(cond: () => boolean, ms = 5000): Promise<void> {
-  const end = Date.now() + ms;
-  while (!cond()) {
-    if (Date.now() > end) throw new Error("timed out");
-    await new Promise((r) => setTimeout(r, 10));
+async function waitFor(description: string, condition: () => boolean, timeoutMs = 5000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (!condition()) {
+    if (Date.now() > deadline) throw new Error(`timed out after ${timeoutMs}ms waiting for: ${description}`);
+    await new Promise((resolve) => setTimeout(resolve, 10));
   }
 }
+
+test("start completes the handshake and reports the daemon version", { skip }, async () => {
+  const daemon = newDaemon();
+  await daemon.start();
+  assert.equal(daemon.state, "ok");
+  assert.match(daemon.daemonVersion ?? "", /^\d+\.\d+\.\d+$/);
+  await daemon.stop();
+  assert.equal(daemon.state, "stopped");
+});
+
+test("crashes restart the daemon until the per-minute budget is spent", { skip }, async () => {
+  const states: DaemonState[] = [];
+  const daemon = newDaemon(states);
+  await daemon.start();
+  for (let crash = 1; crash <= RESTART_BUDGET; crash++) {
+    const pid = daemon.pid!;
+    process.kill(pid, "SIGKILL");
+    await waitFor(`restart after crash ${crash}`, () => daemon.state === "ok" && daemon.pid !== pid);
+  }
+  assert.ok(states.includes("restarting"));
+  process.kill(daemon.pid!, "SIGKILL");
+  await waitFor("stopped after one crash too many", () => daemon.state === "stopped");
+  await daemon.restart();
+  assert.equal(daemon.state, "ok", "a manual restart works after the budget is spent");
+  await daemon.stop();
+});

@@ -12,3 +12,9 @@ test("frames split across chunks are reassembled in order", () => {
   assert.deepEqual(decoder.push(stream.subarray(5, first.length + 3)), ['{"x":"é"}']);
   assert.deepEqual(decoder.push(stream.subarray(first.length + 3)), ["{}"]);
 });
+
+test("a frame without Content-Length is dropped and later frames still decode", () => {
+  const decoder = new FrameDecoder();
+  assert.throws(() => decoder.push(Buffer.from("X-Bogus: 1\r\n\r\n")), /Content-Length/);
+  assert.deepEqual(decoder.push(encodeFrame("{}")), ["{}"]);
+});

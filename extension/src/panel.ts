@@ -1,99 +1,116 @@
-// The search panel: a webview panel hosting webview/ (Contract 2).
+// The search panel: a webview panel that hosts webview/ (Contract 2) under
+// a strict content security policy.
+import { randomBytes } from "node:crypto";
 import * as vscode from "vscode";
+import type { WebviewMessage } from "./controller";
 import type { HostToWebview } from "./protocol.gen";
 
-export class SearchPanel {
+interface QueuedMessage {
+  type: keyof HostToWebview;
+  payload: unknown;
+}
+
+export class SearchPanel implements vscode.Disposable {
   private panel?: vscode.WebviewPanel;
-  private queue: { type: string; payload: unknown }[] = [];
+  private panelDisposables: vscode.Disposable[] = [];
+  /** Messages posted before the webview said "ready". */
+  private pendingMessages: QueuedMessage[] = [];
   private ready = false;
-  private readonly subs: vscode.Disposable[] = [];
 
   constructor(
     private readonly extensionUri: vscode.Uri,
-    private readonly onMessage: (msg: any) => void,
-    private readonly onVisibility: (open: boolean) => void,
+    private readonly onMessage: (message: WebviewMessage) => void,
+    private readonly onOpenChanged: (open: boolean) => void,
   ) {}
 
   get isOpen(): boolean {
     return this.panel !== undefined;
   }
 
+  /** Opens the panel, or reveals and focuses the open one. */
   show(): void {
     if (this.panel) {
       this.panel.reveal(vscode.ViewColumn.Active, false);
       this.post("focus", {});
       return;
     }
-    const root = vscode.Uri.joinPath(this.extensionUri, "dist", "webview");
+    const webviewRoot = vscode.Uri.joinPath(this.extensionUri, "dist", "webview");
     const panel = vscode.window.createWebviewPanel("unifiedSearch", "Unified Search", vscode.ViewColumn.Active, {
       enableScripts: true,
       retainContextWhenHidden: true,
-      localResourceRoots: [root],
+      localResourceRoots: [webviewRoot],
     });
     this.panel = panel;
     this.ready = false;
-    panel.webview.html = this.html(panel.webview, root);
+    panel.webview.html = this.html(panel.webview, webviewRoot);
     panel.webview.onDidReceiveMessage(
-      (msg) => {
-        if (msg?.type === "ready") {
-          this.ready = true;
-          for (const m of this.queue.splice(0)) void panel.webview.postMessage({ v: 1, ...m });
-        }
-        this.onMessage(msg);
-      },
+      (message: WebviewMessage) => this.receive(message),
       undefined,
-      this.subs,
+      this.panelDisposables,
     );
-    panel.onDidDispose(
-      () => {
-        this.panel = undefined;
-        this.ready = false;
-        this.queue = [];
-        this.onVisibility(false);
-      },
-      undefined,
-      this.subs,
-    );
-    this.onVisibility(true);
+    panel.onDidDispose(() => this.onPanelDisposed(), undefined, this.panelDisposables);
+    this.onOpenChanged(true);
   }
 
-  hide(): void {
+  /** Closes the panel; the controller keeps the query and results. */
+  close(): void {
     this.panel?.dispose();
   }
 
   post<T extends keyof HostToWebview>(type: T, payload: HostToWebview[T]): void {
     if (!this.panel) return;
-    if (!this.ready) {
-      // Only the newest state.restore matters; everything else queues.
-      if (type === "state.restore") this.queue = this.queue.filter((m) => m.type !== "state.restore");
-      this.queue.push({ type, payload });
+    if (this.ready) {
+      void this.panel.webview.postMessage({ v: 1, type, payload });
       return;
     }
-    void this.panel.webview.postMessage({ v: 1, type, payload });
-  }
-
-  private html(webview: vscode.Webview, root: vscode.Uri): string {
-    const nonce = Array.from({ length: 32 }, () => Math.floor(Math.random() * 36).toString(36)).join("");
-    const js = webview.asWebviewUri(vscode.Uri.joinPath(root, "main.js"));
-    const css = webview.asWebviewUri(vscode.Uri.joinPath(root, "main.css"));
-    return `<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource}; script-src 'nonce-${nonce}'; font-src ${webview.cspSource};">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<link rel="stylesheet" href="${css}">
-<title>Unified Search</title>
-</head>
-<body>
-<div id="app"></div>
-<script nonce="${nonce}" src="${js}"></script>
-</body>
-</html>`;
+    // Only the newest state.restore matters; everything else waits in order.
+    if (type === "state.restore") this.pendingMessages = this.pendingMessages.filter((m) => m.type !== "state.restore");
+    this.pendingMessages.push({ type, payload });
   }
 
   dispose(): void {
     this.panel?.dispose();
-    for (const s of this.subs) s.dispose();
+  }
+
+  private receive(message: WebviewMessage): void {
+    if (message?.type === "ready" && this.panel) {
+      this.ready = true;
+      for (const queued of this.pendingMessages.splice(0)) void this.panel.webview.postMessage({ v: 1, ...queued });
+    }
+    this.onMessage(message);
+  }
+
+  private onPanelDisposed(): void {
+    this.panel = undefined;
+    this.ready = false;
+    this.pendingMessages = [];
+    for (const disposable of this.panelDisposables.splice(0)) disposable.dispose();
+    this.onOpenChanged(false);
+  }
+
+  private html(webview: vscode.Webview, webviewRoot: vscode.Uri): string {
+    const nonce = randomBytes(16).toString("base64");
+    const script = webview.asWebviewUri(vscode.Uri.joinPath(webviewRoot, "main.js"));
+    const styles = webview.asWebviewUri(vscode.Uri.joinPath(webviewRoot, "main.css"));
+    const csp = [
+      "default-src 'none'",
+      `style-src ${webview.cspSource}`,
+      `script-src 'nonce-${nonce}'`,
+      `font-src ${webview.cspSource}`,
+    ].join("; ");
+    return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="${csp};">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="${styles}">
+<title>Unified Search</title>
+</head>
+<body>
+<div id="app"></div>
+<script nonce="${nonce}" src="${script}"></script>
+</body>
+</html>`;
   }
 }
