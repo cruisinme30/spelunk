@@ -63,6 +63,7 @@ func New(settings protocol.Settings, notify func([]protocol.RepoStatus)) *Indexe
 
 // SetRoots starts indexing new roots and drops removed ones.
 func (ix *Indexer) SetRoots(roots []protocol.Root) {
+	saved := ix.savedShards(roots)
 	ix.mu.Lock()
 	keep := map[string]bool{}
 	ix.order = ix.order[:0]
@@ -76,7 +77,7 @@ func (ix *Indexer) SetRoots(roots []protocol.Root) {
 		ix.drop(root.ID)
 		r := &repo{root: root, state: protocol.IndexStateQueued, visible: true}
 		ix.repos[root.ID] = r
-		if shard, err := trigram.Load(ix.shardPath(root)); err == nil {
+		if shard := saved[root.ID]; shard != nil {
 			r.shard, r.state, r.visible = shard, protocol.IndexStateReady, false // refresh quietly
 		}
 		ix.enqueue(root.ID)
@@ -88,6 +89,27 @@ func (ix *Indexer) SetRoots(roots []protocol.Root) {
 	}
 	ix.mu.Unlock()
 	ix.publishStatus()
+}
+
+// savedShards loads the saved shard of every root the indexer doesn't have
+// yet. Decoding happens without the lock: a large repo's shard takes a
+// while to read, and searches must not wait for it.
+func (ix *Indexer) savedShards(roots []protocol.Root) map[string]*trigram.Shard {
+	ix.mu.Lock()
+	paths := map[string]string{}
+	for _, root := range roots {
+		if r, ok := ix.repos[root.ID]; !ok || r.root.Path != root.Path {
+			paths[root.ID] = ix.shardPath(root)
+		}
+	}
+	ix.mu.Unlock()
+	shards := map[string]*trigram.Shard{}
+	for id, path := range paths {
+		if shard, err := trigram.Load(path); err == nil {
+			shards[id] = shard
+		}
+	}
+	return shards
 }
 
 // SetSettings applies new settings, rebuilding every repo when a setting
