@@ -179,7 +179,7 @@ func reportWorkingTreeOperators(src *source, root *protocol.Node, problems *diag
 		if op, _ := lookupOperator(node.Op); op.scope == scopeWorkingTreeOnly {
 			written := src.slice(node.Span.Start, node.Span.End)
 			problems.errorf(DiagOpWrongMode, node.Span, []protocol.Fix{removeFix("Remove "+written, src, node.Span)},
-				"%s: searches current files, but author: and msg: make this a history query", node.Op)
+				"%s: searches current files, but this query searches commits (author:, msg: or type:commit)", node.Op)
 		}
 	})
 }
