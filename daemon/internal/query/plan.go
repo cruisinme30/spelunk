@@ -43,6 +43,9 @@ type Plan struct {
 	// KindFilter is set when type: narrows the result kinds, so engines can
 	// count what it hid ("code matches hidden", mock 12).
 	KindFilter *Filter
+	// CaseFilter is set when the query says case:yes, so engines can count
+	// the matches that differ only in case (mock 8).
+	CaseFilter *Filter
 	// Terms are the text terms in query order, for highlighting.
 	Terms []*Content
 }
@@ -175,9 +178,12 @@ func NewPlan(q protocol.ParsedQuery, settings protocol.Settings, now time.Time, 
 	for _, node := range topLevel(q.Root) {
 		pred := l.lower(node)
 		if pred == nil { // a global
-			if node.Kind == "op" && node.Op == protocol.OpNameType {
-				text := src.slice(node.Span.Start, node.Span.End)
+			text := src.slice(node.Span.Start, node.Span.End)
+			switch {
+			case node.Kind == "op" && node.Op == protocol.OpNameType:
 				plan.KindFilter = &Filter{Reason: "type", Index: -1, Text: text, Undo: removeFix("Remove "+text, src, node.Span)}
+			case node.Kind == "op" && node.Op == protocol.OpNameCase && plan.CaseSensitive:
+				plan.CaseFilter = &Filter{Reason: "case", Index: -1, Text: text, Undo: removeFix("Ignore case", src, node.Span)}
 			}
 			continue
 		}
@@ -453,5 +459,56 @@ func longestLiteral(re *syntax.Regexp) string {
 		return best
 	default: // alternation, repetition that may be empty, classes: nothing certain
 		return ""
+	}
+}
+
+// IgnoringCase returns a copy of the plan whose regexes ignore case, to
+// count what case:yes hid. The copy has no filters of its own.
+func (p *Plan) IgnoringCase() *Plan {
+	folded := *p
+	folded.CaseSensitive = false
+	folded.Filters, folded.KindFilter, folded.CaseFilter = nil, nil, nil
+	terms := map[*Content]*Content{}
+	folded.Pred = foldPred(p.Pred, terms).(*And)
+	folded.Terms = make([]*Content, len(p.Terms))
+	for i, term := range p.Terms {
+		folded.Terms[i] = terms[term]
+	}
+	return &folded
+}
+
+// foldPred copies p with every regex made case-insensitive, recording
+// which copy replaced which content term.
+func foldPred(p Pred, terms map[*Content]*Content) Pred {
+	fold := func(re *regexp.Regexp) *regexp.Regexp { return regexp.MustCompile("(?i)" + re.String()) }
+	switch p := p.(type) {
+	case *And:
+		kids := make([]Pred, len(p.Kids))
+		for i, kid := range p.Kids {
+			kids[i] = foldPred(kid, terms)
+		}
+		return &And{Kids: kids}
+	case *Or:
+		kids := make([]Pred, len(p.Kids))
+		for i, kid := range p.Kids {
+			kids[i] = foldPred(kid, terms)
+		}
+		return &Or{Kids: kids}
+	case *Not:
+		return &Not{Kid: foldPred(p.Kid, terms)}
+	case *Content:
+		folded := &Content{Re: fold(p.Re), Literal: p.Literal, IgnoreCase: true, TermIndex: p.TermIndex}
+		terms[p] = folded
+		return folded
+	case *Path:
+		return &Path{Re: fold(p.Re)}
+	case *Repo:
+		return &Repo{Re: fold(p.Re)}
+	case *Symbol:
+		return &Symbol{Re: fold(p.Re)}
+	case *Message:
+		return &Message{Re: fold(p.Re)}
+	default: // no regex: languages, authors, dates
+		return p
 	}
 }

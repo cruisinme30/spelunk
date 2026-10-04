@@ -206,6 +206,21 @@ func TestFiltersReportWhatTheyHid(t *testing.T) {
 	}
 }
 
+func TestCaseYesReportsMatchesThatDifferOnlyInCase(t *testing.T) {
+	// @covers mock:8
+	repo := repoOf("r", map[string]string{
+		"policy.py": "class RetryPolicy:\n    pass\nretry_policy = RetryPolicy()\n# retrypolicy and RETRYPOLICY\n",
+	})
+	got, stats := run(t, "case:yes RetryPolicy", repo)
+	if want := []string{"policy.py:1 class RetryPolicy:", "policy.py:3 retry_policy = RetryPolicy()"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("results = %q, want %q", got, want)
+	}
+	want := []protocol.HiddenNote{{Reason: "case", Filter: "case:yes", Count: 1, Unit: "matches"}}
+	if len(stats.Hidden) != 1 || stats.Hidden[0].Count != 1 || stats.Hidden[0].Reason != "case" || stats.Hidden[0].Undo.Title != "Ignore case" {
+		t.Errorf("hidden = %+v, want %+v with an Ignore case undo (line 4 differs only in case)", stats.Hidden, want)
+	}
+}
+
 func TestResultsFailingTwoFiltersAreNotCreditedToEither(t *testing.T) {
 	_, stats := run(t, "timeout -f:vendor/ -f:lib/", webRepo)
 	if len(stats.Hidden) != 0 {

@@ -53,10 +53,24 @@ func Search(ctx context.Context, plan *query.Plan, repos []Repo, planID int, emi
 			s.codeLines(&repos[i], false) // count the code matches type:file hides
 		}
 	}
+	if plan.CaseFilter != nil {
+		s.hiddenByCase = countIgnoringCase(ctx, plan, repos) - s.counted
+	}
 	if err := context.Cause(ctx); err != nil && ctx.Err() == context.Canceled {
 		return Stats{}, err
 	}
 	return s.stats(onlyFiles), nil
+}
+
+// countIgnoringCase counts the results plan would have without case:yes.
+func countIgnoringCase(ctx context.Context, plan *query.Plan, repos []Repo) int {
+	folded := plan.IgnoringCase()
+	folded.Offset, folded.Limit = 0, 0 // count only
+	stats, err := Search(ctx, folded, repos, 0, func(protocol.ResultItem) {})
+	if err != nil {
+		return 0
+	}
+	return stats.Total
 }
 
 // searcher holds one search's progress.
@@ -72,6 +86,8 @@ type searcher struct {
 	hidden map[int]int
 	// hiddenByKind counts code matches a type:file query left out.
 	hiddenByKind int
+	// hiddenByCase counts results that differ only in case from case:yes.
+	hiddenByCase int
 	anchors      anchorCache
 }
 
@@ -107,6 +123,10 @@ func (s *searcher) stats(onlyFiles bool) Stats {
 		if n := s.hidden[f.Index]; n > 0 {
 			stats.Hidden = append(stats.Hidden, protocol.HiddenNote{Reason: f.Reason, Filter: f.Text, Count: n, Unit: unit, Undo: f.Undo})
 		}
+	}
+	if s.hiddenByCase > 0 {
+		c := s.plan.CaseFilter
+		stats.Hidden = append(stats.Hidden, protocol.HiddenNote{Reason: c.Reason, Filter: c.Text, Count: s.hiddenByCase, Unit: unit, Undo: c.Undo})
 	}
 	if s.hiddenByKind > 0 && s.plan.KindFilter != nil {
 		k := s.plan.KindFilter

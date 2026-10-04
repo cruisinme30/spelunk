@@ -149,6 +149,40 @@ func TestTypeIsAKindFilterWithAnUndo(t *testing.T) {
 	}
 }
 
+func TestCaseYesIsACaseFilterThatCanBeIgnored(t *testing.T) {
+	text := "case:yes /Retry(Policy|Config)/ lang:python"
+	plan := mustPlan(t, text, defaultSettings)
+	f := plan.CaseFilter
+	if f == nil || f.Reason != "case" || f.Undo.Title != "Ignore case" || applyFix(text, f.Undo) != "/Retry(Policy|Config)/ lang:python" {
+		t.Errorf("CaseFilter = %+v, want case:yes with an Ignore case undo", f)
+	}
+	if mustPlan(t, "case:no retry", defaultSettings).CaseFilter != nil {
+		t.Error("CaseFilter of case:no = non-nil, want nil")
+	}
+	sensitive := defaultSettings
+	sensitive.CaseSensitive = true
+	if mustPlan(t, "Retry", sensitive).CaseFilter != nil {
+		t.Error("CaseFilter from the caseSensitive setting = non-nil, want nil (nothing in the query to undo)")
+	}
+}
+
+func TestIgnoringCaseFoldsEveryRegex(t *testing.T) {
+	plan := mustPlan(t, "case:yes Retry f:Src/ -Draft", defaultSettings)
+	folded := plan.IgnoringCase()
+	if got, want := folded.Pred.String(), "and(content#0:/(?i)Retry/ path:/(?i)Src// not(content#1:/(?i)Draft/))"; got != want {
+		t.Errorf("IgnoringCase().Pred = %s, want %s", got, want)
+	}
+	if folded.CaseSensitive || folded.CaseFilter != nil || folded.Filters != nil {
+		t.Errorf("folded plan keeps case or filters: %+v", folded)
+	}
+	if len(folded.Terms) != 2 || folded.Terms[0] != folded.Pred.Kids[0] {
+		t.Errorf("folded Terms do not point at the folded predicates")
+	}
+	if plan.Pred.String() != "and(content#0:/Retry/ path:/Src// not(content#1:/Draft/))" {
+		t.Errorf("IgnoringCase changed the original plan: %s", plan.Pred)
+	}
+}
+
 func TestEvalAndContributingTerms(t *testing.T) {
 	plan := mustPlan(t, "(a OR b) c -d", defaultSettings)
 	present := map[string]bool{"a": true, "c": true}
