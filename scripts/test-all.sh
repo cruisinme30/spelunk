@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
-# Runs every test layer that works without a VS Code window, fastest first,
-# and stops at the first failure.
+# Runs every test layer that works without a VS Code window and stops at the
+# first failure: generated protocol types, formatting, the daemon (which also
+# builds the binary the extension tests run), the extension host, the webview
+# in Chromium, and finally the spec-coverage report.
 #
 # Usage: scripts/test-all.sh        (or: npm test)
 #
@@ -10,13 +12,15 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 root=$PWD
 
+# Prints a step heading.
 step() { printf '\n== %s\n' "$*"; }
+# The workspace's copy of a Node tool if `npm install` put one there, else the one on PATH.
 tool() { if [ -x "$root/node_modules/.bin/$1" ]; then echo "$root/node_modules/.bin/$1"; else echo "$1"; fi; }
 
 step "protocol: generated types are up to date"
 node protocol/gen.mjs --check
 
-step "format: prettier --check"
+step "format: prettier --check, gofmt"
 prettier=$(tool prettier)
 if command -v "$prettier" >/dev/null; then
   "$prettier" --check .
@@ -25,7 +29,7 @@ else
 fi
 (cd daemon && test -z "$(gofmt -l .)" || { gofmt -l .; echo "gofmt: files above need formatting"; exit 1; })
 
-step "daemon: go vet + go test"
+step "daemon: go vet, go test, build the binary"
 (cd daemon && go vet ./... && go test -count=1 ./... && go build -o bin/unified-search-daemon ./cmd/unified-search-daemon)
 
 step "extension: typecheck + node tests (real daemon)"
@@ -48,7 +52,7 @@ step "webview: typecheck + Playwright contract tests"
   node --test "test/*.test.mjs"
 )
 
-step "spec coverage (fails on unknown @covers ids; --strict at release)"
+step "spec coverage (fails only on unknown @covers ids; gaps are listed, not failed)"
 node scripts/specCoverage.mjs
 
 printf '\nAll layers passed.\n'

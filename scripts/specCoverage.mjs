@@ -1,19 +1,24 @@
 #!/usr/bin/env node
-// Spec coverage: every spec item must be proven by at least one test.
+// Spec coverage: lists every spec item that no test proves yet.
 //
-// Spec IDs come straight from the sources of truth: protocol/protocol.schema.json
-// (operators, RPC methods, webview messages), extension/package.json (settings,
-// commands, shortcut presets), the daemon's diagnostic codes, the screens of
-// the design mockups and the failure cases. Tests declare what they prove with `@covers <id> ...`.
+// Tests declare what they prove with `@covers <id> ...`. The spec IDs come
+// from the sources of truth where possible: protocol/protocol.schema.json
+// (op: operators, rpc: methods, msg: webview messages), extension/package.json
+// (setting: and command:), and the daemon's diagnostic codes (diag:). The
+// query syntax (syntax:), the panel's screens (screen:) and the failure modes
+// (failure:) are listed below.
+//
+// It always fails on an @covers id that names no spec item (a typo or a
+// removed item); gaps are only reported.
 //
 // Usage: node scripts/specCoverage.mjs [--strict]
-//   --strict exits non-zero when anything is uncovered (the release gate).
+//   --strict also fails when anything is uncovered (the release gate).
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
-/** The design mockups' screens, as named in docs/dev/mocks.md. */
+/** The panel's screens, by name: each state of the panel a user can see. */
 const SCREENS = [
   "plain-text-search",
   "path-scoped-search",
@@ -34,57 +39,43 @@ const SCREENS = [
   "help-page",
   "settings",
 ];
-/** The failure cases in docs/dev/implementation-plan.md, "Failure handling". */
-const FAILURE_ROWS = ["daemon-crash", "index-corrupt", "repo-indexing", "no-git", "ref-stale", "disk-full"];
+/** What can go wrong, and must be handled visibly: each needs a test tagged failure:<name>. */
+const FAILURE_MODES = ["daemon-crash", "index-corrupt", "repo-indexing", "no-git", "ref-stale", "disk-full"];
+/** The query syntax that isn't an operator. */
+const SYNTAX = ["and", "or", "not", "group", "phrase", "regex"];
 const read = (path) => readFileSync(join(root, path), "utf8");
 const schema = JSON.parse(read("protocol/protocol.schema.json"));
 const manifest = JSON.parse(read("extension/package.json"));
 
-/** @type {Map<string, string>} id -> where it comes from */
-const required = new Map();
-const add = (ids, source) => ids.forEach((id) => required.set(id, source));
+/** Every spec id, in report order; the part before the colon is its kind. */
+const required = new Set();
+/** Adds `kind:name` for each name. */
+const add = (kind, names) => {
+  for (const name of names) required.add(`${kind}:${name}`);
+};
+const withoutPrefix = (key) => key.replace(/^unifiedSearch\./, "");
 
+add("op", schema.$defs.OpName.enum);
+add("syntax", SYNTAX);
+add("rpc", Object.keys(schema["x-rpc-methods"]));
+add("msg", Object.keys(schema["x-webview-messages"]));
+add("setting", Object.keys(manifest.contributes.configuration.properties).map(withoutPrefix));
 add(
-  schema.$defs.OpName.enum.map((op) => `op:${op}`),
-  "OpName in protocol.schema.json",
+  "command",
+  manifest.contributes.commands.map((command) => withoutPrefix(command.command)),
 );
-add(
-  ["and", "or", "not", "group", "phrase", "regex"].map((construct) => `syntax:${construct}`),
-  "query grammar",
-);
-add(
-  Object.keys(schema["x-rpc-methods"]).map((method) => `rpc:${method}`),
-  "x-rpc-methods",
-);
-add(
-  Object.keys(schema["x-webview-messages"]).map((type) => `msg:${type}`),
-  "x-webview-messages",
-);
-add(
-  Object.keys(manifest.contributes.configuration.properties).map(
-    (key) => `setting:${key.replace(/^unifiedSearch\./, "")}`,
-  ),
-  "package.json settings",
-);
-add(
-  manifest.contributes.commands.map((command) => `command:${command.command.replace(/^unifiedSearch\./, "")}`),
-  "package.json commands",
-);
-add(
-  SCREENS.map((screen) => `screen:${screen}`),
-  "docs/dev/mocks.md",
-);
-add(
-  FAILURE_ROWS.map((row) => `failure:${row}`),
-  "failure cases",
-);
+add("screen", SCREENS);
+add("failure", FAILURE_MODES);
 
 // Diagnostic codes are declared as `Diag… = "code"` constants in the query package.
-const diagDir = join(root, "daemon/internal/query");
-for (const file of safeList(diagDir).filter((name) => name.endsWith(".go") && !name.endsWith("_test.go"))) {
-  for (const match of readFileSync(join(diagDir, file), "utf8").matchAll(/^\s*Diag\w+\s*=\s*"([a-z_]+)"/gm)) {
-    required.set(`diag:${match[1]}`, "daemon/internal/query diagnostic codes");
-  }
+const queryPackage = join(root, "daemon/internal/query");
+const goSources = filesInOrNone(queryPackage).filter((name) => name.endsWith(".go") && !name.endsWith("_test.go"));
+for (const file of goSources) {
+  const source = readFileSync(join(queryPackage, file), "utf8");
+  add(
+    "diag",
+    [...source.matchAll(/^\s*Diag\w+\s*=\s*"([a-z_]+)"/gm)].map((match) => match[1]),
+  );
 }
 
 // Collect @covers tags from every test file.
@@ -100,10 +91,10 @@ for (const file of walk(root)) {
   }
 }
 
-const missing = [...required.keys()].filter((id) => !covered.has(id));
+const missing = [...required].filter((id) => !covered.has(id));
 const unknown = [...covered.keys()].filter((id) => !required.has(id));
 const groups = new Map();
-for (const id of required.keys()) {
+for (const id of required) {
   const kind = id.split(":")[0];
   const group = groups.get(kind) ?? { total: 0, done: 0 };
   group.total++;
@@ -120,18 +111,20 @@ if (unknown.length) {
 }
 if (process.argv.includes("--strict") && missing.length) process.exitCode = 1;
 
-function safeList(dir) {
+/** The names in `directory`, or none if it doesn't exist (a checkout without the daemon). */
+function filesInOrNone(directory) {
   try {
-    return readdirSync(dir);
+    return readdirSync(directory);
   } catch {
     return [];
   }
 }
 
-function* walk(dir) {
-  for (const name of readdirSync(dir)) {
+/** Every file under `directory`, skipping dependencies, build output and dot-folders. */
+function* walk(directory) {
+  for (const name of readdirSync(directory)) {
     if (name === "node_modules" || name.startsWith(".") || name === "dist" || name === "dist-test") continue;
-    const path = join(dir, name);
+    const path = join(directory, name);
     if (statSync(path).isDirectory()) yield* walk(path);
     else yield path;
   }
