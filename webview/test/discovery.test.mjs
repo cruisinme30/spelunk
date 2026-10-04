@@ -73,6 +73,21 @@ test("operator suggestions explain each operator and keep the results in view", 
   assert.match(await page.locator('[data-testid="keys"]').innerText(), /insert operator/);
 });
 
+test("the case: suggestion shows its description and values like every other operator", async (t) => {
+  const page = await openPanel(t);
+  await restore(page);
+  await page.fill('[data-testid="query"]', "ca");
+  const { seq } = await lastSent(page, "query.changed");
+  await fromHost(page, "parse.result", {
+    seq,
+    query: parsedQuery("ca", textNode("ca", 0)),
+    completions: [operatorCompletion("case:", "Match case", 0, 2)],
+  });
+  const option = await page.locator('[data-testid="completion"]').first().innerText();
+  assert.match(option, /Case-sensitive or not/);
+  assert.match(option, /\byes\b[\s\S]*\bno\b/);
+});
+
 test("Tab inserts the suggested operator at the cursor", async (t) => {
   // @covers screen:operator-suggestions
   const { page } = await suggestingOperators(t);

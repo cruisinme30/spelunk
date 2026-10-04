@@ -4,7 +4,7 @@
 import { el, highlight, plural, trimIndent } from "../format";
 import type { Layout } from "../layout";
 import type { Completion, ResultItem } from "../protocol.gen";
-import { SHEET, toneForLabel } from "../sheet";
+import { SHEET, toneForLabel, type SheetItem } from "../sheet";
 import type { ViewState } from "../state";
 import { textTerms } from "./results";
 
@@ -102,9 +102,10 @@ function renderOption(
   return option;
 }
 
-/** The operator's cheat-sheet entry, for its longer description and example values. */
-function sheetItemFor(label: string) {
-  return SHEET.flatMap((group) => group.items).find((item) => item.insert === label);
+/** The operator's cheat-sheet entry, for its longer description and example values. "since:" → since's entry. */
+function sheetItemFor(label: string): SheetItem | undefined {
+  const operator = label.replace(/:$/, "");
+  return SHEET.flatMap((group) => group.items).find((item) => item.operator === operator);
 }
 
 /** "since:30d|2w|6m|1y" → ["30d", "2w", "6m", "1y"]; no list for a bare "f:". */
