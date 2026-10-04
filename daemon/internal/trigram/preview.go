@@ -65,9 +65,10 @@ func Preview(repo *Repo, ref Ref, plan *query.Plan, contextLines int) (protocol.
 	}, nil
 }
 
-// Resolve returns where opening a result goes: the line and column of its
-// first match, or the top of the file for a file-name result.
-func Resolve(repo *Repo, ref Ref) (protocol.OpenTarget, error) {
+// OpenTarget returns where opening a result goes: the line and column of
+// its first match, or the top of the file for a file-name result. It
+// returns ErrStale if the file is gone.
+func OpenTarget(repo *Repo, ref Ref) (protocol.OpenTarget, error) {
 	full := filepath.Join(repo.Root, filepath.FromSlash(ref.Path))
 	if _, err := os.Stat(full); err != nil {
 		return protocol.OpenTarget{}, ErrStale

@@ -27,7 +27,7 @@ func TestPreviewHighlightsEveryContributingTerm(t *testing.T) {
 		t.Fatal(err)
 	}
 	if got.FirstLine != 2 || got.FocusLine != 4 || len(got.Lines) != 5 || got.Lines[1] != "// RetryPolicy retries with a timeout." {
-		t.Errorf("preview window = first %d, focus %d, lines %q", got.FirstLine, got.FocusLine, got.Lines)
+		t.Errorf("preview window = first %d, focus %d, lines %q; want lines 2-6 focused on 4", got.FirstLine, got.FocusLine, got.Lines)
 	}
 	want := []protocol.LineHits{
 		{Line: 3, Ranges: []protocol.Hit{{Start: 3, End: 14, TermIndex: 0}, {Start: 30, End: 37, TermIndex: 1}}},
@@ -74,7 +74,7 @@ func TestPreviewOfAFileNameOnlyResultMarksNothingInTheText(t *testing.T) {
 	}
 }
 
-func TestPreviewAndResolveReportStaleRefs(t *testing.T) {
+func TestPreviewAndOpenTargetReportStaleRefs(t *testing.T) {
 	// @covers failure:ref-stale
 	repo := previewRepo(t)
 	if _, err := Preview(repo, Ref{RepoID: "r", Path: "gone.go", Line: 1}, nil, 3); !errors.Is(err, ErrStale) {
@@ -83,24 +83,24 @@ func TestPreviewAndResolveReportStaleRefs(t *testing.T) {
 	if _, err := Preview(repo, Ref{RepoID: "r", Path: "retry.go", Line: 99}, nil, 3); !errors.Is(err, ErrStale) {
 		t.Errorf("Preview(line past the end) error = %v, want ErrStale", err)
 	}
-	if _, err := Resolve(repo, Ref{RepoID: "r", Path: "gone.go", Line: 1}); !errors.Is(err, ErrStale) {
-		t.Errorf("Resolve(deleted file) error = %v, want ErrStale", err)
+	if _, err := OpenTarget(repo, Ref{RepoID: "r", Path: "gone.go", Line: 1}); !errors.Is(err, ErrStale) {
+		t.Errorf("OpenTarget(deleted file) error = %v, want ErrStale", err)
 	}
 }
 
-func TestResolveOpensAtTheMatch(t *testing.T) {
+func TestOpenTargetIsTheMatch(t *testing.T) {
 	// @covers rpc:open/resolve
 	repo := previewRepo(t)
-	got, err := Resolve(repo, Ref{RepoID: "r", Path: "retry.go", Line: 4, Column: 5, Length: 11})
+	got, err := OpenTarget(repo, Ref{RepoID: "r", Path: "retry.go", Line: 4, Column: 5, Length: 11})
 	if err != nil {
 		t.Fatal(err)
 	}
 	want := protocol.OpenTarget{Path: filepath.Join(repo.Root, "retry.go"), Line: 4, Column: 6, Length: 11}
 	if got != want {
-		t.Errorf("Resolve = %+v, want %+v", got, want)
+		t.Errorf("OpenTarget = %+v, want %+v", got, want)
 	}
-	got, _ = Resolve(repo, Ref{RepoID: "r", Path: "retry.go"})
+	got, _ = OpenTarget(repo, Ref{RepoID: "r", Path: "retry.go"})
 	if got.Line != 1 || got.Column != 1 {
-		t.Errorf("Resolve(file name) = %+v, want the top of the file", got)
+		t.Errorf("OpenTarget(file name) = %+v, want the top of the file", got)
 	}
 }

@@ -13,12 +13,14 @@ import (
 	"github.com/cruisinme30/unified-search/daemon/internal/trigram"
 )
 
+// preview answers preview/get: the lines around a result, with its matches
+// marked.
 func (s *Server) preview(_ context.Context, raw json.RawMessage) (any, error) {
 	var params protocol.PreviewParams
 	if err := decode(raw, &params); err != nil {
 		return nil, err
 	}
-	repo, ref, err := s.lookUp(params.Ref)
+	repo, ref, err := s.repoForRef(params.Ref)
 	if err != nil {
 		return nil, err
 	}
@@ -26,21 +28,24 @@ func (s *Server) preview(_ context.Context, raw json.RawMessage) (any, error) {
 	return preview, staleAsRPCError(err)
 }
 
-func (s *Server) resolve(_ context.Context, raw json.RawMessage) (any, error) {
+// openResolve answers open/resolve: the file, line and column that opening
+// a result goes to.
+func (s *Server) openResolve(_ context.Context, raw json.RawMessage) (any, error) {
 	var params protocol.OpenResolveParams
 	if err := decode(raw, &params); err != nil {
 		return nil, err
 	}
-	repo, ref, err := s.lookUp(params.Ref)
+	repo, ref, err := s.repoForRef(params.Ref)
 	if err != nil {
 		return nil, err
 	}
-	target, err := trigram.Resolve(repo, ref)
+	target, err := trigram.OpenTarget(repo, ref)
 	return target, staleAsRPCError(err)
 }
 
-// lookUp decodes a ref and finds the open root it points into.
-func (s *Server) lookUp(text string) (*trigram.Repo, trigram.Ref, error) {
+// repoForRef decodes a ref and finds the open root it points into. A ref
+// that is malformed or names a root that is no longer open is stale.
+func (s *Server) repoForRef(text string) (*trigram.Repo, trigram.Ref, error) {
 	ref, ok := trigram.ParseRef(text)
 	if !ok {
 		return nil, trigram.Ref{}, rpc.Errorf(protocol.CodeRefStale, "malformed ref")
@@ -53,6 +58,8 @@ func (s *Server) lookUp(text string) (*trigram.Repo, trigram.Ref, error) {
 	return nil, trigram.Ref{}, rpc.Errorf(protocol.CodeRefStale, "repo no longer open")
 }
 
+// staleAsRPCError reports trigram.ErrStale with the RefStale code, so the
+// client can tell a result that no longer exists from a failure.
 func staleAsRPCError(err error) error {
 	if errors.Is(err, trigram.ErrStale) {
 		return rpc.Errorf(protocol.CodeRefStale, "%v", err)

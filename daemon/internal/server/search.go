@@ -24,10 +24,12 @@ const (
 	batchDelay = 20 * time.Millisecond
 )
 
+// registerSearch registers the handlers for searching and for what the
+// client does with a result.
 func (s *Server) registerSearch() {
 	s.conn.Handle(protocol.MethodSearchStart, s.search)
 	s.conn.Handle(protocol.MethodPreviewGet, s.preview)
-	s.conn.Handle(protocol.MethodOpenResolve, s.resolve)
+	s.conn.Handle(protocol.MethodOpenResolve, s.openResolve)
 }
 
 // batcher sends results as search/batch notifications of at most
@@ -41,6 +43,7 @@ type batcher struct {
 	timer *time.Timer // pending flush of a part-filled batch
 }
 
+// add queues item, sending the batch once it is full.
 func (b *batcher) add(item protocol.ResultItem) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -71,6 +74,7 @@ func (b *batcher) discard() {
 	b.items = nil
 }
 
+// flushLocked sends what is waiting. Callers hold mu.
 func (b *batcher) flushLocked() {
 	if b.timer != nil {
 		b.timer.Stop()
@@ -83,6 +87,9 @@ func (b *batcher) flushLocked() {
 	b.items = nil
 }
 
+// search answers search/start: it plans the query, streams the results as
+// search/batch notifications, and answers with the totals and the cursor
+// of the next page.
 func (s *Server) search(ctx context.Context, raw json.RawMessage) (any, error) {
 	var params protocol.SearchStartParams
 	if err := decode(raw, &params); err != nil {
@@ -95,8 +102,9 @@ func (s *Server) search(ctx context.Context, raw json.RawMessage) (any, error) {
 		return nil, rpc.Errorf(protocol.CodeQueryInvalid, "%v", err)
 	}
 	if plan.Mode == protocol.ModeHistory || plan.Kinds[query.KindSymbol] {
-		// Not built yet: history queries need the commit index and sym: the
-		// symbol index. Until then they have no results rather than wrong ones.
+		// History search and sym: are not built yet (they need a commit
+		// index and a symbol index), so these queries return no results
+		// rather than wrong ones.
 		return protocol.SearchResult{Ms: int(time.Since(started).Milliseconds())}, nil
 	}
 
