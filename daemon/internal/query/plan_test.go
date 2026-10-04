@@ -117,8 +117,11 @@ func TestLimitAndPaging(t *testing.T) {
 		t.Errorf("count:all limit = %d, want %d", got, MaxResults)
 	}
 	plan, _, err := NewPlan(mustParseCleanly(t, "x"), defaultSettings, fixedNow, "40")
-	if err != nil || plan.Offset != 40 {
-		t.Errorf("cursor 40: offset %d, err %v; want 40, nil", plan.Offset, err)
+	if err != nil {
+		t.Fatalf("cursor 40: %v", err)
+	}
+	if plan.Offset != 40 {
+		t.Errorf("cursor 40: offset %d, want 40", plan.Offset)
 	}
 	if _, _, err := NewPlan(mustParseCleanly(t, "x"), defaultSettings, fixedNow, "-3"); err == nil {
 		t.Error("cursor -3: want an error")
