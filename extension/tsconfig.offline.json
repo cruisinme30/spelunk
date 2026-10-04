@@ -1,0 +1,6 @@
+{
+  "//": "For machines without @types/vscode: same as tsconfig.json plus a shim of the API subset the extension uses.",
+  "extends": "./tsconfig.json",
+  "compilerOptions": { "types": ["node"] },
+  "include": ["src/**/*.ts", "test/**/*.ts", "types/vscode-shim.d.ts"]
+}
