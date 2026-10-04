@@ -1,0 +1,9 @@
+# Shared HTTP settings
+
+
+
+
+
+base_url: https://processor.example
+max_attempts: 3
+retry_policy: exponential
