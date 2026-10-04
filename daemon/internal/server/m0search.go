@@ -19,7 +19,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"unicode"
 	"unicode/utf16"
 
 	"github.com/cruisinme30/unified-search/daemon/internal/protocol"
@@ -34,7 +33,6 @@ const (
 )
 
 func (s *Server) registerM0() {
-	s.conn.Handle(protocol.MethodQueryParse, s.m0Parse)
 	s.conn.Handle(protocol.MethodSearchStart, s.m0Search)
 	s.conn.Handle(protocol.MethodPreviewGet, s.m0Preview)
 	s.conn.Handle(protocol.MethodOpenResolve, s.m0Resolve)
@@ -42,24 +40,6 @@ func (s *Server) registerM0() {
 
 // utf16Len is the length of s in UTF-16 code units, the unit of every protocol offset.
 func utf16Len(s string) int { return len(utf16.Encode([]rune(s))) }
-
-// m0Parse treats the whole box as one literal text term (no operators yet).
-func (s *Server) m0Parse(_ context.Context, raw json.RawMessage) (any, error) {
-	var params protocol.ParseParams
-	if err := decode(raw, &params); err != nil {
-		return nil, err
-	}
-	query := protocol.ParsedQuery{Version: 1, Raw: params.Text, Mode: protocol.ModeWorkingTree}
-	if term := strings.TrimSpace(params.Text); term != "" {
-		leading := len(params.Text) - len(strings.TrimLeftFunc(params.Text, unicode.IsSpace))
-		start := utf16Len(params.Text[:leading])
-		query.Root = &protocol.Node{
-			Kind: "text", Value: term, Match: protocol.MatchLiteral,
-			Span: protocol.Span{Start: start, End: start + utf16Len(term)},
-		}
-	}
-	return protocol.ParseResult{Query: query}, nil
-}
 
 // batcher sends results as search/batch notifications of at most batchSize.
 type batcher struct {
