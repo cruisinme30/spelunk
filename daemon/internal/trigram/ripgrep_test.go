@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"reflect"
 	"sort"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -22,7 +23,7 @@ func TestMatchesRipgrep(t *testing.T) {
 	if err != nil {
 		t.Skip("ripgrep not installed")
 	}
-	words := []string{"retry", "Retry", "RETRY", "policy", "timeout", "Timeout", "café", "CAFÉ", "naïve", "ab", "xyz", "foo_bar", "fooBar", "kelvin", "\u212aelvin", "\u017ftop", "stop", "😀", "{", "}", "\t"}
+	words := []string{"retry", "Retry", "RETRY", "policy", "timeout", "Timeout", "café", "CAFÉ", "naïve", "ab", "xyz", "foo_bar", "fooBar", "kelvin", kelvinSign + "elvin", longS + "top", "stop", "😀", "{", "}", "\t"}
 	random := rand.New(rand.NewSource(1))
 	files := map[string]string{}
 	for f := range 60 {
@@ -62,12 +63,13 @@ func TestMatchesRipgrep(t *testing.T) {
 			plan := mustPlan(t, "type:code "+q.text, settings, "")
 			var got []string
 			_, err := Search(context.Background(), plan, []Repo{repo}, 1, func(item protocol.ResultItem) {
-				got = append(got, fmt.Sprintf("%s:%d", item.Path, item.Line))
+				got = append(got, item.Path+":"+strconv.Itoa(item.Line))
 			})
 			if err != nil {
 				t.Fatal(err)
 			}
-			args := append([]string{"--no-config", "--no-heading", "-n", "--crlf", "--no-filename", "--with-filename"}, q.rgFlags...)
+			// Each output line is path:line:text; the parsing below needs all three.
+			args := append([]string{"--no-config", "--no-heading", "-n", "--crlf", "--with-filename"}, q.rgFlags...)
 			cmd := exec.CommandContext(context.Background(), rg, append(args, "-e", q.pattern, ".")...)
 			cmd.Dir = root
 			out, _ := cmd.Output() // exit status 1 means no matches

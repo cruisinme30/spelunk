@@ -7,30 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
-	"sort"
 	"testing"
-	"time"
-
-	"github.com/cruisinme30/unified-search/daemon/internal/lang"
 )
-
-// fixedNow stamps test docs, so results don't depend on the clock.
-var fixedNow = time.Date(2026, 10, 3, 10, 0, 0, 0, time.UTC)
-
-// shardOf indexes in-memory files, as Build would index them from disk.
-func shardOf(files map[string]string) *Shard {
-	paths := make([]string, 0, len(files))
-	for path := range files {
-		paths = append(paths, path)
-	}
-	sort.Strings(paths)
-	s := &Shard{BuiltAt: fixedNow, postings: map[uint32][]uint32{}}
-	for _, path := range paths {
-		content := []byte(files[path])
-		s.add(Doc{Path: path, Lang: lang.Detect(path, content), ModTime: fixedNow, Content: content})
-	}
-	return s
-}
 
 func TestCandidates(t *testing.T) {
 	shard := shardOf(map[string]string{
@@ -103,25 +81,21 @@ func TestShardSaveAndLoad(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !reflect.DeepEqual(loaded.Candidates("world", false), []uint32{0, 1}) || len(loaded.Docs) != 2 {
-		t.Errorf("loaded shard lost docs or postings: %+v", loaded.Docs)
+		t.Errorf("loaded docs = %+v, want both docs, each a candidate for world", loaded.Docs)
 	}
 	if !loaded.BuiltAt.Equal(shard.BuiltAt) {
 		t.Errorf("BuiltAt = %v, want %v", loaded.BuiltAt, shard.BuiltAt)
 	}
 	leftovers, _ := filepath.Glob(filepath.Join(filepath.Dir(path), ".shard-*"))
 	if len(leftovers) != 0 {
-		t.Errorf("Save left temp files: %v", leftovers)
+		t.Errorf("temp files after Save = %v, want none", leftovers)
 	}
 }
 
 func TestLoadRejectsOtherFormatsAndCorruption(t *testing.T) {
 	dir := t.TempDir()
 	old := filepath.Join(dir, "old.shard")
-	shard := shardOf(map[string]string{"a.txt": "x"})
-	if err := shard.Save(old); err != nil {
-		t.Fatal(err)
-	}
-	// Re-save with another version number.
+	// A shard file written by another format version.
 	saved := savedShard{Version: shardFormatVersion + 1}
 	f, err := os.Create(old)
 	if err != nil {
@@ -142,7 +116,7 @@ func TestLoadRejectsOtherFormatsAndCorruption(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := Load(corrupt); err == nil {
-		t.Errorf("Load(corrupt) succeeded")
+		t.Errorf("Load(corrupt) error = nil, want an error")
 	}
 }
 

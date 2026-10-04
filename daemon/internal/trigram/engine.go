@@ -3,6 +3,7 @@ package trigram
 import (
 	"bytes"
 	"context"
+	"errors"
 	"regexp"
 	"regexp/syntax"
 	"slices"
@@ -36,29 +37,31 @@ type Stats struct {
 // Search runs plan over repos, in order, and calls emit for each result on
 // the requested page. File-name results come before code results. It also
 // counts every result (for Total and Load more) and what each filter hid.
+//
+// A search that runs past SearchBudget returns what it found so far,
+// marked truncated; only a cancelled ctx makes it return an error.
 func Search(ctx context.Context, plan *query.Plan, repos []Repo, planID int, emit func(protocol.ResultItem)) (Stats, error) {
 	ctx, cancel := context.WithTimeout(ctx, SearchBudget)
 	defer cancel()
 	s := &searcher{ctx: ctx, plan: plan, planID: planID, emit: emit, hidden: map[int]int{}, anchors: anchorCache{}}
 	onlyFiles := plan.Kinds[query.KindFile] && !plan.Kinds[query.KindLine]
 
-	for i := range repos {
-		if plan.Kinds[query.KindFile] {
-			s.fileNames(&repos[i], onlyFiles)
-		}
+	if plan.Kinds[query.KindFile] {
+		s.addFileNames(repos, onlyFiles)
 	}
-	for i := range repos {
-		if plan.Kinds[query.KindLine] && len(plan.Terms) > 0 {
-			s.codeLines(&repos[i], true)
-		} else if onlyFiles && plan.KindFilter != nil && len(plan.Terms) > 0 {
-			s.codeLines(&repos[i], false) // count the code matches type:file hides
+	if len(plan.Terms) > 0 { // a code line needs a text term to match
+		switch {
+		case plan.Kinds[query.KindLine]:
+			s.addCodeLines(repos)
+		case onlyFiles && plan.KindFilter != nil:
+			s.countCodeLinesHiddenByType(repos)
 		}
 	}
 	if plan.CaseFilter != nil {
 		s.hiddenByCase = countIgnoringCase(ctx, plan, repos) - s.counted
 	}
-	if err := context.Cause(ctx); err != nil && ctx.Err() == context.Canceled {
-		return Stats{}, err
+	if errors.Is(ctx.Err(), context.Canceled) {
+		return Stats{}, context.Cause(ctx)
 	}
 	return s.stats(onlyFiles), nil
 }
@@ -92,6 +95,9 @@ type searcher struct {
 	anchors      anchorCache
 }
 
+// stopped reports whether the search should stop adding results: it ran
+// out of time, was cancelled, or reached query.MaxResults. Any of these
+// marks the results truncated.
 func (s *searcher) stopped() bool {
 	if s.ctx.Err() != nil {
 		s.truncated = true
@@ -111,6 +117,8 @@ func (s *searcher) add(item protocol.ResultItem) {
 	s.counted++
 }
 
+// stats summarizes the search, with one hidden-results note per filter
+// that hid something.
 func (s *searcher) stats(onlyFiles bool) Stats {
 	stats := Stats{Total: s.counted, Truncated: s.truncated, Hidden: []protocol.HiddenNote{}}
 	if next := s.plan.Offset + s.plan.Limit; next < s.counted {
@@ -166,9 +174,19 @@ func docLeaf(p query.Pred, repo *Repo, doc *Doc) bool {
 	}
 }
 
-// fileNames adds a result for each file whose path satisfies the query,
+// addFileNames adds a result for each file whose path satisfies the query,
 // with text terms matched against the path (the "File names" section).
-func (s *searcher) fileNames(repo *Repo, countHidden bool) {
+// countHidden credits each file that only one filter removed to that
+// filter. It is set only when file names are the only results: otherwise
+// the hidden-results note counts code matches, which addCodeLines credits.
+func (s *searcher) addFileNames(repos []Repo, countHidden bool) {
+	for i := range repos {
+		s.addRepoFileNames(&repos[i], countHidden)
+	}
+}
+
+// addRepoFileNames does addFileNames for one repo.
+func (s *searcher) addRepoFileNames(repo *Repo, countHidden bool) {
 	if s.repoExcluded(repo) {
 		return
 	}
@@ -244,34 +262,52 @@ func (s *searcher) countHidden(leaf func(query.Pred) bool, size func([]*query.Co
 	}
 }
 
-// codeLines adds a result for each matching line of each file that
-// satisfies the query. With emit false it only counts what type:file hid.
-func (s *searcher) codeLines(repo *Repo, emit bool) {
+// addCodeLines adds a result for each matching line of each file that
+// satisfies the query (the "Code" section), and credits the lines of a
+// file that only one filter removed to that filter.
+func (s *searcher) addCodeLines(repos []Repo) {
+	for i := range repos {
+		repo := &repos[i]
+		s.forEachCandidate(repo, func(doc *Doc, matcher *lineMatcher, leaf func(query.Pred) bool) {
+			if !query.Eval(s.plan.Pred, leaf) {
+				s.countHidden(leaf, func(terms []*query.Content) int { return len(matcher.lines(terms)) })
+				return
+			}
+			for _, line := range matcher.lines(query.Contributing(s.plan.Pred, leaf)) {
+				s.add(s.lineResult(repo, doc, line))
+			}
+		})
+	}
+}
+
+// countCodeLinesHiddenByType counts the code lines a type:file query
+// leaves out, for its "N code matches hidden by type:file" note. It adds
+// no results.
+func (s *searcher) countCodeLinesHiddenByType(repos []Repo) {
+	for i := range repos {
+		s.forEachCandidate(&repos[i], func(_ *Doc, matcher *lineMatcher, leaf func(query.Pred) bool) {
+			if query.Eval(s.plan.Pred, leaf) {
+				s.hiddenByKind += len(matcher.lines(query.Contributing(s.plan.Pred, leaf)))
+			}
+		})
+	}
+}
+
+// forEachCandidate calls visit for each file of repo that the trigram index
+// says may match, in path order, with a matcher for the file's lines and
+// leaf, which evaluates the query's leaves against the file. It stops when
+// the search does.
+func (s *searcher) forEachCandidate(repo *Repo, visit func(doc *Doc, matcher *lineMatcher, leaf func(query.Pred) bool)) {
 	if s.repoExcluded(repo) {
 		return
 	}
-	shard := repo.Shard
-	for _, id := range s.candidateDocs(shard) {
+	for _, id := range s.candidateDocs(repo.Shard) {
 		if s.stopped() {
 			return
 		}
-		doc := &shard.Docs[id]
+		doc := &repo.Shard.Docs[id]
 		matcher := newLineMatcher(doc.Content, s.anchors)
-		leaf := contentLeaf(repo, doc, matcher)
-		if !query.Eval(s.plan.Pred, leaf) {
-			if emit {
-				s.countHidden(leaf, func(terms []*query.Content) int { return len(matcher.lines(terms)) })
-			}
-			continue
-		}
-		lines := matcher.lines(query.Contributing(s.plan.Pred, leaf))
-		if !emit {
-			s.hiddenByKind += len(lines)
-			continue
-		}
-		for _, line := range lines {
-			s.add(s.lineResult(repo, doc, line))
-		}
+		visit(doc, matcher, contentLeaf(repo, doc, matcher))
 	}
 }
 
@@ -388,10 +424,11 @@ func newLineMatcher(content []byte, anchors anchorCache) *lineMatcher {
 // Shared by every file of one search.
 type anchorCache map[*query.Content]bool
 
-// wholeTextCheck reports whether matching term against the whole file finds
-// every line that matches on its own. Anchors break that (^ means the start
-// of the file, not of a line), so anchored terms are matched line by line.
-func (a anchorCache) wholeTextCheck(term *query.Content) bool {
+// canScanWholeText reports whether matching term against the whole file
+// finds every line that matches on its own. Anchors break that (^ means the
+// start of the file, not of a line), so anchored terms are matched line by
+// line.
+func (a anchorCache) canScanWholeText(term *query.Content) bool {
 	anchored, ok := a[term]
 	if !ok {
 		anchored = hasAnchors(term.Re)
@@ -429,7 +466,7 @@ func (m *lineMatcher) matches(term *query.Content) []matchedLine {
 		return found
 	}
 	var found []matchedLine
-	if m.anchors.wholeTextCheck(term) {
+	if m.anchors.canScanWholeText(term) {
 		found = m.scanForLines(term)
 	} else {
 		found = m.everyLine(term)
@@ -446,7 +483,10 @@ func (m *lineMatcher) scanForLines(term *query.Content) []matchedLine {
 	content := m.content
 	next := m.finder(term)
 	var found []matchedLine
-	number, lineStart := 1, 0 // lineStart begins line number
+	// lineStart is the byte offset where line number begins. Each search
+	// resumes there, so the newlines between lineStart and a match are all
+	// that is left to count to get the match's line number.
+	number, lineStart := 1, 0
 	for {
 		at := next(lineStart)
 		if at < 0 {
@@ -553,12 +593,16 @@ func sortHits(hits []byteHit) {
 	slices.SortStableFunc(hits, func(a, b byteHit) int { return a.start - b.start })
 }
 
-// maxResultLineRunes is how much of a line a result shows; longer lines
-// are clipped to a window around the first match.
 const (
+	// maxResultLineRunes is how much of a line a result shows; longer lines
+	// (minified code, for example) are clipped to a window around the first
+	// match.
 	maxResultLineRunes = 400
-	clipLeadRunes      = 80
-	ellipsis           = "…"
+	// clipLeadRunes is how many runes of a clipped line are kept before its
+	// first match, so the match is shown with some of what leads up to it.
+	clipLeadRunes = 80
+	// ellipsis marks where a clipped line was cut.
+	ellipsis = "…"
 )
 
 // clipLine converts byte hits to UTF-16 hits on the text shown, clipping

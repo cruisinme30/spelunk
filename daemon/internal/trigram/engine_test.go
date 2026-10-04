@@ -2,63 +2,13 @@ package trigram
 
 import (
 	"context"
-	"fmt"
 	"reflect"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/cruisinme30/unified-search/daemon/internal/protocol"
-	"github.com/cruisinme30/unified-search/daemon/internal/query"
 )
-
-var defaultSettings = protocol.Settings{DefaultCount: 500, HistoryDepth: "2y"}
-
-func repoOf(name string, files map[string]string) Repo {
-	return Repo{ID: name, Name: name, Root: "/repos/" + name, Shard: shardOf(files)}
-}
-
-func mustPlan(tb testing.TB, text string, settings protocol.Settings, cursor string) *query.Plan {
-	tb.Helper()
-	parsed := query.Parse(text, nil)
-	plan, _, err := query.NewPlan(parsed, settings, fixedNow, cursor)
-	if err != nil {
-		tb.Fatalf("NewPlan(%q): %v (diagnostics %+v)", text, err, parsed.Diagnostics)
-	}
-	return plan
-}
-
-// run searches repos and returns the emitted results, summarised.
-func run(t *testing.T, text string, repos ...Repo) ([]string, Stats) {
-	t.Helper()
-	items, stats := runItems(t, text, defaultSettings, "", repos...)
-	return summarize(items), stats
-}
-
-func runItems(t *testing.T, text string, settings protocol.Settings, cursor string, repos ...Repo) ([]protocol.ResultItem, Stats) {
-	t.Helper()
-	var items []protocol.ResultItem
-	stats, err := Search(context.Background(), mustPlan(t, text, settings, cursor), repos, 7, func(item protocol.ResultItem) {
-		items = append(items, item)
-	})
-	if err != nil {
-		t.Fatalf("Search(%q): %v", text, err)
-	}
-	return items, stats
-}
-
-// summarize renders results as "file path" or "path:line text".
-func summarize(items []protocol.ResultItem) []string {
-	out := []string{}
-	for _, item := range items {
-		if item.Kind == query.KindFile {
-			out = append(out, "file "+item.Path)
-		} else {
-			out = append(out, fmt.Sprintf("%s:%d %s", item.Path, item.Line, item.Text))
-		}
-	}
-	return out
-}
 
 var webRepo = repoOf("web", map[string]string{
 	"src/retry.ts":        "export class RetryPolicy {\n  maxAttempts = 3;\n}\n",
@@ -192,7 +142,6 @@ func TestTypeFileReturnsOnlyFileNames(t *testing.T) {
 }
 
 func TestFiltersReportWhatTheyHid(t *testing.T) {
-	// @covers screen:path-scoped-search
 	_, stats := run(t, "timeout -f:vendor/", webRepo)
 	if len(stats.Hidden) != 1 {
 		t.Fatalf("hidden = %+v, want one note", stats.Hidden)
@@ -235,8 +184,8 @@ func TestCountPagesResults(t *testing.T) {
 		t.Fatalf("first page: %d items, stats %+v; want 2 items of 9, next at 2", len(first), stats)
 	}
 	second, stats := runItems(t, "count:2 retry", defaultSettings, "2", webRepo)
-	if got := summarize(second); !reflect.DeepEqual(got, []string{"file vendor/lib/retry.js", "README.md:1 Retries use a RetryPolicy."}) {
-		t.Errorf("second page = %q", got)
+	if got, want := summarize(second), []string{"file vendor/lib/retry.js", "README.md:1 Retries use a RetryPolicy."}; !reflect.DeepEqual(got, want) {
+		t.Errorf("second page = %q, want %q", got, want)
 	}
 	if stats.NextOffset != 4 {
 		t.Errorf("second page NextOffset = %d, want 4", stats.NextOffset)
@@ -281,7 +230,7 @@ func TestLongLinesAreClippedAroundTheMatch(t *testing.T) {
 	}
 	text := items[0].Text
 	if !strings.HasPrefix(text, "…") || !strings.HasSuffix(text, "…") {
-		t.Errorf("clipped text should start and end with an ellipsis: %.20q…", text)
+		t.Errorf("clipped text = %.20q…, want it to start and end with an ellipsis", text)
 	}
 	if n := len([]rune(text)); n != maxResultLineRunes+2 {
 		t.Errorf("clipped text has %d runes, want %d", n, maxResultLineRunes+2)
@@ -306,7 +255,7 @@ func TestSearchStopsWhenCancelled(t *testing.T) {
 	cancel()
 	_, err := Search(ctx, mustPlan(t, "retry", defaultSettings, ""), []Repo{webRepo}, 1, func(protocol.ResultItem) {})
 	if err == nil {
-		t.Errorf("Search with a cancelled context returned no error")
+		t.Errorf("Search with a cancelled context = nil error, want an error")
 	}
 }
 

@@ -37,9 +37,17 @@ func newLiteralFinder(term *query.Content) (literalFinder, bool) {
 	return literalFinder{needle: needle, folded: true}, true
 }
 
-// unicodeFoldsOfASCII are the only non-ASCII characters that ignore-case
-// matching equates with ASCII letters: KELVIN SIGN (k) and LONG S (s).
-var unicodeFoldsOfASCII = [][]byte{[]byte("K"), []byte("ſ")}
+// The only non-ASCII characters that ignore-case matching equates with
+// ASCII letters. They are written as escapes because each one looks just
+// like the ASCII letter it folds to.
+const (
+	kelvinSign = "\u212a" // U+212A KELVIN SIGN: looks like K, folds to k
+	longS      = "\u017f" // U+017F LATIN SMALL LETTER LONG S (ſ): folds to s
+)
+
+// unicodeFoldsOfASCII lists those characters as bytes, to look for in file
+// text.
+var unicodeFoldsOfASCII = [][]byte{[]byte(kelvinSign), []byte(longS)}
 
 // usableOn reports whether the finder is sound for content: a folded finder
 // would miss a "k" or "s" spelled with its Unicode fold.

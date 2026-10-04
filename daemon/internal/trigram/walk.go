@@ -32,12 +32,9 @@ type File struct {
 // elsewhere every file is listed. .git itself is never listed. Binary and
 // oversized files are left out.
 func ListFiles(ctx context.Context, root string, opts WalkOptions) ([]File, error) {
-	paths, err := gitListFiles(ctx, root)
-	if err != nil || opts.IncludeIgnored {
-		paths, err = walkAllFiles(ctx, root)
-		if err != nil {
-			return nil, err
-		}
+	paths, err := candidatePaths(ctx, root, opts.IncludeIgnored)
+	if err != nil {
+		return nil, err
 	}
 	var files []File
 	for _, path := range paths {
@@ -62,6 +59,19 @@ func ListFiles(ctx context.Context, root string, opts WalkOptions) ([]File, erro
 	}
 	sort.Slice(files, func(i, j int) bool { return files[i].Path < files[j].Path })
 	return files, nil
+}
+
+// candidatePaths lists the files ListFiles then filters: what Git says the
+// repo holds (tracked files and untracked ones .gitignore doesn't exclude),
+// or every file when includeIgnored is set or root isn't a Git work tree.
+func candidatePaths(ctx context.Context, root string, includeIgnored bool) ([]string, error) {
+	if !includeIgnored {
+		if paths, err := gitListFiles(ctx, root); err == nil {
+			return paths, nil
+		}
+		// Not a Git work tree, or no git installed: list every file instead.
+	}
+	return walkAllFiles(ctx, root)
 }
 
 // gitListFiles lists tracked and untracked-but-not-ignored files.

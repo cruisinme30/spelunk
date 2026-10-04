@@ -2,29 +2,12 @@ package trigram
 
 import (
 	"context"
-	"os"
 	"os/exec"
-	"path/filepath"
 	"reflect"
 	"testing"
 )
 
-// writeTree creates files under a new temp directory.
-func writeTree(t *testing.T, files map[string]string) string {
-	t.Helper()
-	root := t.TempDir()
-	for path, content := range files {
-		full := filepath.Join(root, filepath.FromSlash(path))
-		if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(full, []byte(content), 0o644); err != nil {
-			t.Fatal(err)
-		}
-	}
-	return root
-}
-
+// paths lists the paths of files, in order.
 func paths(files []File) []string {
 	out := []string{}
 	for _, f := range files {

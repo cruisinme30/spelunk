@@ -6,14 +6,14 @@ import (
 )
 
 func TestLiteralSearchAgreesWithTheRegex(t *testing.T) {
-	content := "Kelvin\n\u212aelvin scale\nkelvin\nnothing\n\u017ftop and STOP\n"
+	content := "Kelvin\n" + kelvinSign + "elvin scale\nkelvin\nnothing\n" + longS + "top and STOP\n"
 	tests := []struct {
 		query string
 		want  []string
 	}{
-		{"kelvin", []string{"f.txt:1 Kelvin", "f.txt:2 \u212aelvin scale", "f.txt:3 kelvin"}},
+		{"kelvin", []string{"f.txt:1 Kelvin", "f.txt:2 " + kelvinSign + "elvin scale", "f.txt:3 kelvin"}},
 		{"case:yes kelvin", []string{"f.txt:3 kelvin"}},
-		{"stop", []string{"f.txt:5 \u017ftop and STOP"}},
+		{"stop", []string{"f.txt:5 " + longS + "top and STOP"}},
 		{"nothing", []string{"f.txt:4 nothing"}},
 	}
 	repo := repoOf("r", map[string]string{"f.txt": content})
@@ -31,11 +31,11 @@ func TestLiteralFinderIsOnlyUsedWhereSound(t *testing.T) {
 	if !ok || !kelvin.folded || string(kelvin.needle) != "kelvin" {
 		t.Fatalf("finder for kelvin = %+v, %v; want folded kelvin", kelvin, ok)
 	}
-	if kelvin.usableOn([]byte("\u212aelvin")) {
-		t.Error("folded finder with a k used on text with a KELVIN SIGN")
+	if kelvin.usableOn([]byte(kelvinSign + "elvin")) {
+		t.Error("folded finder for kelvin usable on text with a KELVIN SIGN = true, want false")
 	}
 	if !kelvin.usableOn([]byte("plain text")) {
-		t.Error("folded finder refused plain text")
+		t.Error("folded finder for kelvin usable on plain text = false, want true")
 	}
 	if _, ok := newLiteralFinder(plan.Terms[1]); ok {
 		t.Error("finder for café (non-ASCII, ignoring case) = ok, want the regex")
