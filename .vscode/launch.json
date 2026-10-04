@@ -1,0 +1,14 @@
+{
+  // F5 runs the extension in a new VS Code window, opened on the sample repos in testdata/workspace.
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Run Unified Search on the sample repos",
+      "type": "extensionHost",
+      "request": "launch",
+      "args": ["--extensionDevelopmentPath=${workspaceFolder}/extension", "${workspaceFolder}/testdata/workspace"],
+      "outFiles": ["${workspaceFolder}/extension/dist/**/*.js"],
+      "preLaunchTask": "Build daemon and extension"
+    }
+  ]
+}

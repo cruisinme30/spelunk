@@ -1,0 +1,12 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Build daemon and extension",
+      "type": "shell",
+      "command": "go -C daemon build -o bin/unified-search-daemon ./cmd/unified-search-daemon && npm run build",
+      "group": "build",
+      "problemMatcher": []
+    }
+  ]
+}
