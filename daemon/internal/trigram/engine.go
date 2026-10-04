@@ -145,23 +145,24 @@ func (s *searcher) repoExcluded(repo *Repo) bool {
 	return false
 }
 
-// docLeaf evaluates the leaves that don't depend on text.
-func docLeaf(p query.Pred, repo *Repo, doc *Doc) (value, ok bool) {
+// docLeaf evaluates a leaf that doesn't depend on the file's text: its
+// path, repo, language or modification time. Text terms are evaluated by
+// the caller, so they never reach here.
+func docLeaf(p query.Pred, repo *Repo, doc *Doc) bool {
 	switch p := p.(type) {
 	case *query.Path:
-		return p.Re.MatchString(doc.Path), true
+		return p.Re.MatchString(doc.Path)
 	case *query.Repo:
-		return p.Re.MatchString(repo.Name), true
+		return p.Re.MatchString(repo.Name)
 	case *query.Lang:
-		return doc.Lang == p.Name, true
+		return doc.Lang == p.Name
 	case *query.Since:
-		return !doc.ModTime.Before(p.After), true
-	case *query.Symbol:
-		return false, true // symbol definitions come with the symbol index
-	case *query.Author, *query.Message:
-		return false, true // history-only; the parser keeps them out of these plans
+		return !doc.ModTime.Before(p.After)
+	default:
+		// sym: needs the symbol index; author: and msg: are history-only, and
+		// the parser keeps them out of working-tree plans.
+		return false
 	}
-	return false, false
 }
 
 // fileNames adds a result for each file whose path satisfies the query,
@@ -179,8 +180,7 @@ func (s *searcher) fileNames(repo *Repo, countHidden bool) {
 			if c, ok := p.(*query.Content); ok {
 				return c.Re.MatchString(doc.Path)
 			}
-			value, _ := docLeaf(p, repo, doc)
-			return value
+			return docLeaf(p, repo, doc)
 		}
 		if !query.Eval(s.plan.Pred, leaf) {
 			if countHidden {
@@ -208,7 +208,7 @@ func (s *searcher) nameHits(path string, terms []*query.Content) []protocol.Rang
 	if len(s.plan.Terms) == 0 {
 		for _, kid := range s.plan.Pred.Kids {
 			if p, ok := kid.(*query.Path); ok {
-				if loc := p.Re.FindStringIndex(path); loc != nil && loc[1] > loc[0] {
+				if loc := p.Re.FindStringIndex(path); len(loc) == 2 && loc[1] > loc[0] {
 					ranges = append(ranges, utf16Range(path, loc[0], loc[1]))
 				}
 			}
@@ -281,54 +281,25 @@ func contentLeaf(repo *Repo, doc *Doc, matcher *lineMatcher) func(query.Pred) bo
 		if c, ok := p.(*query.Content); ok {
 			return len(matcher.matches(c)) > 0
 		}
-		value, _ := docLeaf(p, repo, doc)
-		return value
+		return docLeaf(p, repo, doc)
 	}
 }
 
 // candidateDocs narrows the docs to search using trigrams, in path order.
 func (s *searcher) candidateDocs(shard *Shard) []uint32 {
-	ids := narrow(shard, s.plan.Pred, s.plan.CaseSensitive)
-	if ids == nil {
-		ids = make([]uint32, len(shard.Docs))
-		for i := range ids {
-			ids[i] = uint32(i)
-		}
+	if ids := narrow(shard, s.plan.Pred, s.plan.CaseSensitive); ids != nil {
+		return ids
 	}
-	return ids
+	return shard.allDocIDs()
 }
 
 // narrow returns the docs that can satisfy p, or nil for "any doc".
 func narrow(shard *Shard, p query.Pred, caseSensitive bool) []uint32 {
 	switch p := p.(type) {
 	case *query.And:
-		var result []uint32
-		narrowed := false
-		for _, kid := range p.Kids {
-			ids := narrow(shard, kid, caseSensitive)
-			if ids == nil {
-				continue
-			}
-			if !narrowed {
-				result, narrowed = ids, true
-			} else {
-				result = intersect(result, ids)
-			}
-		}
-		if !narrowed {
-			return nil
-		}
-		return result
+		return narrowAll(shard, p.Kids, caseSensitive)
 	case *query.Or:
-		result := []uint32{}
-		for _, kid := range p.Kids {
-			ids := narrow(shard, kid, caseSensitive)
-			if ids == nil {
-				return nil
-			}
-			result = union(result, ids)
-		}
-		return result
+		return narrowAny(shard, p.Kids, caseSensitive)
 	case *query.Content:
 		literal := p.Literal
 		if literal == "" {
@@ -338,6 +309,39 @@ func narrow(shard *Shard, p query.Pred, caseSensitive bool) []uint32 {
 	default: // NOT, paths, languages…: any doc may qualify
 		return nil
 	}
+}
+
+// narrowAll returns the docs every narrowing kid allows; kids that can't
+// narrow (nil) don't limit the result. nil when none of them narrows.
+func narrowAll(shard *Shard, kids []query.Pred, caseSensitive bool) []uint32 {
+	var result []uint32
+	narrowed := false
+	for _, kid := range kids {
+		ids := narrow(shard, kid, caseSensitive)
+		switch {
+		case ids == nil:
+			continue
+		case !narrowed:
+			result, narrowed = ids, true
+		default:
+			result = intersect(result, ids)
+		}
+	}
+	return result
+}
+
+// narrowAny returns the docs any kid allows, or nil if one kid can't narrow
+// (then any doc may satisfy the OR).
+func narrowAny(shard *Shard, kids []query.Pred, caseSensitive bool) []uint32 {
+	result := []uint32{}
+	for _, kid := range kids {
+		ids := narrow(shard, kid, caseSensitive)
+		if ids == nil {
+			return nil
+		}
+		result = union(result, ids)
+	}
+	return result
 }
 
 // lineResult builds a code result, clipping very long lines around the match.
@@ -403,7 +407,7 @@ func hasAnchors(re *regexp.Regexp) bool {
 	}
 	var visit func(*syntax.Regexp) bool
 	visit = func(r *syntax.Regexp) bool {
-		switch r.Op {
+		switch r.Op { //nolint:exhaustive // only the four anchors matter; every other op recurses below
 		case syntax.OpBeginLine, syntax.OpEndLine, syntax.OpBeginText, syntax.OpEndText:
 			return true
 		}

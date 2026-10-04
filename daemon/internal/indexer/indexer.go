@@ -299,16 +299,16 @@ func (ix *Indexer) build(job buildJob) {
 	ix.publishStatus()
 }
 
-// update applies change to the job's repo if the job is still current.
-func (ix *Indexer) update(job buildJob, change func(*repo)) bool {
+// update applies change to the job's repo if the job is still current: a
+// newer build, or a dropped root, means its result no longer matters.
+func (ix *Indexer) update(job buildJob, change func(*repo)) {
 	ix.mu.Lock()
 	defer ix.mu.Unlock()
 	r, ok := ix.repos[job.id]
 	if !ok || r.generation != job.generation || r.root.Path != job.root.Path {
-		return false
+		return
 	}
 	change(r)
-	return true
 }
 
 // buildShard lists the root's files and indexes them.

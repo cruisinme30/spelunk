@@ -65,7 +65,7 @@ func TestListFilesInGitRespectsGitignore(t *testing.T) {
 		t.Skip("git not installed")
 	}
 	root := writeTree(t, treeFiles)
-	if out, err := exec.Command("git", "-C", root, "init", "-q").CombinedOutput(); err != nil {
+	if out, err := exec.CommandContext(context.Background(), "git", "-C", root, "init", "-q").CombinedOutput(); err != nil {
 		t.Fatalf("git init: %v\n%s", err, out)
 	}
 	opts := WalkOptions{Exclude: NewExcluder([]string{"**/vendor/**"})}

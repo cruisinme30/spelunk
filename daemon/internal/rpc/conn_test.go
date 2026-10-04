@@ -25,8 +25,8 @@ func connectedPair(t *testing.T) (server, client *Conn) {
 	go func() { _ = client.Serve(ctx); done <- struct{}{} }()
 	t.Cleanup(func() {
 		cancel()
-		clientOut.Close()
-		serverOut.Close()
+		_ = clientOut.Close() // ends the peers' read loops; nothing to report
+		_ = serverOut.Close()
 		<-done
 		<-done
 	})
@@ -87,8 +87,8 @@ func TestRequestsAndNotifications(t *testing.T) {
 	})
 }
 
-// @covers rpc:$/cancelRequest
 func TestCancellingACallCancelsTheHandler(t *testing.T) {
+	// @covers rpc:$/cancelRequest
 	server, client := connectedPair(t)
 	started := make(chan struct{})
 	server.Handle("slow", func(ctx context.Context, _ json.RawMessage) (any, error) {
@@ -117,7 +117,7 @@ func TestCancelledCallGivesUpWhenThePeerNeverAnswers(t *testing.T) {
 	t.Cleanup(func() { close(release) })
 	server.Handle("stuck", func(context.Context, json.RawMessage) (any, error) {
 		<-release // ignores cancellation entirely
-		return nil, nil
+		return struct{}{}, nil
 	})
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
 	defer cancel()

@@ -93,7 +93,7 @@ func asText(value string, form valueForm) (protocol.Match, string) {
 }
 
 // asName: author: takes a substring of a name or email, or a "full name".
-func asName(value string, form valueForm) (protocol.Match, string) {
+func asName(_ string, form valueForm) (protocol.Match, string) {
 	switch form {
 	case formQuoted:
 		return protocol.MatchPhrase, ""
@@ -104,7 +104,7 @@ func asName(value string, form valueForm) (protocol.Match, string) {
 	}
 }
 
-var durationPattern = regexp.MustCompile(`^([1-9][0-9]{0,4})([dwmy])$`)
+var durationPattern = regexp.MustCompile(`^([1-9]\d{0,4})([dwmy])$`)
 
 // asDuration: since: takes <n>d, <n>w, <n>m or <n>y.
 func asDuration(value string, form valueForm) (protocol.Match, string) {
@@ -114,7 +114,8 @@ func asDuration(value string, form valueForm) (protocol.Match, string) {
 	return protocol.MatchLiteral, ""
 }
 
-func asLanguage(value string, form valueForm) (protocol.Match, string) {
+// asLanguage: lang: takes a known language name or alias.
+func asLanguage(value string, _ valueForm) (protocol.Match, string) {
 	if _, ok := lang.Resolve(value); !ok {
 		return protocol.MatchLiteral, "Unknown language " + strconv.Quote(value)
 	}
@@ -136,7 +137,8 @@ func nearestLanguages(value string) []string {
 	return names
 }
 
-func asCount(value string, form valueForm) (protocol.Match, string) {
+// asCount: count: takes a positive number or "all".
+func asCount(value string, _ valueForm) (protocol.Match, string) {
 	if value == "all" {
 		return protocol.MatchLiteral, ""
 	}
@@ -148,7 +150,7 @@ func asCount(value string, form valueForm) (protocol.Match, string) {
 }
 
 func oneOf(values ...string) func(string, valueForm) (protocol.Match, string) {
-	return func(value string, form valueForm) (protocol.Match, string) {
+	return func(value string, _ valueForm) (protocol.Match, string) {
 		for _, v := range values {
 			if value == v {
 				return protocol.MatchLiteral, ""

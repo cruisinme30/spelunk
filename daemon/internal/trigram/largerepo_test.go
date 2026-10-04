@@ -12,7 +12,9 @@ import (
 
 // BenchmarkLargeRepo indexes the folder named by UNIFIED_SEARCH_BENCH_ROOT
 // once, then times searches to their first result and to completion.
-// Example: UNIFIED_SEARCH_BENCH_ROOT=$(go env GOROOT)/src go test -bench LargeRepo -run ^$ ./internal/trigram
+// For example, on Go's standard library:
+//
+//	UNIFIED_SEARCH_BENCH_ROOT=$(go env GOROOT)/src go test -bench LargeRepo -run '^$' ./internal/trigram
 func BenchmarkLargeRepo(b *testing.B) {
 	root := os.Getenv("UNIFIED_SEARCH_BENCH_ROOT")
 	if root == "" {
@@ -39,7 +41,7 @@ func BenchmarkLargeRepo(b *testing.B) {
 		b.Run(text, func(b *testing.B) {
 			plan := mustPlan(b, text, settings, "")
 			var first, total time.Duration
-			for i := 0; i < b.N; i++ {
+			for range b.N {
 				start := time.Now()
 				seen := false
 				if _, err := Search(ctx, plan, repos, 1, func(protocol.ResultItem) {

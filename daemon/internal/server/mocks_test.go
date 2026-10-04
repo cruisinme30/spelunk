@@ -101,7 +101,7 @@ func TestMockQueriesOverTheFixtureWorkspace(t *testing.T) {
 			hidden: []string{"type:type:file:17"},
 		},
 	}
-	client := newTestClient(t, Options{})
+	client := newTestClient(t)
 	batches := collectBatches(client)
 	client.mustInitialize(t, fixtureRoots(t)...)
 	for i, tt := range tests {
@@ -134,7 +134,7 @@ func TestMockQueriesOverTheFixtureWorkspace(t *testing.T) {
 // Mock 12's "code matches hidden" count is what the same query returns as
 // code (test plan E12).
 func TestTypeFileHidesExactlyWhatTypeCodeFinds(t *testing.T) {
-	client := newTestClient(t, Options{})
+	client := newTestClient(t)
 	client.mustInitialize(t, fixtureRoots(t)...)
 	var files, code protocol.SearchResult
 	if err := client.call(protocol.MethodSearchStart, protocol.SearchStartParams{SearchID: "f", Text: "type:file lang:python retry"}, &files); err != nil {

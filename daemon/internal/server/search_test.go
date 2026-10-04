@@ -74,12 +74,11 @@ func wantRPCCode(t *testing.T, call string, err error, want int) {
 
 // A search round-trips: results stream as batches, a result previews, and
 // opening it resolves to the file, line and column of the match.
-//
-// @covers rpc:search/start rpc:search/batch rpc:preview/get rpc:open/resolve failure:ref-stale
 func TestSearchPreviewAndOpenRoundTrip(t *testing.T) {
+	// @covers rpc:search/start rpc:search/batch rpc:preview/get rpc:open/resolve failure:ref-stale
 	dir := t.TempDir()
 	mustWriteFile(t, filepath.Join(dir, "client.py"), clientSource)
-	client := newTestClient(t, Options{})
+	client := newTestClient(t)
 	batches := collectBatches(client)
 	client.mustInitialize(t, protocol.Root{ID: "r1", Path: dir, Name: "payments-api"})
 
@@ -124,7 +123,7 @@ func TestMatchOffsetsAreUTF16EvenWhenCaseFoldingChangesByteLength(t *testing.T) 
 	dir := t.TempDir()
 	// U+212A KELVIN SIGN lowercases to ASCII "k": 3 bytes become 1.
 	mustWriteFile(t, filepath.Join(dir, "units.txt"), "KK = kelvin_scale\n")
-	client := newTestClient(t, Options{})
+	client := newTestClient(t)
 	batches := collectBatches(client)
 	client.mustInitialize(t, protocol.Root{ID: "r1", Path: dir, Name: "r"})
 	if err := client.call(protocol.MethodSearchStart, protocol.SearchStartParams{SearchID: "s1", Text: "kelvin"}, nil); err != nil {
@@ -139,7 +138,7 @@ func TestMatchOffsetsAreUTF16EvenWhenCaseFoldingChangesByteLength(t *testing.T) 
 func TestPreviewOfCRLFFileHasNoCarriageReturns(t *testing.T) {
 	dir := t.TempDir()
 	mustWriteFile(t, filepath.Join(dir, "a.txt"), "one\r\ntwo needle\r\nthree\r\n")
-	client := newTestClient(t, Options{})
+	client := newTestClient(t)
 	batches := collectBatches(client)
 	client.mustInitialize(t, protocol.Root{ID: "r1", Path: dir, Name: "r"})
 	if err := client.call(protocol.MethodSearchStart, protocol.SearchStartParams{SearchID: "s1", Text: "needle"}, nil); err != nil {
@@ -155,7 +154,7 @@ func TestPreviewOfCRLFFileHasNoCarriageReturns(t *testing.T) {
 }
 
 func TestMalformedOrForeignRefsAreStale(t *testing.T) {
-	client := newTestClient(t, Options{})
+	client := newTestClient(t)
 	client.mustInitialize(t, protocol.Root{ID: "r1", Path: t.TempDir(), Name: "r"})
 	for _, ref := range []string{"", "line|r1|1|0|1|a.txt", "tree|1|other-root|1|0|1|a.txt"} {
 		err := client.call(protocol.MethodPreviewGet, protocol.PreviewParams{Ref: ref, ContextLines: 1}, nil)
@@ -164,19 +163,18 @@ func TestMalformedOrForeignRefsAreStale(t *testing.T) {
 }
 
 func TestInvalidQueriesAreRejected(t *testing.T) {
-	client := newTestClient(t, Options{})
+	client := newTestClient(t)
 	client.mustInitialize(t)
 	err := client.call(protocol.MethodSearchStart, protocol.SearchStartParams{SearchID: "s1", Text: "(retry"}, nil)
 	wantRPCCode(t, "search/start (retry", err, protocol.CodeQueryInvalid)
 }
 
 // Load more: the cursor from one page starts the next.
-//
-// @covers msg:results.more
 func TestCursorLoadsTheNextPage(t *testing.T) {
+	// @covers msg:results.more
 	dir := t.TempDir()
 	mustWriteFile(t, filepath.Join(dir, "a.txt"), "x1 hit\nx2 hit\nx3 hit\n")
-	client := newTestClient(t, Options{})
+	client := newTestClient(t)
 	batches := collectBatches(client)
 	client.mustInitialize(t, protocol.Root{ID: "r1", Path: dir, Name: "r"})
 
@@ -196,9 +194,9 @@ func TestCursorLoadsTheNextPage(t *testing.T) {
 	}
 }
 
-// @covers rpc:index/status
 func TestIndexStatusReportsEveryRoot(t *testing.T) {
-	client := newTestClient(t, Options{})
+	// @covers rpc:index/status
+	client := newTestClient(t)
 	client.mustInitialize(t, protocol.Root{ID: "r1", Path: t.TempDir(), Name: "web"})
 	var status protocol.IndexStatusResult
 	if err := client.call(protocol.MethodIndexStatus, protocol.Empty{}, &status); err != nil {
@@ -210,7 +208,7 @@ func TestIndexStatusReportsEveryRoot(t *testing.T) {
 }
 
 func TestAPartBatchIsSentWithoutWaitingForTheSearchToEnd(t *testing.T) {
-	client := newTestClient(t, Options{})
+	client := newTestClient(t)
 	batches := collectBatches(client)
 	b := &batcher{conn: client.server.conn, searchID: "s1"}
 	b.add(protocol.ResultItem{Kind: "line", Ref: "x", Path: "a.go", Line: 1})

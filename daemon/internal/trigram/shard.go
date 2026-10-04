@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/gob"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"sort"
@@ -15,6 +16,9 @@ import (
 // shardFormatVersion changes whenever the saved layout does; an index
 // written by another version is rebuilt rather than migrated.
 const shardFormatVersion = 1
+
+// maxDocs bounds a shard's files, so doc ids fit in a uint32.
+const maxDocs int64 = math.MaxUint32
 
 // progressEvery is how many files Build reads between progress reports.
 const progressEvery = 500
@@ -44,6 +48,16 @@ func foldASCII(b byte) byte {
 	return b
 }
 
+// allASCIIFoldable reports whether ASCII folding covers every byte.
+func allASCIIFoldable(chars []byte) bool {
+	for _, b := range chars {
+		if !asciiFoldable(b) {
+			return false
+		}
+	}
+	return true
+}
+
 // asciiFoldable reports whether every character that ignore-case matching
 // equates with b is ASCII, so folding ASCII letters finds them all.
 func asciiFoldable(b byte) bool {
@@ -61,6 +75,9 @@ func trigramAt(text []byte, i int) uint32 {
 // Build reads files from root and indexes them. progress, if not nil, is
 // called now and then with the fraction of files read so far.
 func Build(ctx context.Context, root string, files []File, progress func(float64)) (*Shard, error) {
+	if int64(len(files)) >= maxDocs {
+		return nil, fmt.Errorf("%d files is more than one index can hold (%d)", len(files), maxDocs)
+	}
 	s := &Shard{BuiltAt: time.Now(), postings: map[uint32][]uint32{}}
 	for i, file := range files {
 		if ctx.Err() != nil {
@@ -70,7 +87,7 @@ func Build(ctx context.Context, root string, files []File, progress func(float64
 			progress(float64(i) / float64(len(files)))
 		}
 		full := filepath.Join(root, filepath.FromSlash(file.Path))
-		content, err := os.ReadFile(full)
+		content, err := os.ReadFile(full) //nolint:gosec // G304: reading the indexed repo's files is the point
 		if err != nil {
 			continue // deleted since it was listed
 		}
@@ -83,9 +100,18 @@ func Build(ctx context.Context, root string, files []File, progress func(float64
 	return s, nil
 }
 
+// allDocIDs returns the id of every doc, in path order.
+func (s *Shard) allDocIDs() []uint32 {
+	ids := make([]uint32, len(s.Docs))
+	for i := range ids {
+		ids[i] = uint32(i) //nolint:gosec // G115: Build keeps a shard under maxDocs docs
+	}
+	return ids
+}
+
 // add appends a doc and records its trigrams.
 func (s *Shard) add(doc Doc) {
-	id := uint32(len(s.Docs))
+	id := uint32(len(s.Docs)) //nolint:gosec // G115: Build keeps a shard under maxDocs docs
 	s.Docs = append(s.Docs, doc)
 	for i := 0; i+3 <= len(doc.Content); i++ {
 		key := trigramAt(doc.Content, i)
@@ -107,7 +133,7 @@ func (s *Shard) Candidates(literal string, caseSensitive bool) []uint32 {
 	text := []byte(literal)
 	var lists [][]uint32
 	for i := 0; i+3 <= len(text); i++ {
-		if !caseSensitive && !(asciiFoldable(text[i]) && asciiFoldable(text[i+1]) && asciiFoldable(text[i+2])) {
+		if !caseSensitive && !allASCIIFoldable(text[i:i+3]) {
 			continue
 		}
 		list, ok := s.postings[trigramAt(text, i)]
@@ -180,16 +206,18 @@ type savedShard struct {
 // Save writes the shard to path atomically: readers see the old file or
 // the new one, never half of one.
 func (s *Shard) Save(path string) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
 		return err
 	}
 	temp, err := os.CreateTemp(filepath.Dir(path), ".shard-*")
 	if err != nil {
 		return err
 	}
-	defer os.Remove(temp.Name()) // no-op after a successful rename
-	if err := gob.NewEncoder(temp).Encode(savedShard{Version: shardFormatVersion, BuiltAt: s.BuiltAt, Docs: s.Docs, Postings: s.postings}); err != nil {
-		temp.Close()
+	// Removing fails harmlessly after a successful rename: the name is gone.
+	defer func() { _ = os.Remove(temp.Name()) }()
+	saved := savedShard{Version: shardFormatVersion, BuiltAt: s.BuiltAt, Docs: s.Docs, Postings: s.postings}
+	if err := gob.NewEncoder(temp).Encode(saved); err != nil {
+		_ = temp.Close() // the encode error is the one to report
 		return fmt.Errorf("encode shard: %w", err)
 	}
 	if err := temp.Close(); err != nil {
@@ -203,11 +231,11 @@ var ErrStaleFormat = fmt.Errorf("shard format is not version %d", shardFormatVer
 
 // Load reads a shard written by Save.
 func Load(path string) (*Shard, error) {
-	f, err := os.Open(path)
+	f, err := os.Open(path) //nolint:gosec // G304: path is under the index directory the user configured
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
+	defer closeReadOnly(f)
 	var saved savedShard
 	if err := gob.NewDecoder(f).Decode(&saved); err != nil {
 		return nil, fmt.Errorf("decode shard %s: %w", path, err)

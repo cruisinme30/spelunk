@@ -2,8 +2,8 @@ package lang
 
 import "testing"
 
-// @covers op:lang
 func TestDetectAndResolve(t *testing.T) {
+	// @covers op:lang
 	cases := []struct{ path, head, want string }{
 		{"src/a.py", "", "python"},
 		{"web/App.TSX", "", "typescript"},

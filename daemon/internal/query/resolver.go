@@ -23,5 +23,8 @@ type AuthorStat struct {
 // noResolver knows no authors or repos.
 type noResolver struct{}
 
+// Authors finds no authors.
 func (noResolver) Authors(string, int) []AuthorStat { return nil }
-func (noResolver) RepoNames() []string              { return nil }
+
+// RepoNames knows no repos.
+func (noResolver) RepoNames() []string { return nil }

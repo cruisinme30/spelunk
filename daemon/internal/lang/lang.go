@@ -3,6 +3,7 @@
 package lang
 
 import (
+	"bytes"
 	"path"
 	"sort"
 	"strings"
@@ -115,29 +116,35 @@ func Detect(p string, head []byte) string {
 	if l, ok := byExt[strings.ToLower(path.Ext(base))]; ok {
 		return l
 	}
-	if len(head) > 2 && head[0] == '#' && head[1] == '!' {
-		line := string(head[2:])
-		if i := strings.IndexByte(line, '\n'); i >= 0 {
-			line = line[:i]
-		}
-		fields := strings.Fields(line)
-		if len(fields) == 0 {
-			return ""
-		}
-		interp := path.Base(fields[0])
-		if interp == "env" {
-			for _, f := range fields[1:] {
-				if !strings.HasPrefix(f, "-") {
-					interp = f
-					break
-				}
-			}
-		}
-		if l, ok := byShebang[interp]; ok {
-			return l
-		}
-		if l, ok := byShebang[strings.TrimRight(interp, "0123456789.")]; ok {
-			return l
+	interpreter := shebangInterpreter(head)
+	if l, ok := byShebang[interpreter]; ok {
+		return l
+	}
+	// python3.12 → python
+	return byShebang[strings.TrimRight(interpreter, "0123456789.")]
+}
+
+// shebangInterpreter returns the program a "#!" line runs, looking through
+// "/usr/bin/env [-flags]"; "" when the file has no shebang.
+func shebangInterpreter(head []byte) string {
+	line, ok := bytes.CutPrefix(head, []byte("#!"))
+	if !ok {
+		return ""
+	}
+	if end := bytes.IndexByte(line, '\n'); end >= 0 {
+		line = line[:end]
+	}
+	fields := strings.Fields(string(line))
+	if len(fields) == 0 {
+		return ""
+	}
+	interpreter := path.Base(fields[0])
+	if interpreter != "env" {
+		return interpreter
+	}
+	for _, field := range fields[1:] {
+		if !strings.HasPrefix(field, "-") {
+			return field
 		}
 	}
 	return ""

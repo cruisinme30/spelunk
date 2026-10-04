@@ -32,6 +32,13 @@ func main() {
 		fmt.Println(server.DaemonVersion)
 		return
 	}
+	os.Exit(run())
+}
+
+// run serves JSON-RPC until the host says exit, closes stdin, or a signal
+// arrives, and returns the process exit code. Deferred cleanup (the trace
+// file) runs before main exits.
+func run() int {
 	conn := rpc.NewConn(os.Stdin, os.Stdout)
 	if path := os.Getenv("UNIFIED_SEARCH_TRACE"); path != "" {
 		closeTrace, err := traceTo(conn, path)
@@ -52,13 +59,15 @@ func main() {
 
 	select {
 	case code := <-srv.Exited():
-		os.Exit(code)
+		return code
 	case err := <-served: // stdin closed: the host is gone
 		if err != nil {
 			fmt.Fprintln(os.Stderr, "unified-search-daemon:", err)
-			os.Exit(1)
+			return 1
 		}
+		return 0
 	case <-signals:
+		return 0
 	}
 }
 
@@ -71,18 +80,27 @@ type traceEntry struct {
 
 // traceTo appends every message on conn to the file at path.
 func traceTo(conn *rpc.Conn, path string) (closeTrace func(), err error) {
-	traceFile, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+	traceFile, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600) //nolint:gosec // G304: the developer chose this path in UNIFIED_SEARCH_TRACE
 	if err != nil {
 		return nil, err
 	}
 	var mu sync.Mutex
 	encoder := json.NewEncoder(traceFile)
+	var failed sync.Once
 	conn.Trace = func(direction string, body []byte) {
 		mu.Lock()
 		defer mu.Unlock()
-		_ = encoder.Encode(traceEntry{Time: time.Now().UTC().Format(time.RFC3339Nano), Direction: direction, Message: body})
+		entry := traceEntry{Time: time.Now().UTC().Format(time.RFC3339Nano), Direction: direction, Message: body}
+		if err := encoder.Encode(entry); err != nil {
+			failed.Do(func() { fmt.Fprintf(os.Stderr, "unified-search-daemon: trace write failed: %v\n", err) })
+		}
 	}
-	return func() { traceFile.Close() }, nil
+	closeTrace = func() {
+		if err := traceFile.Close(); err != nil {
+			fmt.Fprintf(os.Stderr, "unified-search-daemon: closing trace: %v\n", err)
+		}
+	}
+	return closeTrace, nil
 }
 
 // optionsFromEnv reads UNIFIED_SEARCH_NOW.

@@ -74,8 +74,8 @@ func mustParseCleanly(t *testing.T, text string) protocol.ParsedQuery {
 	return q
 }
 
-// @covers syntax:and syntax:or syntax:not syntax:group syntax:phrase syntax:regex
 func TestSyntax(t *testing.T) {
+	// @covers syntax:and syntax:or syntax:not syntax:group syntax:phrase syntax:regex
 	tests := []struct {
 		name, query, want string
 	}{
@@ -106,8 +106,8 @@ func TestSyntax(t *testing.T) {
 	}
 }
 
-// @covers op:f op:repo op:lang op:type op:sym op:author op:msg op:since op:case op:count
 func TestOperators(t *testing.T) {
+	// @covers op:f op:repo op:lang op:type op:sym op:author op:msg op:since op:case op:count
 	tests := []struct {
 		name, query, want string
 	}{
@@ -141,7 +141,10 @@ func TestOperators(t *testing.T) {
 
 func TestGlobalsAreCollected(t *testing.T) {
 	q := mustParseCleanly(t, "case:yes count:all type:code retry")
-	got, _ := json.Marshal(q.Globals)
+	got, err := json.Marshal(q.Globals)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if want := `{"case":"yes","count":"all","type":"code"}`; string(got) != want {
 		t.Errorf("globals = %s, want %s", got, want)
 	}

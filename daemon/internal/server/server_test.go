@@ -16,20 +16,20 @@ type testClient struct {
 	conn   *rpc.Conn
 }
 
-func newTestClient(t *testing.T, opts Options) *testClient {
+func newTestClient(t *testing.T) *testClient {
 	t.Helper()
 	serverIn, clientOut := io.Pipe()
 	clientIn, serverOut := io.Pipe()
 	serverConn := rpc.NewConn(serverIn, serverOut)
 	clientConn := rpc.NewConn(clientIn, clientOut)
-	srv := New(serverConn, opts)
+	srv := New(serverConn, Options{})
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() { _ = serverConn.Serve(ctx) }()
 	go func() { _ = clientConn.Serve(ctx) }()
 	t.Cleanup(func() {
 		cancel()
-		clientOut.Close()
-		serverOut.Close()
+		_ = clientOut.Close() // ends the peers' read loops; nothing to report
+		_ = serverOut.Close()
 	})
 	return &testClient{server: srv, conn: clientConn}
 }
@@ -77,9 +77,9 @@ func waitForExitCode(t *testing.T, srv *Server) int {
 	}
 }
 
-// @covers rpc:initialize rpc:shutdown rpc:exit
 func TestInitializeThenShutdownThenExitExitsCleanly(t *testing.T) {
-	client := newTestClient(t, Options{})
+	// @covers rpc:initialize rpc:shutdown rpc:exit
+	client := newTestClient(t)
 	var got protocol.InitializeResult
 	err := client.call(protocol.MethodInitialize, protocol.InitializeParams{
 		Protocol: protocol.Version,
@@ -104,9 +104,9 @@ func TestInitializeThenShutdownThenExitExitsCleanly(t *testing.T) {
 	}
 }
 
-// @covers rpc:exit
 func TestExitWithoutShutdownReportsFailure(t *testing.T) {
-	client := newTestClient(t, Options{})
+	// @covers rpc:exit
+	client := newTestClient(t)
 	_ = client.conn.Notify(protocol.MethodExit, nil)
 	if code := waitForExitCode(t, client.server); code != 1 {
 		t.Fatalf("exit code without shutdown = %d, want 1", code)
@@ -114,7 +114,7 @@ func TestExitWithoutShutdownReportsFailure(t *testing.T) {
 }
 
 func TestSettingsReturnsACopy(t *testing.T) {
-	client := newTestClient(t, Options{})
+	client := newTestClient(t)
 	settings := client.server.Settings()
 	settings.Exclude[0] = "changed"
 	if got := client.server.Settings().Exclude[0]; got == "changed" {

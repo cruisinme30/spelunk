@@ -12,6 +12,7 @@ import (
 const previewFile = "package retry\n\n// RetryPolicy retries with a timeout.\ntype RetryPolicy struct {\n\tTimeout int\n}\n"
 
 func previewRepo(t *testing.T) *Repo {
+	t.Helper()
 	root := writeTree(t, map[string]string{"retry.go": previewFile})
 	return &Repo{ID: "r", Name: "r", Root: root}
 }

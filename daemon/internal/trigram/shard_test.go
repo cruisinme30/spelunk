@@ -120,17 +120,24 @@ func TestLoadRejectsOtherFormatsAndCorruption(t *testing.T) {
 	}
 	// Re-save with another version number.
 	saved := savedShard{Version: shardFormatVersion + 1}
-	f, _ := os.Create(old)
+	f, err := os.Create(old)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if err := gobEncode(f, saved); err != nil {
 		t.Fatal(err)
 	}
-	f.Close()
+	if err := f.Close(); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := Load(old); !errors.Is(err, ErrStaleFormat) {
 		t.Errorf("Load(other version) error = %v, want ErrStaleFormat", err)
 	}
 
 	corrupt := filepath.Join(dir, "corrupt.shard")
-	os.WriteFile(corrupt, []byte("not a shard"), 0o644)
+	if err := os.WriteFile(corrupt, []byte("not a shard"), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := Load(corrupt); err == nil {
 		t.Errorf("Load(corrupt) succeeded")
 	}

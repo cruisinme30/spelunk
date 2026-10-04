@@ -192,7 +192,7 @@ func (c *Conn) Notify(method string, params any) error {
 // Call sends a request and waits for the response, decoding the result into
 // out (which may be nil). Cancelling ctx sends $/cancelRequest, then waits up
 // to cancelGrace for the peer's answer, which is usually RequestCancelled.
-func (c *Conn) Call(ctx context.Context, method string, params any, out any) error {
+func (c *Conn) Call(ctx context.Context, method string, params, out any) error {
 	id := json.RawMessage(strconv.FormatInt(c.nextID.Add(1), 10))
 	responses := make(chan *message, 1)
 	c.mu.Lock()
@@ -274,7 +274,7 @@ func (c *Conn) Serve(ctx context.Context) error {
 		case m.Method == "$/cancelRequest":
 			c.cancelInflight(m.Params)
 		case m.Method != "" && m.ID == nil:
-			c.notify(m.Method, m.Params)
+			c.handleNotification(m.Method, m.Params)
 		case m.Method != "":
 			c.dispatch(ctx, m)
 		}
@@ -318,7 +318,8 @@ func (c *Conn) cancelInflight(params json.RawMessage) {
 	}
 }
 
-func (c *Conn) notify(method string, params json.RawMessage) {
+// handleNotification calls the handler registered for a notification, if any.
+func (c *Conn) handleNotification(method string, params json.RawMessage) {
 	c.mu.Lock()
 	handler := c.notificationHandlers[method]
 	c.mu.Unlock()

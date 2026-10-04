@@ -34,6 +34,8 @@ func Complete(text string, cursor int, resolver Resolver, now time.Time) []proto
 			if cursor >= t.valueStart && t.form != formRegex {
 				return valueCompletions(t, resolver, now)
 			}
+		default:
+			// Parentheses, minus signs and AND / OR have nothing to complete.
 		}
 	}
 	return []protocol.Completion{}
@@ -63,46 +65,62 @@ func valueCompletions(t token, resolver Resolver, now time.Time) []protocol.Comp
 		return []protocol.Completion{}
 	}
 	whole := protocol.Span{Start: t.start, End: t.end}
-	fragment := strings.ToLower(t.value)
 	completions := []protocol.Completion{}
-	add := func(value, detail, group string) {
-		if strings.EqualFold(value, t.value) {
-			return // already typed in full: nothing to complete
+	for _, candidate := range valueCandidates(op, strings.ToLower(t.value), resolver, now) {
+		if len(completions) == maxValueCompletions {
+			break
 		}
-		written := op.name + ":" + quoteIfNeeded(value)
+		if strings.EqualFold(candidate.value, t.value) {
+			continue // already typed in full: nothing to complete
+		}
+		written := op.name + ":" + quoteIfNeeded(candidate.value)
 		completions = append(completions, protocol.Completion{
-			Label:  value,
-			Detail: detail,
+			Label:  candidate.value,
+			Detail: candidate.detail,
 			Insert: replaceFix("Insert "+written, whole, written+" "),
-			Group:  group,
+			Group:  candidate.group,
 		})
 	}
+	return completions
+}
+
+// valueCandidate is a value an operator could take, with how to show it.
+type valueCandidate struct {
+	value  string
+	detail string
+	group  string // a protocol.Completion group
+}
+
+// valueCandidates lists the values of op that match fragment (lowercase):
+// authors and repos found in the workspace, languages, or the operator's
+// own example values.
+func valueCandidates(op operator, fragment string, resolver Resolver, now time.Time) []valueCandidate {
+	var candidates []valueCandidate
 	switch op.name {
 	case protocol.OpNameAuthor:
-		for _, author := range resolver.Authors(fragment, maxValueCompletions) {
-			add(author.Name, authorDetail(author, now), "author")
+		for _, author := range resolver.Authors(fragment, maxValueCompletions+1) {
+			candidates = append(candidates, valueCandidate{author.Name, authorDetail(author, now), "author"})
 		}
 	case protocol.OpNameRepo:
 		for _, name := range resolver.RepoNames() {
-			if strings.Contains(strings.ToLower(name), fragment) && len(completions) < maxValueCompletions {
-				add(name, "repo", "repo")
+			if strings.Contains(strings.ToLower(name), fragment) {
+				candidates = append(candidates, valueCandidate{name, "repo", "repo"})
 			}
 		}
 	case protocol.OpNameLang:
 		for _, name := range lang.Names() {
-			if strings.HasPrefix(name, fragment) && len(completions) < maxValueCompletions {
-				add(name, "language", "lang")
+			if strings.HasPrefix(name, fragment) {
+				candidates = append(candidates, valueCandidate{name, "language", "lang"})
 			}
 		}
 	default:
 		for _, example := range op.examples {
-			value := strings.TrimPrefix(example, op.name+":")
-			if strings.HasPrefix(value, fragment) {
-				add(value, op.summary, "value")
+			if value := strings.TrimPrefix(example, op.name+":"); strings.HasPrefix(value, fragment) {
+				candidates = append(candidates, valueCandidate{value, op.summary, "value"})
 			}
 		}
 	}
-	return completions
+	return candidates
 }
 
 // authorDetail reads like "214 commits · payments-api, shared-libs · last 3 days ago".

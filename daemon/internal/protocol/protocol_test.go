@@ -23,11 +23,17 @@ func TestUnionMarshalsOnlyItsVariantsFields(t *testing.T) {
 }
 
 func TestRequiredArraysMarshalAsEmptyNotNull(t *testing.T) {
-	got, _ := json.Marshal(SearchResult{})
+	got, err := json.Marshal(SearchResult{})
+	if err != nil {
+		t.Fatal(err)
+	}
 	if want := `{"total":0,"truncated":false,"hidden":[],"ms":0}`; string(got) != want {
 		t.Fatalf("json.Marshal(SearchResult{}) = %s, want %s", got, want)
 	}
-	got, _ = json.Marshal(ResultItem{Kind: "line", Path: "a.go", Line: 3})
+	got, err = json.Marshal(ResultItem{Kind: "line", Path: "a.go", Line: 3})
+	if err != nil {
+		t.Fatal(err)
+	}
 	var fields map[string]any
 	_ = json.Unmarshal(got, &fields)
 	if _, ok := fields["hits"].([]any); !ok {

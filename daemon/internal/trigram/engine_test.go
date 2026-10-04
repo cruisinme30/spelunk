@@ -18,12 +18,12 @@ func repoOf(name string, files map[string]string) Repo {
 	return Repo{ID: name, Name: name, Root: "/repos/" + name, Shard: shardOf(files)}
 }
 
-func mustPlan(t testing.TB, text string, settings protocol.Settings, cursor string) *query.Plan {
-	t.Helper()
+func mustPlan(tb testing.TB, text string, settings protocol.Settings, cursor string) *query.Plan {
+	tb.Helper()
 	parsed := query.Parse(text, nil)
 	plan, _, err := query.NewPlan(parsed, settings, fixedNow, cursor)
 	if err != nil {
-		t.Fatalf("NewPlan(%q): %v (diagnostics %+v)", text, err, parsed.Diagnostics)
+		tb.Fatalf("NewPlan(%q): %v (diagnostics %+v)", text, err, parsed.Diagnostics)
 	}
 	return plan
 }

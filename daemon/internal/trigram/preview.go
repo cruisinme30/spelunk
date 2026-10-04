@@ -20,7 +20,7 @@ var ErrStale = errors.New("result no longer exists")
 // without it (the plan was forgotten), only the result's own match.
 func Preview(repo *Repo, ref Ref, plan *query.Plan, contextLines int) (protocol.Preview, error) {
 	full := filepath.Join(repo.Root, filepath.FromSlash(ref.Path))
-	content, err := os.ReadFile(full)
+	content, err := os.ReadFile(full) //nolint:gosec // G304: ref paths are inside an open workspace root
 	if err != nil {
 		return protocol.Preview{}, ErrStale
 	}

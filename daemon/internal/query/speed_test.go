@@ -51,7 +51,7 @@ func BenchmarkParse(b *testing.B) {
 			name = name[:30] + "…"
 		}
 		b.Run(name, func(b *testing.B) {
-			for i := 0; i < b.N; i++ {
+			for range b.N {
 				parseOnce(text)
 			}
 		})

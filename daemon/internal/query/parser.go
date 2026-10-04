@@ -57,7 +57,7 @@ func startsOperand(kind tokenKind) bool {
 	return kind == tokenTerm || kind == tokenOperator || kind == tokenMinus || kind == tokenOpenParen
 }
 
-func (p *parser) span(t token) protocol.Span { return protocol.Span{Start: t.start, End: t.end} }
+func (*parser) span(t token) protocol.Span { return protocol.Span{Start: t.start, End: t.end} }
 
 // parseQuery parses top-level expressions. A stray ")" is reported and
 // skipped, and what follows is joined to what came before with AND.
@@ -189,7 +189,7 @@ func (p *parser) reportUnclosedParen(open token, inner *protocol.Node) {
 			}
 		}
 		word := p.src.slice(closeAfter.Span.Start, closeAfter.Span.End)
-		fixes = append(fixes, insertFix(fmt.Sprintf("Close it after %s", shorten(word)), closeAfter.Span.End, ")"))
+		fixes = append(fixes, insertFix("Close it after "+shorten(word), closeAfter.Span.End, ")"))
 	}
 	p.problems.errorf(DiagUnclosedParen, p.span(open), fixes, "Missing closing parenthesis")
 }
@@ -215,6 +215,8 @@ func (p *parser) textNode(t token) *protocol.Node {
 		if problem := regexProblem(t.value); problem != "" && t.unclosed == 0 {
 			p.problems.errorf(DiagInvalidRegex, p.span(t), nil, "%s", problem)
 		}
+	case formBare:
+		// a plain word is matched literally
 	}
 	node := &protocol.Node{Kind: "text", Value: t.value, Match: match, TermIndex: p.nextTermIndex, Span: p.span(t)}
 	p.nextTermIndex++
@@ -242,7 +244,7 @@ func (p *parser) operatorNode(t token) *protocol.Node {
 	p.reportUnclosed(t)
 	valueSpan := protocol.Span{Start: t.valueStart, End: t.end}
 	if t.value == "" && t.unclosed == 0 {
-		p.reportBadValue(op, t, valueSpan, fmt.Sprintf("%s: needs a value", op.name))
+		p.reportBadValue(op, t, valueSpan, op.name+": needs a value")
 		return nil
 	}
 	match, problem := op.interpret(t.value, t.form)

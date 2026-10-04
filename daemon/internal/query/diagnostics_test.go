@@ -30,9 +30,8 @@ func applyFix(text string, fix protocol.Fix) string {
 
 // Each diagnostic code: the query that triggers it, the span it points at,
 // and what its first fix turns the query into ("" when it has no fix).
-//
-// @covers diag:unclosed_paren diag:unmatched_paren diag:empty_group diag:missing_operand diag:unclosed_quote diag:unclosed_regex diag:unknown_operator diag:bad_value diag:global_misplaced diag:duplicate_global diag:mixed_mode_or diag:op_wrong_mode diag:invalid_regex diag:no_positive_term diag:query_too_long
 func TestDiagnostics(t *testing.T) {
+	// @covers diag:unclosed_paren diag:unmatched_paren diag:empty_group diag:missing_operand diag:unclosed_quote diag:unclosed_regex diag:unknown_operator diag:bad_value diag:global_misplaced diag:duplicate_global diag:mixed_mode_or diag:op_wrong_mode diag:invalid_regex diag:no_positive_term diag:query_too_long
 	tests := []struct {
 		name, query string
 		code        string

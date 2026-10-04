@@ -87,7 +87,7 @@ func walkAllFiles(ctx context.Context, root string) ([]string, error) {
 	var paths []string
 	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
 		if err != nil {
-			return nil // unreadable entries are skipped, not fatal
+			return nil //nolint:nilerr // an unreadable entry is skipped, not fatal
 		}
 		if ctx.Err() != nil {
 			return ctx.Err()
@@ -107,15 +107,21 @@ func walkAllFiles(ctx context.Context, root string) ([]string, error) {
 	return paths, err
 }
 
+// isBinaryFile reports whether the file at path looks binary; unreadable
+// files count as binary, so they are skipped.
 func isBinaryFile(path string) bool {
-	f, err := os.Open(path)
+	f, err := os.Open(path) //nolint:gosec // G304: path comes from listing the indexed repo
 	if err != nil {
 		return true
 	}
-	defer f.Close()
+	defer closeReadOnly(f)
 	head := make([]byte, binarySniffBytes)
 	n, _ := f.Read(head)
 	return isBinary(head[:n])
 }
 
+// isBinary reports whether a file's first bytes contain a NUL.
 func isBinary(head []byte) bool { return bytes.IndexByte(head, 0) >= 0 }
+
+// closeReadOnly closes a file that was only read: a close error can't lose data.
+func closeReadOnly(f *os.File) { _ = f.Close() }

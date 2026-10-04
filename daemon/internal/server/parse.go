@@ -39,6 +39,7 @@ type workspaceResolver struct{ server *Server }
 // Authors returns nothing until history is indexed.
 func (workspaceResolver) Authors(string, int) []query.AuthorStat { return nil }
 
+// RepoNames returns the display names of the open workspace roots.
 func (r workspaceResolver) RepoNames() []string {
 	roots := r.server.Roots()
 	names := make([]string, len(roots))

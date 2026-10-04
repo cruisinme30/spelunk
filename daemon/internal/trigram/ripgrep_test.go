@@ -25,10 +25,10 @@ func TestMatchesRipgrep(t *testing.T) {
 	words := []string{"retry", "Retry", "RETRY", "policy", "timeout", "Timeout", "café", "CAFÉ", "naïve", "ab", "xyz", "foo_bar", "fooBar", "kelvin", "\u212aelvin", "\u017ftop", "stop", "😀", "{", "}", "\t"}
 	random := rand.New(rand.NewSource(1))
 	files := map[string]string{}
-	for f := 0; f < 60; f++ {
+	for f := range 60 {
 		var b strings.Builder
-		for line := 0; line < 1+random.Intn(20); line++ {
-			for w := 0; w < random.Intn(8); w++ {
+		for range 1 + random.Intn(20) {
+			for range random.Intn(8) {
 				b.WriteString(words[random.Intn(len(words))])
 				b.WriteString([]string{" ", "", "-", "."}[random.Intn(4)])
 			}
@@ -68,7 +68,7 @@ func TestMatchesRipgrep(t *testing.T) {
 				t.Fatal(err)
 			}
 			args := append([]string{"--no-config", "--no-heading", "-n", "--crlf", "--no-filename", "--with-filename"}, q.rgFlags...)
-			cmd := exec.Command(rg, append(args, "-e", q.pattern, ".")...)
+			cmd := exec.CommandContext(context.Background(), rg, append(args, "-e", q.pattern, ".")...)
 			cmd.Dir = root
 			out, _ := cmd.Output() // exit status 1 means no matches
 			want := []string{}

@@ -48,7 +48,7 @@ func isOperatorName(word string) bool {
 		return false
 	}
 	for _, r := range word {
-		if !(r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z') {
+		if (r < 'a' || r > 'z') && (r < 'A' || r > 'Z') {
 			return false
 		}
 	}

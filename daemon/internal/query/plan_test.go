@@ -58,7 +58,11 @@ func TestSinceWindowsCountBackFromNow(t *testing.T) {
 		"since:1y x":  "2025-10-03T10:00:00Z",
 	}
 	for query, want := range tests {
-		got := mustPlan(t, query, defaultSettings).Pred.Kids[0].(*Since).After.UTC().Format(time.RFC3339)
+		since, ok := mustPlan(t, query, defaultSettings).Pred.Kids[0].(*Since)
+		if !ok {
+			t.Fatalf("plan(%q) first conjunct is not since:", query)
+		}
+		got := since.After.UTC().Format(time.RFC3339)
 		if got != want {
 			t.Errorf("plan(%q) since = %s, want %s", query, got, want)
 		}
@@ -193,8 +197,8 @@ func TestEvalAndContributingTerms(t *testing.T) {
 	plan := mustPlan(t, "(a OR b) c -d", defaultSettings)
 	present := map[string]bool{"a": true, "c": true}
 	leaf := func(p Pred) bool {
-		c := p.(*Content)
-		return present[c.Literal]
+		c, ok := p.(*Content)
+		return ok && present[c.Literal]
 	}
 	if !Eval(plan.Pred, leaf) {
 		t.Fatal("Eval((a OR b) c -d) with a and c present = false, want true")
@@ -212,8 +216,8 @@ func TestEvalAndContributingTerms(t *testing.T) {
 	}
 }
 
-// @covers diag:history_full_scan
 func TestHistoryRegexWithoutALiteralWarns(t *testing.T) {
+	// @covers diag:history_full_scan
 	warn := func(query string) bool {
 		_, warnings, err := NewPlan(mustParseCleanly(t, query), defaultSettings, fixedNow, "")
 		if err != nil {

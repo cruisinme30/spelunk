@@ -6,9 +6,9 @@ import (
 	"github.com/cruisinme30/unified-search/daemon/internal/protocol"
 )
 
-// @covers rpc:query/parse
 func TestParseReturnsTheParsedQueryAndCompletions(t *testing.T) {
-	client := newTestClient(t, Options{})
+	// @covers rpc:query/parse
+	client := newTestClient(t)
 	client.mustInitialize(t, protocol.Root{ID: "r1", Path: t.TempDir(), Name: "web-checkout"})
 
 	var result protocol.ParseResult
@@ -28,7 +28,7 @@ func TestParseReturnsTheParsedQueryAndCompletions(t *testing.T) {
 }
 
 func TestParseReportsDiagnosticsWithoutFailing(t *testing.T) {
-	client := newTestClient(t, Options{})
+	client := newTestClient(t)
 	client.mustInitialize(t)
 	var result protocol.ParseResult
 	if err := client.call(protocol.MethodQueryParse, protocol.ParseParams{Text: "sinse:6m", Cursor: 8}, &result); err != nil {
@@ -40,7 +40,7 @@ func TestParseReportsDiagnosticsWithoutFailing(t *testing.T) {
 }
 
 func TestParseIncludesPlannerWarnings(t *testing.T) {
-	client := newTestClient(t, Options{})
+	client := newTestClient(t)
 	client.mustInitialize(t)
 	var result protocol.ParseResult
 	if err := client.call(protocol.MethodQueryParse, protocol.ParseParams{Text: "type:commit /a.b/", Cursor: 17}, &result); err != nil {

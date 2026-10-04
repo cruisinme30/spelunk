@@ -40,11 +40,11 @@ func TestParseGolden(t *testing.T) {
 			got = append(got, '\n')
 			path := filepath.Join("testdata", "parse", g.name+".json")
 			if *update {
-				if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-					t.Fatal(err)
+				if mkdirErr := os.MkdirAll(filepath.Dir(path), 0o750); mkdirErr != nil {
+					t.Fatal(mkdirErr)
 				}
-				if err := os.WriteFile(path, got, 0o644); err != nil {
-					t.Fatal(err)
+				if writeErr := os.WriteFile(path, got, 0o600); writeErr != nil {
+					t.Fatal(writeErr)
 				}
 				return
 			}

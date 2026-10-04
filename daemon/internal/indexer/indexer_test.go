@@ -28,6 +28,7 @@ func writeFiles(t *testing.T, files map[string]string) string {
 }
 
 func testSettings(t *testing.T) protocol.Settings {
+	t.Helper()
 	return protocol.Settings{DefaultCount: 500, Exclude: []string{"**/vendor/**"}, MaxFileSizeKB: 1024, Location: t.TempDir()}
 }
 

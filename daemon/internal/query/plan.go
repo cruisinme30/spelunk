@@ -1,6 +1,7 @@
 package query
 
 import (
+	"errors"
 	"fmt"
 	"regexp"
 	"regexp/syntax"
@@ -18,6 +19,7 @@ const MaxResults = 50_000
 // ResultKind is a kind of search result.
 type ResultKind = string
 
+// The kinds of result, as ResultItem.Kind names them.
 const (
 	KindFile   ResultKind = "file"
 	KindLine   ResultKind = "line"
@@ -148,43 +150,30 @@ func NewPlan(q protocol.ParsedQuery, settings protocol.Settings, now time.Time, 
 		}
 	}
 	if q.Root == nil {
-		return nil, nil, fmt.Errorf("empty query")
+		return nil, nil, errors.New("empty query")
 	}
-	plan := &Plan{Mode: q.Mode, CaseSensitive: settings.CaseSensitive, Limit: settings.DefaultCount}
+	offset, err := pageOffset(cursor)
+	if err != nil {
+		return nil, nil, err
+	}
+	plan := &Plan{
+		Mode:          q.Mode,
+		Kinds:         resultKinds(q),
+		CaseSensitive: settings.CaseSensitive,
+		Limit:         pageSize(q.Globals.Count, settings.DefaultCount),
+		Offset:        offset,
+		Pred:          &And{},
+	}
 	if q.Globals.Case != nil {
 		plan.CaseSensitive = *q.Globals.Case == "yes"
 	}
-	switch count := q.Globals.Count.(type) {
-	case int:
-		plan.Limit = count
-	case float64: // after a JSON round trip
-		plan.Limit = int(count)
-	case string: // "all"
-		plan.Limit = MaxResults
-	}
-	plan.Limit = min(max(plan.Limit, 1), MaxResults)
-	if cursor != "" {
-		offset, err := strconv.Atoi(cursor)
-		if err != nil || offset < 0 {
-			return nil, nil, fmt.Errorf("bad cursor %q", cursor)
-		}
-		plan.Offset = offset
-	}
-	plan.Kinds = resultKinds(q)
 
 	l := lowering{caseSensitive: plan.CaseSensitive, now: now, plan: plan}
 	src := newSource(q.Raw)
-	plan.Pred = &And{}
 	for _, node := range topLevel(q.Root) {
 		pred := l.lower(node)
-		if pred == nil { // a global
-			text := src.slice(node.Span.Start, node.Span.End)
-			switch {
-			case node.Kind == "op" && node.Op == protocol.OpNameType:
-				plan.KindFilter = &Filter{Reason: "type", Index: -1, Text: text, Undo: removeFix("Remove "+text, src, node.Span)}
-			case node.Kind == "op" && node.Op == protocol.OpNameCase && plan.CaseSensitive:
-				plan.CaseFilter = &Filter{Reason: "case", Index: -1, Text: text, Undo: removeFix("Ignore case", src, node.Span)}
-			}
+		if pred == nil { // a global: case:, count: or type:
+			plan.addGlobalFilter(node, src)
 			continue
 		}
 		if reason := filterReason(node); reason != "" {
@@ -197,6 +186,48 @@ func NewPlan(q protocol.ParsedQuery, settings protocol.Settings, now time.Time, 
 		plan.Pred.Kids = append(plan.Pred.Kids, pred)
 	}
 	return plan, historyScanWarnings(plan), nil
+}
+
+// pageSize is how many results one page holds: count: if given (a number,
+// or "all"), otherwise the defaultCount setting, kept within 1..MaxResults.
+func pageSize(count any, defaultCount int) int {
+	size := defaultCount
+	switch count := count.(type) {
+	case int:
+		size = count
+	case float64: // after a JSON round trip
+		size = int(count)
+	case string: // "all"
+		size = MaxResults
+	}
+	return min(max(size, 1), MaxResults)
+}
+
+// pageOffset reads a Load more cursor: the index of the page's first result.
+func pageOffset(cursor string) (int, error) {
+	if cursor == "" {
+		return 0, nil
+	}
+	offset, err := strconv.Atoi(cursor)
+	if err != nil || offset < 0 {
+		return 0, fmt.Errorf("bad cursor %q", cursor)
+	}
+	return offset, nil
+}
+
+// addGlobalFilter records a type: or case:yes global as a filter whose
+// hidden results the engine counts (the type:file and case:yes notes).
+func (p *Plan) addGlobalFilter(node *protocol.Node, src *source) {
+	if node.Kind != "op" {
+		return
+	}
+	text := src.slice(node.Span.Start, node.Span.End)
+	switch {
+	case node.Op == protocol.OpNameType:
+		p.KindFilter = &Filter{Reason: "type", Index: -1, Text: text, Undo: removeFix("Remove "+text, src, node.Span)}
+	case node.Op == protocol.OpNameCase && p.CaseSensitive:
+		p.CaseFilter = &Filter{Reason: "case", Index: -1, Text: text, Undo: removeFix("Ignore case", src, node.Span)}
+	}
 }
 
 // resultKinds decides which kinds of result the query returns.
@@ -377,13 +408,13 @@ func Contributing(p Pred, leaf func(Pred) bool) []*Content {
 			}
 			return true
 		case *Or:
-			any := false
+			matched := false
 			for _, kid := range p.Kids {
 				if visit(kid) {
-					any = true
+					matched = true
 				}
 			}
-			return any
+			return matched
 		case *Not:
 			return Eval(p, leaf)
 		case *Content:
@@ -469,7 +500,7 @@ func (p *Plan) IgnoringCase() *Plan {
 	folded.CaseSensitive = false
 	folded.Filters, folded.KindFilter, folded.CaseFilter = nil, nil, nil
 	terms := map[*Content]*Content{}
-	folded.Pred = foldPred(p.Pred, terms).(*And)
+	folded.Pred = foldAnd(p.Pred, terms)
 	folded.Terms = make([]*Content, len(p.Terms))
 	for i, term := range p.Terms {
 		folded.Terms[i] = terms[term]
@@ -483,17 +514,9 @@ func foldPred(p Pred, terms map[*Content]*Content) Pred {
 	fold := func(re *regexp.Regexp) *regexp.Regexp { return regexp.MustCompile("(?i)" + re.String()) }
 	switch p := p.(type) {
 	case *And:
-		kids := make([]Pred, len(p.Kids))
-		for i, kid := range p.Kids {
-			kids[i] = foldPred(kid, terms)
-		}
-		return &And{Kids: kids}
+		return foldAnd(p, terms)
 	case *Or:
-		kids := make([]Pred, len(p.Kids))
-		for i, kid := range p.Kids {
-			kids[i] = foldPred(kid, terms)
-		}
-		return &Or{Kids: kids}
+		return &Or{Kids: foldKids(p.Kids, terms)}
 	case *Not:
 		return &Not{Kid: foldPred(p.Kid, terms)}
 	case *Content:
@@ -511,4 +534,16 @@ func foldPred(p Pred, terms map[*Content]*Content) Pred {
 	default: // no regex: languages, authors, dates
 		return p
 	}
+}
+
+func foldAnd(p *And, terms map[*Content]*Content) *And {
+	return &And{Kids: foldKids(p.Kids, terms)}
+}
+
+func foldKids(kids []Pred, terms map[*Content]*Content) []Pred {
+	folded := make([]Pred, len(kids))
+	for i, kid := range kids {
+		folded[i] = foldPred(kid, terms)
+	}
+	return folded
 }

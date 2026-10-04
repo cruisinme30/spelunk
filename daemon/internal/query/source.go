@@ -46,6 +46,3 @@ func (s *source) runeIndex(offset int) int {
 	}
 	return len(s.runes)
 }
-
-// utf16Len is the length of text in UTF-16 units.
-func utf16Len(text string) int { return newSource(text).length() }
