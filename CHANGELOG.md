@@ -16,6 +16,11 @@ All notable changes to this project are documented here. The format follows
   `type:`, `count:` with Load more, AND / OR / NOT, and "N hidden by …" notes with an undo.
 - Background indexing per workspace root, saved between sessions, with `index/status`, `index/rebuild` and progress.
 - Previews highlight every term of the query that produced the result.
+- Operator suggestions with descriptions and example values; results stay on the finished words while a word is
+  being completed, and Enter or Esc searches it as typed.
+- A repo menu that scopes the query to one repo, a "Show code too" undo for `type:file`, and "Ignore case" for
+  `case:yes`.
+- The help page: every operator with an example to try, worked examples, keys and settings.
 
 ### Fixed
 

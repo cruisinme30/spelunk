@@ -51,15 +51,18 @@ Nothing else defines a cross-boundary type.
 - `src/jsonRpc.ts` is the client side of Contract 3.
 - `src/controller.ts` is the host side of Contract 2: it turns panel messages into daemon calls. It has no `vscode`
   import, so it is tested against the real daemon in plain Node.
-- `src/panel.ts` hosts the webview. `src/commitDocuments.ts` shows commits as read-only diffs.
+- `src/panel.ts` hosts the search panel webview and `src/helpPanel.ts` the help page; both use the page shell in
+  `src/webviewPage.ts`. `src/commitDocuments.ts` shows commits as read-only diffs.
 
-### `webview/` (TypeScript, the search panel)
+### `webview/` (TypeScript, the search panel and the help page)
 
 - `src/panel.ts` (`SearchPanel`) handles input, keyboard and host messages, and calls the renderers.
 - `src/state.ts` holds `ViewState`; `src/host.ts` is the only code that talks to VS Code.
-- `src/render/` contains functions that take state and callbacks and write DOM: the chrome, the empty state,
-  results and the preview.
-- `src/queryEdit.ts` holds the pure text edits behind fix-its and the Aa / .* toggles.
+- `src/render/` contains functions that take state and callbacks and write DOM: the chrome, the suggestion list,
+  the repo menu, the empty state, results and the preview.
+- `src/queryEdit.ts` holds the pure text edits behind fix-its, the Aa / .* toggles and the repo menu.
+- `src/helpPage.ts` is the help page's entry point; its words, including every example, are data in
+  `src/helpContent.ts`, so a test can run each example against the real daemon.
 
 ### `testdata/`, `scripts/`
 
