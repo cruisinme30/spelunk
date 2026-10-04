@@ -62,6 +62,17 @@ func TestPreviewOfAFileNameShowsTheTop(t *testing.T) {
 	}
 }
 
+func TestPreviewOfAFileNameOnlyResultMarksNothingInTheText(t *testing.T) {
+	repo := previewRepo(t)
+	got, err := Preview(repo, Ref{RepoID: "r", Path: "retry.go"}, mustPlan(t, "type:file retry", defaultSettings, ""), 3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Hits) != 0 {
+		t.Errorf("hits = %+v, want none: type:file matched the name", got.Hits)
+	}
+}
+
 func TestPreviewAndResolveReportStaleRefs(t *testing.T) {
 	// @covers failure:ref-stale
 	repo := previewRepo(t)
