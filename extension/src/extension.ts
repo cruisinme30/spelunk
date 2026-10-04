@@ -1,29 +1,112 @@
 // VS Code glue: activation, commands, settings, the status bar, file events,
-// and opening results in editors. The logic it wires lives in daemon.ts,
-// controller.ts and panel.ts.
+// and opening results in editors. The logic it wires together lives in
+// daemon.ts (the daemon process), controller.ts (the search panel's host
+// side) and panel.ts (the panel's editor tab).
 import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import * as vscode from "vscode";
 import { CommitDocuments } from "./commitDocuments";
-import { SearchController, type PersistedState, type Ui } from "./controller";
+import { type ControllerOptions, type PersistedState, SearchController, type Ui } from "./controller";
 import { Daemon, type DaemonState } from "./daemon";
 import { HelpPanel } from "./helpPanel";
 import { SearchPanel } from "./panel";
-import type { FileChange, IndexState, OpenTarget, OpenWhere, ResultItem } from "./protocol.gen";
+import type {
+  FileChange,
+  IndexState,
+  IndexStatusResult,
+  OpenTarget,
+  OpenWhere,
+  ResultItem,
+  Root,
+} from "./protocol.gen";
 import { makeRoot } from "./roots";
 import { DEFAULTS, daemonSettings, uiSettings } from "./settings";
 
+/** The globalState key that keeps the query and recent queries across sessions. */
 const STATE_KEY = "unifiedSearch.state";
 const READY_STATUS = "$(search) Unified Search";
+/** Where the status bar item sits among the other right-aligned items; higher is further left. */
+const STATUS_BAR_PRIORITY = 100;
 /** File events are forwarded to the daemon in batches this far apart. */
 const FILE_EVENT_BATCH_MS = 50;
 
 /** The running daemon, kept for deactivate(). */
 let activeDaemon: Daemon | undefined;
 
+/** What activate() returns: the extension's exports, which end-to-end tests can reach. */
+export interface ExtensionApi {
+  daemon: Daemon;
+  controller: SearchController;
+}
+
+/** Starts the daemon and registers the panel, commands and listeners. */
+export function activate(context: vscode.ExtensionContext): ExtensionApi {
+  const log = vscode.window.createOutputChannel("Unified Search");
+  const logError = (source: string) => (error: unknown) => {
+    log.appendLine(`[${source}] ${String(error)}`);
+  };
+  const daemon = new Daemon({
+    binary: daemonBinary(context.extensionPath),
+    roots: workspaceRoots,
+    settings: () => daemonSettings(configuration(), homedir()),
+    log: (line) => {
+      log.appendLine(line);
+    },
+  });
+  activeDaemon = daemon;
+  const commitDocuments = new CommitDocuments(daemon);
+  // The panel forwards messages only after show(), by which time `controller` below exists.
+  const panel = new SearchPanel(
+    context.extensionUri,
+    (message) => void controller.handle(message).catch(logError("panel")),
+    (open) => {
+      setContext("unifiedSearch.panelOpen", open);
+    },
+  );
+  const ui = createUi({ panel, daemon, commitDocuments, globalState: context.globalState, logError });
+  const controller = new SearchController(
+    daemon,
+    ui,
+    controllerOptions(),
+    context.globalState.get<PersistedState>(STATE_KEY),
+  );
+  // The help page's Try runs its example in the search panel; its settings button opens Settings.
+  const help = new HelpPanel(context.extensionUri, (message) => {
+    if (message.type === "help.try") void vscode.commands.executeCommand("unifiedSearch.open", message.payload);
+    else if (message.type === "settings.open") ui.openSettings();
+  });
+  forwardDaemonEventsToPanel(daemon, panel);
+
+  context.subscriptions.push(
+    log,
+    panel,
+    help,
+    vscode.workspace.registerTextDocumentContentProvider(CommitDocuments.scheme, commitDocuments),
+    createStatusBar(daemon),
+    ...registerCommands(daemon, controller, panel, help),
+    forwardFileChanges(daemon),
+    vscode.workspace.onDidChangeWorkspaceFolders(() => {
+      daemon.setRoots(workspaceRoots());
+    }),
+    vscode.workspace.onDidChangeConfiguration((event) => {
+      if (!event.affectsConfiguration("unifiedSearch")) return;
+      daemon.updateSettings(daemonSettings(configuration(), homedir()));
+      if (panel.isOpen) controller.restore(); // sends the new settings to the panel
+    }),
+  );
+
+  daemon.start().catch(logError("daemon start"));
+  return { daemon, controller };
+}
+
+/** Stops the daemon gracefully when VS Code shuts the extension down. */
+export async function deactivate(): Promise<void> {
+  await activeDaemon?.stop();
+}
+
 /** Where the daemon binary is: bundled per platform, or the development build. */
-export function daemonBinary(extensionPath: string): string {
+function daemonBinary(extensionPath: string): string {
   const executable = process.platform === "win32" ? "unified-search-daemon.exe" : "unified-search-daemon";
   const developmentCheckout = join(extensionPath, "..", "daemon", "bin", executable);
   const candidates = [
@@ -35,83 +118,58 @@ export function daemonBinary(extensionPath: string): string {
   return candidates.find((path) => existsSync(path)) ?? developmentCheckout;
 }
 
-export async function activate(context: vscode.ExtensionContext): Promise<unknown> {
-  const log = vscode.window.createOutputChannel("Unified Search");
-  const config = () => vscode.workspace.getConfiguration("unifiedSearch");
-  const roots = () =>
-    (vscode.workspace.workspaceFolders ?? [])
-      .filter((folder) => folder.uri.scheme === "file")
-      .map((folder) => makeRoot(folder.uri.fsPath, folder.name));
+function configuration(): vscode.WorkspaceConfiguration {
+  return vscode.workspace.getConfiguration("unifiedSearch");
+}
 
-  const daemon = new Daemon({
-    binary: daemonBinary(context.extensionPath),
-    roots,
-    settings: () => daemonSettings(config(), homedir()),
-    log: (line) => log.appendLine(line),
-  });
-  activeDaemon = daemon;
+/** The workspace folders on disk, as protocol roots. */
+function workspaceRoots(): Root[] {
+  return (vscode.workspace.workspaceFolders ?? [])
+    .filter((folder) => folder.uri.scheme === "file")
+    .map((folder) => makeRoot(folder.uri.fsPath, folder.name));
+}
 
-  const commitDocuments = new CommitDocuments(daemon);
-  // The panel calls back only after show(), by which time the controller exists.
-  let controller: SearchController | undefined;
-  const panel = new SearchPanel(
-    context.extensionUri,
-    (message) => void controller?.handle(message).catch((error) => log.appendLine(`[panel] ${String(error)}`)),
-    (open) => void vscode.commands.executeCommand("setContext", "unifiedSearch.panelOpen", open),
-  );
-  const ui: Ui = {
-    post: (type, payload) => panel.post(type, payload),
+function setContext(key: string, value: boolean): void {
+  void vscode.commands.executeCommand("setContext", key, value);
+}
+
+function controllerOptions(): ControllerOptions {
+  return {
+    recentLimit: () => configuration().get("ui.recentQueries", DEFAULTS.recentQueries),
+    closeOnOpen: () => configuration().get("open.closeOnOpen", DEFAULTS.closeOnOpen),
+    uiSettings: () => uiSettings(configuration()),
+  };
+}
+
+/** What the controller's Ui is built from. */
+interface UiParts {
+  panel: SearchPanel;
+  daemon: Daemon;
+  commitDocuments: CommitDocuments;
+  globalState: vscode.Memento;
+  logError(source: string): (error: unknown) => void;
+}
+
+/** The controller's view of VS Code. */
+function createUi({ panel, daemon, commitDocuments, globalState, logError }: UiParts): Ui {
+  return {
+    post: (type, payload) => {
+      panel.post(type, payload);
+    },
     openTarget: (target, where, item) => openTarget(target, where, item, commitDocuments),
-    hidePanel: () => panel.close(),
+    hidePanel: () => {
+      panel.close();
+    },
     openHelp: () => void vscode.commands.executeCommand("unifiedSearch.openHelp"),
     openSettings: () =>
       void vscode.commands.executeCommand("workbench.action.openSettings", "@ext:unified-search.unified-search"),
-    restartDaemon: () =>
-      void daemon.restart().catch((error) => log.appendLine(`[daemon] restart failed: ${String(error)}`)),
-    setContext: (key, value) => void vscode.commands.executeCommand("setContext", key, value),
-    saveState: (state: PersistedState) => void context.globalState.update(STATE_KEY, state),
+    restartDaemon: () => void daemon.restart().catch(logError("daemon restart")),
+    setContext,
+    saveState: (state) => void globalState.update(STATE_KEY, state),
   };
-  const searchController = new SearchController(
-    daemon,
-    ui,
-    {
-      recentLimit: () => config().get("ui.recentQueries", DEFAULTS.recentQueries),
-      closeOnOpen: () => config().get("open.closeOnOpen", DEFAULTS.closeOnOpen),
-      uiSettings: () => uiSettings(config()),
-    },
-    context.globalState.get<PersistedState>(STATE_KEY),
-  );
-  controller = searchController;
-  // The help page's Try runs its example in the search panel; its settings link opens Settings.
-  const help = new HelpPanel(context.extensionUri, (message) => {
-    if (message?.type === "help.try") void vscode.commands.executeCommand("unifiedSearch.open", message.payload);
-    else if (message?.type === "settings.open") ui.openSettings();
-  });
-
-  context.subscriptions.push(
-    log,
-    panel,
-    help,
-    vscode.workspace.registerTextDocumentContentProvider(CommitDocuments.scheme, commitDocuments),
-    createStatusBar(daemon, panel),
-    ...registerCommands(daemon, searchController, panel, help, roots),
-    forwardFileChanges(daemon),
-    vscode.workspace.onDidChangeWorkspaceFolders(() => daemon.setRoots(roots())),
-    vscode.workspace.onDidChangeConfiguration((event) => {
-      if (!event.affectsConfiguration("unifiedSearch")) return;
-      daemon.updateSettings(daemonSettings(config(), homedir()));
-      if (panel.isOpen) searchController.restore();
-    }),
-  );
-
-  daemon.start().catch((error) => log.appendLine(`[daemon] start failed: ${String(error)}`));
-  return { daemon, controller: searchController };
 }
 
-export async function deactivate(): Promise<void> {
-  await activeDaemon?.stop();
-}
-
+/** The status bar text for each daemon state. */
 function statusText(state: DaemonState): string {
   switch (state) {
     case "ok":
@@ -126,76 +184,124 @@ function statusText(state: DaemonState): string {
   }
 }
 
-/** The status bar item, plus daemon health banners and indexing progress in the panel. */
-function createStatusBar(daemon: Daemon, panel: SearchPanel): vscode.Disposable {
-  const status = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
+function isIndexing(state: IndexState): boolean {
+  return state === "queued" || state === "indexing";
+}
+
+/** "Indexing 2 of 3" while any repo is indexing, otherwise the ready text. */
+function indexingStatusText(progress: IndexStatusResult): string {
+  const busy = progress.repos.filter((repo) => isIndexing(repo.tree) || isIndexing(repo.history));
+  return busy.length > 0 ? `$(sync~spin) Indexing ${busy.length} of ${progress.repos.length}` : READY_STATUS;
+}
+
+/**
+ * The status bar item: daemon health, or indexing progress while the daemon
+ * is healthy. A protocol mismatch also pops up, since only reinstalling fixes it.
+ */
+function createStatusBar(daemon: Daemon): vscode.Disposable {
+  const status = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, STATUS_BAR_PRIORITY);
   status.command = "unifiedSearch.open";
   daemon.on("state", (state, message) => {
-    // "starting" has no banner; every other state maps to the banner of the same name.
-    if (state !== "starting") panel.post("banner", message === undefined ? { state } : { state, message });
     status.text = statusText(state);
     status.tooltip = message;
     status.show();
     if (state === "protocolMismatch" && message) void vscode.window.showErrorMessage(message);
   });
   daemon.on("progress", (progress) => {
-    panel.post("index.status", progress);
-    if (daemon.state !== "ok") return; // health messages take priority over progress
-    const isBusy = (state: IndexState) => state === "queued" || state === "indexing";
-    const busy = progress.repos.filter((repo) => isBusy(repo.tree) || isBusy(repo.history));
-    status.text = busy.length ? `$(sync~spin) Indexing ${busy.length} of ${progress.repos.length}` : READY_STATUS;
+    // Health problems take priority over indexing progress.
+    if (daemon.state === "ok") status.text = indexingStatusText(progress);
   });
   return status;
 }
 
+/** Shows daemon health in the panel as banners, and relays indexing progress. */
+function forwardDaemonEventsToPanel(daemon: Daemon, panel: SearchPanel): void {
+  daemon.on("state", (state, message) => {
+    // "starting" has no banner; every other state maps to the banner of the same name.
+    if (state !== "starting") panel.post("banner", message === undefined ? { state } : { state, message });
+  });
+  daemon.on("progress", (progress) => {
+    panel.post("index.status", progress);
+  });
+}
+
+/** One handler per command declared in package.json. */
 function registerCommands(
   daemon: Daemon,
   controller: SearchController,
   panel: SearchPanel,
   help: HelpPanel,
-  roots: () => ReturnType<typeof makeRoot>[],
 ): vscode.Disposable[] {
-  const commands: Record<string, (...args: any[]) => unknown> = {
-    "unifiedSearch.open": (argument?: { query?: string }) => {
+  const commands: Record<string, (argument?: unknown) => unknown> = {
+    "unifiedSearch.open": (argument) => {
       panel.show();
-      controller.restore(typeof argument?.query === "string" ? argument.query : undefined);
+      controller.restore(queryArgument(argument));
     },
-    "unifiedSearch.openHelp": () => help.show(),
+    "unifiedSearch.openHelp": () => {
+      help.show();
+    },
     "unifiedSearch.nextResult": () => controller.step(1),
     "unifiedSearch.prevResult": () => controller.step(-1),
     "unifiedSearch.restartDaemon": () => daemon.restart(),
-    "unifiedSearch.rebuildIndex": async () => {
-      const everything = { label: "All repos", repoId: undefined as string | undefined };
-      const picks = [
-        everything,
-        ...roots().map((root) => ({ label: root.name, description: root.path, repoId: root.id as string | undefined })),
-      ];
-      const pick = await vscode.window.showQuickPick(picks, { placeHolder: "Rebuild the index for…" });
-      if (pick) await daemon.request("index/rebuild", pick.repoId ? { repoId: pick.repoId } : {});
-    },
+    "unifiedSearch.rebuildIndex": () => pickAndRebuildIndex(daemon),
   };
-  // Test-only: panel state, last results and the active editor, for end-to-end tests in VS Code.
+  // Test builds only: lets end-to-end tests read what the panel and editor show.
   if (process.env["UNIFIED_SEARCH_TEST"]) {
-    commands["unifiedSearch._testState"] = () => {
-      const editor = vscode.window.activeTextEditor;
-      return {
-        panelOpen: panel.isOpen,
-        text: controller.text,
-        results: controller.results.map((result) => result.ref),
-        daemon: daemon.state,
-        editor: editor && {
-          path: editor.document.uri.fsPath,
-          line: editor.selection.start.line + 1,
-          column: editor.selection.start.character + 1,
-          endColumn: editor.selection.end.character + 1,
-        },
-      };
-    };
+    commands["unifiedSearch._testState"] = () => testState(daemon, controller, panel);
   }
   return Object.entries(commands).map(([id, run]) => vscode.commands.registerCommand(id, run));
 }
 
-/** Freshness fast path: VS Code's watcher forwards changes ahead of the daemon's own. */
+/** What the unifiedSearch._testState command returns. */
+interface TestState {
+  panelOpen: boolean;
+  text: string;
+  /** The refs of the current search's results, in order. */
+  results: string[];
+  daemon: DaemonState;
+  /** The active editor's file and selection, 1-based; undefined without an editor. */
+  editor: { path: string; line: number; column: number; endColumn: number } | undefined;
+}
+
+function testState(daemon: Daemon, controller: SearchController, panel: SearchPanel): TestState {
+  const editor = vscode.window.activeTextEditor;
+  return {
+    panelOpen: panel.isOpen,
+    text: controller.text,
+    results: controller.results.map((result) => result.ref),
+    daemon: daemon.state,
+    editor: editor && {
+      path: editor.document.uri.fsPath,
+      line: editor.selection.start.line + 1,
+      column: editor.selection.start.character + 1,
+      endColumn: editor.selection.end.character + 1,
+    },
+  };
+}
+
+/** The query in unifiedSearch.open's optional `{ query }` argument, which the help page's Try passes. */
+function queryArgument(argument: unknown): string | undefined {
+  if (typeof argument !== "object" || argument === null || !("query" in argument)) return undefined;
+  return typeof argument.query === "string" ? argument.query : undefined;
+}
+
+interface RepoPick extends vscode.QuickPickItem {
+  /** Absent for "All repos". */
+  repoId?: string;
+}
+
+/** Asks which repo to rebuild (or all), then asks the daemon to rebuild its index. */
+async function pickAndRebuildIndex(daemon: Daemon): Promise<void> {
+  const picks: RepoPick[] = [
+    { label: "All repos" },
+    ...workspaceRoots().map((root) => ({ label: root.name, description: root.path, repoId: root.id })),
+  ];
+  const pick = await vscode.window.showQuickPick(picks, { placeHolder: "Rebuild the index for…" });
+  if (!pick) return;
+  await daemon.request("index/rebuild", pick.repoId === undefined ? {} : { repoId: pick.repoId });
+}
+
+/** Forwards VS Code's file events, so the index catches up before the daemon's own watcher would. */
 function forwardFileChanges(daemon: Daemon): vscode.Disposable {
   const watcher = vscode.workspace.createFileSystemWatcher("**/*");
   let pendingChanges: FileChange[] = [];
@@ -214,20 +320,21 @@ function forwardFileChanges(daemon: Daemon): vscode.Disposable {
     watcher.onDidChange(queueChange("changed")),
     watcher.onDidCreate(queueChange("created")),
     watcher.onDidDelete(queueChange("deleted")),
-    new vscode.Disposable(() => clearTimeout(flushTimer)),
+    new vscode.Disposable(() => {
+      clearTimeout(flushTimer);
+    }),
   );
 }
 
-/** Opens a resolved result: a file at the match, or a commit as a diff document. */
+/** Opens a resolved result: a commit as a diff document, or a file with the match selected. */
 async function openTarget(
   target: OpenTarget,
   where: OpenWhere,
   item: ResultItem | undefined,
   commitDocuments: CommitDocuments,
 ): Promise<void> {
-  const config = vscode.workspace.getConfiguration("unifiedSearch");
   const viewColumn = where === "side" ? vscode.ViewColumn.Beside : vscode.ViewColumn.Active;
-  const preview = config.get("open.preview", DEFAULTS.openPreview);
+  const preview = configuration().get("open.preview", DEFAULTS.openPreview);
   if (target.sha && item) {
     const uri = commitDocuments.uriFor(item.ref, target.sha, item.kind === "commit" ? item.subject : undefined);
     const document = await vscode.workspace.openTextDocument(uri);

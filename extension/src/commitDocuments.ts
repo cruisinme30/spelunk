@@ -5,26 +5,32 @@ import * as vscode from "vscode";
 import type { Daemon } from "./daemon";
 import type { DiffLine, Preview } from "./protocol.gen";
 
+/** Characters of the commit subject kept in the document's title. */
 const MAX_SUBJECT_IN_TITLE = 60;
+/** Unchanged lines shown around each change, as `git show` does. */
 const DIFF_CONTEXT_LINES = 3;
 const DIFF_PREFIX: Record<DiffLine["kind"], string> = { add: "+", del: "-", ctx: " " };
 
-export function shortSha(sha: string): string {
+/** The first seven characters of a commit sha, as Git shows them. */
+function shortSha(sha: string): string {
   return sha.slice(0, 7);
 }
 
+/** Provides the `unified-search-commit:` documents that show commits. */
 export class CommitDocuments implements vscode.TextDocumentContentProvider {
   static readonly scheme = "unified-search-commit";
 
+  /** Commit contents come from the daemon's preview/get. */
   constructor(private readonly daemon: Daemon) {}
 
   /** The daemon's opaque ref rides in the URI query; nothing here parses it. */
   uriFor(ref: string, sha: string, subject?: string): vscode.Uri {
-    const subjectPart = subject ? " " + subject.replace(/[\\/]/g, " ").slice(0, MAX_SUBJECT_IN_TITLE) : "";
+    const subjectPart = subject ? " " + subject.replaceAll(/[\\/]/g, " ").slice(0, MAX_SUBJECT_IN_TITLE) : "";
     const title = `${shortSha(sha)}${subjectPart}.diff`;
     return vscode.Uri.parse(`${CommitDocuments.scheme}:/${encodeURIComponent(title)}`).with({ query: ref });
   }
 
+  /** The diff text for a URI made by uriFor(). */
   async provideTextDocumentContent(uri: vscode.Uri): Promise<string> {
     const preview = await this.daemon.request("preview/get", { ref: uri.query, contextLines: DIFF_CONTEXT_LINES });
     return renderCommit(preview);
@@ -32,7 +38,7 @@ export class CommitDocuments implements vscode.TextDocumentContentProvider {
 }
 
 /** Formats a commit preview like `git show`. */
-export function renderCommit(preview: Preview): string {
+function renderCommit(preview: Preview): string {
   if (preview.kind !== "commit") return "";
   const message = `${preview.subject}\n\n${preview.body}`.trimEnd().split("\n");
   const lines = [

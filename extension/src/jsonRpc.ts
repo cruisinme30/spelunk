@@ -6,6 +6,7 @@ import type { RpcNotifications, RpcRequests } from "./protocol.gen";
 
 /** An error response from the peer. `code` is one of protocol.gen's ErrorCodes or a JSON-RPC code. */
 export class RpcError extends Error {
+  /** `data` is the error's optional extra detail, as the peer sent it. */
   constructor(
     readonly code: number,
     message: string,
@@ -71,10 +72,12 @@ export class CancelSource {
     },
   };
 
+  /** Whether cancel() has been called. */
   get cancelled(): boolean {
     return this.isCancelled;
   }
 
+  /** Cancels once: tells every listener, then ignores further calls. */
   cancel(): void {
     if (this.isCancelled) return;
     this.isCancelled = true;
@@ -137,10 +140,12 @@ export class Connection extends EventEmitter {
     return response;
   }
 
+  /** Sends a notification; dropped once the connection is closed. */
   notify<M extends keyof RpcNotifications>(method: M, params: RpcNotifications[M]): void {
     if (!this.closed) this.write({ jsonrpc: "2.0", method, params });
   }
 
+  /** Calls `listener` with the params of every `method` notification from the peer. */
   onNotification<M extends keyof RpcNotifications>(method: M, listener: (params: RpcNotifications[M]) => void): void {
     this.on(`notify:${method}`, listener);
   }

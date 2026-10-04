@@ -1,14 +1,17 @@
-// Host side of the search panel: turns panel messages into daemon calls and streams
-// results back. No vscode import; extension.ts supplies the Ui, and tests
-// drive it against the real daemon.
+// Host side of the search panel: turns panel messages into daemon calls and
+// streams results back. It has no vscode import: extension.ts supplies the
+// Ui, and tests drive the controller against the real daemon in plain Node.
 import { CancelSource, RpcError } from "./jsonRpc";
 import {
   type Completion,
+  type Envelope,
   ErrorCodes,
   type HostToWebview,
   type IndexStatusResult,
   type OpenTarget,
   type OpenWhere,
+  type ParsedQuery,
+  type QueryChangedMsg,
   type ResultItem,
   type RpcRequests,
   type SearchBatchParams,
@@ -18,6 +21,9 @@ import {
 
 /** Lines of context above and below the match in a file preview. */
 const DEFAULT_PREVIEW_CONTEXT_LINES = 7;
+
+/** The `v` of every message between the extension host and a webview. */
+export const MESSAGE_VERSION: Envelope["v"] = 1;
 
 /**
  * The box without the word the suggestions would replace, when the cursor
@@ -31,6 +37,11 @@ export function textWithoutCompletedWord(text: string, cursor: number, completio
   const after = text.slice(span.end).trimStart();
   const rest = before && after ? `${before} ${after}` : before || after;
   return rest || undefined;
+}
+
+/** Whether a parsed query has errors; such a query is not searched. */
+function hasErrors(query: ParsedQuery): boolean {
+  return query.diagnostics.some((diagnostic) => diagnostic.severity === "error");
 }
 
 /** What the controller needs from the daemon: requests plus streamed batches. */
@@ -62,6 +73,7 @@ export interface PersistedState {
   recent: string[];
 }
 
+/** Settings the controller reads each time it needs them, so changes apply at once. */
 export interface ControllerOptions {
   recentLimit(): number;
   closeOnOpen(): boolean;
@@ -71,11 +83,21 @@ export interface ControllerOptions {
 
 /** A message from the search panel webview, discriminated by `type`. */
 export type WebviewMessage = {
-  [K in keyof WebviewToHost]: { v: 1; type: K; payload: WebviewToHost[K] };
+  [K in keyof WebviewToHost]: { v: typeof MESSAGE_VERSION; type: K; payload: WebviewToHost[K] };
 }[keyof WebviewToHost];
 
+/** A query/parse answer, plus the text to search while a word is being completed. */
+interface ParsedForSearch {
+  query: ParsedQuery;
+  completions: Completion[];
+  /** Set when the search leaves out the word being completed. */
+  searchText: string | undefined;
+}
+
+/** The search whose results the panel shows. Load more fetches further pages of it. */
 interface RunningSearch {
   id: string;
+  /** The query.changed seq it answers; the webview drops results for older ones. */
   seq: number;
   text: string;
   cancel: CancelSource;
@@ -86,14 +108,17 @@ export class SearchController {
   /** Openable results of the current search, for F4 / Shift+F4. */
   results: ResultItem[] = [];
   private state: PersistedState;
+  /** The newest query.changed seq; answers to older ones are dropped. */
   private latestSeq = 0;
   private search: RunningSearch | undefined;
-  private searchCount = 0;
+  /** Searches started so far; numbers the search ids ("s1", "s2", …). */
+  private searchesStarted = 0;
   /** Position in `results` for F4 stepping; -1 before the first step. */
   private stepIndex = -1;
   /** Repos whose working-tree index is ready, from the last index/progress. */
   private readyRepos = new Set<string>();
 
+  /** Listens for the backend's batches and indexing progress; `initial` is the state saved last session. */
   constructor(
     private readonly backend: Backend,
     private readonly ui: Ui,
@@ -101,10 +126,15 @@ export class SearchController {
     initial?: PersistedState,
   ) {
     this.state = initial ?? { text: "", recent: [] };
-    backend.on("batch", (batch) => this.onBatch(batch));
-    backend.on("progress", (progress) => this.onIndexProgress(progress));
+    backend.on("batch", (batch) => {
+      this.onBatch(batch);
+    });
+    backend.on("progress", (progress) => {
+      this.onIndexProgress(progress);
+    });
   }
 
+  /** The query box text, as last reported by the panel. */
   get text(): string {
     return this.state.text;
   }
@@ -119,6 +149,7 @@ export class SearchController {
     });
   }
 
+  /** Handles one message from the search panel. */
   async handle(message: WebviewMessage): Promise<void> {
     switch (message.type) {
       case "ready":
@@ -127,13 +158,17 @@ export class SearchController {
         this.restore();
         return;
       case "query.changed":
-        return this.onQueryChanged(message.payload, message.payload.asTyped === true);
+        await this.onQueryChanged(message.payload);
+        return;
       case "result.select":
-        return this.onSelect(message.payload.ref);
+        await this.onSelect(message.payload.ref);
+        return;
       case "result.open":
-        return this.onOpen(message.payload.ref, message.payload.where);
+        await this.onOpen(message.payload.ref, message.payload.where);
+        return;
       case "results.more":
-        return this.onLoadMore(message.payload.searchId, message.payload.cursor);
+        await this.onLoadMore(message.payload.searchId, message.payload.cursor);
+        return;
       case "panel.close":
         this.rememberQuery();
         this.ui.hidePanel();
@@ -154,7 +189,7 @@ export class SearchController {
 
   /** F4 / Shift+F4: opens the next or previous result without the panel. */
   async step(direction: 1 | -1): Promise<void> {
-    if (!this.results.length) return;
+    if (this.results.length === 0) return;
     this.stepIndex = (this.stepIndex + direction + this.results.length) % this.results.length;
     const result = this.results[this.stepIndex];
     if (result) await this.openRef(result.ref, "current");
@@ -169,45 +204,52 @@ export class SearchController {
     this.ui.saveState(this.state);
   }
 
-  private async onQueryChanged(box: { text: string; cursor: number; seq: number }, asTyped: boolean): Promise<void> {
-    const { text, cursor, seq } = box;
-    if (seq < this.latestSeq) return;
-    this.latestSeq = seq;
-    this.state.text = text;
+  /** Parses the box, posts the parse, then searches it unless it has errors or is empty. */
+  private async onQueryChanged(change: QueryChangedMsg): Promise<void> {
+    if (change.seq < this.latestSeq) return;
+    this.latestSeq = change.seq;
+    this.state.text = change.text;
     this.ui.saveState(this.state);
-    let parsed: RpcRequests["query/parse"][1];
-    let searchText: string | undefined;
-    try {
-      parsed = await this.backend.request("query/parse", { text, cursor });
-      if (!asTyped) searchText = await this.searchableWithoutWordBeingCompleted(text, cursor, parsed.completions);
-    } catch (error) {
-      this.postSearchFailed(seq, "", error);
-      return;
-    }
-    if (seq !== this.latestSeq) return; // a newer keystroke arrived while parsing
+    const parsed = await this.parseForSearch(change);
+    if (!parsed || change.seq !== this.latestSeq) return; // failed, or a newer keystroke arrived while parsing
+    const { query, completions, searchText } = parsed;
     this.ui.post("parse.result", {
-      seq,
-      query: parsed.query,
-      completions: parsed.completions,
+      seq: change.seq,
+      query,
+      completions,
       ...(searchText === undefined ? {} : { searchText }),
     });
-    // With errors, keep showing the last good results.
-    if (parsed.query.diagnostics.some((diagnostic) => diagnostic.severity === "error")) return;
+    // With errors, the panel keeps showing the last good results.
+    if (hasErrors(query)) return;
     this.search?.cancel.cancel();
-    if (parsed.query.root === null) {
+    if (query.root === null) {
       this.search = undefined;
       this.setResults([]);
       return;
     }
-    await this.runSearch(searchText ?? text, seq);
+    await this.startSearch(searchText ?? change.text, change.seq);
+  }
+
+  /** Parses the box; on failure posts the error as the search's outcome and returns undefined. */
+  private async parseForSearch(change: QueryChangedMsg): Promise<ParsedForSearch | undefined> {
+    const { text, cursor, seq } = change;
+    try {
+      const { query, completions } = await this.backend.request("query/parse", { text, cursor });
+      // Esc or Enter on the suggestions asks to search the box exactly as typed.
+      const searchText =
+        change.asTyped === true ? undefined : await this.searchableWithoutWordBeingCompleted(text, cursor, completions);
+      return { query, completions, searchText };
+    } catch (error) {
+      this.postSearchFailed(seq, "", error);
+      return undefined;
+    }
   }
 
   /**
    * While suggestions are offered for the word at the cursor, the search
    * leaves that half-typed word out, so the results stay on what is already
-   * complete ("Results for timeout keep updating"). Returns
-   * undefined to search the whole box: nothing is being completed, or the
-   * rest would not be a query on its own.
+   * complete. Returns undefined to search the whole box: nothing is being
+   * completed, or the rest would not be a query on its own.
    */
   private async searchableWithoutWordBeingCompleted(
     text: string,
@@ -216,25 +258,42 @@ export class SearchController {
   ): Promise<string | undefined> {
     const rest = textWithoutCompletedWord(text, cursor, completions);
     if (rest === undefined) return undefined;
-    const parsed = await this.backend.request("query/parse", { text: rest, cursor: rest.length });
-    const usable = parsed.query.root !== null && !parsed.query.diagnostics.some((d) => d.severity === "error");
-    return usable ? rest : undefined;
+    const { query } = await this.backend.request("query/parse", { text: rest, cursor: rest.length });
+    return query.root !== null && !hasErrors(query) ? rest : undefined;
   }
 
-  /** Starts a search, or fetches the page after `pageCursor` of the current one. */
-  private async runSearch(text: string, seq: number, pageCursor?: string, searchId?: string): Promise<void> {
-    const id = searchId ?? `s${++this.searchCount}`;
-    const cancel = new CancelSource();
-    this.search = { id, seq, text, cancel };
-    if (!pageCursor) this.setResults([]);
+  /** Starts a new search for `text`, replacing the results of the previous one. */
+  private async startSearch(text: string, seq: number): Promise<void> {
+    this.searchesStarted++;
+    const search: RunningSearch = { id: `s${this.searchesStarted}`, seq, text, cancel: new CancelSource() };
+    this.search = search;
+    this.setResults([]);
+    await this.requestPage(search);
+  }
+
+  /** Load more: fetches the page after `pageCursor` of the search on screen, keeping its results. */
+  private async onLoadMore(searchId: string, pageCursor: string): Promise<void> {
+    const current = this.search;
+    if (current?.id !== searchId) return;
+    const search: RunningSearch = { ...current, cancel: new CancelSource() };
+    this.search = search;
+    await this.requestPage(search, pageCursor);
+  }
+
+  /**
+   * Asks the daemon for one page of `search` (its items arrive as batches)
+   * and posts search.done, unless a newer search has replaced it meanwhile.
+   */
+  private async requestPage(search: RunningSearch, pageCursor?: string): Promise<void> {
+    const { id: searchId, text, seq, cancel } = search;
+    const params = pageCursor === undefined ? { searchId, text } : { searchId, text, cursor: pageCursor };
     try {
-      const params = pageCursor ? { searchId: id, text, cursor: pageCursor } : { searchId: id, text };
       const result = await this.backend.request("search/start", params, cancel);
-      if (this.search?.id !== id || cancel.cancelled) return;
-      this.ui.post("search.done", { seq, searchId: id, ...result });
+      if (this.search !== search || cancel.cancelled) return;
+      this.ui.post("search.done", { seq, searchId, ...result });
     } catch (error) {
       if (error instanceof RpcError && error.code === ErrorCodes.RequestCancelled) return;
-      if (this.search?.id === id) this.postSearchFailed(seq, id, error);
+      if (this.search === search) this.postSearchFailed(seq, searchId, error);
     }
   }
 
@@ -249,7 +308,7 @@ export class SearchController {
     const search = this.search;
     if (!newlyReady || !search || search.cancel.cancelled) return;
     search.cancel.cancel();
-    void this.runSearch(search.text, search.seq);
+    void this.startSearch(search.text, search.seq);
   }
 
   private postSearchFailed(seq: number, searchId: string, error: unknown): void {
@@ -257,6 +316,7 @@ export class SearchController {
     this.ui.post("search.done", { seq, searchId, total: 0, truncated: false, hidden: [], ms: 0, error: message });
   }
 
+  /** Relays a batch of the current search to the panel and remembers its items for F4. */
   private onBatch(batch: SearchBatchParams): void {
     const search = this.search;
     if (!search || batch.searchId !== search.id || search.cancel.cancelled) return;
@@ -271,12 +331,7 @@ export class SearchController {
     this.ui.setContext("unifiedSearch.hasResults", items.length > 0);
   }
 
-  private async onLoadMore(searchId: string, pageCursor: string): Promise<void> {
-    const search = this.search;
-    if (!search || search.id !== searchId) return;
-    await this.runSearch(search.text, search.seq, pageCursor, searchId);
-  }
-
+  /** Fetches a result's preview; a stale ref gets an empty preview marked stale. */
   private async onSelect(ref: string): Promise<void> {
     try {
       const contextLines = this.options.previewContextLines ?? DEFAULT_PREVIEW_CONTEXT_LINES;
@@ -288,9 +343,10 @@ export class SearchController {
     }
   }
 
+  /** Opens a result from the panel, remembers the query and, if set to, hides the panel. */
   private async onOpen(ref: string, where: OpenWhere): Promise<void> {
     const index = this.results.findIndex((result) => result.ref === ref);
-    if (index >= 0) this.stepIndex = index;
+    if (index !== -1) this.stepIndex = index;
     if (!(await this.openRef(ref, where))) return;
     this.rememberQuery();
     if (this.options.closeOnOpen()) this.ui.hidePanel();

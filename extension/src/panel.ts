@@ -1,7 +1,7 @@
 // The search panel: a webview panel that hosts webview/ under
 // a strict content security policy.
 import * as vscode from "vscode";
-import type { WebviewMessage } from "./controller";
+import { MESSAGE_VERSION, type WebviewMessage } from "./controller";
 import type { HostToWebview } from "./protocol.gen";
 import { webviewPage } from "./webviewPage";
 
@@ -10,6 +10,7 @@ interface QueuedMessage {
   payload: unknown;
 }
 
+/** The search panel's editor tab. Messages to it wait until its webview says "ready". */
 export class SearchPanel implements vscode.Disposable {
   private panel: vscode.WebviewPanel | undefined;
   private panelDisposables: vscode.Disposable[] = [];
@@ -17,12 +18,14 @@ export class SearchPanel implements vscode.Disposable {
   private pendingMessages: QueuedMessage[] = [];
   private ready = false;
 
+  /** `onOpenChanged` hears when the panel opens or closes, for the panelOpen context key. */
   constructor(
     private readonly extensionUri: vscode.Uri,
     private readonly onMessage: (message: WebviewMessage) => void,
     private readonly onOpenChanged: (open: boolean) => void,
   ) {}
 
+  /** Whether the panel is open (visible or in a background tab). */
   get isOpen(): boolean {
     return this.panel !== undefined;
   }
@@ -44,11 +47,19 @@ export class SearchPanel implements vscode.Disposable {
     this.ready = false;
     panel.webview.html = webviewPage(panel.webview, webviewRoot, "main.js", "Unified Search");
     panel.webview.onDidReceiveMessage(
-      (message: WebviewMessage) => this.receive(message),
+      (message: WebviewMessage) => {
+        this.receive(message);
+      },
       undefined,
       this.panelDisposables,
     );
-    panel.onDidDispose(() => this.onPanelDisposed(), undefined, this.panelDisposables);
+    panel.onDidDispose(
+      () => {
+        this.onPanelDisposed();
+      },
+      undefined,
+      this.panelDisposables,
+    );
     this.onOpenChanged(true);
   }
 
@@ -57,25 +68,31 @@ export class SearchPanel implements vscode.Disposable {
     this.panel?.dispose();
   }
 
+  /** Sends a message to the webview, or queues it until the webview is ready. Dropped while closed. */
   post<T extends keyof HostToWebview>(type: T, payload: HostToWebview[T]): void {
     if (!this.panel) return;
     if (this.ready) {
-      void this.panel.webview.postMessage({ v: 1, type, payload });
+      void this.panel.webview.postMessage({ v: MESSAGE_VERSION, type, payload });
       return;
     }
     // Only the newest state.restore matters; everything else waits in order.
-    if (type === "state.restore") this.pendingMessages = this.pendingMessages.filter((m) => m.type !== "state.restore");
+    if (type === "state.restore") {
+      this.pendingMessages = this.pendingMessages.filter((queued) => queued.type !== "state.restore");
+    }
     this.pendingMessages.push({ type, payload });
   }
 
+  /** Closes the panel when the extension deactivates. */
   dispose(): void {
     this.panel?.dispose();
   }
 
   private receive(message: WebviewMessage): void {
-    if (message?.type === "ready" && this.panel) {
+    if (message.type === "ready" && this.panel) {
       this.ready = true;
-      for (const queued of this.pendingMessages.splice(0)) void this.panel.webview.postMessage({ v: 1, ...queued });
+      for (const queued of this.pendingMessages.splice(0)) {
+        void this.panel.webview.postMessage({ v: MESSAGE_VERSION, ...queued });
+      }
     }
     this.onMessage(message);
   }

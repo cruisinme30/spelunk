@@ -45,10 +45,10 @@ if (existsSync(join(webview, "src/main.ts"))) {
 
 if (tests) {
   rmSync(join(here, "dist-test"), { recursive: true, force: true });
-  const testDir = join(here, "src", "test");
-  const entries = readdirSync(testDir)
-    .filter((f) => f.endsWith(".test.ts"))
-    .map((f) => join(testDir, f));
+  const testDirectory = join(here, "src", "test");
+  const entries = readdirSync(testDirectory)
+    .filter((file) => file.endsWith(".test.ts"))
+    .map((file) => join(testDirectory, file));
   await build({
     entryPoints: entries,
     bundle: true,

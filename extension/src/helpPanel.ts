@@ -4,9 +4,11 @@ import * as vscode from "vscode";
 import type { WebviewMessage } from "./controller";
 import { webviewPage } from "./webviewPage";
 
+/** The help page's editor tab; at most one is open. */
 export class HelpPanel implements vscode.Disposable {
   private panel: vscode.WebviewPanel | undefined;
 
+  /** `onMessage` hears the page's Try and settings buttons. */
   constructor(
     private readonly extensionUri: vscode.Uri,
     private readonly onMessage: (message: WebviewMessage) => void,
@@ -30,10 +32,15 @@ export class HelpPanel implements vscode.Disposable {
     );
     this.panel = panel;
     panel.webview.html = webviewPage(panel.webview, webviewRoot, "help.js", "Unified Search · Help");
-    panel.webview.onDidReceiveMessage((message: WebviewMessage) => this.onMessage(message));
-    panel.onDidDispose(() => (this.panel = undefined));
+    panel.webview.onDidReceiveMessage((message: WebviewMessage) => {
+      this.onMessage(message);
+    });
+    panel.onDidDispose(() => {
+      this.panel = undefined;
+    });
   }
 
+  /** Closes the guide when the extension deactivates. */
   dispose(): void {
     this.panel?.dispose();
   }

@@ -24,11 +24,19 @@ export const DEFAULTS = {
   recentQueries: 20,
 } as const;
 
-const MAX_DEFAULT_COUNT = 50_000; // the hard cap on results, as in the daemon
+/** The hard cap on results per page; the daemon enforces the same limit. */
+const MAX_DEFAULT_COUNT = 50_000;
 const MAX_TYPING_DELAY_MS = 1000;
+const HISTORY_DEPTHS: readonly Settings["historyDepth"][] = ["6m", "2y", "all"];
+const OPEN_TRIGGERS: readonly UiSettings["openTrigger"][] = ["doubleClick", "singleClick"];
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, Math.round(value)));
+}
+
+/** `value` if it is one of `allowed`, otherwise `fallback`: settings.json can hold anything. */
+function oneOf<T extends string>(value: string, allowed: readonly T[], fallback: T): T {
+  return allowed.find((candidate) => candidate === value) ?? fallback;
 }
 
 /** Expands a leading `~` or `~/`, but not `~user/`, which names another user's home. */
@@ -40,11 +48,14 @@ function expandHome(path: string, home: string): string {
 
 /** The settings the daemon needs, validated and clamped. */
 export function daemonSettings(config: ConfigReader, home: string): Settings {
-  const depth = config.get<string>("index.historyDepth", DEFAULTS.historyDepth);
   return {
     caseSensitive: config.get("caseSensitive", DEFAULTS.caseSensitive),
     defaultCount: clamp(config.get("defaultCount", DEFAULTS.defaultCount), 1, MAX_DEFAULT_COUNT),
-    historyDepth: depth === "6m" || depth === "all" ? depth : "2y",
+    historyDepth: oneOf(
+      config.get<string>("index.historyDepth", DEFAULTS.historyDepth),
+      HISTORY_DEPTHS,
+      DEFAULTS.historyDepth,
+    ),
     symbols: config.get("index.symbols", DEFAULTS.symbols),
     exclude: config.get<string[]>("index.exclude", [...DEFAULTS.exclude]),
     includeIgnored: config.get("index.includeIgnored", DEFAULTS.includeIgnored),
@@ -57,8 +68,7 @@ export function daemonSettings(config: ConfigReader, home: string): Settings {
 export function uiSettings(config: ConfigReader): UiSettings {
   return {
     typingDelayMs: clamp(config.get("typingDelayMs", DEFAULTS.typingDelayMs), 0, MAX_TYPING_DELAY_MS),
-    openTrigger:
-      config.get<string>("open.trigger", DEFAULTS.openTrigger) === "singleClick" ? "singleClick" : "doubleClick",
+    openTrigger: oneOf(config.get<string>("open.trigger", DEFAULTS.openTrigger), OPEN_TRIGGERS, DEFAULTS.openTrigger),
     preview: config.get("open.preview", DEFAULTS.openPreview),
     showParsedQuery: config.get("ui.showParsedQuery", DEFAULTS.showParsedQuery),
     caseSensitive: config.get("caseSensitive", DEFAULTS.caseSensitive),

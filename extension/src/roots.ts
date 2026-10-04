@@ -8,6 +8,7 @@ export function rootId(path: string): string {
   return createHash("sha256").update(path).digest("hex").slice(0, 12);
 }
 
+/** A protocol Root for a folder; `name` defaults to the folder's base name. */
 export function makeRoot(path: string, name?: string): Root {
   return { id: rootId(path), path, name: name ?? basename(path) };
 }
