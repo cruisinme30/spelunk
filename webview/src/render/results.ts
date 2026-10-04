@@ -59,9 +59,13 @@ export function pathScope(query: ParsedQuery | undefined): string[] {
   return conjuncts.flatMap((node) => (node.kind === "op" && node.op === "f" ? [node.value] : []));
 }
 
-/** A DOM id for a result row. Refs are opaque, so they are sanitized, never parsed. */
+/**
+ * A DOM id for a result row. Refs are opaque, so they are encoded, never
+ * parsed: every character but letters, digits and "-" becomes "_<hex code>_",
+ * so two different refs never share an id.
+ */
 export function rowId(ref: string): string {
-  return "r-" + ref.replace(/[^A-Za-z0-9_-]/g, "_");
+  return "r-" + ref.replace(/[^A-Za-z0-9-]/gu, (character) => `_${(character.codePointAt(0) ?? 0).toString(16)}_`);
 }
 
 /** Code results from one file share a group header. */
