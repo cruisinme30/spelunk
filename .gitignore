@@ -25,3 +25,7 @@ coverage.*
 *.trace.jsonl
 dist-test/
 /webview/test/out/
+
+# Built by npm run package
+/extension/bin/
+/extension/LICENSE

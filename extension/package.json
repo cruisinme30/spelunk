@@ -32,6 +32,12 @@
     "Other"
   ],
   "main": "./dist/extension.js",
+  "files": [
+    "dist/extension.js",
+    "dist/webview",
+    "bin",
+    "LICENSE"
+  ],
   "activationEvents": [
     "onStartupFinished"
   ],

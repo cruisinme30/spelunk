@@ -17,5 +17,5 @@
   },
   "ignore": ["**/*.gen.ts"],
   // Go tools the scripts call; they are not npm packages.
-  "ignoreBinaries": ["golangci-lint", "gofmt"],
+  "ignoreBinaries": ["go", "golangci-lint", "gofmt"],
 }

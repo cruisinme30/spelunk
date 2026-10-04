@@ -49,8 +49,13 @@ npm install && npx playwright install chromium
 npm test        # every test layer, including the Go daemon
 ```
 
-Then open `extension/` in VS Code and press F5. See [CONTRIBUTING.md](CONTRIBUTING.md) for conventions, and
-[docs/](docs/README.md) for everything else.
+Then open the repo in VS Code and press F5 to run the extension on the sample repos, or install it in your own VS Code:
+
+```sh
+npm run package && code --install-extension out/unified-search-*.vsix
+```
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for conventions, and [docs/](docs/README.md) for everything else.
 
 ## License
 

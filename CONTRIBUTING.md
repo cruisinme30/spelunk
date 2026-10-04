@@ -13,9 +13,23 @@ npx playwright install chromium
 npm test                     # every linter and test layer: scripts/test-all.sh
 ```
 
-To try the extension, open `extension/` in VS Code and press **F5**. The extension finds the daemon at
-`daemon/bin/unified-search-daemon`, which `npm test` builds. You can also build it with
-`cd daemon && go build -o bin/unified-search-daemon ./cmd/unified-search-daemon`.
+To try the extension, open the repo in VS Code and press **F5**. It builds the daemon and the extension, then opens
+a second window running the extension on the sample repos in `testdata/workspace/`. From a terminal, the same is:
+
+```sh
+go -C daemon build -o bin/unified-search-daemon ./cmd/unified-search-daemon && npm run build
+code --extensionDevelopmentPath="$PWD/extension" "$PWD/testdata/workspace"
+```
+
+To install it in your everyday VS Code, package it and install the `.vsix`:
+
+```sh
+npm run package                                   # this machine; or: npm run package -- --target linux-x64
+code --install-extension out/unified-search-0.1.0-darwin-arm64.vsix
+```
+
+`npm run package` cross-compiles the daemon for the target platform, so one machine can build every platform's
+package.
 
 ## Everyday commands
 
@@ -23,6 +37,7 @@ To try the extension, open `extension/` in VS Code and press **F5**. The extensi
 | --- | --- |
 | `npm test` | Everything CI runs: generator check, formatting, linters, Go, extension and webview tests |
 | `npm run lint` | Every linter (below) |
+| `npm run package` | A `.vsix` for this platform in `out/` (`-- --target <platform>` for another) |
 | `npm run format` | Prettier over TS, JS, JSON, CSS and YAML |
 | `npm run gen` | Regenerate protocol types after editing `protocol/protocol.schema.json` |
 | `cd daemon && go test ./...` | Daemon tests only |

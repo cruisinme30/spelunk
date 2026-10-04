@@ -54,6 +54,7 @@ words:
   - quicktype
   - Rakefile
   - ripgrep
+  - trimpath
   - Zoekt
   # Words of this code base
   - goldens
