@@ -148,7 +148,16 @@
         "maxFileSizeKB": { "type": "integer" },
         "location": { "type": "string" }
       },
-      "required": ["caseSensitive", "defaultCount", "historyDepth", "symbols", "exclude", "includeIgnored", "maxFileSizeKB", "location"]
+      "required": [
+        "caseSensitive",
+        "defaultCount",
+        "historyDepth",
+        "symbols",
+        "exclude",
+        "includeIgnored",
+        "maxFileSizeKB",
+        "location"
+      ]
     },
     "LastCommit": {
       "type": "object",
@@ -228,13 +237,28 @@
             "matchedTerms": { "type": "array", "items": { "type": "integer" } },
             "subjectHits": { "type": "array", "items": { "$ref": "#/$defs/Range" } }
           },
-          "required": ["kind", "ref", "repoId", "sha", "subject", "author", "at", "files", "diffHits", "matchedTerms", "subjectHits"]
+          "required": [
+            "kind",
+            "ref",
+            "repoId",
+            "sha",
+            "subject",
+            "author",
+            "at",
+            "files",
+            "diffHits",
+            "matchedTerms",
+            "subjectHits"
+          ]
         }
       ]
     },
     "LineHits": {
       "type": "object",
-      "properties": { "line": { "type": "integer" }, "ranges": { "type": "array", "items": { "$ref": "#/$defs/Hit" } } },
+      "properties": {
+        "line": { "type": "integer" },
+        "ranges": { "type": "array", "items": { "$ref": "#/$defs/Hit" } }
+      },
       "required": ["line", "ranges"]
     },
     "OutlineSymbol": {
@@ -545,40 +569,40 @@
   },
 
   "x-rpc-methods": {
-    "initialize":           { "kind": "request",      "params": "InitializeParams",     "result": "InitializeResult" },
-    "workspace/setRoots":   { "kind": "notification", "params": "SetRootsParams" },
+    "initialize": { "kind": "request", "params": "InitializeParams", "result": "InitializeResult" },
+    "workspace/setRoots": { "kind": "notification", "params": "SetRootsParams" },
     "workspace/didChangeFiles": { "kind": "notification", "params": "DidChangeFilesParams" },
-    "settings/update":      { "kind": "notification", "params": "SettingsUpdateParams" },
-    "query/parse":          { "kind": "request",      "params": "ParseParams",          "result": "ParseResult" },
-    "search/start":         { "kind": "request",      "params": "SearchStartParams",    "result": "SearchResult" },
-    "search/batch":         { "kind": "notification", "params": "SearchBatchParams",    "direction": "daemon->host" },
-    "$/cancelRequest":      { "kind": "notification", "params": "Empty" },
-    "preview/get":          { "kind": "request",      "params": "PreviewParams",        "result": "Preview" },
-    "open/resolve":         { "kind": "request",      "params": "OpenResolveParams",    "result": "OpenTarget" },
-    "index/status":         { "kind": "request",      "params": "Empty",                "result": "IndexStatusResult" },
-    "index/progress":       { "kind": "notification", "params": "IndexStatusResult",    "direction": "daemon->host" },
-    "index/rebuild":        { "kind": "request",      "params": "RebuildParams",        "result": "Empty" },
-    "shutdown":             { "kind": "request",      "params": "Empty",                "result": "Empty" },
-    "exit":                 { "kind": "notification", "params": "Empty" }
+    "settings/update": { "kind": "notification", "params": "SettingsUpdateParams" },
+    "query/parse": { "kind": "request", "params": "ParseParams", "result": "ParseResult" },
+    "search/start": { "kind": "request", "params": "SearchStartParams", "result": "SearchResult" },
+    "search/batch": { "kind": "notification", "params": "SearchBatchParams", "direction": "daemon->host" },
+    "$/cancelRequest": { "kind": "notification", "params": "Empty" },
+    "preview/get": { "kind": "request", "params": "PreviewParams", "result": "Preview" },
+    "open/resolve": { "kind": "request", "params": "OpenResolveParams", "result": "OpenTarget" },
+    "index/status": { "kind": "request", "params": "Empty", "result": "IndexStatusResult" },
+    "index/progress": { "kind": "notification", "params": "IndexStatusResult", "direction": "daemon->host" },
+    "index/rebuild": { "kind": "request", "params": "RebuildParams", "result": "Empty" },
+    "shutdown": { "kind": "request", "params": "Empty", "result": "Empty" },
+    "exit": { "kind": "notification", "params": "Empty" }
   },
 
   "x-webview-messages": {
-    "query.changed":  { "direction": "webview->host", "payload": "QueryChangedMsg" },
-    "result.select":  { "direction": "webview->host", "payload": "ResultSelectMsg" },
-    "result.open":    { "direction": "webview->host", "payload": "ResultOpenMsg" },
-    "results.more":   { "direction": "webview->host", "payload": "ResultsMoreMsg" },
-    "panel.close":    { "direction": "webview->host", "payload": "Empty" },
-    "help.open":      { "direction": "webview->host", "payload": "Empty" },
-    "settings.open":  { "direction": "webview->host", "payload": "Empty" },
-    "ready":          { "direction": "webview->host", "payload": "Empty" },
+    "query.changed": { "direction": "webview->host", "payload": "QueryChangedMsg" },
+    "result.select": { "direction": "webview->host", "payload": "ResultSelectMsg" },
+    "result.open": { "direction": "webview->host", "payload": "ResultOpenMsg" },
+    "results.more": { "direction": "webview->host", "payload": "ResultsMoreMsg" },
+    "panel.close": { "direction": "webview->host", "payload": "Empty" },
+    "help.open": { "direction": "webview->host", "payload": "Empty" },
+    "settings.open": { "direction": "webview->host", "payload": "Empty" },
+    "ready": { "direction": "webview->host", "payload": "Empty" },
     "daemon.restart": { "direction": "webview->host", "payload": "Empty" },
-    "parse.result":   { "direction": "host->webview", "payload": "ParseResultMsg" },
-    "search.batch":   { "direction": "host->webview", "payload": "SearchBatchMsg" },
-    "search.done":    { "direction": "host->webview", "payload": "SearchDoneMsg" },
+    "parse.result": { "direction": "host->webview", "payload": "ParseResultMsg" },
+    "search.batch": { "direction": "host->webview", "payload": "SearchBatchMsg" },
+    "search.done": { "direction": "host->webview", "payload": "SearchDoneMsg" },
     "preview.result": { "direction": "host->webview", "payload": "PreviewResultMsg" },
-    "index.status":   { "direction": "host->webview", "payload": "IndexStatusMsg" },
-    "state.restore":  { "direction": "host->webview", "payload": "StateRestoreMsg" },
-    "banner":         { "direction": "host->webview", "payload": "BannerMsg" },
-    "focus":          { "direction": "host->webview", "payload": "Empty" }
+    "index.status": { "direction": "host->webview", "payload": "IndexStatusMsg" },
+    "state.restore": { "direction": "host->webview", "payload": "StateRestoreMsg" },
+    "banner": { "direction": "host->webview", "payload": "BannerMsg" },
+    "focus": { "direction": "host->webview", "payload": "Empty" }
   }
 }

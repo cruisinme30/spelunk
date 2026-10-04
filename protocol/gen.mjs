@@ -40,15 +40,21 @@ function tsType(s) {
   if (s.const !== undefined) return JSON.stringify(s.const);
   if (s.enum) return s.enum.map((e) => JSON.stringify(e)).join(" | ");
   switch (s.type) {
-    case "string": return "string";
-    case "integer": case "number": return "number";
-    case "boolean": return "boolean";
-    case "null": return "null";
+    case "string":
+      return "string";
+    case "integer":
+    case "number":
+      return "number";
+    case "boolean":
+      return "boolean";
+    case "null":
+      return "null";
     case "array": {
       const t = tsType(s.items);
       return /[|&]/.test(t) ? `(${t})[]` : `${t}[]`;
     }
-    case "object": return tsObject(s, "  ");
+    case "object":
+      return tsObject(s, "  ");
   }
   throw new Error("tsType: unsupported " + JSON.stringify(s));
 }
@@ -81,16 +87,22 @@ function genTS() {
   }
   out.push("/** Contract 3 requests: method -> [params, result]. */");
   out.push("export interface RpcRequests {");
-  for (const [m, d] of Object.entries(methods)) if (d.kind === "request") out.push(`  ${JSON.stringify(m)}: [${d.params}, ${d.result}];`);
+  for (const [m, d] of Object.entries(methods))
+    if (d.kind === "request") out.push(`  ${JSON.stringify(m)}: [${d.params}, ${d.result}];`);
   out.push("}", "");
   out.push("/** Contract 3 notifications: method -> params. */");
   out.push("export interface RpcNotifications {");
-  for (const [m, d] of Object.entries(methods)) if (d.kind === "notification") out.push(`  ${JSON.stringify(m)}: ${d.params};`);
+  for (const [m, d] of Object.entries(methods))
+    if (d.kind === "notification") out.push(`  ${JSON.stringify(m)}: ${d.params};`);
   out.push("}", "");
-  for (const [dir, iface] of [["webview->host", "WebviewToHost"], ["host->webview", "HostToWebview"]]) {
+  for (const [dir, iface] of [
+    ["webview->host", "WebviewToHost"],
+    ["host->webview", "HostToWebview"],
+  ]) {
     out.push(`/** Contract 2 messages, ${dir}: type -> payload. */`);
     out.push(`export interface ${iface} {`);
-    for (const [t, d] of Object.entries(messages)) if (d.direction === dir) out.push(`  ${JSON.stringify(t)}: ${d.payload};`);
+    for (const [t, d] of Object.entries(messages))
+      if (d.direction === dir) out.push(`  ${JSON.stringify(t)}: ${d.payload};`);
     out.push("}", "");
   }
   return out.join("\n");
@@ -118,19 +130,25 @@ function goType(s, { optional = false } = {}) {
   if (s.const !== undefined) return typeof s.const === "number" ? "int" : "string";
   if (s.enum) return "string";
   switch (s.type) {
-    case "string": return "string";
-    case "integer": return "int";
-    case "number": return "float64";
-    case "boolean": return "bool";
-    case "array": return "[]" + goType(s.items);
-    case "object": return "map[string]any";
+    case "string":
+      return "string";
+    case "integer":
+      return "int";
+    case "number":
+      return "float64";
+    case "boolean":
+      return "bool";
+    case "array":
+      return "[]" + goType(s.items);
+    case "object":
+      return "map[string]any";
   }
   throw new Error("goType: unsupported " + JSON.stringify(s));
 }
 const zeroCheck = (t, expr) => {
   if (t.startsWith("*") || t === "any" || t.startsWith("map[")) return `${expr} != nil`;
   if (t.startsWith("[]")) return `len(${expr}) > 0`;
-  if (t === "string" || /^[A-Z]/.test(t) && defs[t] && defs[t].type === "string") return `${expr} != ""`;
+  if (t === "string" || (/^[A-Z]/.test(t) && defs[t] && defs[t].type === "string")) return `${expr} != ""`;
   if (t === "int" || t === "float64") return `${expr} != 0`;
   if (t === "bool") return expr;
   return null;
@@ -174,30 +192,47 @@ function genGo() {
       // Merge variants into one struct; MarshalJSON emits only the fields of
       // the variant selected by Kind, with [] for required arrays.
       const merged = new Map();
-      for (const v of s.oneOf) for (const [k, p] of Object.entries(v.properties)) {
-        const t = k === "kind" ? "string" : goType(p, { optional: !(v.required || []).includes(k) || k === "child" });
-        const prev = merged.get(k);
-        if (prev && prev !== t && !(prev.replace("*", "") === t.replace("*", ""))) throw new Error(`${name}.${k}: conflicting types ${prev} vs ${t}`);
-        if (!prev || t.startsWith("*")) merged.set(k, t);
-      }
+      for (const v of s.oneOf)
+        for (const [k, p] of Object.entries(v.properties)) {
+          const t = k === "kind" ? "string" : goType(p, { optional: !(v.required || []).includes(k) || k === "child" });
+          const prev = merged.get(k);
+          if (prev && prev !== t && !(prev.replace("*", "") === t.replace("*", "")))
+            throw new Error(`${name}.${k}: conflicting types ${prev} vs ${t}`);
+          if (!prev || t.startsWith("*")) merged.set(k, t);
+        }
       out.push(`type ${name} struct {`);
       for (const [k, t] of merged) out.push(`\t${goField(k)} ${t} \`json:"${k},omitempty"\``);
       out.push("}", "");
       out.push(`// MarshalJSON emits the fields of the variant named by Kind.`);
-      out.push(`func (v ${name}) MarshalJSON() ([]byte, error) {`, `\tm := map[string]any{"kind": v.Kind}`, `\tswitch v.Kind {`);
+      out.push(
+        `func (v ${name}) MarshalJSON() ([]byte, error) {`,
+        `\tm := map[string]any{"kind": v.Kind}`,
+        `\tswitch v.Kind {`,
+      );
       for (const variant of s.oneOf) {
-        const kinds = variant.properties.kind.const !== undefined ? [variant.properties.kind.const] : variant.properties.kind.enum;
+        const kinds =
+          variant.properties.kind.const !== undefined ? [variant.properties.kind.const] : variant.properties.kind.enum;
         out.push(`\tcase ${kinds.map((k) => JSON.stringify(k)).join(", ")}:`);
         const req = new Set(variant.required || []);
         for (const k of Object.keys(variant.properties)) {
           if (k === "kind") continue;
-          const t = merged.get(k), f = `v.${goField(k)}`;
+          const t = merged.get(k),
+            f = `v.${goField(k)}`;
           if (req.has(k)) {
-            if (t.startsWith("[]")) out.push(`\t\tif ${f} == nil {`, `\t\t\tm[${JSON.stringify(k)}] = ${t}{}`, `\t\t} else {`, `\t\t\tm[${JSON.stringify(k)}] = ${f}`, `\t\t}`);
+            if (t.startsWith("[]"))
+              out.push(
+                `\t\tif ${f} == nil {`,
+                `\t\t\tm[${JSON.stringify(k)}] = ${t}{}`,
+                `\t\t} else {`,
+                `\t\t\tm[${JSON.stringify(k)}] = ${f}`,
+                `\t\t}`,
+              );
             else out.push(`\t\tm[${JSON.stringify(k)}] = ${f}`);
           } else {
             const zc = zeroCheck(t, f);
-            out.push(zc ? `\t\tif ${zc} {\n\t\t\tm[${JSON.stringify(k)}] = ${f}\n\t\t}` : `\t\tm[${JSON.stringify(k)}] = ${f}`);
+            out.push(
+              zc ? `\t\tif ${zc} {\n\t\t\tm[${JSON.stringify(k)}] = ${f}\n\t\t}` : `\t\tm[${JSON.stringify(k)}] = ${f}`,
+            );
           }
         }
       }
@@ -212,15 +247,30 @@ function genGo() {
     }
   }
   out.push("// Contract 3 method names.", "const (");
-  for (const m of Object.keys(methods)) out.push(`\tMethod${pascal(m.replace("$/", "Dollar/"))} = ${JSON.stringify(m)}`);
+  for (const m of Object.keys(methods))
+    out.push(`\tMethod${pascal(m.replace("$/", "Dollar/"))} = ${JSON.stringify(m)}`);
   out.push(")", "");
   out.push("// Contract 2 message types.", "const (");
   for (const t of Object.keys(messages)) out.push(`\tMsg${pascal(t)} = ${JSON.stringify(t)}`);
   out.push(")", "");
   out.push("// SpecMethods lists every Contract 3 method, for spec coverage.");
-  out.push("var SpecMethods = []string{" + Object.keys(methods).map((m) => JSON.stringify(m)).join(", ") + "}", "");
+  out.push(
+    "var SpecMethods = []string{" +
+      Object.keys(methods)
+        .map((m) => JSON.stringify(m))
+        .join(", ") +
+      "}",
+    "",
+  );
   out.push("// SpecMessages lists every Contract 2 message type, for spec coverage.");
-  out.push("var SpecMessages = []string{" + Object.keys(messages).map((m) => JSON.stringify(m)).join(", ") + "}", "");
+  out.push(
+    "var SpecMessages = []string{" +
+      Object.keys(messages)
+        .map((m) => JSON.stringify(m))
+        .join(", ") +
+      "}",
+    "",
+  );
   return out.join("\n");
 }
 
@@ -242,7 +292,10 @@ const check = process.argv.includes("--check");
 let stale = 0;
 for (const [path, text] of targets) {
   if (check) {
-    if (!existsSync(path) || readFileSync(path, "utf8") !== text) { console.error("out of date: " + path); stale++; }
+    if (!existsSync(path) || readFileSync(path, "utf8") !== text) {
+      console.error("out of date: " + path);
+      stale++;
+    }
   } else {
     writeFileSync(path, text);
     console.log("wrote " + path.replace(repo + "/", ""));
