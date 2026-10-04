@@ -30,7 +30,7 @@ func (s *Server) resolver() query.Resolver {
 
 type workspaceResolver struct{ server *Server }
 
-// Authors returns nothing until the history index exists (M3).
+// Authors returns nothing until history is indexed.
 func (workspaceResolver) Authors(string, int) []query.AuthorStat { return nil }
 
 func (r workspaceResolver) RepoNames() []string {

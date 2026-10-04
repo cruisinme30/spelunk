@@ -47,8 +47,8 @@ func wantRPCCode(t *testing.T, call string, err error, want int) {
 	}
 }
 
-// M0 exit gate: one hard-coded search round-trips, and opening a result
-// resolves to the file, line and column of the match.
+// A search round-trips: results stream as batches, a result previews, and
+// opening it resolves to the file, line and column of the match.
 //
 // @covers rpc:search/start rpc:search/batch rpc:preview/get rpc:open/resolve failure:ref-stale
 func TestSearchPreviewAndOpenRoundTrip(t *testing.T) {
@@ -130,13 +130,13 @@ func TestPreviewOfCRLFFileHasNoCarriageReturns(t *testing.T) {
 }
 
 func TestMalformedRefIsStale(t *testing.T) {
-	for _, ref := range []string{"", "m0|r1|x|0|1|a.txt", "m0|r1|1|-2|1|a.txt", "other|r1|1|0|1|a.txt"} {
-		if _, err := parseM0Ref(ref); err == nil {
-			t.Errorf("parseM0Ref(%q) = nil error, want malformed ref", ref)
+	for _, ref := range []string{"", "line|r1|x|0|1|a.txt", "line|r1|1|-2|1|a.txt", "other|r1|1|0|1|a.txt"} {
+		if _, err := parseLineRef(ref); err == nil {
+			t.Errorf("parseLineRef(%q) = nil error, want malformed ref", ref)
 		}
 	}
-	original := m0Ref{rootID: "r1", line: 3, column: 4, length: 5, path: "dir/a|b.txt"}
-	if got, err := parseM0Ref(original.String()); err != nil || got != original {
-		t.Errorf("parseM0Ref(%q) = %+v, %v; want %+v", original.String(), got, err, original)
+	original := lineRef{rootID: "r1", line: 3, column: 4, length: 5, path: "dir/a|b.txt"}
+	if got, err := parseLineRef(original.String()); err != nil || got != original {
+		t.Errorf("parseLineRef(%q) = %+v, %v; want %+v", original.String(), got, err, original)
 	}
 }

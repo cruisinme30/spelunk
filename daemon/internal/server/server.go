@@ -48,7 +48,7 @@ func New(conn *rpc.Conn, opts Options) *Server {
 	conn.OnNotify(protocol.MethodWorkspaceSetRoots, s.setRoots)
 	conn.OnNotify(protocol.MethodSettingsUpdate, s.updateSettings)
 	conn.Handle(protocol.MethodQueryParse, s.parse)
-	s.registerM0()
+	s.registerSearch()
 	return s
 }
 
@@ -158,11 +158,11 @@ func (s *Server) Roots() []protocol.Root {
 	return slices.Clone(s.roots)
 }
 
-// TODO(M1): start, drop and reconfigure repo indexes when roots change.
+// onRootsChanged will start, drop and reconfigure repo indexes once the indexer exists.
 func (s *Server) onRootsChanged() {}
 
-// TODO(M1): pass new exclude and size limits to the indexer.
+// onSettingsChanged will pass new exclude and size limits to the indexer.
 func (s *Server) onSettingsChanged() {}
 
-// TODO(M1): flush index writes within 2 seconds (Contract 3 lifecycle).
+// onShutdown will flush index writes within 2 seconds (Contract 3 lifecycle).
 func (s *Server) onShutdown() {}
