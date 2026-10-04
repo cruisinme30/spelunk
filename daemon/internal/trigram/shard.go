@@ -156,9 +156,10 @@ func (s *Shard) Candidates(literal string, caseSensitive bool) []uint32 {
 	return result
 }
 
-// intersect returns the ids in both ascending lists.
+// intersect returns the ids in both ascending lists. The result is never
+// nil: nil means "any doc" to callers, and no common id means "no doc".
 func intersect(a, b []uint32) []uint32 {
-	var out []uint32
+	out := []uint32{}
 	for i, j := 0, 0; i < len(a) && j < len(b); {
 		switch {
 		case a[i] == b[j]:
