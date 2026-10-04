@@ -62,6 +62,7 @@ type buildJob struct {
 	settings   protocol.Settings
 	shardPath  string
 	started    time.Time
+	before     func(id string) // Indexer.beforeBuild
 }
 
 // nextBuild takes the first queued repo and marks it as building.
@@ -85,6 +86,7 @@ func (ix *Indexer) nextBuild(ctx context.Context) (buildJob, bool) {
 		return buildJob{
 			ctx: buildCtx, done: cancel, id: id, root: r.root, generation: r.generation,
 			settings: ix.settings, shardPath: shardPath(ix.settings.Location, r.root), started: time.Now(),
+			before: ix.beforeBuild,
 		}, true
 	}
 	return buildJob{}, false
@@ -94,6 +96,9 @@ func (ix *Indexer) nextBuild(ctx context.Context) (buildJob, bool) {
 func (ix *Indexer) build(job buildJob) {
 	defer job.done()
 	ix.publishStatus()
+	if job.before != nil {
+		job.before(job.id)
+	}
 	shard, err := buildShard(job, func(progress float64) {
 		visible := false
 		ix.update(job, func(r *repo) { r.progress, visible = progress, r.visible })

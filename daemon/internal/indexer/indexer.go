@@ -35,6 +35,10 @@ type Indexer struct {
 
 	stop    context.CancelFunc
 	workers sync.WaitGroup
+
+	// beforeBuild, when tests set it, runs with the root's ID at the start of
+	// each working-tree build, which waits for it to return.
+	beforeBuild func(id string)
 }
 
 // repo is one root's index state.
