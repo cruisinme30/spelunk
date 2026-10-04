@@ -39,7 +39,7 @@ function nonNullAlternatives(node) {
   const alternatives = node.oneOf ?? node.anyOf;
   if (!alternatives) return null;
   const nonNull = alternatives.filter((alt) => !isNullSchema(alt));
-  return nonNull.length !== alternatives.length ? nonNull : null;
+  return nonNull.length === alternatives.length ? null : nonNull;
 }
 
 /** A union of objects told apart by their `kind` property. */
@@ -48,7 +48,8 @@ function isKindUnion(node) {
   return variants.length > 1 && variants.every((v) => v.type === "object" && v.properties?.kind);
 }
 
-const pascalCase = (text) => text.replace(/(^|[^A-Za-z0-9]+)([A-Za-z0-9])/g, (_, _sep, letter) => letter.toUpperCase());
+const pascalCase = (text) =>
+  text.replaceAll(/(^|[^A-Za-z0-9]+)([A-Za-z0-9])/g, (_, _separator, letter) => letter.toUpperCase());
 
 /** A JSON property name as a Go field name: repoId -> RepoID. */
 function goFieldName(property) {
@@ -58,41 +59,40 @@ function goFieldName(property) {
 
 // ------------------------------------------------------------ TypeScript
 
+/** TypeScript names for the JSON Schema types that map one to one. */
+const TS_SCALARS = { string: "string", integer: "number", number: "number", boolean: "boolean", null: "null" };
+
+/** The TypeScript type for a schema node. */
 function tsType(node) {
   if (node.$ref) return refName(node.$ref);
   if (node["x-ts-type"]) return node["x-ts-type"];
   const nonNull = nonNullAlternatives(node);
-  if (nonNull) return [...nonNull.map(tsType), "null"].join(" | ");
-  if (node.oneOf || node.anyOf) return (node.oneOf ?? node.anyOf).map(tsType).join(" | ");
+  if (nonNull) return [...nonNull.map((alternative) => tsType(alternative)), "null"].join(" | ");
+  const alternatives = node.oneOf ?? node.anyOf;
+  if (alternatives) return alternatives.map((alternative) => tsType(alternative)).join(" | ");
   if (node.const !== undefined) return JSON.stringify(node.const);
   if (node.enum) return node.enum.map((value) => JSON.stringify(value)).join(" | ");
-  switch (node.type) {
-    case "string":
-      return "string";
-    case "integer":
-    case "number":
-      return "number";
-    case "boolean":
-      return "boolean";
-    case "null":
-      return "null";
-    case "array": {
-      const item = tsType(node.items);
-      return /[|&]/.test(item) ? `(${item})[]` : `${item}[]`;
-    }
-    case "object":
-      return tsObjectLiteral(node, "  ");
+  return tsTypeOfJsonType(node);
+}
+
+/** The TypeScript type for a node described only by its JSON Schema `type`. */
+function tsTypeOfJsonType(node) {
+  if (node.type in TS_SCALARS) return TS_SCALARS[node.type];
+  if (node.type === "array") {
+    const item = tsType(node.items);
+    return /[|&]/.test(item) ? `(${item})[]` : `${item}[]`;
   }
+  if (node.type === "object") return tsObjectLiteral(node, "  ");
   throw new Error("tsType: unsupported schema " + JSON.stringify(node));
 }
 
 function tsObjectLiteral(node, indent) {
   const required = new Set(node.required ?? []);
   const properties = Object.entries(node.properties ?? {});
-  if (!properties.length) return "Record<string, never>";
+  if (properties.length === 0) return "Record<string, never>";
   const fields = properties.map(([name, property]) => {
-    const doc = property.description ? `${indent}/** ${property.description} */\n` : "";
-    return `${doc}${indent}${name}${required.has(name) ? "" : "?"}: ${tsType(property)};`;
+    const document = property.description ? `${indent}/** ${property.description} */\n` : "";
+    return `${document}${indent}${name}${required.has(name) ? "" : "?"}: ${tsType(property)};`;
   });
   return `{\n${fields.join("\n")}\n${indent.slice(2)}}`;
 }
@@ -151,6 +151,9 @@ function generateTypeScript() {
 const isGoStruct = (definition) => definition.type === "object" || isKindUnion(definition);
 const stripPointer = (goType) => goType.replace(/^\*/, "");
 
+/** Go names for the JSON Schema types that map one to one. */
+const GO_SCALARS = { string: "string", integer: "int", number: "float64", boolean: "bool", object: "map[string]any" };
+
 /** The Go type for a schema node. Optional structs become pointers so they can be omitted. */
 function goType(node, { optional = false } = {}) {
   if (node["x-go-type"]) return node["x-go-type"];
@@ -159,30 +162,21 @@ function goType(node, { optional = false } = {}) {
     return optional && isGoStruct(definitions[name]) ? "*" + name : name;
   }
   const nonNull = nonNullAlternatives(node);
-  if (nonNull) {
-    if (nonNull.length !== 1) return "any";
-    const inner = goType(nonNull[0]);
-    const alreadyNullable = inner.startsWith("*") || inner.startsWith("[]") || inner === "any";
-    return alreadyNullable ? inner : "*" + inner;
-  }
+  if (nonNull) return goNullableType(nonNull);
   if (node.oneOf || node.anyOf) return "any";
   if (node.const !== undefined) return typeof node.const === "number" ? "int" : "string";
   if (node.enum) return "string";
-  switch (node.type) {
-    case "string":
-      return "string";
-    case "integer":
-      return "int";
-    case "number":
-      return "float64";
-    case "boolean":
-      return "bool";
-    case "array":
-      return "[]" + goType(node.items);
-    case "object":
-      return "map[string]any";
-  }
+  if (node.type in GO_SCALARS) return GO_SCALARS[node.type];
+  if (node.type === "array") return "[]" + goType(node.items);
   throw new Error("goType: unsupported schema " + JSON.stringify(node));
+}
+
+/** The Go type for "one of these or null": a pointer, unless the type can already be nil. */
+function goNullableType(nonNullAlternatives) {
+  if (nonNullAlternatives.length !== 1) return "any";
+  const inner = goType(nonNullAlternatives[0]);
+  const alreadyNullable = inner.startsWith("*") || inner.startsWith("[]") || inner === "any";
+  return alreadyNullable ? inner : "*" + inner;
 }
 
 /** A Go expression that is true when `fieldExpr` holds a non-zero value, or null if always present. */
@@ -196,13 +190,13 @@ function nonZeroCheck(goTypeName, fieldExpr) {
   return null;
 }
 
-function goDocComment(text) {
+function goDocumentComment(text) {
   return `// ${text}`;
 }
 
 function generateGoStruct(name, node) {
   const required = new Set(node.required ?? []);
-  const lines = [goDocComment(node.description), `type ${name} struct {`];
+  const lines = [goDocumentComment(node.description), `type ${name} struct {`];
   const requiredSlices = [];
   for (const [property, propertyNode] of Object.entries(node.properties ?? {})) {
     const optional = !required.has(property);
@@ -213,9 +207,13 @@ function generateGoStruct(name, node) {
     if (!optional && fieldType.startsWith("[]")) requiredSlices.push([field, fieldType]);
   }
   lines.push("}", "");
-  if (requiredSlices.length) {
-    lines.push(`// MarshalJSON emits [] rather than null for required arrays.`);
-    lines.push(`func (v ${name}) MarshalJSON() ([]byte, error) {`, `\ttype plain ${name}`, `\tp := plain(v)`);
+  if (requiredSlices.length > 0) {
+    lines.push(
+      `// MarshalJSON emits [] rather than null for required arrays.`,
+      `func (v ${name}) MarshalJSON() ([]byte, error) {`,
+      `\ttype plain ${name}`,
+      `\tp := plain(v)`,
+    );
     for (const [field, fieldType] of requiredSlices)
       lines.push(`\tif p.${field} == nil {`, `\t\tp.${field} = ${fieldType}{}`, `\t}`);
     lines.push(`\treturn json.Marshal(p)`, `}`, "");
@@ -229,6 +227,34 @@ function generateGoStruct(name, node) {
  * for required arrays, so the wire format matches the TypeScript union.
  */
 function generateGoUnion(name, node) {
+  const fieldTypes = goUnionFieldTypes(name, node);
+  const lines = [goDocumentComment(node.description), `type ${name} struct {`];
+  for (const [property, fieldType] of fieldTypes)
+    lines.push(`\t${goFieldName(property)} ${fieldType} \`json:"${property},omitempty"\``);
+  lines.push("}", "", `// ${name} kinds: the values of ${name}.Kind.`, "const (");
+  for (const kind of node.oneOf.flatMap((variant) => variantKinds(variant)))
+    lines.push(`\t${name}Kind${pascalCase(kind)} = ${JSON.stringify(kind)}`);
+  lines.push(
+    ")",
+    "",
+    `// MarshalJSON emits only the fields of the variant named by Kind.`,
+    `func (v ${name}) MarshalJSON() ([]byte, error) {`,
+    `\tfields := map[string]any{"kind": v.Kind}`,
+    `\tswitch v.Kind {`,
+  );
+  for (const variant of node.oneOf) lines.push(...goMarshalVariant(variant, fieldTypes));
+  lines.push(`\t}`, `\treturn json.Marshal(fields)`, `}`, "");
+  return lines;
+}
+
+/** The kind values a variant of a kind-union accepts: its `kind` const, or every value of its `kind` enum. */
+function variantKinds(variant) {
+  const kind = variant.properties.kind;
+  return kind.const === undefined ? kind.enum : [kind.const];
+}
+
+/** Every field of every variant, with its Go type. Variants that share a field must agree on its type. */
+function goUnionFieldTypes(name, node) {
   const fieldTypes = new Map();
   for (const variant of node.oneOf) {
     const required = new Set(variant.required ?? []);
@@ -243,57 +269,43 @@ function generateGoUnion(name, node) {
       if (!previous || fieldType.startsWith("*")) fieldTypes.set(property, fieldType);
     }
   }
-  const lines = [goDocComment(node.description), `type ${name} struct {`];
-  for (const [property, fieldType] of fieldTypes)
-    lines.push(`\t${goFieldName(property)} ${fieldType} \`json:"${property},omitempty"\``);
-  lines.push("}", "");
-  const allKinds = node.oneOf.flatMap((variant) =>
-    variant.properties.kind.const === undefined ? variant.properties.kind.enum : [variant.properties.kind.const],
-  );
-  lines.push(`// ${name} kinds: the values of ${name}.Kind.`, "const (");
-  for (const kind of allKinds) lines.push(`\t${name}Kind${pascalCase(kind)} = ${JSON.stringify(kind)}`);
-  lines.push(")", "");
-  lines.push(`// MarshalJSON emits only the fields of the variant named by Kind.`);
-  lines.push(
-    `func (v ${name}) MarshalJSON() ([]byte, error) {`,
-    `\tfields := map[string]any{"kind": v.Kind}`,
-    `\tswitch v.Kind {`,
-  );
-  for (const variant of node.oneOf) {
-    const kinds =
-      variant.properties.kind.const !== undefined ? [variant.properties.kind.const] : variant.properties.kind.enum;
-    lines.push(`\tcase ${kinds.map((kind) => JSON.stringify(kind)).join(", ")}:`);
-    const required = new Set(variant.required ?? []);
-    for (const property of Object.keys(variant.properties)) {
-      if (property === "kind") continue;
-      const fieldType = fieldTypes.get(property);
-      const fieldExpr = `v.${goFieldName(property)}`;
-      const key = JSON.stringify(property);
-      if (required.has(property) && fieldType.startsWith("[]")) {
-        lines.push(
-          `\t\tif ${fieldExpr} == nil {`,
-          `\t\t\tfields[${key}] = ${fieldType}{}`,
-          `\t\t} else {`,
-          `\t\t\tfields[${key}] = ${fieldExpr}`,
-          `\t\t}`,
-        );
-      } else if (required.has(property)) {
-        lines.push(`\t\tfields[${key}] = ${fieldExpr}`);
-      } else {
-        const check = nonZeroCheck(fieldType, fieldExpr);
-        lines.push(
-          check ? `\t\tif ${check} {\n\t\t\tfields[${key}] = ${fieldExpr}\n\t\t}` : `\t\tfields[${key}] = ${fieldExpr}`,
-        );
-      }
+  return fieldTypes;
+}
+
+/** The MarshalJSON case for one variant: required arrays as [] when nil, optional fields only when set. */
+function goMarshalVariant(variant, fieldTypes) {
+  const lines = [
+    `\tcase ${variantKinds(variant)
+      .map((kind) => JSON.stringify(kind))
+      .join(", ")}:`,
+  ];
+  const required = new Set(variant.required ?? []);
+  for (const property of Object.keys(variant.properties)) {
+    if (property === "kind") continue;
+    const fieldType = fieldTypes.get(property);
+    const fieldExpr = `v.${goFieldName(property)}`;
+    const key = JSON.stringify(property);
+    if (required.has(property) && fieldType.startsWith("[]")) {
+      lines.push(
+        `\t\tif ${fieldExpr} == nil {`,
+        `\t\t\tfields[${key}] = ${fieldType}{}`,
+        `\t\t} else {`,
+        `\t\t\tfields[${key}] = ${fieldExpr}`,
+        `\t\t}`,
+      );
+      continue;
     }
+    const check = required.has(property) ? null : nonZeroCheck(fieldType, fieldExpr);
+    lines.push(
+      check ? `\t\tif ${check} {\n\t\t\tfields[${key}] = ${fieldExpr}\n\t\t}` : `\t\tfields[${key}] = ${fieldExpr}`,
+    );
   }
-  lines.push(`\t}`, `\treturn json.Marshal(fields)`, `}`, "");
   return lines;
 }
 
 function generateGoEnum(name, node) {
   return [
-    goDocComment(node.description),
+    goDocumentComment(node.description),
     `type ${name} = string`,
     "",
     `// ${name} values.`,
@@ -329,7 +341,7 @@ function generateGo() {
     if (node.type === "object") lines.push(...generateGoStruct(name, node));
     else if (isKindUnion(node)) lines.push(...generateGoUnion(name, node));
     else if (node.enum && node.type === "string") lines.push(...generateGoEnum(name, node));
-    else lines.push(goDocComment(node.description), `type ${name} = ${goType(node)}`, "");
+    else lines.push(goDocumentComment(node.description), `type ${name} = ${goType(node)}`, "");
   }
   lines.push("// Daemon JSON-RPC method names.", "const (");
   for (const method of Object.keys(rpcMethods))
