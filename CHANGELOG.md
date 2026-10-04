@@ -11,3 +11,7 @@ All notable changes to this project are documented here. The format follows
 - `protocol/` JSON Schema with generated TypeScript and Go types.
 - VS Code extension host: daemon supervisor, search controller and search panel.
 - Search panel webview: query box with Aa / .* toggles, completions, fix-its, chips, results and preview.
+
+### Fixed
+
+- A reopened search panel no longer ignores the queries typed into it.
