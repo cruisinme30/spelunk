@@ -54,6 +54,18 @@ export function highlight(text: string, hits: (Hit | Range)[]): DocumentFragment
   return fragment;
 }
 
+/** Drops a code line's indentation, shifting its hits to match, so result rows line up. */
+export function trimIndent<H extends Range>(text: string, hits: H[]): { text: string; hits: H[] } {
+  const indent = text.length - text.trimStart().length;
+  if (indent === 0) return { text, hits };
+  return {
+    text: text.slice(indent),
+    hits: hits
+      .filter((hit) => hit.end > indent)
+      .map((hit) => ({ ...hit, start: Math.max(hit.start, indent) - indent, end: hit.end - indent })),
+  };
+}
+
 const TIME_UNITS: [seconds: number, name: string][] = [
   [31_536_000, "year"],
   [2_592_000, "month"],

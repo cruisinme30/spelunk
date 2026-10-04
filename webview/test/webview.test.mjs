@@ -228,6 +228,80 @@ test("hidden-result notes use singular units and name the filter", async (t) => 
   );
 });
 
+test("a case:yes note offers to ignore case", async (t) => {
+  const page = await openPanel(t);
+  await restore(page);
+  const seq = await typeAndParse(page, "case:yes Retry", parsedQuery("case:yes Retry", textNode("Retry", 9)));
+  const undo = { title: "Ignore case", edits: [{ span: { start: 0, end: 9 }, newText: "" }] };
+  await fromHost(page, "search.done", {
+    seq,
+    searchId: "s1",
+    total: 0,
+    truncated: false,
+    ms: 1,
+    hidden: [{ reason: "case", filter: "case:yes", count: 5, unit: "matches", undo }],
+  });
+  const note = page.locator('[data-testid="hidden-notes"] .note');
+  assert.equal(await note.locator("span").first().innerText(), "5 matches hidden by case:yes");
+  assert.equal(await note.locator('[data-testid="show-hidden"]').innerText(), "Ignore case");
+});
+
+test("a query with errors keeps the last results and says which query they are for", async (t) => {
+  // @covers mock:13
+  const page = await panelWithResults(t);
+  const lastGood = page.locator('[data-testid="last-good"]');
+  assert.equal(await lastGood.isVisible(), false);
+  const broken = parsedQuery("retry_policy (", textNode("retry_policy", 0), {
+    diagnostics: [
+      {
+        severity: "error",
+        code: "unclosed_paren",
+        span: { start: 13, end: 14 },
+        message: "Missing closing parenthesis",
+        fixes: [],
+      },
+    ],
+  });
+  await typeAndParse(page, "retry_policy (", broken);
+  assert.equal(await page.locator('[data-testid="result"]').count(), 2, "the last results stay");
+  assert.equal(await lastGood.textContent(), "Showing results for the last query that worked retry_policy");
+  await typeAndParse(page, "retry_policy", parsedQuery("retry_policy", textNode("retry_policy", 0)));
+  assert.equal(await lastGood.isVisible(), false);
+});
+
+test("a path-scoped search says which paths its code results come from", async (t) => {
+  const page = await openPanel(t);
+  await restore(page);
+  const text = "f:.*test\\.py$ timeout";
+  const path = { kind: "op", op: "f", value: ".*test\\.py$", match: "regex", span: { start: 0, end: 14 } };
+  const root = { kind: "and", children: [path, textNode("timeout", 15)], span: { start: 0, end: 22 } };
+  const seq = await typeAndParse(page, text, parsedQuery(text, root));
+  await fromHost(page, "search.batch", { seq, searchId: "s1", items: [RESULT_ITEMS[1]] });
+  assert.match(
+    await page.locator('[data-testid="section-code"] .section-title').innerText(),
+    /Code in matching paths/i,
+  );
+  assert.equal(
+    await page.locator('[data-testid="path-scope"]').innerText(),
+    "Only files whose full path matches .*test\\.py$ are searched.",
+  );
+});
+
+test("code rows drop the line's indentation and keep the highlight on the match", async (t) => {
+  const page = await openPanel(t);
+  await restore(page);
+  const seq = await typeAndParse(page, "retry_policy", parsedQuery("retry_policy", textNode("retry_policy", 0)));
+  const item = {
+    ...RESULT_ITEMS[1],
+    text: "        self.retry_policy = x",
+    hits: [{ start: 13, end: 25, termIndex: 0 }],
+  };
+  await fromHost(page, "search.batch", { seq, searchId: "s1", items: [item] });
+  const code = page.locator('[data-kind="line"] code');
+  assert.equal(await code.innerText(), "self.retry_policy = x");
+  assert.equal(await code.locator("mark").innerText(), "retry_policy");
+});
+
 test("the stopped banner offers Restart and clears when the daemon is back", async (t) => {
   const page = await openPanel(t);
   await fromHost(page, "banner", { state: "stopped", message: "Search stopped" });

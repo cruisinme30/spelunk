@@ -19,7 +19,7 @@ import {
 } from "./render/chrome";
 import { renderEmptyState } from "./render/emptyState";
 import { renderPreview } from "./render/preview";
-import { ResultsView } from "./render/results";
+import { pathScope, ResultsView } from "./render/results";
 import { createViewState, hasErrors, type ViewState } from "./state";
 
 /** Cheat-sheet snippets that put the cursor between a pair: "|", /|/, (|). */
@@ -349,6 +349,7 @@ export class SearchPanel {
 
     this.renderCompletions();
     renderDiagnostics(this.layout, state, (fix) => this.applyFix(fix));
+    this.results?.showLastGood(errors && state.lastGoodText ? state.lastGoodText : undefined);
     renderChips(this.layout, state, this.summary);
     this.renderSummary();
     if (!query.root && !errors) this.showEmptyState();
@@ -367,12 +368,9 @@ export class SearchPanel {
       onApplyFix: (fix: Fix) => this.applyFix(fix),
       onLoadMore: (id: string, cursor: string) => send("results.more", { searchId: id, cursor }),
     };
-    this.results = new ResultsView(
-      this.layout.body,
-      state,
-      handlers,
-      hasErrors(state) ? state.lastGoodText : undefined,
-    );
+    const errors = hasErrors(state);
+    this.results = new ResultsView(this.layout.body, state, handlers, errors ? [] : pathScope(state.parsed));
+    this.results.showLastGood(errors ? state.lastGoodText : undefined);
     return this.results;
   }
 

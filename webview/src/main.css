@@ -1,4 +1,8 @@
 /* Theme-aware: VS Code variables first, the mock palette as fallback. */
+/* The hidden attribute wins over any display rule below. */
+[hidden] {
+  display: none !important;
+}
 :root {
   --bg: var(--vscode-editor-background, #121418);
   --panel: var(--vscode-quickInput-background, #1a1d23);
@@ -463,6 +467,10 @@ mark.t3 {
   letter-spacing: 0;
   text-transform: none;
   font-weight: 400;
+}
+.scope {
+  padding: 0 14px 8px;
+  font-size: 12px;
 }
 .contents {
   display: contents;

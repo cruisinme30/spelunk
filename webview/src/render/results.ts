@@ -1,7 +1,7 @@
 // The result list: sections for file names, definitions, code and commits,
 // appended to as batches stream in, plus hidden-result notes and Load more.
-import { el, fileStat, highlight, plural, shortSha, termClass, timeAgo } from "../format";
-import type { Fix, HiddenNote, ResultItem, SearchDoneMsg } from "../protocol.gen";
+import { el, fileStat, highlight, plural, shortSha, termClass, timeAgo, trimIndent } from "../format";
+import type { Fix, HiddenNote, ParsedQuery, ResultItem, SearchDoneMsg } from "../protocol.gen";
 import { textNodes } from "../queryEdit";
 import { repoName, type ViewState } from "../state";
 
@@ -29,6 +29,17 @@ export interface ResultCounts extends Record<ResultKind, number> {
   repos: number;
 }
 
+/**
+ * The path patterns that scope a search: the values of top-level positive
+ * f: operators. Code results then come only from matching paths (mock 2).
+ */
+export function pathScope(query: ParsedQuery | undefined): string[] {
+  const root = query?.root;
+  if (!root) return [];
+  const conjuncts = root.kind === "and" ? root.children : [root];
+  return conjuncts.flatMap((node) => (node.kind === "op" && node.op === "f" ? [node.value] : []));
+}
+
 /** A DOM id for a result row. Refs are opaque, so they are sanitized, never parsed. */
 export function rowId(ref: string): string {
   return "r-" + ref.replace(/[^A-Za-z0-9_-]/g, "_");
@@ -48,34 +59,42 @@ export class ResultsView {
   private readonly sections: Record<ResultKind, Section>;
   private readonly notes: HTMLElement;
   private readonly loadMore: HTMLElement;
+  private readonly lastGood: HTMLElement;
   private codeGroup?: { key: string; count: HTMLElement; matches: number };
 
   constructor(
     body: HTMLElement,
     private readonly state: ViewState,
     private readonly handlers: ResultsHandlers,
-    lastGoodText?: string,
+    scope: string[] = [],
   ) {
     this.sections = {
       file: makeSection("File names", "section-files"),
       symbol: makeSection("Definitions", "section-symbols"),
-      line: makeSection("Code", "section-code"),
+      line: makeSection(scope.length ? "Code in matching paths" : "Code", "section-code"),
       commit: makeSection("Commits · newest first", "section-commits"),
     };
+    if (scope.length) {
+      const patterns = scope.flatMap((pattern, i) =>
+        i ? [" and ", el("code", {}, pattern)] : [el("code", {}, pattern)],
+      );
+      this.sections.line.list.before(
+        el(
+          "div",
+          { class: "scope muted", "data-testid": "path-scope" },
+          "Only files whose full path matches ",
+          ...patterns,
+          " are searched.",
+        ),
+      );
+    }
     this.notes = el("div", { class: "notes", "data-testid": "hidden-notes" });
     this.loadMore = el("div", { class: "more" });
-    const lastGood = lastGoodText
-      ? el(
-          "div",
-          { class: "lastgood muted" },
-          "Showing results for the last query that worked ",
-          el("code", {}, lastGoodText),
-        )
-      : null;
+    this.lastGood = el("div", { class: "lastgood muted", "data-testid": "last-good", hidden: true });
     this.list = el(
       "div",
       { id: "results", role: "listbox", "aria-label": "Results", "data-testid": "results" },
-      lastGood,
+      this.lastGood,
       this.sections.file.root,
       this.sections.symbol.root,
       this.sections.line.root,
@@ -85,6 +104,17 @@ export class ResultsView {
     );
     this.preview = el("div", { id: "preview", "data-testid": "preview", "aria-live": "polite" });
     body.replaceChildren(el("div", { class: "split" }, this.list, this.preview));
+  }
+
+  /**
+   * While the query box has errors, says which query the results on screen
+   * are for (mock 13); undefined hides the line again.
+   */
+  showLastGood(text: string | undefined): void {
+    this.lastGood.hidden = text === undefined;
+    this.lastGood.replaceChildren(
+      ...(text === undefined ? [] : ["Showing results for the last query that worked ", el("code", {}, text)]),
+    );
   }
 
   /** Every selectable row, in visual order. */
@@ -158,7 +188,9 @@ export class ResultsView {
   /** "3 commits hidden by -f:vendor/ · Show them" (mock 7). */
   private renderNote(note: HiddenNote): HTMLElement {
     const unit = note.count === 1 ? SINGULAR_UNIT[note.unit] : note.unit;
-    const showThem = el("button", { type: "button", class: "btn link", "data-testid": "show-hidden" }, "Show them");
+    // Undoing case:yes changes how text matches rather than showing hidden rows (mock 8).
+    const label = note.reason === "case" ? note.undo.title : "Show them";
+    const showThem = el("button", { type: "button", class: "btn link", "data-testid": "show-hidden" }, label);
     showThem.addEventListener("click", () => this.handlers.onApplyFix(note.undo));
     return el(
       "div",
@@ -233,12 +265,13 @@ export class ResultsView {
     }
     this.codeGroup.matches++;
     this.codeGroup.count.textContent = String(this.codeGroup.matches);
+    const shown = trimIndent(item.text, item.hits);
     group.append(
       el(
         "div",
         { ...this.rowAttributes(item), class: "row line" },
         el("span", { class: "ln" }, String(item.line)),
-        el("code", { class: "text" }, highlight(item.text, item.hits)),
+        el("code", { class: "text" }, highlight(shown.text, shown.hits)),
       ),
     );
     return group;
