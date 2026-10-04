@@ -88,6 +88,18 @@ func TestMockQueriesOverTheFixtureWorkspace(t *testing.T) {
 			},
 			hidden: []string{"case:case:yes:1"},
 		},
+		{
+			// @covers mock:12
+			mock: "12", query: "type:file lang:python retry",
+			want: []string{
+				"file payments-api/scripts/retry_failed_webhooks.py",
+				"file payments-api/src/payments/retry_policy.py",
+				"file payments-api/tests/payments/retry_policy_test.py",
+				"file shared-libs/http/retry.py",
+				"file shared-libs/http/tests/retry_test.py",
+			},
+			hidden: []string{"type:type:file:17"},
+		},
 	}
 	client := newTestClient(t, Options{})
 	batches := collectBatches(client)
@@ -116,5 +128,22 @@ func TestMockQueriesOverTheFixtureWorkspace(t *testing.T) {
 				t.Errorf("hidden = %q, want %q", hidden, tt.hidden)
 			}
 		})
+	}
+}
+
+// Mock 12's "code matches hidden" count is what the same query returns as
+// code (test plan E12).
+func TestTypeFileHidesExactlyWhatTypeCodeFinds(t *testing.T) {
+	client := newTestClient(t, Options{})
+	client.mustInitialize(t, fixtureRoots(t)...)
+	var files, code protocol.SearchResult
+	if err := client.call(protocol.MethodSearchStart, protocol.SearchStartParams{SearchID: "f", Text: "type:file lang:python retry"}, &files); err != nil {
+		t.Fatal(err)
+	}
+	if err := client.call(protocol.MethodSearchStart, protocol.SearchStartParams{SearchID: "c", Text: "type:code lang:python retry"}, &code); err != nil {
+		t.Fatal(err)
+	}
+	if len(files.Hidden) != 1 || files.Hidden[0].Count != code.Total || code.Total == 0 {
+		t.Errorf("type:file hidden = %+v, want one note counting the %d code matches of type:code", files.Hidden, code.Total)
 	}
 }
