@@ -48,6 +48,7 @@ func New(conn *rpc.Conn, opts Options) *Server {
 	conn.OnNotify(protocol.MethodExit, func(json.RawMessage) { s.exit() })
 	conn.OnNotify(protocol.MethodWorkspaceSetRoots, s.setRoots)
 	conn.OnNotify(protocol.MethodSettingsUpdate, s.updateSettings)
+	s.registerM0()
 	return s
 }
 
