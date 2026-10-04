@@ -1,9 +1,9 @@
 // The search panel: a webview panel that hosts webview/ (Contract 2) under
 // a strict content security policy.
-import { randomBytes } from "node:crypto";
 import * as vscode from "vscode";
 import type { WebviewMessage } from "./controller";
 import type { HostToWebview } from "./protocol.gen";
+import { webviewPage } from "./webviewPage";
 
 interface QueuedMessage {
   type: keyof HostToWebview;
@@ -42,7 +42,7 @@ export class SearchPanel implements vscode.Disposable {
     });
     this.panel = panel;
     this.ready = false;
-    panel.webview.html = this.html(panel.webview, webviewRoot);
+    panel.webview.html = webviewPage(panel.webview, webviewRoot, "main.js", "Unified Search");
     panel.webview.onDidReceiveMessage(
       (message: WebviewMessage) => this.receive(message),
       undefined,
@@ -86,31 +86,5 @@ export class SearchPanel implements vscode.Disposable {
     this.pendingMessages = [];
     for (const disposable of this.panelDisposables.splice(0)) disposable.dispose();
     this.onOpenChanged(false);
-  }
-
-  private html(webview: vscode.Webview, webviewRoot: vscode.Uri): string {
-    const nonce = randomBytes(16).toString("base64");
-    const script = webview.asWebviewUri(vscode.Uri.joinPath(webviewRoot, "main.js"));
-    const styles = webview.asWebviewUri(vscode.Uri.joinPath(webviewRoot, "main.css"));
-    const csp = [
-      "default-src 'none'",
-      `style-src ${webview.cspSource}`,
-      `script-src 'nonce-${nonce}'`,
-      `font-src ${webview.cspSource}`,
-    ].join("; ");
-    return `<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="${csp};">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<link rel="stylesheet" href="${styles}">
-<title>Unified Search</title>
-</head>
-<body>
-<div id="app"></div>
-<script nonce="${nonce}" src="${script}"></script>
-</body>
-</html>`;
   }
 }

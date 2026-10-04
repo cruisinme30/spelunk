@@ -23,16 +23,22 @@ await build({
 
 if (existsSync(join(webview, "src/main.ts"))) {
   mkdirSync(join(here, "dist/webview"), { recursive: true });
-  await build({
-    entryPoints: [join(webview, "src/main.ts")],
-    bundle: true,
-    platform: "browser",
-    format: "iife",
-    target: "es2020",
-    outfile: join(here, "dist/webview/main.js"),
-    sourcemap: false,
-    logLevel: "warning",
-  });
+  // The search panel and the help page share main.css.
+  for (const [entry, out] of [
+    ["main.ts", "main.js"],
+    ["helpPage.ts", "help.js"],
+  ]) {
+    await build({
+      entryPoints: [join(webview, "src", entry)],
+      bundle: true,
+      platform: "browser",
+      format: "iife",
+      target: "es2020",
+      outfile: join(here, "dist/webview", out),
+      sourcemap: false,
+      logLevel: "warning",
+    });
+  }
   if (existsSync(join(webview, "src/main.css")))
     cpSync(join(webview, "src/main.css"), join(here, "dist/webview/main.css"));
 }

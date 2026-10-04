@@ -1,9 +1,19 @@
 // Discovery in the search panel (M2): operator suggestions (mock 5), the
-// repo menu and the type:file note (mock 12).
-// @covers msg:help.open
+// repo menu, the type:file note (mock 12) and the help page (mock 17).
+// @covers msg:help.open msg:help.try msg:settings.open
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { fromHost, lastSent, openPanel, parsedQuery, restore, sentMessages, textNode, useBrowser } from "./harness.mjs";
+import {
+  fromHost,
+  lastSent,
+  openHelp,
+  openPanel,
+  parsedQuery,
+  restore,
+  sentMessages,
+  textNode,
+  useBrowser,
+} from "./harness.mjs";
 
 useBrowser();
 
@@ -163,4 +173,15 @@ test("a type:file note counts the code matches for the query's words and offers 
   assert.equal(await note.locator("span").first().innerText(), "38 code matches for retry hidden by type:file");
   await note.locator('[data-testid="show-hidden"]').click();
   assert.equal(await page.inputValue('[data-testid="query"]'), "retry");
+});
+
+test("the help page lists every operator with an example, and Try runs it", async (t) => {
+  // @covers mock:17 command:openHelp
+  const page = await openHelp(t);
+  assert.equal(await page.locator('[data-testid="operator-row"]').count(), 16);
+  assert.equal(await page.locator('[data-testid="example"]').count(), 5);
+  await page.locator('[data-testid="operator-row"]').first().locator('[data-testid="try"]').click();
+  assert.deepEqual(await lastSent(page, "help.try"), { query: "case:yes RetryPolicy" });
+  await page.click('[data-testid="open-settings"]');
+  assert.equal((await sentMessages(page, "settings.open")).length, 1);
 });

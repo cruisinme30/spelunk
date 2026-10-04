@@ -8,6 +8,7 @@ import * as vscode from "vscode";
 import { CommitDocuments } from "./commitDocuments";
 import { SearchController, type PersistedState, type Ui } from "./controller";
 import { Daemon, type DaemonState } from "./daemon";
+import { HelpPanel } from "./helpPanel";
 import { SearchPanel } from "./panel";
 import type { FileChange, OpenTarget, OpenWhere, ResultItem } from "./protocol.gen";
 import { makeRoot } from "./roots";
@@ -80,13 +81,19 @@ export async function activate(context: vscode.ExtensionContext): Promise<unknow
     context.globalState.get<PersistedState>(STATE_KEY),
   );
   controller = searchController;
+  // The help page's Try runs its example in the search panel; its settings link opens Settings.
+  const help = new HelpPanel(context.extensionUri, (message) => {
+    if (message?.type === "help.try") void vscode.commands.executeCommand("unifiedSearch.open", message.payload);
+    else if (message?.type === "settings.open") ui.openSettings();
+  });
 
   context.subscriptions.push(
     log,
     panel,
+    help,
     vscode.workspace.registerTextDocumentContentProvider(CommitDocuments.scheme, commitDocuments),
     createStatusBar(daemon, panel),
-    ...registerCommands(daemon, searchController, panel, roots),
+    ...registerCommands(daemon, searchController, panel, help, roots),
     forwardFileChanges(daemon),
     vscode.workspace.onDidChangeWorkspaceFolders(() => daemon.setRoots(roots())),
     vscode.workspace.onDidChangeConfiguration((event) => {
@@ -145,6 +152,7 @@ function registerCommands(
   daemon: Daemon,
   controller: SearchController,
   panel: SearchPanel,
+  help: HelpPanel,
   roots: () => ReturnType<typeof makeRoot>[],
 ): vscode.Disposable[] {
   const commands: Record<string, (...args: any[]) => unknown> = {
@@ -152,6 +160,7 @@ function registerCommands(
       panel.show();
       controller.restore(typeof argument?.query === "string" ? argument.query : undefined);
     },
+    "unifiedSearch.openHelp": () => help.show(),
     "unifiedSearch.nextResult": () => controller.step(1),
     "unifiedSearch.prevResult": () => controller.step(-1),
     "unifiedSearch.restartDaemon": () => daemon.restart(),

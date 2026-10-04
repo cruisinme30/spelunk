@@ -994,3 +994,102 @@ pre.body {
 .menuitem .name {
   flex: 1;
 }
+
+/* The help page (mock 17). */
+.help {
+  display: flex;
+  min-height: 100%;
+  background: var(--bg);
+}
+.help .toc {
+  position: sticky;
+  top: 0;
+  align-self: flex-start;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 200px;
+  padding: 24px 16px;
+  flex: 0 0 auto;
+}
+.help .toc a {
+  padding: 6px 10px;
+  border-radius: 6px;
+  color: var(--fg);
+  text-decoration: none;
+}
+.help .toc a:hover {
+  background: var(--hover);
+}
+.guide {
+  flex: 1;
+  max-width: 880px;
+  padding: 24px 24px 48px;
+  border-left: 1px solid var(--line);
+  line-height: 1.55;
+}
+.guide h1 {
+  margin: 8px 0 4px;
+  font-size: 28px;
+}
+.guide h2 {
+  margin: 28px 0 10px;
+  font-size: 19px;
+}
+.guide .lead {
+  color: var(--muted);
+  font-size: 15px;
+}
+.guide code {
+  font-family: var(--mono);
+}
+.optable,
+.keytable {
+  width: 100%;
+  border-collapse: collapse;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.optable th,
+.optable td,
+.keytable td {
+  padding: 8px 12px;
+  text-align: left;
+  border-top: 1px solid var(--line);
+  vertical-align: middle;
+}
+.optable tr.opgroup th {
+  font-size: 12px;
+  padding-top: 12px;
+}
+.examples {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.example {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+@media (max-width: 640px) {
+  .help .toc {
+    display: none;
+  }
+  .example {
+    grid-template-columns: 1fr;
+  }
+}
+.group-name.match {
+  color: var(--tone-match);
+}
+.group-name.scope {
+  color: var(--tone-scope);
+}
+.group-name.history {
+  color: var(--tone-history);
+}
