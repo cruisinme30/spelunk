@@ -2,98 +2,25 @@
 // recorded host messages and checks what it renders and sends.
 // @covers msg:ready msg:state.restore msg:query.changed msg:parse.result msg:search.batch msg:search.done msg:result.select msg:preview.result msg:index.status msg:banner msg:daemon.restart msg:panel.close msg:focus msg:result.open
 import assert from "node:assert/strict";
-import { dirname, join } from "node:path";
-import { after, before, test } from "node:test";
-import { fileURLToPath, pathToFileURL } from "node:url";
-import { chromium } from "playwright";
+import { test } from "node:test";
+import {
+  fromHost,
+  lastSent,
+  openPanel,
+  panelWithResults,
+  parsedQuery,
+  RESULT_ITEMS,
+  restore,
+  sentMessages,
+  textNode,
+  typeAndParse,
+  useBrowser,
+} from "./harness.mjs";
 
-const harnessUrl = pathToFileURL(join(dirname(fileURLToPath(import.meta.url)), "out/harness.html")).href;
-const UI_SETTINGS = {
-  typingDelayMs: 0,
-  openTrigger: "doubleClick",
-  preview: true,
-  showParsedQuery: true,
-  caseSensitive: false,
-};
-
-let browser;
-before(async () => {
-  browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined });
-});
-after(async () => browser?.close());
-
-/** Opens a fresh panel, closed again when the test ends (even if it fails). */
-async function openPanel(t) {
-  const page = await browser.newPage();
-  t.after(() => page.close());
-  await page.goto(harnessUrl);
-  return page;
-}
-
-const sentMessages = (page, type) => page.evaluate((t) => window.__sent.filter((m) => m.type === t), type);
-const lastSent = async (page, type) => (await sentMessages(page, type)).at(-1)?.payload;
-const fromHost = (page, type, payload) => page.evaluate(([t, p]) => window.__host(t, p), [type, payload]);
-const restore = (page, recent = []) => fromHost(page, "state.restore", { text: "", recent, settings: UI_SETTINGS });
-
-const parsedQuery = (raw, root, overrides = {}) => ({
-  version: 1,
-  raw,
-  root,
-  mode: "workingTree",
-  diagnostics: [],
-  globals: { case: null, count: null, type: null },
-  ...overrides,
-});
-const textNode = (value, start, termIndex = 0) => ({
-  kind: "text",
-  value,
-  match: "literal",
-  termIndex,
-  span: { start, end: start + value.length },
-});
-
-/** Types a query and answers its parse with `query`; returns the seq. */
-async function typeAndParse(page, text, query) {
-  await page.fill('[data-testid="query"]', text);
-  const { seq } = await lastSent(page, "query.changed");
-  await fromHost(page, "parse.result", { seq, query, completions: [] });
-  return seq;
-}
-
-const RESULT_ITEMS = [
-  {
-    kind: "file",
-    ref: "f1",
-    repoId: "r1",
-    path: "src/payments/retry_policy.py",
-    nameHits: [{ start: 13, end: 25 }],
-    dirty: false,
-  },
-  {
-    kind: "line",
-    ref: "l1",
-    repoId: "r1",
-    path: "src/payments/client.py",
-    line: 42,
-    text: "self.retry_policy = RetryPolicy()",
-    hits: [{ start: 5, end: 17, termIndex: 0 }],
-  },
-];
-
-/** A panel showing RESULT_ITEMS for "retry_policy". */
-async function panelWithResults(t) {
-  const page = await openPanel(t);
-  await restore(page);
-  await fromHost(page, "index.status", {
-    repos: [{ repoId: "r1", name: "payments-api", tree: "ready", history: "ready" }],
-  });
-  const seq = await typeAndParse(page, "retry_policy", parsedQuery("retry_policy", textNode("retry_policy", 0)));
-  await fromHost(page, "search.batch", { seq, searchId: "s1", items: RESULT_ITEMS });
-  await fromHost(page, "search.done", { seq, searchId: "s1", total: 2, truncated: false, hidden: [], ms: 3 });
-  return page;
-}
+useBrowser();
 
 test("an empty box shows recent queries and all 16 operators", async (t) => {
+  // @covers mock:4
   const page = await openPanel(t);
   assert.equal((await sentMessages(page, "ready")).length, 1);
   await restore(page, ["sym:RetryPolicy", "since:2w timeout"]);
