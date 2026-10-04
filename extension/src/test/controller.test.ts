@@ -6,7 +6,7 @@ import { existsSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import { type Backend, SearchController, type Ui, type WebviewMessage } from "../controller";
+import { type Backend, SearchController, textWithoutCompletedWord, type Ui, type WebviewMessage } from "../controller";
 import { Daemon } from "../daemon";
 import type { HostToWebview, OpenTarget, ParsedQuery, UiSettings } from "../protocol.gen";
 import { makeRoot } from "../roots";
@@ -221,4 +221,63 @@ test("a search typed while a repo was indexing runs again when the repo is ready
   progress("ready");
   await new Promise((resolve) => setImmediate(resolve));
   assert.equal(searches.length, 2, "no re-run when nothing new became ready");
+});
+
+test("the word being completed is left out of the text to search", () => {
+  const operator = (start: number, end: number) => [
+    {
+      label: "since:",
+      detail: "",
+      group: "operator" as const,
+      insert: { title: "", edits: [{ span: { start, end }, newText: "since:" }] },
+    },
+  ];
+  assert.equal(textWithoutCompletedWord("timeout s", 9, operator(8, 9)), "timeout");
+  assert.equal(textWithoutCompletedWord("author:ja timeout", 9, operator(0, 9)), "timeout");
+  assert.equal(textWithoutCompletedWord("a s b", 3, operator(2, 3)), "a b");
+  assert.equal(textWithoutCompletedWord("s", 1, operator(0, 1)), undefined, "nothing else to search");
+  assert.equal(textWithoutCompletedWord("timeout s", 3, operator(8, 9)), undefined, "the cursor is elsewhere");
+  assert.equal(textWithoutCompletedWord("timeout", 7, []), undefined, "no suggestions");
+});
+
+test("while a word is being completed the search runs without it, and Esc searches it as typed", async () => {
+  // @covers mock:5
+  const host = recordingUi();
+  const searched: string[] = [];
+  const backend: Backend = {
+    on: () => undefined,
+    request: async (method, params: any): Promise<any> => {
+      if (method === "query/parse") {
+        const root = { kind: "text", span: { start: 0, end: params.text.length }, value: params.text };
+        const completions = params.text.endsWith(" s")
+          ? [
+              {
+                label: "since:",
+                detail: "",
+                group: "operator",
+                insert: {
+                  title: "",
+                  edits: [{ span: { start: params.text.length - 1, end: params.text.length }, newText: "since:" }],
+                },
+              },
+            ]
+          : [];
+        return { query: { ...emptyQuery(params.text), root }, completions };
+      }
+      searched.push(params.text);
+      return { total: 0, truncated: false, hidden: [], ms: 0 };
+    },
+  };
+  const controller = newController(backend, host.ui);
+  await controller.handle(queryChanged("timeout s", 1));
+  assert.deepEqual(searched, ["timeout"]);
+  assert.equal(host.posted.find((message) => message.type === "parse.result")?.payload.searchText, "timeout");
+
+  await controller.handle({
+    v: 1,
+    type: "query.changed",
+    payload: { text: "timeout s", cursor: 9, seq: 2, asTyped: true },
+  });
+  assert.deepEqual(searched, ["timeout", "timeout s"]);
+  assert.equal(host.posted.filter((message) => message.type === "parse.result").at(-1)?.payload.searchText, undefined);
 });

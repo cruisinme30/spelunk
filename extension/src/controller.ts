@@ -3,6 +3,7 @@
 // drive it against the real daemon.
 import { CancelSource, RpcError } from "./jsonRpc";
 import {
+  type Completion,
   ErrorCodes,
   type HostToWebview,
   type IndexStatusResult,
@@ -17,6 +18,20 @@ import {
 
 /** Lines of context around the match in a file preview (mock 1 shows ±7). */
 const DEFAULT_PREVIEW_CONTEXT_LINES = 7;
+
+/**
+ * The box without the word the suggestions would replace, when the cursor
+ * is in it; undefined when there are no suggestions or nothing else is left.
+ * Offsets are UTF-16, like JavaScript strings.
+ */
+export function textWithoutCompletedWord(text: string, cursor: number, completions: Completion[]): string | undefined {
+  const span = completions[0]?.insert.edits[0]?.span;
+  if (!span || cursor < span.start || cursor > span.end) return undefined;
+  const before = text.slice(0, span.start).trimEnd();
+  const after = text.slice(span.end).trimStart();
+  const rest = before && after ? `${before} ${after}` : before || after;
+  return rest || undefined;
+}
 
 /** What the controller needs from the daemon: requests plus streamed batches. */
 export interface Backend {
@@ -112,7 +127,7 @@ export class SearchController {
         this.restore();
         return;
       case "query.changed":
-        return this.onQueryChanged(message.payload.text, message.payload.cursor, message.payload.seq);
+        return this.onQueryChanged(message.payload, message.payload.asTyped === true);
       case "result.select":
         return this.onSelect(message.payload.ref);
       case "result.open":
@@ -122,6 +137,8 @@ export class SearchController {
       case "panel.close":
         this.rememberQuery();
         this.ui.hidePanel();
+        return;
+      case "help.try": // sent by the help page, which extension.ts routes to the open command
         return;
       case "help.open":
         this.ui.openHelp();
@@ -151,20 +168,23 @@ export class SearchController {
     this.ui.saveState(this.state);
   }
 
-  private async onQueryChanged(text: string, cursor: number, seq: number): Promise<void> {
+  private async onQueryChanged(box: { text: string; cursor: number; seq: number }, asTyped: boolean): Promise<void> {
+    const { text, cursor, seq } = box;
     if (seq < this.latestSeq) return;
     this.latestSeq = seq;
     this.state.text = text;
     this.ui.saveState(this.state);
     let parsed: RpcRequests["query/parse"][1];
+    let searchText: string | undefined;
     try {
       parsed = await this.backend.request("query/parse", { text, cursor });
+      if (!asTyped) searchText = await this.searchableWithoutWordBeingCompleted(text, cursor, parsed.completions);
     } catch (error) {
       this.postSearchFailed(seq, "", error);
       return;
     }
     if (seq !== this.latestSeq) return; // a newer keystroke arrived while parsing
-    this.ui.post("parse.result", { seq, query: parsed.query, completions: parsed.completions });
+    this.ui.post("parse.result", { seq, query: parsed.query, completions: parsed.completions, searchText });
     // With errors, keep showing the last good results (mock 13).
     if (parsed.query.diagnostics.some((diagnostic) => diagnostic.severity === "error")) return;
     this.search?.cancel.cancel();
@@ -173,7 +193,26 @@ export class SearchController {
       this.setResults([]);
       return;
     }
-    await this.runSearch(text, seq);
+    await this.runSearch(searchText ?? text, seq);
+  }
+
+  /**
+   * While suggestions are offered for the word at the cursor, the search
+   * leaves that half-typed word out, so the results stay on what is already
+   * complete (mocks 5 and 6: "Results for timeout keep updating"). Returns
+   * undefined to search the whole box: nothing is being completed, or the
+   * rest would not be a query on its own.
+   */
+  private async searchableWithoutWordBeingCompleted(
+    text: string,
+    cursor: number,
+    completions: Completion[],
+  ): Promise<string | undefined> {
+    const rest = textWithoutCompletedWord(text, cursor, completions);
+    if (rest === undefined) return undefined;
+    const parsed = await this.backend.request("query/parse", { text: rest, cursor: rest.length });
+    const usable = parsed.query.root !== null && !parsed.query.diagnostics.some((d) => d.severity === "error");
+    return usable ? rest : undefined;
   }
 
   /** Starts a search, or fetches the page after `pageCursor` of the current one. */
