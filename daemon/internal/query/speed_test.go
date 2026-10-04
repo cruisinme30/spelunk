@@ -10,7 +10,8 @@ import (
 // parseBudget is how fast query/parse must answer, so chips and errors keep up with typing.
 const parseBudget = 15 * time.Millisecond
 
-// speedQueries are the mocks' queries plus the longest query allowed.
+// speedQueries are typical queries, one with two errors, and the longest
+// query allowed.
 var speedQueries = []string{
 	"retry_policy",
 	`f:.*test\.py$ timeout`,
@@ -29,7 +30,15 @@ func parseOnce(text string) {
 	Complete(text, len(text), nil, fixedNow)
 }
 
+// TestParseIsFastEnough checks the parse budget on this machine. Timing is
+// meaningless under -race and too slow for -short, so it skips both.
 func TestParseIsFastEnough(t *testing.T) {
+	if testing.Short() {
+		t.Skip("timing test; skipped with -short")
+	}
+	if raceEnabled {
+		t.Skip("timing test; the race detector slows parsing down")
+	}
 	for _, text := range speedQueries {
 		durations := make([]time.Duration, 200)
 		for i := range durations {

@@ -18,7 +18,8 @@ const (
 	scopeWorkingTreeOnly
 )
 
-// operator is one row of the operator table (docs/dev/implementation-plan.md, "Operator semantics").
+// operator describes one operator: where it may be used, how its value is
+// checked, and what completions offer for it.
 type operator struct {
 	name protocol.OpName
 	// global operators apply to the whole query and may appear once, at the top level.

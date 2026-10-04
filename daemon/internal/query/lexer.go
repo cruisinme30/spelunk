@@ -65,13 +65,18 @@ func splitOperator(word string) (name, rest string, ok bool) {
 	return name, rest, true
 }
 
-// lexer turns query text into tokens.
+// lexer splits query text into tokens: parentheses, a leading "-",
+// the keywords AND and OR, operators (name:value) and text terms. It works
+// rune by rune but records token positions as UTF-16 offsets, the unit
+// spans use. It never fails: an unclosed quote or regex becomes a token
+// marked unclosed, which the parser reports.
 type lexer struct {
 	src    *source
 	pos    int // rune index
 	tokens []token
 }
 
+// lex returns the tokens of src, always ending with a tokenEnd.
 func lex(src *source) []token {
 	l := &lexer{src: src}
 	for l.pos < len(src.runes) {
@@ -86,11 +91,14 @@ func isSpace(r rune) bool { return r == ' ' || r == '\t' || r == '\n' || r == '\
 // endsBareWord reports whether r ends a bare word.
 func endsBareWord(r rune) bool { return isSpace(r) || r == '(' || r == ')' || r == '"' }
 
+// emit appends a token spanning runes [startRune, endRune) and returns it,
+// so the caller can fill in its value.
 func (l *lexer) emit(kind tokenKind, startRune, endRune int) *token {
 	l.tokens = append(l.tokens, token{kind: kind, start: l.src.offsets[startRune], end: l.src.offsets[endRune]})
 	return &l.tokens[len(l.tokens)-1]
 }
 
+// next lexes whatever starts at the current position.
 func (l *lexer) next() {
 	runes := l.src.runes
 	r := runes[l.pos]

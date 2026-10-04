@@ -1,29 +1,11 @@
 package query
 
 import (
-	"slices"
 	"strings"
 	"testing"
 
 	"github.com/cruisinme30/unified-search/daemon/internal/protocol"
 )
-
-// applyFix applies a fix's edits (UTF-16 spans) to text.
-func applyFix(text string, fix protocol.Fix) string {
-	src := newSource(text)
-	var b strings.Builder
-	position := 0
-	// Edits in a fix never overlap; apply them in span order.
-	edits := slices.Clone(fix.Edits)
-	slices.SortFunc(edits, func(a, b protocol.TextEdit) int { return a.Span.Start - b.Span.Start })
-	for _, edit := range edits {
-		b.WriteString(src.slice(position, edit.Span.Start))
-		b.WriteString(edit.NewText)
-		position = edit.Span.End
-	}
-	b.WriteString(src.slice(position, src.length()))
-	return b.String()
-}
 
 // Each diagnostic code: the query that triggers it, the span it points at,
 // and what its first fix turns the query into ("" when it has no fix).
@@ -117,7 +99,7 @@ func TestEveryFixProducesAQueryWithoutThatDiagnostic(t *testing.T) {
 				fixed := applyFix(query, fix)
 				for _, after := range Parse(fixed, testResolver).Diagnostics {
 					if after.Code == d.Code {
-						t.Errorf("fix %q on %q gives %q, which still has %s", fix.Title, query, fixed, d.Code)
+						t.Errorf("fix %q on %q gives %q with %s, want it gone", fix.Title, query, fixed, d.Code)
 					}
 				}
 			}

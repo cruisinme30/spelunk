@@ -2,39 +2,12 @@ package query
 
 import (
 	"encoding/json"
+	"strconv"
 	"strings"
 	"testing"
 
 	"github.com/cruisinme30/unified-search/daemon/internal/protocol"
 )
-
-// testResolver knows a small workspace's authors and repos.
-var testResolver = fakeResolver{
-	authors: []AuthorStat{
-		{Name: "Jane Doe", Emails: []string{"jane@payments.example", "jdoe@old.example"}, Commits: 214, Repos: []string{"payments-api", "shared-libs"}, LastAt: "2026-09-30T10:00:00Z"},
-		{Name: "Jason Kim", Emails: []string{"jason@checkout.example"}, Commits: 88, Repos: []string{"web-checkout"}, LastAt: "2026-09-26T10:00:00Z"},
-		{Name: "Marta Ruiz", Emails: []string{"jamarta@libs.example"}, Commits: 12, Repos: []string{"shared-libs"}, LastAt: "2026-08-03T10:00:00Z"},
-	},
-	repos: []string{"payments-api", "web-checkout", "shared-libs"},
-}
-
-type fakeResolver struct {
-	authors []AuthorStat
-	repos   []string
-}
-
-func (r fakeResolver) Authors(fragment string, limit int) []AuthorStat {
-	var found []AuthorStat
-	for _, a := range r.authors {
-		haystack := strings.ToLower(a.Name + " " + strings.Join(a.Emails, " "))
-		if strings.Contains(haystack, strings.ToLower(fragment)) && len(found) < limit {
-			found = append(found, a)
-		}
-	}
-	return found
-}
-
-func (r fakeResolver) RepoNames() []string { return r.repos }
 
 // shape renders a parse tree compactly: and(text:a op:f=x not(text:b)).
 func shape(node *protocol.Node) string {
@@ -55,23 +28,6 @@ func shape(node *protocol.Node) string {
 	default:
 		return node.Op + "=" + node.Value + "/" + node.Match
 	}
-}
-
-func codes(diagnostics []protocol.Diagnostic) []string {
-	list := []string{}
-	for _, d := range diagnostics {
-		list = append(list, d.Code)
-	}
-	return list
-}
-
-func mustParseCleanly(t *testing.T, text string) protocol.ParsedQuery {
-	t.Helper()
-	q := Parse(text, testResolver)
-	if len(q.Diagnostics) > 0 {
-		t.Fatalf("Parse(%q) diagnostics = %v, want none", text, codes(q.Diagnostics))
-	}
-	return q
 }
 
 func TestSyntax(t *testing.T) {
@@ -176,7 +132,7 @@ func TestTextTermsAreNumberedInOrderForHighlightColors(t *testing.T) {
 	var terms []string
 	walk(q.Root, func(n *protocol.Node) {
 		if n.Kind == "text" {
-			terms = append(terms, n.Value+"#"+string(rune('0'+n.TermIndex)))
+			terms = append(terms, n.Value+"#"+strconv.Itoa(n.TermIndex))
 		}
 	})
 	if got, want := strings.Join(terms, " "), "timeout#0 retry#1"; got != want {

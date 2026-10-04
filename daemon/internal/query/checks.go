@@ -9,9 +9,9 @@ import (
 	"github.com/cruisinme30/unified-search/daemon/internal/protocol"
 )
 
-// check applies the rules the grammar alone can't express ("Rules the
-// parser enforces"), sets the query's globals and mode, and reports what
-// breaks them.
+// check applies the rules the grammar alone can't express (where globals
+// may appear, which operators each mode allows, that something is searched
+// for), sets the query's globals and mode, and reports what breaks them.
 func check(src *source, query *protocol.ParsedQuery, problems *diagnostics) {
 	if src.length() > maxQueryLength {
 		problems.errorf(DiagQueryTooLong, protocol.Span{Start: maxQueryLength, End: src.length()}, nil,
@@ -21,7 +21,7 @@ func check(src *source, query *protocol.ParsedQuery, problems *diagnostics) {
 		return
 	}
 	collectGlobals(src, query, problems)
-	if usesHistory(query.Root) {
+	if needsHistory(query.Root) {
 		query.Mode = protocol.ModeHistory
 	}
 	checkOrModes(query.Root, problems)
@@ -117,6 +117,7 @@ func walkWithParent(node, parent *protocol.Node, visit func(node, parent *protoc
 	}
 }
 
+// setGlobal records a top-level case:, type: or count: in globals.
 func setGlobal(globals *protocol.Globals, node *protocol.Node) {
 	value := node.Value
 	switch node.Op {
@@ -146,9 +147,6 @@ func needsHistory(node *protocol.Node) bool {
 	})
 	return found
 }
-
-// usesHistory: a query is a history query if it needs history anywhere.
-func usesHistory(root *protocol.Node) bool { return needsHistory(root) }
 
 // checkOrModes reports an OR whose branches would need different modes:
 // one result list can't mix commits and lines.

@@ -98,6 +98,8 @@ func valueCandidates(op operator, fragment string, resolver Resolver, now time.T
 	var candidates []valueCandidate
 	switch op.name {
 	case protocol.OpNameAuthor:
+		// One more than fits: valueCompletions skips a value already typed
+		// in full, and the list should still be full after that.
 		for _, author := range resolver.Authors(fragment, maxValueCompletions+1) {
 			candidates = append(candidates, valueCandidate{author.Name, authorDetail(author, now), "author"})
 		}
@@ -135,6 +137,7 @@ func authorDetail(author AuthorStat, now time.Time) string {
 	return strings.Join(parts, " · ")
 }
 
+// plural renders a count with its unit: "1 commit", "214 commits".
 func plural(n int, unit string) string {
 	if n == 1 {
 		return "1 " + unit
@@ -142,7 +145,7 @@ func plural(n int, unit string) string {
 	return fmt.Sprintf("%d %ss", n, unit)
 }
 
-// timeAgo renders a duration the way the mocks do: "3 days ago".
+// timeAgo renders a duration in its largest whole unit: "3 days ago".
 func timeAgo(d time.Duration) string {
 	day := 24 * time.Hour
 	units := []struct {

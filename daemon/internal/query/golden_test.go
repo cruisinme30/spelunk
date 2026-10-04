@@ -11,10 +11,10 @@ import (
 
 var update = flag.Bool("update", false, "rewrite the golden files in testdata/parse")
 
-// The query of every mock that shows one, parsed in full. Goldens pin the
-// exact ParsedQuery (spans, term indexes, globals, mode, diagnostics and
-// fixes) that the webview receives. Refresh with go test -update, then
-// review the diff.
+// goldenQueries cover every operator, the boolean forms and a query with
+// two errors. Each golden file pins the exact ParsedQuery (spans, term
+// indexes, globals, mode, diagnostics and fixes) the webview receives.
+// Refresh them with go test -update, then review the diff.
 var goldenQueries = []struct{ name, query string }{
 	{"plain_text", "retry_policy"},
 	{"path_and_text", `f:.*test\.py$ timeout`},

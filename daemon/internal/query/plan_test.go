@@ -2,6 +2,7 @@ package query
 
 import (
 	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -9,8 +10,7 @@ import (
 	"github.com/cruisinme30/unified-search/daemon/internal/protocol"
 )
 
-var defaultSettings = protocol.Settings{DefaultCount: 500, HistoryDepth: "2y"}
-
+// mustPlan parses and plans text, which must have no diagnostics.
 func mustPlan(t *testing.T, text string, settings protocol.Settings) *Plan {
 	t.Helper()
 	plan, _, err := NewPlan(mustParseCleanly(t, text), settings, fixedNow, "")
@@ -20,6 +20,7 @@ func mustPlan(t *testing.T, text string, settings protocol.Settings) *Plan {
 	return plan
 }
 
+// kinds lists the result kinds plan returns, comma-separated.
 func kinds(plan *Plan) string {
 	var list []string
 	for _, kind := range []ResultKind{KindFile, KindLine, KindSymbol, KindCommit} {
@@ -58,9 +59,10 @@ func TestSinceWindowsCountBackFromNow(t *testing.T) {
 		"since:1y x":  "2025-10-03T10:00:00Z",
 	}
 	for query, want := range tests {
-		since, ok := mustPlan(t, query, defaultSettings).Pred.Kids[0].(*Since)
+		first := mustPlan(t, query, defaultSettings).Pred.Kids[0]
+		since, ok := first.(*Since)
 		if !ok {
-			t.Fatalf("plan(%q) first conjunct is not since:", query)
+			t.Fatalf("plan(%q) first conjunct = %s, want since:", query, first)
 		}
 		got := since.After.UTC().Format(time.RFC3339)
 		if got != want {
@@ -133,7 +135,7 @@ func TestFiltersThatCanHideResultsCarryAnUndo(t *testing.T) {
 	plan := mustPlan(t, text, defaultSettings)
 	var got []string
 	for _, f := range plan.Filters {
-		got = append(got, f.Reason+"@"+string(rune('0'+f.Index))+":"+f.Text+"→"+applyFix(text, f.Undo))
+		got = append(got, f.Reason+"@"+strconv.Itoa(f.Index)+":"+f.Text+"→"+applyFix(text, f.Undo))
 	}
 	want := []string{
 		"pathFilter@2:-f:vendor/→author:jane (timeout OR retry) since:6m -flaky",
@@ -186,13 +188,13 @@ func TestIgnoringCaseFoldsEveryRegex(t *testing.T) {
 		t.Errorf("IgnoringCase().Pred = %s, want %s", got, want)
 	}
 	if folded.CaseSensitive || folded.CaseFilter != nil || folded.Filters != nil {
-		t.Errorf("folded plan keeps case or filters: %+v", folded)
+		t.Errorf("folded plan = %+v, want case ignored and no filters", folded)
 	}
 	if len(folded.Terms) != 2 || folded.Terms[0] != folded.Pred.Kids[0] {
-		t.Errorf("folded Terms do not point at the folded predicates")
+		t.Errorf("folded Terms = %v, want the folded content predicates", folded.Terms)
 	}
-	if plan.Pred.String() != "and(content#0:/Retry/ path:/Src// not(content#1:/Draft/))" {
-		t.Errorf("IgnoringCase changed the original plan: %s", plan.Pred)
+	if got, want := plan.Pred.String(), "and(content#0:/Retry/ path:/Src// not(content#1:/Draft/))"; got != want {
+		t.Errorf("original Pred after IgnoringCase = %s, want it unchanged: %s", got, want)
 	}
 }
 

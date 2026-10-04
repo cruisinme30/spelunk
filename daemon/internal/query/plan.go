@@ -52,12 +52,21 @@ type Plan struct {
 	Terms []*Content
 }
 
-// Filter is a top-level conjunct that may hide results.
+// Filter is part of a query that may hide results. Engines count what each
+// filter alone hid, and the panel shows the count with an undo.
 type Filter struct {
-	Reason string // a protocol HiddenNote reason: not, since, pathFilter
-	Index  int    // which of Pred's top-level kids it is
-	Text   string // as typed, e.g. -f:vendor/
-	Undo   protocol.Fix
+	// Reason is the HiddenNote reason that names the kind of filter:
+	// "pathFilter" (-f:), "not" (any other negation), "since" (since:), and,
+	// for Plan.KindFilter and Plan.CaseFilter, "type" and "case".
+	Reason string
+	// Index is the position of the filter's conjunct in Plan.Pred.Kids, so
+	// an engine can tell which filter a result failed. It is -1 for
+	// KindFilter and CaseFilter, which have no conjunct.
+	Index int
+	// Text is the filter as typed, e.g. -f:vendor/.
+	Text string
+	// Undo is the fix that removes the filter from the query.
+	Undo protocol.Fix
 }
 
 // Pred is a node of the lowered predicate tree.
@@ -334,7 +343,10 @@ func (l *lowering) compile(pattern string) *regexp.Regexp {
 	return regexp.MustCompile(pattern) // the parser already validated it
 }
 
-// since turns 30d, 2w, 6m or 1y into the start of that window.
+// since returns when the window named by a since: value starts, counting
+// back from now: <n>d is n days, <n>w n weeks, <n>m n calendar months and
+// <n>y n calendar years, so since:6m on October 3 starts on April 3. value
+// must match durationPattern, which the parser already checked.
 func since(now time.Time, value string) time.Time {
 	parts := durationPattern.FindStringSubmatch(value)
 	n, _ := strconv.Atoi(parts[1])

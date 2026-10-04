@@ -288,12 +288,17 @@ func (p *parser) reportBadValue(op operator, t token, valueSpan protocol.Span, p
 	p.problems.errorf(DiagBadValue, protocol.Span{Start: t.start, End: t.end}, fixes, "%s", problem)
 }
 
+// authorsToTellOneFromMany is how many authors resolve asks for: enough to
+// know whether a value matches exactly one author.
+const authorsToTellOneFromMany = 2
+
 // resolve returns the friendlier label for an author: or repo: value, if
-// exactly one author or repo matches.
+// exactly one author or repo matches. An author whose name equals the value
+// (ignoring case) also counts, even if others contain it.
 func (p *parser) resolve(op protocol.OpName, value string) *protocol.Resolved {
 	switch op {
 	case protocol.OpNameAuthor:
-		authors := p.resolver.Authors(value, 2)
+		authors := p.resolver.Authors(value, authorsToTellOneFromMany)
 		if len(authors) == 1 || len(authors) > 1 && strings.EqualFold(authors[0].Name, value) {
 			return &protocol.Resolved{Label: authors[0].Name}
 		}

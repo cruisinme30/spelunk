@@ -3,11 +3,9 @@ package query
 import (
 	"strings"
 	"testing"
-	"time"
 )
 
-var fixedNow = time.Date(2026, 10, 3, 10, 0, 0, 0, time.UTC)
-
+// labels lists the labels of the completions at cursor.
 func labels(text string, cursor int) []string {
 	var list []string
 	for _, c := range Complete(text, cursor, testResolver, fixedNow) {
