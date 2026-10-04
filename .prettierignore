@@ -1,0 +1,12 @@
+# Generated, vendored or built
+**/*.gen.ts
+**/dist/
+**/dist-test/
+**/out/
+**/node_modules/
+package-lock.json
+# Go is formatted by gofmt
+daemon/
+# Hand-written prose and the VS Code API shim keep their own layout
+**/*.md
+extension/types/

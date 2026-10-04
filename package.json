@@ -1,0 +1,27 @@
+{
+  "name": "unified-search-repo",
+  "private": true,
+  "description": "Monorepo root: npm workspaces for the VS Code extension and its webview. The Go daemon lives in daemon/.",
+  "license": "MIT",
+  "workspaces": [
+    "extension",
+    "webview"
+  ],
+  "scripts": {
+    "build": "npm run build --workspace extension",
+    "test": "scripts/test-all.sh",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "gen": "node protocol/gen.mjs"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.20.0",
+    "eslint": "^9.20.0",
+    "eslint-config-prettier": "^10.0.0",
+    "globals": "^16.0.0",
+    "prettier": "^3.5.0",
+    "typescript": "^5.6.0",
+    "typescript-eslint": "^8.25.0"
+  }
+}

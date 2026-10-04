@@ -4,7 +4,27 @@
   "description": "One search box for file names, code and Git history across every repo in the workspace.",
   "version": "0.1.0",
   "publisher": "unified-search",
-  "license": "UNLICENSED",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/cruisinme30/unified-search.git",
+    "directory": "extension"
+  },
+  "bugs": {
+    "url": "https://github.com/cruisinme30/unified-search/issues"
+  },
+  "homepage": "https://github.com/cruisinme30/unified-search#readme",
+  "keywords": [
+    "search",
+    "code search",
+    "git history",
+    "grep",
+    "quick open",
+    "find in files",
+    "blame",
+    "author",
+    "commits"
+  ],
   "engines": {
     "vscode": "^1.85.0"
   },
@@ -17,16 +37,15 @@
   ],
   "scripts": {
     "gen": "node ../protocol/gen.mjs",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
-    "typecheck:offline": "tsc -p tsconfig.offline.json --noEmit",
     "build": "node build.mjs",
+    "typecheck": "tsc -p tsconfig.json",
+    "typecheck:offline": "tsc -p tsconfig.offline.json",
     "test": "node build.mjs --tests && node --test \"dist-test/*.test.js\""
   },
   "devDependencies": {
     "@types/node": "^20.19.43",
     "@types/vscode": "^1.85.0",
-    "esbuild": "^0.20.0",
-    "typescript": "^5.4.0"
+    "esbuild": "^0.20.0"
   },
   "contributes": {
     "commands": [
