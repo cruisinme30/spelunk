@@ -5,7 +5,11 @@ import type { Readable, Writable } from "node:stream";
 import type { RpcNotifications, RpcRequests } from "./protocol.gen";
 
 export class RpcError extends Error {
-  constructor(public readonly code: number, message: string, public readonly data?: unknown) {
+  constructor(
+    public readonly code: number,
+    message: string,
+    public readonly data?: unknown,
+  ) {
     super(message);
   }
 }
@@ -58,7 +62,11 @@ export class Connection extends EventEmitter {
   private decoder = new FrameDecoder();
   private closed = false;
 
-  constructor(input: Readable, private output: Writable, private trace?: (dir: "send" | "recv", body: string) => void) {
+  constructor(
+    input: Readable,
+    private output: Writable,
+    private trace?: (dir: "send" | "recv", body: string) => void,
+  ) {
     super();
     input.on("data", (chunk: Buffer) => {
       let bodies: string[];
@@ -114,7 +122,13 @@ export class Connection extends EventEmitter {
 
   private receive(body: string): void {
     this.trace?.("recv", body);
-    let msg: { id?: number; method?: string; params?: unknown; result?: unknown; error?: { code: number; message: string; data?: unknown } };
+    let msg: {
+      id?: number;
+      method?: string;
+      params?: unknown;
+      result?: unknown;
+      error?: { code: number; message: string; data?: unknown };
+    };
     try {
       msg = JSON.parse(body);
     } catch (e) {

@@ -33,19 +33,27 @@ export class SearchPanel {
     this.panel = panel;
     this.ready = false;
     panel.webview.html = this.html(panel.webview, root);
-    panel.webview.onDidReceiveMessage((msg) => {
-      if (msg?.type === "ready") {
-        this.ready = true;
-        for (const m of this.queue.splice(0)) void panel.webview.postMessage({ v: 1, ...m });
-      }
-      this.onMessage(msg);
-    }, undefined, this.subs);
-    panel.onDidDispose(() => {
-      this.panel = undefined;
-      this.ready = false;
-      this.queue = [];
-      this.onVisibility(false);
-    }, undefined, this.subs);
+    panel.webview.onDidReceiveMessage(
+      (msg) => {
+        if (msg?.type === "ready") {
+          this.ready = true;
+          for (const m of this.queue.splice(0)) void panel.webview.postMessage({ v: 1, ...m });
+        }
+        this.onMessage(msg);
+      },
+      undefined,
+      this.subs,
+    );
+    panel.onDidDispose(
+      () => {
+        this.panel = undefined;
+        this.ready = false;
+        this.queue = [];
+        this.onVisibility(false);
+      },
+      undefined,
+      this.subs,
+    );
     this.onVisibility(true);
   }
 

@@ -1,6 +1,6 @@
 // Host side of Contract 2: turns webview messages into daemon calls and
 // streams results back. No vscode import; extension.ts supplies the Ui.
-import { CancelSource, ErrorCodes, RpcError } from "./jsonrpc";
+import { CancelSource, ErrorCodes, RpcError } from "./jsonRpc";
 import type {
   HostToWebview,
   OpenTarget,
@@ -12,7 +12,11 @@ import type {
 } from "./protocol.gen";
 
 export interface Backend {
-  request<M extends keyof RpcRequests>(method: M, params: RpcRequests[M][0], cancel?: CancelSource): Promise<RpcRequests[M][1]>;
+  request<M extends keyof RpcRequests>(
+    method: M,
+    params: RpcRequests[M][0],
+    cancel?: CancelSource,
+  ): Promise<RpcRequests[M][1]>;
   on(event: "batch", cb: (p: SearchBatchParams) => void): unknown;
 }
 
@@ -39,7 +43,9 @@ export interface ControllerOptions {
   contextLines?: number;
 }
 
-type Inbound = { [K in keyof WebviewToHost]: { v: 1; type: K; seq?: number; payload: WebviewToHost[K] } }[keyof WebviewToHost];
+type Inbound = {
+  [K in keyof WebviewToHost]: { v: 1; type: K; seq?: number; payload: WebviewToHost[K] };
+}[keyof WebviewToHost];
 
 export class SearchController {
   private state: PersistedState;
@@ -50,7 +56,12 @@ export class SearchController {
   results: ResultItem[] = [];
   private cursor = -1;
 
-  constructor(private backend: Backend, private ui: Ui, private opts: ControllerOptions, initial?: PersistedState) {
+  constructor(
+    private backend: Backend,
+    private ui: Ui,
+    private opts: ControllerOptions,
+    initial?: PersistedState,
+  ) {
     this.state = initial ?? { text: "", recent: [] };
     backend.on("batch", (p) => this.onBatch(p));
   }
@@ -62,7 +73,11 @@ export class SearchController {
   /** Called when the panel (re)opens; an explicit query pre-fills the box. */
   restore(query?: string): void {
     if (query !== undefined) this.state.text = query;
-    this.ui.post("state.restore", { text: this.state.text, recent: this.state.recent, settings: this.opts.uiSettings() });
+    this.ui.post("state.restore", {
+      text: this.state.text,
+      recent: this.state.recent,
+      settings: this.opts.uiSettings(),
+    });
   }
 
   async handle(msg: Inbound): Promise<void> {
@@ -103,7 +118,15 @@ export class SearchController {
     try {
       parsed = await this.backend.request("query/parse", { text, cursor });
     } catch (e) {
-      this.ui.post("search.done", { seq, searchId: "", total: 0, truncated: false, hidden: [], ms: 0, error: String(e) });
+      this.ui.post("search.done", {
+        seq,
+        searchId: "",
+        total: 0,
+        truncated: false,
+        hidden: [],
+        ms: 0,
+        error: String(e),
+      });
       return;
     }
     if (seq !== this.latestSeq) return;
@@ -125,13 +148,25 @@ export class SearchController {
     this.search = { id, seq, text, cancel };
     if (!cursor) this.setResults([]);
     try {
-      const res = await this.backend.request("search/start", cursor ? { searchId: id, text, cursor } : { searchId: id, text }, cancel);
+      const res = await this.backend.request(
+        "search/start",
+        cursor ? { searchId: id, text, cursor } : { searchId: id, text },
+        cancel,
+      );
       if (this.search?.id !== id || cancel.cancelled) return;
       this.ui.post("search.done", { seq, searchId: id, ...res });
     } catch (e) {
       if (e instanceof RpcError && e.code === ErrorCodes.RequestCancelled) return;
       if (this.search?.id !== id) return;
-      this.ui.post("search.done", { seq, searchId: id, total: 0, truncated: false, hidden: [], ms: 0, error: e instanceof Error ? e.message : String(e) });
+      this.ui.post("search.done", {
+        seq,
+        searchId: id,
+        total: 0,
+        truncated: false,
+        hidden: [],
+        ms: 0,
+        error: e instanceof Error ? e.message : String(e),
+      });
     }
   }
 
@@ -177,10 +212,15 @@ export class SearchController {
   private async openRef(ref: string, where: "current" | "side"): Promise<boolean> {
     try {
       const target = await this.backend.request("open/resolve", { ref });
-      await this.ui.openTarget(target, where, this.results.find((r) => r.ref === ref));
+      await this.ui.openTarget(
+        target,
+        where,
+        this.results.find((r) => r.ref === ref),
+      );
       return true;
     } catch (e) {
-      if (e instanceof RpcError && e.code === ErrorCodes.RefStale) this.ui.post("preview.result", { ref, preview: null, stale: true });
+      if (e instanceof RpcError && e.code === ErrorCodes.RefStale)
+        this.ui.post("preview.result", { ref, preview: null, stale: true });
       return false;
     }
   }

@@ -1,3 +1,4 @@
+// Workspace folders as protocol Roots, with stable ids derived from their paths.
 import { createHash } from "node:crypto";
 import { basename } from "node:path";
 import type { Root } from "./protocol.gen";

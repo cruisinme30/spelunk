@@ -2,7 +2,7 @@
 // Pure Node: the vscode glue lives in extension.ts.
 import { spawn as nodeSpawn, type ChildProcess } from "node:child_process";
 import { EventEmitter } from "node:events";
-import { Connection, CancelSource } from "./jsonrpc";
+import { Connection, CancelSource } from "./jsonRpc";
 import {
   PROTOCOL_VERSION,
   type FileChange,
@@ -97,13 +97,20 @@ export class Daemon extends EventEmitter {
 
     try {
       const res = await Promise.race([
-        conn.request("initialize", { protocol: PROTOCOL_VERSION, roots: this.opts.roots(), settings: this.opts.settings() }),
+        conn.request("initialize", {
+          protocol: PROTOCOL_VERSION,
+          roots: this.opts.roots(),
+          settings: this.opts.settings(),
+        }),
         exited.then(() => {
           throw new Error("daemon exited during initialize");
         }),
       ]);
       if (res.protocol !== PROTOCOL_VERSION) {
-        this.setState("protocolMismatch", `Search daemon speaks protocol ${res.protocol}, extension needs ${PROTOCOL_VERSION}. Reinstall the extension.`);
+        this.setState(
+          "protocolMismatch",
+          `Search daemon speaks protocol ${res.protocol}, extension needs ${PROTOCOL_VERSION}. Reinstall the extension.`,
+        );
         this.stopping = true;
         this.killChild();
         throw new Error("protocol mismatch");
@@ -151,7 +158,8 @@ export class Daemon extends EventEmitter {
   /** Graceful stop: shutdown, exit, then kill if it lingers past 2 seconds. */
   async stop(): Promise<void> {
     this.stopping = true;
-    const child = this.child, conn = this.conn;
+    const child = this.child,
+      conn = this.conn;
     if (!child || !conn) {
       this.setState("stopped");
       return;
@@ -171,13 +179,18 @@ export class Daemon extends EventEmitter {
     const deadline = Date.now() + timeoutMs;
     for (;;) {
       if (this.conn && this.state === "ok") return this.conn;
-      if (this.state === "stopped" || this.state === "protocolMismatch") throw new Error(`search daemon is ${this.state}`);
+      if (this.state === "stopped" || this.state === "protocolMismatch")
+        throw new Error(`search daemon is ${this.state}`);
       if (Date.now() > deadline) throw new Error("search daemon not ready");
       await delay(25);
     }
   }
 
-  async request<M extends keyof RpcRequests>(method: M, params: RpcRequests[M][0], cancel?: CancelSource): Promise<RpcRequests[M][1]> {
+  async request<M extends keyof RpcRequests>(
+    method: M,
+    params: RpcRequests[M][0],
+    cancel?: CancelSource,
+  ): Promise<RpcRequests[M][1]> {
     const conn = await this.connection();
     return conn.request(method, params, cancel?.token);
   }

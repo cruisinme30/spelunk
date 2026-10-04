@@ -23,7 +23,17 @@ export class CommitDocuments implements vscode.TextDocumentContentProvider {
 
 export function renderCommit(p: Preview): string {
   if (p.kind !== "commit") return "";
-  const out = [`commit ${p.sha}`, `Author: ${p.author}`, `Date:   ${p.at}`, "", ...`${p.subject}\n\n${p.body}`.trimEnd().split("\n").map((l) => "    " + l), ""];
+  const out = [
+    `commit ${p.sha}`,
+    `Author: ${p.author}`,
+    `Date:   ${p.at}`,
+    "",
+    ...`${p.subject}\n\n${p.body}`
+      .trimEnd()
+      .split("\n")
+      .map((l) => "    " + l),
+    "",
+  ];
   for (const f of p.files) out.push(`${f.hiddenByFilter ? " " : "*"} ${f.path} +${f.added} -${f.removed}`);
   out.push("");
   let last = "";
