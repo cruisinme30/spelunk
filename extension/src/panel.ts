@@ -11,7 +11,7 @@ interface QueuedMessage {
 }
 
 export class SearchPanel implements vscode.Disposable {
-  private panel?: vscode.WebviewPanel;
+  private panel: vscode.WebviewPanel | undefined;
   private panelDisposables: vscode.Disposable[] = [];
   /** Messages posted before the webview said "ready". */
   private pendingMessages: QueuedMessage[] = [];

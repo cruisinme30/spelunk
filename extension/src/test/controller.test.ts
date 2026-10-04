@@ -12,7 +12,7 @@ import type { HostToWebview, OpenTarget, ParsedQuery, UiSettings } from "../prot
 import { makeRoot } from "../roots";
 import { DEFAULTS } from "../settings";
 
-const DAEMON_BINARY = process.env.UNIFIED_SEARCH_DAEMON ?? join(__dirname, "../../daemon/bin/unified-search-daemon");
+const DAEMON_BINARY = process.env["UNIFIED_SEARCH_DAEMON"] ?? join(__dirname, "../../daemon/bin/unified-search-daemon");
 
 const TEST_UI_SETTINGS: UiSettings = {
   typingDelayMs: 0,
@@ -120,10 +120,12 @@ test(
         host.posted.map((message) => message.type),
         ["parse.result", "search.batch", "search.done"],
       );
-      const batch = host.posted[1].payload;
+      const [, batchMessage, doneMessage] = host.posted;
+      assert.ok(batchMessage && doneMessage);
+      const batch = batchMessage.payload;
       assert.equal(batch.seq, 1);
       assert.equal(batch.items.length, 1);
-      assert.equal(host.posted[2].payload.total, 1);
+      assert.equal(doneMessage.payload.total, 1);
       assert.equal(host.contextKeys["unifiedSearch.hasResults"], true);
 
       const ref = batch.items[0].ref;

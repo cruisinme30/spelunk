@@ -5,7 +5,7 @@ import type { WebviewMessage } from "./controller";
 import { webviewPage } from "./webviewPage";
 
 export class HelpPanel implements vscode.Disposable {
-  private panel?: vscode.WebviewPanel;
+  private panel: vscode.WebviewPanel | undefined;
 
   constructor(
     private readonly extensionUri: vscode.Uri,

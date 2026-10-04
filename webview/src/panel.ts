@@ -40,9 +40,9 @@ export class SearchPanel {
   private readonly state: ViewState = createViewState();
   private readonly layout: Layout;
   private readonly summary = el("span", { class: "summary", "data-testid": "summary" });
-  private results?: ResultsView;
-  private debounceTimer?: ReturnType<typeof setTimeout>;
-  private previewTimer?: ReturnType<typeof setTimeout>;
+  private results: ResultsView | undefined;
+  private debounceTimer: ReturnType<typeof setTimeout> | undefined;
+  private previewTimer: ReturnType<typeof setTimeout> | undefined;
 
   constructor(root: HTMLElement) {
     this.layout = createLayout(root);
@@ -287,9 +287,9 @@ export class SearchPanel {
   private moveResultSelection(step: 1 | -1): void {
     const rows = this.results?.rows() ?? [];
     if (!rows.length) return;
-    const current = rows.findIndex((row) => row.dataset.ref === this.state.selectedRef);
+    const current = rows.findIndex((row) => row.dataset["ref"] === this.state.selectedRef);
     const next = current < 0 ? 0 : clamp(current + step, 0, rows.length - 1);
-    const ref = rows[next].dataset.ref;
+    const ref = rows[next]?.dataset["ref"];
     if (ref) this.select(ref);
   }
 
@@ -298,7 +298,7 @@ export class SearchPanel {
     if (this.state.selectedRef === ref) return;
     this.state.selectedRef = ref;
     for (const row of this.results?.rows() ?? []) {
-      const selected = row.dataset.ref === ref;
+      const selected = row.dataset["ref"] === ref;
       row.classList.toggle("selected", selected);
       row.setAttribute("aria-selected", String(selected));
       if (selected) {
@@ -419,7 +419,7 @@ export class SearchPanel {
 
   private selectFirstRow(): void {
     if (this.state.selectedRef) return;
-    const first = this.results?.rows()[0]?.dataset.ref;
+    const first = this.results?.rows()[0]?.dataset["ref"];
     if (first) this.select(first);
   }
 
@@ -466,7 +466,7 @@ export class SearchPanel {
   private renderFooter(): void {
     let mode: FooterMode = "results";
     if (!this.layout.input.value) mode = "empty";
-    else if (this.completionsVisible) mode = this.state.completions[0].group === "operator" ? "operators" : "values";
+    else if (this.completionsVisible) mode = this.state.completions[0]?.group === "operator" ? "operators" : "values";
     else if (hasErrors(this.state)) mode = "errors";
     renderFooter(this.layout, mode, this.state.parsed?.mode === "history");
   }
@@ -502,5 +502,5 @@ export class SearchPanel {
 
 /** The ref of the result row an event happened in, if any. */
 function rowRef(event: Event): string | undefined {
-  return (event.target as HTMLElement).closest<HTMLElement>("[data-ref]")?.dataset.ref;
+  return (event.target as HTMLElement).closest<HTMLElement>("[data-ref]")?.dataset["ref"];
 }

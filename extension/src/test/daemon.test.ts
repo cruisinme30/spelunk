@@ -9,7 +9,7 @@ import { Daemon, type DaemonState } from "../daemon";
 import { makeRoot } from "../roots";
 import { DEFAULTS } from "../settings";
 
-const DAEMON_BINARY = process.env.UNIFIED_SEARCH_DAEMON ?? join(__dirname, "../../daemon/bin/unified-search-daemon");
+const DAEMON_BINARY = process.env["UNIFIED_SEARCH_DAEMON"] ?? join(__dirname, "../../daemon/bin/unified-search-daemon");
 const skip = !existsSync(DAEMON_BINARY) && "daemon not built";
 const RESTART_BUDGET = 3;
 

@@ -1,5 +1,5 @@
 {
-  "//": "Type-check only: esbuild (build.mjs) emits. module=preserve + verbatimModuleSyntax make type-only imports explicit, which esbuild's per-file compilation relies on.",
+  "//": "Type-check only: esbuild (build.mjs) emits. module=preserve + verbatimModuleSyntax make type-only imports explicit, which esbuild's per-file compilation relies on. Strictness follows @tsconfig/strictest.",
   "compilerOptions": {
     "target": "ES2022",
     "lib": ["ES2022"],
@@ -15,7 +15,14 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "skipLibCheck": true,
-    "types": ["node", "vscode"]
+    "types": ["node", "vscode"],
+    "noImplicitReturns": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "noPropertyAccessFromIndexSignature": true,
+    "forceConsistentCasingInFileNames": true,
+    "allowUnreachableCode": false,
+    "allowUnusedLabels": false
   },
   "include": ["src/**/*.ts"]
 }

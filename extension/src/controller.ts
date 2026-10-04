@@ -87,7 +87,7 @@ export class SearchController {
   results: ResultItem[] = [];
   private state: PersistedState;
   private latestSeq = 0;
-  private search?: RunningSearch;
+  private search: RunningSearch | undefined;
   private searchCount = 0;
   /** Position in `results` for F4 stepping; -1 before the first step. */
   private stepIndex = -1;
@@ -156,7 +156,8 @@ export class SearchController {
   async step(direction: 1 | -1): Promise<void> {
     if (!this.results.length) return;
     this.stepIndex = (this.stepIndex + direction + this.results.length) % this.results.length;
-    await this.openRef(this.results[this.stepIndex].ref, "current");
+    const result = this.results[this.stepIndex];
+    if (result) await this.openRef(result.ref, "current");
   }
 
   /** Puts the current query at the top of the recent list. */
@@ -184,7 +185,12 @@ export class SearchController {
       return;
     }
     if (seq !== this.latestSeq) return; // a newer keystroke arrived while parsing
-    this.ui.post("parse.result", { seq, query: parsed.query, completions: parsed.completions, searchText });
+    this.ui.post("parse.result", {
+      seq,
+      query: parsed.query,
+      completions: parsed.completions,
+      ...(searchText === undefined ? {} : { searchText }),
+    });
     // With errors, keep showing the last good results.
     if (parsed.query.diagnostics.some((diagnostic) => diagnostic.severity === "error")) return;
     this.search?.cancel.cancel();

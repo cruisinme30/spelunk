@@ -41,7 +41,7 @@ export function renderPreview(
     el("button", { type: "button", class: "btn", "data-where": "side" }, "Open to side ⌘↵"),
   );
   actions.addEventListener("click", (event) => {
-    const where = (event.target as HTMLElement).closest<HTMLElement>("[data-where]")?.dataset.where;
+    const where = (event.target as HTMLElement).closest<HTMLElement>("[data-where]")?.dataset["where"];
     if (where === "current" || where === "side") handlers.onOpen(current.ref, where);
   });
   const repo = repoId ? repoName(state, repoId) : "";

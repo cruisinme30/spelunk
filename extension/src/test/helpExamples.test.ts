@@ -11,7 +11,7 @@ import { Daemon } from "../daemon";
 import { makeRoot } from "../roots";
 import { DEFAULTS } from "../settings";
 
-const DAEMON_BINARY = process.env.UNIFIED_SEARCH_DAEMON ?? join(__dirname, "../../daemon/bin/unified-search-daemon");
+const DAEMON_BINARY = process.env["UNIFIED_SEARCH_DAEMON"] ?? join(__dirname, "../../daemon/bin/unified-search-daemon");
 const WORKSPACE = join(__dirname, "../../testdata/workspace");
 
 /**

@@ -25,13 +25,14 @@ let activeDaemon: Daemon | undefined;
 /** Where the daemon binary is: bundled per platform, or the development build. */
 export function daemonBinary(extensionPath: string): string {
   const executable = process.platform === "win32" ? "unified-search-daemon.exe" : "unified-search-daemon";
+  const developmentCheckout = join(extensionPath, "..", "daemon", "bin", executable);
   const candidates = [
-    process.env.UNIFIED_SEARCH_DAEMON,
+    process.env["UNIFIED_SEARCH_DAEMON"],
     join(extensionPath, "bin", `${process.platform}-${process.arch}`, executable),
     join(extensionPath, "bin", executable),
-    join(extensionPath, "..", "daemon", "bin", executable), // development checkout
+    developmentCheckout,
   ].filter((path): path is string => !!path);
-  return candidates.find((path) => existsSync(path)) ?? candidates[candidates.length - 1];
+  return candidates.find((path) => existsSync(path)) ?? developmentCheckout;
 }
 
 export async function activate(context: vscode.ExtensionContext): Promise<unknown> {
@@ -131,7 +132,7 @@ function createStatusBar(daemon: Daemon, panel: SearchPanel): vscode.Disposable 
   status.command = "unifiedSearch.open";
   daemon.on("state", (state, message) => {
     // "starting" has no banner; every other state maps to the banner of the same name.
-    if (state !== "starting") panel.post("banner", { state, message });
+    if (state !== "starting") panel.post("banner", message === undefined ? { state } : { state, message });
     status.text = statusText(state);
     status.tooltip = message;
     status.show();
@@ -175,7 +176,7 @@ function registerCommands(
     },
   };
   // Test-only: panel state, last results and the active editor, for end-to-end tests in VS Code.
-  if (process.env.UNIFIED_SEARCH_TEST) {
+  if (process.env["UNIFIED_SEARCH_TEST"]) {
     commands["unifiedSearch._testState"] = () => {
       const editor = vscode.window.activeTextEditor;
       return {

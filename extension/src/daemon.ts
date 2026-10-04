@@ -52,8 +52,8 @@ export interface DaemonEvents {
 export class Daemon extends EventEmitter {
   state: DaemonState = "stopped";
   daemonVersion?: string;
-  private child?: ChildProcess;
-  private connection?: Connection;
+  private child: ChildProcess | undefined;
+  private connection: Connection | undefined;
   private stopping = false;
   private crashTimes: number[] = [];
 

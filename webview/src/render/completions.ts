@@ -47,10 +47,11 @@ export function renderCompletions(
   shell.classList.toggle("completing", visible);
   input.setAttribute("aria-expanded", String(visible));
   completions.replaceChildren();
-  if (!visible) return;
+  const [first] = state.completions;
+  if (!visible || !first) return;
 
-  const group = state.completions[0].group;
-  const typed = typedWord(input.value, state.completions[0]);
+  const group = first.group;
+  const typed = typedWord(input.value, first);
   completions.append(
     el("div", { class: "cgroup", role: "presentation" }, `${GROUP_TITLE[group]} “${typed}”`),
     ...state.completions.map((completion, index) => renderOption(completion, index, state.completionIndex, handlers)),

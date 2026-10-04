@@ -127,7 +127,8 @@ function quoteIfNeeded(literal: string): string {
 /** The repo a top-level repo: picks, as the daemon resolved it; undefined for all repos. */
 export function scopedRepo(query: ParsedQuery | undefined): string | undefined {
   const found = topLevelRepoNodes(query);
-  return found.length === 1 ? (found[0].resolved?.label ?? found[0].value) : undefined;
+  const only = found.length === 1 ? found[0] : undefined;
+  return only ? (only.resolved?.label ?? only.value) : undefined;
 }
 
 /**
