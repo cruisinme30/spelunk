@@ -289,3 +289,18 @@ func TestNarrowUsesTrigramsOnlyWhereSound(t *testing.T) {
 		}
 	}
 }
+
+func TestGlobPathFilterListsMatchingFilesAndHighlightsTheirNames(t *testing.T) {
+	items, _ := runItems(t, "f:*.ts$", defaultSettings, "", webRepo)
+	var paths []string
+	for _, item := range items {
+		paths = append(paths, item.Path)
+	}
+	if want := []string{"src/client.ts", "src/retry.ts"}; !reflect.DeepEqual(paths, want) {
+		t.Fatalf("f:*.ts$ lists %v, want %v", paths, want)
+	}
+	// "src/client.ts": the highlight covers client.ts, not the slash before it.
+	if want := []protocol.Range{{Start: 4, End: 13}}; !reflect.DeepEqual(items[0].NameHits, want) {
+		t.Errorf("highlight on %s = %v, want %v", items[0].Path, items[0].NameHits, want)
+	}
+}

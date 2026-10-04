@@ -28,7 +28,7 @@ Words are matched anywhere in file names and code. Combine them with operators:
 | `-vendor`, `-f:vendor/` | Exclude a word or an operator |
 | `"exact phrase"`, `/Retry(Policy\|Config)/` | Match a phrase or a regular expression |
 | `case:yes` | Match case exactly (case-insensitive by default) |
-| `f:_test\.py$` | Keep files whose path matches a regex |
+| `f:*.go`, `f:_test\.py$` | Keep files whose path matches a glob or a regex |
 | `repo:web`, `lang:python` | Keep one repo or one language |
 | `type:file` | Show file names only |
 | `since:2w` | Keep files changed in the last two weeks |

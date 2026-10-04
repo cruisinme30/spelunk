@@ -21,6 +21,7 @@ All notable changes to this project are documented here. The format follows
 - A repo menu that scopes the query to one repo, a "Show code too" undo for `type:file`, and "Ignore case" for
   `case:yes`.
 - The help page: every operator with an example to try, worked examples, keys and settings.
+- `f:` and `repo:` also take globs such as `*.go` and `src/**/*.ts`.
 - `npm run package` builds a `.vsix` for any platform, and F5 runs the extension on the sample repos.
 
 ### Removed

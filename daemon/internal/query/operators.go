@@ -73,12 +73,17 @@ func regexProblem(pattern string) string {
 	return ""
 }
 
-// asPathRegex: f: and repo: are regexes even without slashes; quotes make them literal.
+// asPathRegex: f: and repo: are regexes even without slashes, or globs when
+// they read as one (*.go); quotes make them literal.
 func asPathRegex(value string, form valueForm) (protocol.Match, string) {
 	if form == formQuoted {
 		return protocol.MatchPhrase, ""
 	}
-	return protocol.MatchRegex, regexProblem(value)
+	problem := regexProblem(value)
+	if looksLikeGlob(value, problem != "") {
+		return protocol.MatchGlob, ""
+	}
+	return protocol.MatchRegex, problem
 }
 
 // asText: sym: and msg: take a literal, a "phrase" or a /regex/.

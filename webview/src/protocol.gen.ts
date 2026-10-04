@@ -41,8 +41,8 @@ export interface Hit {
 /** OpName is an operator's name, the part before the colon. */
 export type OpName = "f" | "repo" | "lang" | "type" | "sym" | "author" | "msg" | "since" | "case" | "count";
 
-/** Match says how a value was written: bare (literal), quoted (phrase) or /regex/. */
-export type Match = "literal" | "phrase" | "regex";
+/** Match says how a value was written: bare (literal), quoted (phrase), /regex/, or a path glob such as *.go (f: and repo: only). */
+export type Match = "literal" | "phrase" | "regex" | "glob";
 
 /** Mode is what a query searches: current files or Git history. */
 export type Mode = "workingTree" | "history";

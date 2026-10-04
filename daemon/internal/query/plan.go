@@ -330,7 +330,11 @@ func (l *lowering) lowerOperator(node *protocol.Node) Pred {
 
 // regex builds the regex for a value: literals and phrases are quoted.
 func (l *lowering) regex(value string, match protocol.Match) *regexp.Regexp {
-	if match != protocol.MatchRegex {
+	switch match {
+	case protocol.MatchRegex:
+	case protocol.MatchGlob:
+		value = globPattern(value)
+	case protocol.MatchLiteral, protocol.MatchPhrase:
 		value = regexp.QuoteMeta(value)
 	}
 	return l.compile(value)

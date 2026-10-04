@@ -227,13 +227,27 @@ func (s *searcher) nameHits(path string, terms []*query.Content) []protocol.Rang
 	if len(s.plan.Terms) == 0 {
 		for _, kid := range s.plan.Pred.Kids {
 			if p, ok := kid.(*query.Path); ok {
-				if loc := p.Re.FindStringIndex(path); len(loc) == 2 && loc[1] > loc[0] {
-					ranges = append(ranges, utf16Range(path, loc[0], loc[1]))
+				if hit, found := pathFilterHit(p, path); found {
+					ranges = append(ranges, hit)
 				}
 			}
 		}
 	}
 	return ranges
+}
+
+// pathFilterHit is the part of path an f: filter matched, for highlighting.
+// A glob matches from a folder boundary, so a leading slash is left out.
+func pathFilterHit(filter *query.Path, path string) (protocol.Range, bool) {
+	loc := filter.Re.FindStringIndex(path)
+	if len(loc) != 2 {
+		return protocol.Range{}, false
+	}
+	start, end := loc[0], loc[1]
+	if start < end && path[start] == '/' {
+		start++
+	}
+	return utf16Range(path, start, end), start < end
 }
 
 // countHidden credits a result that fails only one filter to that filter.

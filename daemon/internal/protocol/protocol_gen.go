@@ -59,7 +59,7 @@ const (
 	OpNameCount  OpName = "count"
 )
 
-// Match says how a value was written: bare (literal), quoted (phrase) or /regex/.
+// Match says how a value was written: bare (literal), quoted (phrase), /regex/, or a path glob such as *.go (f: and repo: only).
 type Match = string
 
 // Match values.
@@ -67,6 +67,7 @@ const (
 	MatchLiteral Match = "literal"
 	MatchPhrase  Match = "phrase"
 	MatchRegex   Match = "regex"
+	MatchGlob    Match = "glob"
 )
 
 // Mode is what a query searches: current files or Git history.

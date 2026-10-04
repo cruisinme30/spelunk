@@ -53,9 +53,9 @@
       "enum": ["f", "repo", "lang", "type", "sym", "author", "msg", "since", "case", "count"]
     },
     "Match": {
-      "description": "Match says how a value was written: bare (literal), quoted (phrase) or /regex/.",
+      "description": "Match says how a value was written: bare (literal), quoted (phrase), /regex/, or a path glob such as *.go (f: and repo: only).",
       "type": "string",
-      "enum": ["literal", "phrase", "regex"]
+      "enum": ["literal", "phrase", "regex", "glob"]
     },
     "Mode": {
       "description": "Mode is what a query searches: current files or Git history.",
