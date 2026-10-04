@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/cruisinme30/unified-search/daemon/internal/protocol"
 	"github.com/cruisinme30/unified-search/daemon/internal/rpc"
@@ -14,22 +15,46 @@ import (
 
 const clientSource = "import logging\n\nclass Client:\n    def __init__(self):\n        self.retry_policy = RetryPolicy(max_attempts=3)\n"
 
-// collectBatches records every search/batch item the client receives.
-func collectBatches(client *testClient) func() []protocol.ResultItem {
-	var mu sync.Mutex
-	var items []protocol.ResultItem
+// batchLog records every search/batch item the client receives.
+type batchLog struct {
+	mu       sync.Mutex
+	items    []protocol.ResultItem
+	searchOf []string // the search ID of each item
+}
+
+func collectBatches(client *testClient) *batchLog {
+	log := &batchLog{}
 	client.conn.OnNotify(protocol.MethodSearchBatch, func(raw json.RawMessage) {
 		var batch protocol.SearchBatchParams
 		_ = json.Unmarshal(raw, &batch)
-		mu.Lock()
-		items = append(items, batch.Items...)
-		mu.Unlock()
+		log.mu.Lock()
+		defer log.mu.Unlock()
+		for _, item := range batch.Items {
+			log.items = append(log.items, item)
+			log.searchOf = append(log.searchOf, batch.SearchID)
+		}
 	})
-	return func() []protocol.ResultItem {
-		mu.Lock()
-		defer mu.Unlock()
-		return append([]protocol.ResultItem(nil), items...)
+	return log
+}
+
+// all returns every item received so far.
+func (l *batchLog) all() []protocol.ResultItem {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return append([]protocol.ResultItem(nil), l.items...)
+}
+
+// of returns the items of one search.
+func (l *batchLog) of(searchID string) []protocol.ResultItem {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	var items []protocol.ResultItem
+	for i, item := range l.items {
+		if l.searchOf[i] == searchID {
+			items = append(items, item)
+		}
 	}
+	return items
 }
 
 func mustWriteFile(t *testing.T, path, content string) {
@@ -62,7 +87,7 @@ func TestSearchPreviewAndOpenRoundTrip(t *testing.T) {
 	if err := client.call(protocol.MethodSearchStart, protocol.SearchStartParams{SearchID: "s1", Text: "retry_policy"}, &result); err != nil {
 		t.Fatal(err)
 	}
-	items := batches()
+	items := batches.all()
 	if result.Total != 1 || len(items) != 1 {
 		t.Fatalf("search retry_policy: total %d, %d items; want 1 and 1", result.Total, len(items))
 	}
@@ -105,7 +130,7 @@ func TestMatchOffsetsAreUTF16EvenWhenCaseFoldingChangesByteLength(t *testing.T) 
 	if err := client.call(protocol.MethodSearchStart, protocol.SearchStartParams{SearchID: "s1", Text: "kelvin"}, nil); err != nil {
 		t.Fatal(err)
 	}
-	items := batches()
+	items := batches.all()
 	if len(items) != 1 || items[0].Hits[0] != (protocol.Hit{Start: 5, End: 11}) {
 		t.Fatalf("search kelvin = %+v, want one hit at UTF-16 [5,11)", items)
 	}
@@ -121,7 +146,7 @@ func TestPreviewOfCRLFFileHasNoCarriageReturns(t *testing.T) {
 		t.Fatal(err)
 	}
 	var preview protocol.Preview
-	if err := client.call(protocol.MethodPreviewGet, protocol.PreviewParams{Ref: batches()[0].Ref, ContextLines: 1}, &preview); err != nil {
+	if err := client.call(protocol.MethodPreviewGet, protocol.PreviewParams{Ref: batches.all()[0].Ref, ContextLines: 1}, &preview); err != nil {
 		t.Fatal(err)
 	}
 	if got := preview.Lines[1]; got != "two needle" {
@@ -165,7 +190,7 @@ func TestCursorLoadsTheNextPage(t *testing.T) {
 	if err := client.call(protocol.MethodSearchStart, protocol.SearchStartParams{SearchID: "s2", Text: "count:2 hit", Cursor: first.NextCursor}, &second); err != nil {
 		t.Fatal(err)
 	}
-	items := batches()
+	items := batches.all()
 	if len(items) != 3 || items[2].Line != 3 || second.NextCursor != "" {
 		t.Fatalf("after two pages: %d items, last line %d, next cursor %q; want 3 items ending at line 3 and no more pages", len(items), items[len(items)-1].Line, second.NextCursor)
 	}
@@ -181,5 +206,23 @@ func TestIndexStatusReportsEveryRoot(t *testing.T) {
 	}
 	if len(status.Repos) != 1 || status.Repos[0].Name != "web" || status.Repos[0].Tree != protocol.IndexStateReady {
 		t.Errorf("index/status = %+v, want web ready", status.Repos)
+	}
+}
+
+func TestAPartBatchIsSentWithoutWaitingForTheSearchToEnd(t *testing.T) {
+	client := newTestClient(t, Options{})
+	batches := collectBatches(client)
+	b := &batcher{conn: client.server.conn, searchID: "s1"}
+	b.add(protocol.ResultItem{Kind: "line", Ref: "x", Path: "a.go", Line: 1})
+	deadline := time.Now().Add(2 * time.Second)
+	for len(batches.of("s1")) == 0 {
+		if time.Now().After(deadline) {
+			t.Fatal("a single result was never sent; want it within batchDelay")
+		}
+		time.Sleep(time.Millisecond)
+	}
+	b.flush() // nothing left: sends nothing more
+	if got := len(batches.all()); got != 1 {
+		t.Errorf("%d items sent, want 1", got)
 	}
 }

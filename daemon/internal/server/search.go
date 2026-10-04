@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/cruisinme30/unified-search/daemon/internal/protocol"
@@ -15,8 +16,13 @@ import (
 	"github.com/cruisinme30/unified-search/daemon/internal/trigram"
 )
 
-// batchSize is the most items one search/batch carries (Contract 3).
-const batchSize = 200
+const (
+	// batchSize is the most items one search/batch carries (Contract 3).
+	batchSize = 200
+	// batchDelay is the longest a result waits for its batch to fill, so the
+	// first results show while a long search continues.
+	batchDelay = 20 * time.Millisecond
+)
 
 func (s *Server) registerSearch() {
 	s.conn.Handle(protocol.MethodSearchStart, s.search)
@@ -24,21 +30,41 @@ func (s *Server) registerSearch() {
 	s.conn.Handle(protocol.MethodOpenResolve, s.resolve)
 }
 
-// batcher sends results as search/batch notifications of at most batchSize.
+// batcher sends results as search/batch notifications of at most
+// batchSize, or sooner when batchDelay passes. Safe for concurrent use.
 type batcher struct {
 	conn     *rpc.Conn
 	searchID string
-	items    []protocol.ResultItem
+
+	mu    sync.Mutex
+	items []protocol.ResultItem
+	timer *time.Timer // pending flush of a part-filled batch
 }
 
 func (b *batcher) add(item protocol.ResultItem) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
 	b.items = append(b.items, item)
 	if len(b.items) >= batchSize {
-		b.flush()
+		b.flushLocked()
+	} else if b.timer == nil {
+		b.timer = time.AfterFunc(batchDelay, b.flush)
 	}
 }
 
+// flush sends what is waiting. The search calls it last, before it
+// answers, so every batch arrives before the search/start result.
 func (b *batcher) flush() {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.flushLocked()
+}
+
+func (b *batcher) flushLocked() {
+	if b.timer != nil {
+		b.timer.Stop()
+		b.timer = nil
+	}
 	if len(b.items) == 0 {
 		return
 	}
