@@ -5,6 +5,7 @@ import (
 	"context"
 	"regexp"
 	"regexp/syntax"
+	"slices"
 	"time"
 	"unicode/utf8"
 
@@ -537,7 +538,7 @@ func (m *lineMatcher) lines(terms []*query.Content) []matchedLine {
 			order = append(order, line.number)
 		}
 	}
-	sortInts(order)
+	slices.Sort(order)
 	merged := make([]matchedLine, len(order))
 	for i, number := range order {
 		line := byNumber[number]
@@ -547,20 +548,9 @@ func (m *lineMatcher) lines(terms []*query.Content) []matchedLine {
 	return merged
 }
 
-func sortInts(values []int) {
-	for i := 1; i < len(values); i++ {
-		for j := i; j > 0 && values[j] < values[j-1]; j-- {
-			values[j], values[j-1] = values[j-1], values[j]
-		}
-	}
-}
-
+// sortHits orders hits by where they start in the line.
 func sortHits(hits []byteHit) {
-	for i := 1; i < len(hits); i++ {
-		for j := i; j > 0 && hits[j].start < hits[j-1].start; j-- {
-			hits[j], hits[j-1] = hits[j-1], hits[j]
-		}
-	}
+	slices.SortStableFunc(hits, func(a, b byteHit) int { return a.start - b.start })
 }
 
 // maxResultLineRunes is how much of a line a result shows; longer lines

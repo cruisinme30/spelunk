@@ -2,6 +2,7 @@ package query
 
 import (
 	"fmt"
+	"slices"
 
 	"github.com/cruisinme30/unified-search/daemon/internal/protocol"
 )
@@ -114,11 +115,7 @@ func nearest(word string, candidates []string) []string {
 			matches = append(matches, scored{c, d})
 		}
 	}
-	for i := 1; i < len(matches); i++ { // insertion sort: stable and tiny
-		for j := i; j > 0 && matches[j].distance < matches[j-1].distance; j-- {
-			matches[j], matches[j-1] = matches[j-1], matches[j]
-		}
-	}
+	slices.SortStableFunc(matches, func(a, b scored) int { return a.distance - b.distance })
 	names := make([]string, len(matches))
 	for i, m := range matches {
 		names[i] = m.candidate
