@@ -118,6 +118,7 @@ async function connectPanel(page, host, daemon) {
     openHelp: () => {},
     openSettings: () => {},
     restartDaemon: () => {},
+    showOpened: () => {},
     setContext: () => {},
     saveState: () => {},
   };
