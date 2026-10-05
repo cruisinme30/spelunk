@@ -244,7 +244,7 @@ export class SearchController {
         return;
       }
       case "recent.remove": {
-        this.forgetQuery(message.payload.query);
+        this.removeRecent(message.payload.query);
         return;
       }
       case "pinned.save": {
@@ -296,7 +296,7 @@ export class SearchController {
   }
 
   /** Takes a query off the recent list. */
-  private forgetQuery(query: string): void {
+  private removeRecent(query: string): void {
     const recent = this.state.recent.filter((kept) => kept !== query);
     if (recent.length === this.state.recent.length) return;
     this.state.recent = recent;
