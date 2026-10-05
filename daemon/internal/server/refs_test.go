@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -22,7 +23,7 @@ func TestForgedRefsCannotReachOutsideTheirFolder(t *testing.T) {
 	mustWriteFile(t, filepath.Join(dir, "client.py"), clientSource)
 	outside := t.TempDir()
 	mustWriteFile(t, filepath.Join(outside, "secret.txt"), "secret\n")
-	for link, target := range map[string]string{"link.txt": filepath.Join(outside, "secret.txt"), "linkdir": outside} {
+	for link, target := range map[string]string{"link.txt": filepath.Join(outside, "secret.txt"), "linkedDir": outside} {
 		if err := os.Symlink(target, filepath.Join(dir, link)); err != nil {
 			t.Skipf("symlinks unavailable: %v", err)
 		}
@@ -33,7 +34,7 @@ func TestForgedRefsCannotReachOutsideTheirFolder(t *testing.T) {
 		"tree|1|r1|1|0|1|../../../../../../etc/passwd",
 		"tree|1|r1|1|0|1|/etc/passwd",
 		"tree|1|r1|1|0|1|link.txt",
-		"tree|1|r1|1|0|1|linkdir/secret.txt",
+		"tree|1|r1|1|0|1|linkedDir/secret.txt",
 		"tree|1|r1|1|0|0|.",
 		"tree|1|r2|1|0|0|client.py",
 		"hist|1|r1|--output=x",
@@ -100,7 +101,7 @@ func TestConcurrentSearchesWithCancelsLeaveNoGoroutinesBehind(t *testing.T) {
 				time.AfterFunc(time.Duration(i%5)*time.Millisecond, cancel)
 			}
 			var result protocol.SearchResult
-			err := client.conn.Call(ctx, protocol.MethodSearchStart, protocol.SearchStartParams{SearchID: fmt.Sprint(i), Text: "hello count:all"}, &result)
+			err := client.conn.Call(ctx, protocol.MethodSearchStart, protocol.SearchStartParams{SearchID: strconv.Itoa(i), Text: "hello count:all"}, &result)
 			var rpcErr *rpc.Error
 			switch {
 			case err == nil:
@@ -110,7 +111,7 @@ func TestConcurrentSearchesWithCancelsLeaveNoGoroutinesBehind(t *testing.T) {
 					t.Errorf("search %d: total %d and not truncated, want 20000", i, result.Total)
 				}
 				mu.Lock()
-				totals[fmt.Sprint(i)] = result.Total
+				totals[strconv.Itoa(i)] = result.Total
 				mu.Unlock()
 			case ctx.Err() == nil:
 				t.Errorf("search %d failed without a cancel: %v", i, err)
@@ -144,7 +145,7 @@ func TestSearchesKeepWorkingWhileTheFolderIsDeleted(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			_ = client.call(protocol.MethodSearchStart, protocol.SearchStartParams{SearchID: fmt.Sprint(i), Text: "needle"}, nil)
+			_ = client.call(protocol.MethodSearchStart, protocol.SearchStartParams{SearchID: strconv.Itoa(i), Text: "needle"}, nil)
 		}()
 	}
 	if err := os.RemoveAll(dir); err != nil {
