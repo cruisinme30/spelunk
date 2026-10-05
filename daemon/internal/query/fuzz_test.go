@@ -2,6 +2,7 @@ package query
 
 import (
 	"reflect"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -168,6 +169,24 @@ func FuzzComplete(f *testing.F) {
 				checkSpan(t, src, edit.Span, "completion "+completion.Label)
 			}
 			Parse(ApplyFix(text, completion.Insert), testResolver)
+		}
+	})
+}
+
+// FuzzGlobPattern checks that every glob turns into a regex that compiles,
+// with or without (?i).
+func FuzzGlobPattern(f *testing.F) {
+	for _, seed := range []string{"*.go", "src/**/test_*.py", "**", "a/**", "[", "{a,b", `\`, `a\*`, "^*.go$", "?", "😀*"} {
+		f.Add(seed)
+	}
+	f.Fuzz(func(t *testing.T, glob string) {
+		looksLikeGlob(glob, true)
+		looksLikeGlob(glob, false)
+		pattern := globPattern(glob)
+		for _, prefix := range []string{"", "(?i)"} {
+			if _, err := regexp.Compile(prefix + pattern); err != nil {
+				t.Fatalf("globPattern(%q) = %q, which doesn't compile: %v", glob, pattern, err)
+			}
 		}
 	})
 }

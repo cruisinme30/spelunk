@@ -3,6 +3,7 @@ package query
 import (
 	"regexp"
 	"strings"
+	"unicode/utf8"
 )
 
 // looksLikeGlob reports whether an f: or repo: value was meant as a glob
@@ -36,9 +37,10 @@ func looksLikeGlob(value string, invalidRegex bool) bool {
 // include", a glob may start at any folder: *.go matches cmd/main.go, and
 // src/*.ts matches web/src/app.ts. It always matches to the end of the
 // path, so a trailing $ written out of regex habit is dropped, as is a
-// leading ^.
+// leading ^. Invalid UTF-8, which RE2 refuses, becomes the replacement
+// character, as it does in parsed values.
 func globPattern(glob string) string {
-	glob = strings.TrimSuffix(strings.TrimPrefix(glob, "^"), "$")
+	glob = strings.TrimSuffix(strings.TrimPrefix(strings.ToValidUTF8(glob, string(utf8.RuneError)), "^"), "$")
 	var b strings.Builder
 	b.WriteString("(?:^|/)")
 	for i := 0; i < len(glob); i++ {
