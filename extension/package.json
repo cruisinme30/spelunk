@@ -197,7 +197,7 @@
           "type": "boolean",
           "default": true,
           "scope": "resource",
-          "description": "Index symbol definitions for sym: (uses universal-ctags when installed)."
+          "description": "Index symbol definitions for symbol: (s:)."
         },
         "unifiedSearch.index.exclude": {
           "type": "array",
