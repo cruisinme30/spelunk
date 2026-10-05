@@ -3,6 +3,7 @@
 // shape doesn't match the protocol is dropped here instead of failing (or
 // doing something odd) deep inside a handler.
 import type { Envelope, WebviewToHost } from "./protocol.gen";
+import { HISTORY_DEPTHS, SHORTCUT_PRESETS } from "./settings";
 
 /** The `v` of every message between the extension host and a webview. */
 export const MESSAGE_VERSION: Envelope["v"] = 1;
@@ -25,9 +26,6 @@ function member<T extends string>(value: unknown, allowed: readonly T[]): T | un
   return allowed.find((candidate) => candidate === value);
 }
 
-const PRESETS = ["quickOpen", "findInFiles", "none"] as const;
-const HISTORY_DEPTHS = ["6m", "2y", "all"] as const;
-
 const PAYLOAD_CHECKS: { [K in keyof WebviewToHost]: PayloadCheck<K> } = {
   "query.changed": ({ text, cursor, seq, asTyped }) => {
     if (!isString(text) || !isCount(seq) || typeof cursor !== "number" || Number.isNaN(cursor)) return;
@@ -45,7 +43,7 @@ const PAYLOAD_CHECKS: { [K in keyof WebviewToHost]: PayloadCheck<K> } = {
   "recent.remove": ({ query }) => (isString(query) ? { query } : undefined),
   "welcome.choose": ({ preset, historyDepth, symbols }) => {
     const choice: WebviewToHost["welcome.choose"] = {};
-    const checkedPreset = member(preset, PRESETS);
+    const checkedPreset = member(preset, SHORTCUT_PRESETS);
     const checkedDepth = member(historyDepth, HISTORY_DEPTHS);
     if (checkedPreset) choice.preset = checkedPreset;
     if (checkedDepth) choice.historyDepth = checkedDepth;

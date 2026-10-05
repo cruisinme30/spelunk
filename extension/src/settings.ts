@@ -31,9 +31,11 @@ const MAX_TYPING_DELAY_MS = 1000;
 /** The daemon reads maxFileSizeKB into an int; this keeps it well inside one (1 GiB). */
 const MAX_FILE_SIZE_KB = 1024 * 1024;
 const MAX_RECENT_QUERIES = 100;
-const HISTORY_DEPTHS: readonly Settings["historyDepth"][] = ["6m", "2y", "all"];
+/** The index.historyDepth values. */
+export const HISTORY_DEPTHS: readonly Settings["historyDepth"][] = ["6m", "2y", "all"];
 const OPEN_TRIGGERS: readonly UiSettings["openTrigger"][] = ["doubleClick", "singleClick"];
-const SHORTCUT_PRESETS: readonly WelcomeState["preset"][] = ["quickOpen", "findInFiles", "none"];
+/** The shortcut.preset values. */
+export const SHORTCUT_PRESETS: readonly WelcomeState["preset"][] = ["quickOpen", "findInFiles", "none"];
 
 // settings.json can hold anything, whatever type package.json declares, and
 // the daemon refuses an initialize whose settings have the wrong JSON types.
