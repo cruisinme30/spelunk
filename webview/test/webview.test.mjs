@@ -181,20 +181,22 @@ test("streamed results render in sections with a summary", async (t) => {
   assert.match(await page.locator('[data-testid="summary"]').innerText(), /1 file name · 1 code match/);
 });
 
+/** CODE_LINE_RESULT moved to `path`, with a rank reason if given. */
+const lineIn = (path, rankReason) => ({ ...CODE_LINE_RESULT, ref: path, path, ...(rankReason && { rankReason }) });
+
 test("section titles say results are best match first, and each file says why it ranks where it does", async (t) => {
   // @covers screen:ranked-results
   const page = await openPanel(t);
   await restore(page);
   const seq = await typeAndParse(page, "retry", parsedQuery("retry", textNode("retry", 0)));
-  const line = (path, rankReason) => ({ ...CODE_LINE_RESULT, ref: path, path, ...(rankReason && { rankReason }) });
   await fromHost(page, "search.batch", {
     seq,
     searchId: "s1",
     items: [
       { ...FILE_NAME_RESULT, path: "http/retry.py", rankReason: "definition" },
-      line("http/retry.py", "definition"),
-      line("src/client.py", "open"),
-      line("tests/retry_test.py", "test"),
+      lineIn("http/retry.py", "definition"),
+      lineIn("src/client.py", "open"),
+      lineIn("tests/retry_test.py", "test"),
     ],
   });
   assert.match(await page.locator('[data-testid="section-files"] .section-title').innerText(), /best match first/i);
