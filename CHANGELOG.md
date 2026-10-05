@@ -83,6 +83,13 @@ All notable changes to this project are documented here. The format follows
   while it composes, keeps the query box in sight in a short panel, and fits the help and welcome pages in a narrow
   editor. Highlights never split an emoji.
 
+- A pasted query of any length costs little: only its first 2000 characters are read, and it is reported as too
+  long.
+- A daemon that keeps crashing is restarted after a pause that doubles each time, up to 30 seconds, instead of every
+  200 ms forever.
+- A result after invalid UTF-8 in a file opens at the column VS Code shows: invalid bytes are replaced the way the
+  editor replaces them.
+
 ### Changed
 
 - Files are searched as the editor shows them: a UTF-8 byte order mark is dropped, UTF-16 files with a byte order
