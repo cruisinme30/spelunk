@@ -9,6 +9,7 @@ import { test } from "node:test";
 import {
   FILE_NAME_RESULT,
   fromHost,
+  lastSent,
   openPanel,
   openPanelWithSavedState,
   openWelcome,
@@ -19,6 +20,7 @@ import {
   textNode,
   typeAndParse,
   useBrowser,
+  waitForSent,
 } from "./harness.mjs";
 
 useBrowser();
@@ -49,6 +51,70 @@ async function searchingPanel(t) {
 /** Whether any element that markup would have created exists, or its script ran. */
 const markupTookEffect = (page) =>
   page.evaluate(() => globalThis.__ran !== undefined || document.querySelector("#app img, #app b") !== null);
+
+test("markup in results, previews, notes and banners shows as text and never runs", async (t) => {
+  const { page, seq } = await searchingPanel(t);
+  await fromHost(page, "index.status", { repos: [{ repoId: "r1", name: MARKUP, tree: "indexing", history: "ready" }] });
+  await fromHost(page, "banner", { state: "stopped", message: MARKUP });
+  const commit = {
+    kind: "commit",
+    ref: "c1",
+    repoId: "r1",
+    sha: MARKUP,
+    subject: MARKUP,
+    subjectHits: [{ start: 0, end: 4 }],
+    author: { name: MARKUP, email: MARKUP },
+    at: MARKUP,
+    matchedTerms: [0],
+    diffHits: 1,
+    files: [{ path: MARKUP, added: 1, removed: 1 }],
+  };
+  const items = [
+    { ...FILE_NAME_RESULT, path: MARKUP, nameHits: [{ start: 1, end: 4 }], lastCommit: { author: MARKUP, at: MARKUP } },
+    codeLine("l1", MARKUP, [{ start: 0, end: 5, termIndex: 0 }], { path: MARKUP }),
+    { kind: "symbol", ref: "s1", repoId: "r1", path: MARKUP, line: 1, name: MARKUP, symbolKind: "class", hits: [] },
+    commit,
+  ];
+  await fromHost(page, "search.batch", { seq, searchId: "s1", items });
+  const undo = { title: MARKUP, edits: [] };
+  const hidden = [{ reason: "pathFilter", filter: MARKUP, count: 2, unit: "files", undo }];
+  await fromHost(page, "search.done", { seq, searchId: "s1", total: 4, truncated: false, hidden, ms: 1 });
+  const lines = [MARKUP, MARKUP];
+  const filePreview = { kind: "file", path: MARKUP, firstLine: 1, lines, focusLine: 1, hits: [], dirtyLines: [] };
+  await fromHost(page, "preview.result", { ref: "f1", preview: { ...filePreview, symbols: [{ name: MARKUP }] } });
+
+  assert.equal(await markupTookEffect(page), false);
+  assert.equal(await page.locator('[data-ref="l1"] code.text').textContent(), MARKUP);
+  assert.equal(await page.locator('[data-ref="c1"] .subject').textContent(), MARKUP);
+  assert.match(await page.locator('[data-testid="preview"]').textContent(), /<img src=x onerror=/);
+  assert.match(await page.locator('[data-testid="banner"]').textContent(), /<\/script>&amp;/);
+  assert.deepEqual(pageErrors(page), []);
+});
+
+test("markup in diagnostics, chips, suggestions and recent queries shows as text", async (t) => {
+  const page = await openPanel(t);
+  await restore(page, [MARKUP]);
+  assert.equal(await page.locator('[data-testid="recent"] code').textContent(), MARKUP);
+  await page.fill('[data-testid="query"]', MARKUP);
+  const { seq } = await lastSent(page, "query.changed");
+  const repo = { kind: "op", op: "repo", value: MARKUP, span: { start: 0, end: 4 }, resolved: { label: MARKUP } };
+  const fixes = [{ title: MARKUP, edits: [] }];
+  const diagnostic = { severity: "warning", code: "x", message: MARKUP, span: { start: 1, end: 4 }, fixes };
+  const query = parsedQuery(
+    MARKUP,
+    { kind: "and", children: [textNode(MARKUP, 0), repo] },
+    { diagnostics: [diagnostic] },
+  );
+  const completion = { label: MARKUP, detail: MARKUP, context: MARKUP, note: MARKUP, section: MARKUP, group: "value" };
+  const insert = { title: MARKUP, edits: [{ span: { start: 0, end: 4 }, newText: "x" }] };
+  await fromHost(page, "parse.result", { seq, query, completions: [{ ...completion, insert }], searchText: MARKUP });
+  assert.equal(await page.locator('[data-testid="completion"] .title').textContent(), MARKUP);
+  await page.keyboard.press("Escape"); // shows the chips and diagnostics again
+  assert.equal(await page.locator(".diagnostic-message").textContent(), MARKUP);
+  assert.match(await page.locator('[data-testid="chips"]').textContent(), /<img src=x/);
+  assert.equal(await markupTookEffect(page), false);
+  assert.deepEqual(pageErrors(page), []);
+});
 
 test("a diagnostic span before or past the text marks its end instead of throwing", async (t) => {
   const page = await openPanel(t);
@@ -110,6 +176,31 @@ test("tabs, control and right-to-left override characters in a line render as te
     items: [codeLine("l1", text, [{ start: 10, end: 15 }])],
   });
   assert.deepEqual(await marksOf(page, "l1"), { text, marks: [["retry", "term-color-0"]] });
+});
+
+test("a 1 MB line and 10,000 results in 100 batches render, and ↓ stops at the last row", async (t) => {
+  const { page, seq } = await searchingPanel(t);
+  const longHits = Array.from({ length: 5000 }, (_, index) => ({ start: index * 200, end: index * 200 + 5 }));
+  await fromHost(page, "search.batch", {
+    seq,
+    searchId: "s1",
+    items: [codeLine("long", "x".repeat(2 ** 20), longHits)],
+  });
+  assert.equal(await page.locator('[data-ref="long"] mark').count(), 5000);
+  for (let batch = 0; batch < 100; batch++) {
+    const items = Array.from({ length: 100 }, (_, index) =>
+      codeLine(`b${batch}-${index}`, "retry", [{ start: 0, end: 5 }], { path: `f${batch}.py` }),
+    );
+    await fromHost(page, "search.batch", { seq, searchId: "s1", items });
+  }
+  await fromHost(page, "search.done", { seq, searchId: "s1", total: 10_001, truncated: false, hidden: [], ms: 1 });
+  assert.equal(await page.locator('[data-testid="result"]').count(), 10_001);
+  await page.locator('[data-ref="b99-98"]').click();
+  await page.focus('[data-testid="query"]');
+  await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("ArrowDown");
+  await waitForSent(page, "result.select", { ref: "b99-99" });
+  assert.deepEqual(pageErrors(page), []);
 });
 
 test("malformed host messages are dropped, and the panel keeps working", async (t) => {
