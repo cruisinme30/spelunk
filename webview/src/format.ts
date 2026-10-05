@@ -54,6 +54,13 @@ export function element<K extends keyof HTMLElementTagNameMap>(
   return created;
 }
 
+/** A decorative icon: `svg`, a constant of the page's own markup, in a span screen readers skip. */
+export function icon(svg: string): HTMLElement {
+  const span = element("span", { class: "icon", "aria-hidden": "true" });
+  span.innerHTML = svg;
+  return span;
+}
+
 /** A `<button type="button">` that calls `onClick` when clicked. */
 export function button(
   attributes: Record<string, AttributeValue>,

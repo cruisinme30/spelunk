@@ -1,5 +1,5 @@
 // The empty box: recent queries and the operator cheat sheet.
-import { button, element } from "../format";
+import { button, element, icon } from "../format";
 import { OPERATOR_GROUPS, type OperatorGroup, shortName } from "../operators";
 import type { ViewState } from "../state";
 
@@ -126,12 +126,6 @@ function renderDivider(empty: HTMLElement, recent: HTMLElement, onResize: (width
   return divider;
 }
 
-function clockIcon(): HTMLElement {
-  const icon = element("span", { class: "icon", "aria-hidden": "true" });
-  icon.innerHTML = CLOCK_ICON;
-  return icon;
-}
-
 /** A recent query: the row runs it, the × at its end takes it off the list. */
 function recentRow(query: string, selected: boolean, handlers: EmptyStateHandlers): HTMLElement {
   const run = button(
@@ -139,7 +133,7 @@ function recentRow(query: string, selected: boolean, handlers: EmptyStateHandler
     () => {
       handlers.onRunRecent(query);
     },
-    clockIcon(),
+    icon(CLOCK_ICON),
     element("code", {}, query),
   );
   const remove = button(

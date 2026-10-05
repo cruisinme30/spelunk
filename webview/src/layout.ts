@@ -1,5 +1,5 @@
 // The panel's fixed skeleton, built once. Regions are filled by render/*.
-import { element } from "./format";
+import { element, icon } from "./format";
 
 /** The panel's regions and controls, from top to bottom. */
 export interface Layout {
@@ -83,9 +83,7 @@ function createSettingsButton(): HTMLButtonElement {
 }
 
 function createSearchIcon(): HTMLElement {
-  const icon = element("span", { class: "icon", "aria-hidden": "true" });
-  icon.innerHTML = SEARCH_ICON;
-  return element("label", { for: "query", class: "query-icon" }, icon);
+  return element("label", { for: "query", class: "query-icon" }, icon(SEARCH_ICON));
 }
 
 /** Builds the skeleton into `root` and returns its parts. */
