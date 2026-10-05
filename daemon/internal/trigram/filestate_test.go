@@ -6,7 +6,7 @@ import (
 )
 
 func TestIsFiltersFilesByState(t *testing.T) {
-	// @covers op:is
+	// @covers op:is screen:test-files
 	repo := WithOpenFiles([]Repo{webRepo}, []string{"/repos/web/src/client.ts", "/elsewhere/src/retry.ts"})[0]
 	repo.History = fakeHistory{dirty: map[string]bool{"src/retry.ts": true}}
 	tests := []struct {

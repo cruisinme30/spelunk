@@ -5,6 +5,17 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- `is:open`, `is:changed` and `is:test` (short form `i:`) keep the files open in editor tabs, the files with
+  uncommitted changes, or the test files; `retry -is:test` leaves tests out. In a commit search `is:test` keeps the
+  commits' test-file changes. Its suggestions say how many files are in each state now.
+
+### Fixed
+
+- A commit's preview said its other files were hidden by `f:` even when `lang:` hid them; it now says "hidden by
+  filters".
+
 ## [1.0.1] - 2026-10-05
 
 ### Changed

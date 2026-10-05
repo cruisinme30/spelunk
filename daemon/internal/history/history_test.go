@@ -94,7 +94,7 @@ func TestSkippedFilesAreListedWithoutTheirLines(t *testing.T) {
 }
 
 func TestHistoryQueries(t *testing.T) {
-	// @covers op:author op:msg op:is
+	// @covers op:author op:msg op:is screen:test-history
 	r, _ := paymentsHistory(t)
 	repo := Repo{ID: "r1", Name: "payments-api", Root: r.root, Store: r.ingest()}
 	tests := []struct {
