@@ -1,7 +1,7 @@
 // The panel chrome around the results: index status, health and indexing
 // banners, completions, query diagnostics, parsed-query chips and the key
 // hints footer.
-import { element, plural, termClass } from "../format";
+import { clamp, element, plural, termClass } from "../format";
 import type { Layout } from "../layout";
 import { OPERATOR_CHIP_LABEL, OPERATOR_TONE } from "../operators";
 import { scopedRepo } from "../parsedQuery";
@@ -126,7 +126,9 @@ export function renderDiagnostics(layout: Layout, state: ViewState, onFix: (fix:
 }
 
 function renderDiagnostic(raw: string, diagnostic: Diagnostic, onFix: (fix: Fix) => void): HTMLElement {
-  const { start, end } = diagnostic.span;
+  // A span outside the text marks its end, rather than breaking the caret's " ".repeat.
+  const start = clamp(Math.trunc(diagnostic.span.start) || 0, 0, raw.length);
+  const end = clamp(Math.trunc(diagnostic.span.end) || 0, start, raw.length);
   const offending = raw.slice(start, Math.max(end, start + 1)) || " ";
   const snippet = element(
     "code",

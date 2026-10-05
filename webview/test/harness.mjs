@@ -35,12 +35,24 @@ export const openHelp = (testContext) => openPage(testContext, "help.html");
 /** Opens the welcome page. */
 export const openWelcome = (testContext) => openPage(testContext, "welcome.html");
 
+/** Uncaught exceptions and console errors of each open page, in order. */
+const errorsByPage = new WeakMap();
+
 async function openPage(testContext, file) {
   const page = await browser.newPage();
   testContext.after(() => page.close());
+  const errors = [];
+  errorsByPage.set(page, errors);
+  page.on("pageerror", (error) => errors.push(error.message));
+  page.on("console", (message) => {
+    if (message.type() === "error") errors.push(message.text());
+  });
   await page.goto(pathToFileURL(join(out, file)).href);
   return page;
 }
+
+/** Every uncaught exception and console error the page has had so far. */
+export const pageErrors = (page) => errorsByPage.get(page) ?? [];
 
 /** Every message of `type` the page has sent so far, oldest first. */
 export const sentMessages = (page, type) =>
