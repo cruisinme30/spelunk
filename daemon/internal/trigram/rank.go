@@ -132,7 +132,8 @@ func (s *searcher) defines(doc *Doc) bool {
 	return false
 }
 
-// nameScore scores how a file's path matches the searched terms: its name
+// nameScore scores how a file's path matches the searched terms (not
+// content: ones): its name
 // (without the extension) is a term, has one as a word, or the term is
 // elsewhere in the path.
 func (s *searcher) nameScore(filePath string) int {
@@ -140,6 +141,9 @@ func (s *searcher) nameScore(filePath string) int {
 	stem := strings.TrimSuffix(base, path.Ext(base))
 	best := 0
 	for _, term := range s.rankTerms {
+		if term.ContentOnly {
+			continue // content: never matches names
+		}
 		score := 0
 		if loc := term.FindStringIndex(stem); len(loc) == 2 {
 			switch {

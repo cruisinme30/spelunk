@@ -30,7 +30,7 @@ export interface OperatorGroup {
   entries: OperatorEntry[];
 }
 
-/** Every operator and piece of syntax: 21 entries in five groups. */
+/** Every operator and piece of syntax: 22 entries in five groups. */
 export const OPERATOR_GROUPS: OperatorGroup[] = [
   {
     name: "Matching",
@@ -168,6 +168,15 @@ export const OPERATOR_GROUPS: OperatorGroup[] = [
         example: "ref:RetryPolicy",
       },
       {
+        operator: "content",
+        label: "content:",
+        insert: "content:",
+        summary: "Text inside files only, never file names.",
+        description:
+          'Match the text inside files but never their names; in a commit search, the changed lines but never the message. Its value is searched as written, so content:"type:file" finds that text.',
+        example: "content:retry",
+      },
+      {
         operator: "is",
         label: "is:open|changed|test",
         insert: "is:",
@@ -247,6 +256,7 @@ export const OPERATOR_TONE: Record<OpName, Tone> = {
   kind: "scope",
   ref: "scope",
   is: "scope",
+  content: "scope",
   author: "history",
   msg: "history",
   since: "history",
@@ -267,6 +277,7 @@ const OPERATOR_NAMES: Record<OpName, { full: string; short: string; aliases?: st
   kind: { full: "kind", short: "k" },
   ref: { full: "ref", short: "x" },
   is: { full: "is", short: "i" },
+  content: { full: "content", short: "" },
   author: { full: "author", short: "a" },
   msg: { full: "message", short: "m" },
   since: { full: "since", short: "d" },
@@ -280,7 +291,12 @@ const OPERATOR_NAMES: Record<OpName, { full: string; short: string; aliases?: st
 export function opNameFor(spelling: string): OpName | undefined {
   return (Object.keys(OPERATOR_NAMES) as OpName[]).find((op) => {
     const names = OPERATOR_NAMES[op];
-    return op === spelling || names.full === spelling || names.short === spelling || names.aliases?.includes(spelling);
+    return (
+      op === spelling ||
+      names.full === spelling ||
+      (names.short !== "" && names.short === spelling) ||
+      names.aliases?.includes(spelling)
+    );
   });
 }
 
@@ -289,9 +305,10 @@ export function fullName(op: OpName): string {
   return OPERATOR_NAMES[op].full;
 }
 
-/** An entry's short name, "f:", shown beside its full name; absent for syntax. */
+/** An entry's short name, "f:", shown beside its full name; absent for syntax and for content:, which has none. */
 export function shortName(entry: OperatorEntry): string | undefined {
-  return entry.operator ? `${OPERATOR_NAMES[entry.operator].short}:` : undefined;
+  const short = entry.operator ? OPERATOR_NAMES[entry.operator].short : "";
+  return short ? `${short}:` : undefined;
 }
 
 /** The reference entry for an operator name in any spelling, such as "since" or "d". */

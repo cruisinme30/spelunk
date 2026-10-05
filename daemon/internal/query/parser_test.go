@@ -2,6 +2,7 @@ package query
 
 import (
 	"encoding/json"
+	"fmt"
 	"strconv"
 	"strings"
 	"testing"
@@ -156,6 +157,30 @@ func TestModeIsHistoryWhenAuthorMsgOrTypeCommitAppear(t *testing.T) {
 		if got := mustParseCleanly(t, query).Mode; got != want {
 			t.Errorf("Parse(%q).Mode = %s, want %s", query, got, want)
 		}
+	}
+}
+
+func TestContentIsATextTermThatSkipsFileNames(t *testing.T) {
+	// @covers op:content
+	q := mustParseCleanly(t, `retry content:Timeout content:"f:vendor" content:/a+b/`)
+	var terms []string
+	walk(q.Root, func(n *protocol.Node) {
+		if n.Kind == protocol.NodeKindText {
+			terms = append(terms, fmt.Sprintf("%s:%s#%d only=%v", n.Match, n.Value, n.TermIndex, n.ContentOnly))
+		}
+	})
+	want := "literal:retry#0 only=false literal:Timeout#1 only=true phrase:f:vendor#2 only=true regex:a+b#3 only=true"
+	if got := strings.Join(terms, " "); got != want {
+		t.Errorf("terms = %s, want %s", got, want)
+	}
+	if !q.HasCapital {
+		t.Error("content:Timeout has a capital, which smart case should see")
+	}
+	if q := Parse("content:", testResolver); len(q.Diagnostics) == 0 || q.Diagnostics[0].Code != DiagBadValue {
+		t.Errorf("content: with no value = %+v, want a bad_value", q.Diagnostics)
+	}
+	if q := Parse("-content:retry", testResolver); len(q.Diagnostics) == 0 || q.Diagnostics[0].Code != DiagNoPositiveTerm {
+		t.Errorf("-content:retry alone = %+v, want no_positive_term", q.Diagnostics)
 	}
 }
 

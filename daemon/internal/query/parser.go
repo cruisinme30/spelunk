@@ -307,6 +307,16 @@ func (p *parser) textNode(t token) *protocol.Node {
 	return node
 }
 
+// contentNode builds the text term of content:x. It is a text term like x,
+// numbered for highlight colors, but it matches only the text of files (or
+// a commit's changed lines), never file names or commit messages. Its value
+// is searched as written, so content:"f:vendor" finds that literal text.
+func (p *parser) contentNode(t token, match protocol.Match) *protocol.Node {
+	node := &protocol.Node{Kind: protocol.NodeKindText, Value: t.value, Match: match, TermIndex: p.nextTermIndex, ContentOnly: true, Span: p.span(t)}
+	p.nextTermIndex++
+	return node
+}
+
 // warnIfPipeMeantAsOr warns about a plain word like daemon|search, which
 // matches that text pipe and all, and offers OR and a regex instead. It's a
 // warning, so the search still runs: a|b may really be code.
@@ -407,6 +417,9 @@ func (p *parser) operatorNode(t token) *protocol.Node {
 	}
 	if op.name == protocol.OpNameSince {
 		p.warnIfMonthsMeantAsMinutes(t, valueSpan)
+	}
+	if op.name == protocol.OpNameContent {
+		return p.contentNode(t, match)
 	}
 	node := &protocol.Node{Kind: protocol.NodeKindOp, Op: op.name, Value: t.value, Match: match, Span: p.span(t)}
 	node.Resolved = p.resolve(op.name, t.value)

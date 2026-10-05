@@ -63,21 +63,22 @@ type OpName = string
 
 // OpName values.
 const (
-	OpNameF      OpName = "f"
-	OpNameRepo   OpName = "repo"
-	OpNameLang   OpName = "lang"
-	OpNameType   OpName = "type"
-	OpNameSym    OpName = "sym"
-	OpNameKind   OpName = "kind"
-	OpNameRef    OpName = "ref"
-	OpNameIs     OpName = "is"
-	OpNameAuthor OpName = "author"
-	OpNameMsg    OpName = "msg"
-	OpNameSince  OpName = "since"
-	OpNameCase   OpName = "case"
-	OpNameWord   OpName = "word"
-	OpNameCount  OpName = "count"
-	OpNameOrder  OpName = "order"
+	OpNameF       OpName = "f"
+	OpNameRepo    OpName = "repo"
+	OpNameLang    OpName = "lang"
+	OpNameType    OpName = "type"
+	OpNameSym     OpName = "sym"
+	OpNameKind    OpName = "kind"
+	OpNameRef     OpName = "ref"
+	OpNameIs      OpName = "is"
+	OpNameContent OpName = "content"
+	OpNameAuthor  OpName = "author"
+	OpNameMsg     OpName = "msg"
+	OpNameSince   OpName = "since"
+	OpNameCase    OpName = "case"
+	OpNameWord    OpName = "word"
+	OpNameCount   OpName = "count"
+	OpNameOrder   OpName = "order"
 )
 
 // CaseSetting is how capital letters match when the query has no case: ignored (off), matched (on), or matched only when the query has a capital letter (smart).
@@ -188,15 +189,16 @@ type Resolved struct {
 
 // Node is one node of the parsed query tree.
 type Node struct {
-	Kind      string    `json:"kind,omitempty"`
-	Children  []Node    `json:"children,omitempty"`
-	Span      Span      `json:"span,omitempty"`
-	Child     *Node     `json:"child,omitempty"`
-	Value     string    `json:"value,omitempty"`
-	Match     Match     `json:"match,omitempty"`
-	TermIndex int       `json:"termIndex,omitempty"`
-	Op        OpName    `json:"op,omitempty"`
-	Resolved  *Resolved `json:"resolved,omitempty"`
+	Kind        string    `json:"kind,omitempty"`
+	Children    []Node    `json:"children,omitempty"`
+	Span        Span      `json:"span,omitempty"`
+	Child       *Node     `json:"child,omitempty"`
+	Value       string    `json:"value,omitempty"`
+	Match       Match     `json:"match,omitempty"`
+	TermIndex   int       `json:"termIndex,omitempty"`
+	ContentOnly bool      `json:"contentOnly,omitempty"`
+	Op          OpName    `json:"op,omitempty"`
+	Resolved    *Resolved `json:"resolved,omitempty"`
 }
 
 // Node kinds: the values of Node.Kind.
@@ -226,6 +228,9 @@ func (v Node) MarshalJSON() ([]byte, error) {
 		fields["value"] = v.Value
 		fields["match"] = v.Match
 		fields["termIndex"] = v.TermIndex
+		if v.ContentOnly {
+			fields["contentOnly"] = v.ContentOnly
+		}
 		fields["span"] = v.Span
 	case "op":
 		fields["op"] = v.Op

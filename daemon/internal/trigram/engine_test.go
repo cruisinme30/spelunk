@@ -144,6 +144,32 @@ func TestTypeFileReturnsOnlyFileNames(t *testing.T) {
 	}
 }
 
+func TestContentMatchesTextButNeverFileNames(t *testing.T) {
+	// @covers op:content
+	tests := []struct {
+		query string
+		want  []string
+	}{
+		// retry is in three file names, but content: finds only lines.
+		{"content:retry f:^src/", []string{
+			"src/client.ts:1 import { RetryPolicy } from './retry';",
+			"src/client.ts:3 new RetryPolicy();",
+			"src/retry.ts:1 export class RetryPolicy {",
+			"src/retry_test.py:2     assert retry(timeout=1)",
+		}},
+		// A plain term in the same query still matches names.
+		{"(retry_test OR content:Timeouts)", []string{"file src/retry_test.py", "README.md:2 Timeouts are separate."}},
+		// Text that reads like an operator is searched as written.
+		{`content:"retry(timeout"`, []string{"src/retry_test.py:2     assert retry(timeout=1)"}},
+	}
+	for _, tt := range tests {
+		got, _ := run(t, "order:path "+tt.query, webRepo)
+		if !reflect.DeepEqual(got, tt.want) {
+			t.Errorf("%s:\n got %q\nwant %q", tt.query, got, tt.want)
+		}
+	}
+}
+
 func TestFiltersReportWhatTheyHid(t *testing.T) {
 	_, stats := run(t, "timeout -f:vendor/", webRepo)
 	if len(stats.Hidden) != 1 {

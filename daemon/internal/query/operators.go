@@ -25,7 +25,8 @@ type operator struct {
 	// name is the operator in the parsed query, whichever spelling was typed.
 	name protocol.OpName
 	// full and short are the spellings people type: file: and f:. name is
-	// accepted too, so lang:, sym: and msg: keep working.
+	// accepted too, so lang:, sym: and msg: keep working. content: has no
+	// short name, since c: is case:.
 	full, short string
 	// aliases are other spellings people bring from other tools: path: for
 	// file:, as GitHub and Sourcegraph spell it.
@@ -52,6 +53,7 @@ var operators = []operator{
 	{name: protocol.OpNameKind, full: "kind", short: "k", scope: scopeWorkingTreeOnly, summary: "Only definitions of one kind", examples: SymbolKinds, interpret: oneOf(SymbolKinds...)},
 	{name: protocol.OpNameRef, full: "ref", short: "x", scope: scopeWorkingTreeOnly, summary: "Whole-word uses of a name, without its definitions", interpret: asReference},
 	{name: protocol.OpNameIs, full: "is", short: "i", summary: "Open, changed or test files", examples: []string{StateOpen, StateChanged, StateTest}, interpret: oneOf(StateOpen, StateChanged, StateTest)},
+	{name: protocol.OpNameContent, full: "content", summary: "Text inside files only, never file names", examples: []string{"retry", `"read timeout"`, "/Retry(Policy)?/"}, interpret: asText},
 	{name: protocol.OpNameLang, full: "language", short: "l", summary: "Programming language", examples: []string{"python", "go", "typescript"}, interpret: asLanguage},
 	{name: protocol.OpNameRepo, full: "repo", short: "r", summary: "Repo name, as a regex or a glob", interpret: asPathRegex},
 	{name: protocol.OpNameMsg, full: "message", short: "m", scope: scopeHistoryOnly, summary: "Words in the commit message", interpret: asText},
@@ -107,7 +109,11 @@ func lookupOperator(name string) (operator, bool) {
 
 // spellings are the names an operator answers to, full name first.
 func (op operator) spellings() []string {
-	return append([]string{op.full, op.short, op.name}, op.aliases...)
+	names := []string{op.full, op.name}
+	if op.short != "" {
+		names = append(names, op.short)
+	}
+	return append(names, op.aliases...)
 }
 
 func (op operator) accepts(name string) bool {
@@ -144,7 +150,7 @@ func asPathRegex(value string, form valueForm) (protocol.Match, string) {
 	return protocol.MatchRegex, problem
 }
 
-// asText: sym: and msg: take a literal, a "phrase" or a /regex/.
+// asText: sym:, msg: and content: take a literal, a "phrase" or a /regex/.
 func asText(value string, form valueForm) (protocol.Match, string) {
 	switch form {
 	case formQuoted:

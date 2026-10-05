@@ -292,9 +292,10 @@ func (v *fileView) diffLines(term *query.Content) []int {
 }
 
 // messageLines returns which lines of the commit's message the text term
-// matches, or none when the view searches one side of the diff.
+// matches, or none when the view searches one side of the diff or the term
+// is a content: one.
 func (v *fileView) messageLines(term *query.Content) []int {
-	if v.sign != 0 {
+	if v.sign != 0 || term.ContentOnly {
 		return nil
 	}
 	return v.message.lines(term)
@@ -420,7 +421,9 @@ func (s *searcher) result(repo *Repo, c *Commit, views []*fileView) protocol.Res
 
 // messageMatch reports whether terms match the commit's message, and when
 // none matches the subject, the first body line one matches, marked.
+// content: terms never match a message.
 func messageMatch(message *messageView, terms []*query.Content) (inMessage bool, bodyLine *protocol.MessageLine) {
+	terms = slices.DeleteFunc(slices.Clone(terms), func(term *query.Content) bool { return term.ContentOnly })
 	first := 0 // the first matched message line; the subject is line 1
 	for _, term := range terms {
 		for _, line := range message.lines(term) {
@@ -442,7 +445,8 @@ func messageMatch(message *messageView, terms []*query.Content) (inMessage bool,
 
 // messageHits marks what msg: terms, and the query's text terms unless
 // type:added or type:removed keeps them to diffs, match in a commit's
-// subject or body. A nil plan marks nothing.
+// subject or body. content: terms never mark a message. A nil plan marks
+// nothing.
 func messageHits(plan *query.Plan, text string) []protocol.Range {
 	ranges := []protocol.Range{}
 	if plan == nil {
@@ -457,7 +461,9 @@ func messageHits(plan *query.Plan, text string) []protocol.Range {
 	}
 	if plan.DiffSide == "" {
 		for _, term := range plan.Terms {
-			mark(term)
+			if !term.ContentOnly {
+				mark(term)
+			}
 		}
 	}
 	query.VisitPositive(plan.Pred, func(m *query.Message) { mark(m.Re) })

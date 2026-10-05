@@ -210,11 +210,12 @@ function joinChips(children: QueryNode[], word: "AND" | "OR", context: ChipConte
   );
 }
 
-/** The word on a text term's chip: how it matches in this query. */
+/** The word on a text term's chip: how it matches in this query. content: terms never match names. */
 function textLabel(node: TextNode, context: ChipContext): string {
   if (node.match === "regex") return "regex";
   if (context.diffSide) return `${context.diffSide} line contains`;
   if (context.mode === "history") return "diff contains";
+  if (node.contentOnly) return "content";
   return context.fileNamesOnly ? "name" : "text";
 }
 

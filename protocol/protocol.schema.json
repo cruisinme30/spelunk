@@ -75,6 +75,7 @@
         "kind",
         "ref",
         "is",
+        "content",
         "author",
         "msg",
         "since",
@@ -228,6 +229,10 @@
             },
             "termIndex": {
               "type": "integer"
+            },
+            "contentOnly": {
+              "description": "true for a content: term, which matches the text of files (or a commit's changed lines) and never file names or commit messages.",
+              "type": "boolean"
             },
             "span": {
               "$ref": "#/$defs/Span"

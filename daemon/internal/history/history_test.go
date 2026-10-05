@@ -157,6 +157,28 @@ func TestTextTermsMatchTheMessageToo(t *testing.T) {
 	}
 }
 
+func TestContentMatchesDiffsButNeverMessages(t *testing.T) {
+	// @covers op:content
+	r, _ := paymentsHistory(t)
+	repo := Repo{ID: "r1", Name: "payments-api", Root: r.root, Store: r.ingest()}
+	// Only the messages say flaky and update, so content: finds neither.
+	for _, query := range []string{"type:commit content:flaky", "author:marta content:update"} {
+		if got, _ := runSearch(t, query, repo); len(got) != 0 {
+			t.Errorf("%s = %q, want nothing", query, got)
+		}
+	}
+	got, items := runSearch(t, "type:commit content:timeout", repo)
+	plain, _ := runSearch(t, "type:commit timeout", repo)
+	if len(got) == 0 || !reflect.DeepEqual(got, plain) {
+		t.Errorf("content:timeout = %q, want the commits whose diffs say timeout, %q", got, plain)
+	}
+	for _, item := range items {
+		if item.InMessage || len(item.SubjectHits) != 0 {
+			t.Errorf("%s: marked in its message (%v, %v), want only its diff", item.Subject, item.InMessage, item.SubjectHits)
+		}
+	}
+}
+
 func TestCommitResultsSayWhetherTheMessageMatched(t *testing.T) {
 	r := newTestRepo(t)
 	shas := map[string]string{}

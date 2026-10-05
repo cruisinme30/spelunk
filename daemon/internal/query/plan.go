@@ -140,8 +140,11 @@ type (
 		// has in order, as Quick Open does: usrsvc finds UserService.ts.
 		// Only a bare word outside a NOT, without word:yes, is fuzzy, and
 		// only file names match it so; code lines stay exact.
-		Fuzzy     bool
-		TermIndex int
+		Fuzzy bool
+		// ContentOnly is set for content:, which matches file text (or a
+		// commit's changed lines) and never file names or commit messages.
+		ContentOnly bool
+		TermIndex   int
 		// Reference marks a ref: term: a whole-word use of a name, never on
 		// a line that defines that name. The working-tree engine finds the
 		// file's definitions and drops those lines (see IsDefinitionOf).
@@ -203,10 +206,14 @@ func (p *Content) String() string {
 	if p.Reference {
 		return fmt.Sprintf("ref#%d:/%s/", p.TermIndex, p.Re)
 	}
-	if p.WholeWord {
-		return fmt.Sprintf("content#%d:word/%s/", p.TermIndex, p.Re)
+	only := ""
+	if p.ContentOnly {
+		only = "only"
 	}
-	return fmt.Sprintf("content#%d:/%s/", p.TermIndex, p.Re)
+	if p.WholeWord {
+		return fmt.Sprintf("content%s#%d:word/%s/", only, p.TermIndex, p.Re)
+	}
+	return fmt.Sprintf("content%s#%d:/%s/", only, p.TermIndex, p.Re)
 }
 func (p *Path) String() string    { return "path:/" + p.Re.String() + "/" }
 func (p *Repo) String() string    { return "repo:/" + p.Re.String() + "/" }
@@ -472,7 +479,8 @@ func (l *lowering) lower(node *protocol.Node) Pred {
 		return nil
 	case protocol.NodeKindText:
 		content := l.term(node, l.wholeWord, node.TermIndex)
-		content.Fuzzy = node.Match == protocol.MatchLiteral && !l.wholeWord && !l.negated
+		content.ContentOnly = node.ContentOnly
+		content.Fuzzy = node.Match == protocol.MatchLiteral && !l.wholeWord && !l.negated && !node.ContentOnly
 		return content
 	default:
 		if node.Op == protocol.OpNameRef {

@@ -310,10 +310,14 @@ func (s *searcher) fileNameMatches(repo *Repo, doc *Doc, countHidden bool) bool 
 
 // fileNameLeaf evaluates a leaf against a file's path: text terms match
 // the path instead of the file's text, and a fuzzy term also matches a
-// name that has its characters in order (see fuzzy.go).
+// name that has its characters in order (see fuzzy.go). content: terms
+// never match a path.
 func fileNameLeaf(repo *Repo, doc *Doc) func(query.Pred) bool {
 	return func(p query.Pred) bool {
 		if c, ok := p.(*query.Content); ok {
+			if c.ContentOnly {
+				return false
+			}
 			if c.MatchString(doc.Path) {
 				return true
 			}

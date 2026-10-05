@@ -223,6 +223,17 @@ test("the repo menu scopes the query to one repo, or back to all", async (t) => 
   assert.equal(await page.inputValue(QUERY), "timeout");
 });
 
+test("a content: term's chip says it matches content, not names", async (t) => {
+  const page = await openPanel(t);
+  await restore(page);
+  const content = { ...textNode("retry", 0), span: { start: 0, end: 13 }, contentOnly: true };
+  const root = { kind: "and", children: [content, textNode("timeout", 14, 1)], span: { start: 0, end: 21 } };
+  await typeAndParse(page, "content:retry timeout", parsedQuery("content:retry timeout", root));
+  const chips = await page.locator('[data-testid="chips"]').innerText();
+  assert.match(chips, /content\s*retry/);
+  assert.match(chips, /text\s*timeout/);
+});
+
 test("a type:file note counts the code matches for the query's words and offers them", async (t) => {
   // @covers screen:file-names-only
   const page = await openPanel(t);
@@ -248,7 +259,7 @@ test("a type:file note counts the code matches for the query's words and offers 
 test("the help page lists every operator with an example, and Try runs it", async (t) => {
   // @covers screen:help-page
   const page = await openHelp(t);
-  assert.equal(await page.locator('[data-testid="operator-row"]').count(), 21);
+  assert.equal(await page.locator('[data-testid="operator-row"]').count(), 22);
   assert.equal(await page.locator('[data-testid="example"]').count(), 5);
   // Each operator reads by its full name, with its short name beside it.
   assert.deepEqual(await page.locator('[data-testid="short-name"]').allTextContents(), [

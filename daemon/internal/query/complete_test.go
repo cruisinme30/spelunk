@@ -38,11 +38,15 @@ func TestCompletingOperatorsOffersFullNames(t *testing.T) {
 		"msg":  "message:",
 		"sym":  "symbol:",
 		"pa":   "file:",
+		"co":   "content: count:",
 	}
 	for text, want := range tests {
 		if got := strings.Join(labels(text, len(text)), " "); got != want {
 			t.Errorf("Complete(%q) = [%s], want [%s]", text, got, want)
 		}
+	}
+	if got := Complete("con", 3, testResolver, fixedNow); len(got) != 1 || got[0].Note != "" {
+		t.Errorf("Complete(con) = %+v, want content: with no short name", got)
 	}
 	completions := Complete("s", 1, testResolver, fixedNow)
 	if completions[0].Note != "s:" {

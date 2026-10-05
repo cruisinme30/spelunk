@@ -56,11 +56,13 @@ func operatorCompletions(word token) []protocol.Completion {
 		completion := protocol.Completion{
 			Label:  op.full + ":",
 			Detail: op.summary,
-			Note:   op.short + ":",
 			Insert: replaceFix("Insert "+op.full+":", protocol.Span{Start: word.start, End: word.end}, op.full+":"),
 			Group:  "operator",
 		}
-		if op.short == prefix {
+		if op.short != "" {
+			completion.Note = op.short + ":"
+		}
+		if op.short != "" && op.short == prefix {
 			completions = slices.Insert(completions, 0, completion)
 		} else {
 			completions = append(completions, completion)
