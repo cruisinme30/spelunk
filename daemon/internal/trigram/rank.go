@@ -124,7 +124,7 @@ func (s *searcher) defines(doc *Doc) bool {
 				if len(name) == len(term.Literal) && (strings.EqualFold(name, term.Literal) && term.IgnoreCase || name == term.Literal) {
 					return true
 				}
-			} else if loc := term.Re.FindStringIndex(name); len(loc) == 2 && loc[0] == 0 && loc[1] == len(name) {
+			} else if term.IsDefinitionOf(name) {
 				return true
 			}
 		}
