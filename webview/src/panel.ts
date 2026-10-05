@@ -4,7 +4,8 @@
 // The panel is a pure view: it never parses. Fix-its, completions and the Aa / .*
 // toggles all edit the query text, then send an ordinary query.changed.
 import { clamp, element, plural, scrollIntoContainer, wrapIndex } from "./format";
-import { type HostMessage, loadDraft, loadRecentWidth, onHostMessage, saveDraft, saveRecentWidth, send } from "./host";
+import { type HostMessage, loadDraft, loadRecentWidth, onHostMessage, saveDraft, send } from "./host";
+import { EmptyBox } from "./emptyBox";
 import { createLayout, type Layout, REPO_MENU_ANCHOR_CLASS } from "./layout";
 import { pathScope, scopedRepo } from "./parsedQuery";
 import type {
@@ -41,8 +42,7 @@ import { renderEmptyState } from "./render/emptyState";
 import { renderRepoMenu } from "./render/repoMenu";
 import { renderPreview } from "./render/preview";
 import { ResultsView } from "./render/results";
-import { addPin, forgetQuery, namePin } from "./pinnedQueries";
-import { createViewState, emptyBoxQueries, hasErrors, type ViewState } from "./state";
+import { createViewState, hasErrors, type ViewState } from "./state";
 
 /** Cheat-sheet snippets that put the cursor between a pair: "|", /|/, (|). */
 const PAIRED_SNIPPETS = new Set(['""', "//", "()"]);
@@ -53,6 +53,7 @@ const PREVIEW_DEBOUNCE_MS = 30;
 export class SearchPanel {
   private readonly state: ViewState = createViewState();
   private readonly layout: Layout;
+  private readonly emptyBox: EmptyBox;
   private readonly summary = element("span", { class: "summary", "data-testid": "summary" });
   private results: ResultsView | undefined;
   private debounceTimer: ReturnType<typeof setTimeout> | undefined;
@@ -63,6 +64,7 @@ export class SearchPanel {
   /** Builds the panel's skeleton into `root`; start() brings it to life. */
   constructor(root: HTMLElement) {
     this.layout = createLayout(root);
+    this.emptyBox = new EmptyBox(this.state, this.layout, this);
   }
 
   /** Binds events, restores the draft and tells the host the panel is ready. */
@@ -105,7 +107,8 @@ export class SearchPanel {
     else this.debounceTimer = setTimeout(report, this.state.ui.typingDelayMs);
   }
 
-  private setQuery(text: string, cursor = text.length): void {
+  /** Puts `text` in the box, with the cursor at `cursor`, and searches it at once. */
+  setQuery(text: string, cursor = text.length): void {
     const { input } = this.layout;
     input.select();
     this.typeIntoBox(text);
@@ -172,7 +175,7 @@ export class SearchPanel {
   }
 
   /** Inserts a cheat-sheet snippet at the cursor, separated from the word before it. */
-  private insertAtCursor(snippet: string): void {
+  insertAtCursor(snippet: string): void {
     const { input } = this.layout;
     const position = input.selectionStart ?? input.value.length;
     const before = input.value.slice(0, position);
@@ -332,7 +335,7 @@ export class SearchPanel {
         return true;
       }
       case "Backspace": {
-        return this.removeSelectedRecent(event);
+        return this.emptyBox.removeSelected(event);
       }
       default: {
         return false;
@@ -361,73 +364,15 @@ export class SearchPanel {
     } else if (this.layout.input.value) {
       this.moveResultSelection(step);
     } else {
-      this.moveRecentSelection(step);
+      this.emptyBox.moveSelection(step);
     }
   }
 
   /** Enter searches as typed while suggesting (Tab accepts), runs a pinned or recent query, or opens the selected result. */
   private onEnter(event: KeyboardEvent, modifier: boolean): void {
     if (this.completionsVisible && !modifier) this.searchAsTyped();
-    else if (!this.layout.input.value) this.runRecent(emptyBoxQueries(this.state)[this.state.recentIndex]);
+    else if (!this.layout.input.value) this.emptyBox.runSelected();
     else if (this.state.selectedRef) this.open(this.state.selectedRef, event);
-  }
-
-  private runRecent(query: string | undefined): void {
-    if (query) this.setQuery(query);
-  }
-
-  /** Keeps the empty box's selection on its rows, which may have got fewer. */
-  private clampRecentIndex(): void {
-    const rows = emptyBoxQueries(this.state).length;
-    this.state.recentIndex = clamp(this.state.recentIndex, 0, Math.max(rows - 1, 0));
-  }
-
-  /** Unpins a query, or takes a recent one off the list; the selection stays on the same row, now the next query. */
-  private forget(query: string): void {
-    const removed = forgetQuery(this.state, query);
-    if (!removed) return;
-    send(removed, { query });
-    this.clampRecentIndex();
-    this.showEmptyState();
-    this.layout.input.focus();
-  }
-
-  /** Pins a recent query at the end of the pinned list and opens its name field. */
-  private pin(query: string): void {
-    const saved = addPin(this.state, query);
-    if (!saved) return;
-    send("pinned.save", saved);
-    this.rename(query);
-  }
-
-  /** Opens the name field on a pinned query. */
-  private rename(query: string): void {
-    this.state.naming = query;
-    this.showEmptyState();
-    this.layout.body.querySelector<HTMLInputElement>(".pinned-name-field")?.focus();
-  }
-
-  /** The name field closed (the row redrew itself): saves the name, and gives the box the focus back unless it moved on. */
-  private onNamed(query: string, name: string | undefined): void {
-    const saved = namePin(this.state, query, name);
-    if (saved) send("pinned.save", saved);
-    const leftFor = document.activeElement;
-    if (!leftFor || leftFor === document.body || !leftFor.isConnected) this.layout.input.focus();
-  }
-
-  /** ⇧⌫ on an empty box unpins the selected query, or removes it from recent, as browsers do for their history. */
-  private removeSelectedRecent(event: KeyboardEvent): boolean {
-    const selected = emptyBoxQueries(this.state)[this.state.recentIndex];
-    if (!event.shiftKey || this.layout.input.value || !selected) return false;
-    this.forget(selected);
-    return true;
-  }
-
-  private moveRecentSelection(step: 1 | -1): void {
-    const rows = [...this.layout.body.querySelectorAll<HTMLElement>("[data-recent]")];
-    if (rows.length === 0) return;
-    this.state.recentIndex = wrapIndex(this.state.recentIndex, step, rows.length);
-    for (const [index, row] of rows.entries()) row.classList.toggle("selected", index === this.state.recentIndex);
   }
 
   /** Results don't wrap: ↓ on the last row stays there. */
@@ -532,12 +477,12 @@ export class SearchPanel {
     this.state.pinned = pinned;
     // Saving a pin changes the settings, which sends this again: a name being typed stays as it is.
     if (this.state.naming !== undefined && pinned.some((entry) => entry.query === this.state.naming)) {
-      this.clampRecentIndex();
+      this.emptyBox.clampIndex();
       return;
     }
     this.state.naming = undefined;
     // A shorter list mustn't leave ↵ pointing past its end.
-    this.clampRecentIndex();
+    this.emptyBox.clampIndex();
     if (text !== input.value) {
       input.value = text;
       input.setSelectionRange(text.length, text.length);
@@ -628,7 +573,8 @@ export class SearchPanel {
 
   // ------------------------------------------------------------ rendering
 
-  private showEmptyState(): void {
+  /** Shows the empty box: recent and pinned queries, and the operator sheet. */
+  showEmptyState(): void {
     const state = this.state;
     state.searchId = "";
     state.selectedRef = "";
@@ -636,33 +582,7 @@ export class SearchPanel {
     this.results = undefined;
     this.layout.chips.replaceChildren();
     this.layout.diagnostics.replaceChildren();
-    renderEmptyState(this.layout.body, state, {
-      onRunRecent: (query) => {
-        this.runRecent(query);
-      },
-      onRemoveRecent: (query) => {
-        this.forget(query);
-      },
-      onPin: (query) => {
-        this.pin(query);
-      },
-      onUnpin: (query) => {
-        this.forget(query);
-      },
-      onRename: (query) => {
-        this.rename(query);
-      },
-      onNamed: (query, name) => {
-        this.onNamed(query, name);
-      },
-      onInsert: (snippet) => {
-        this.insertAtCursor(snippet);
-      },
-      onResizeRecent: (width) => {
-        state.recentWidth = width;
-        saveRecentWidth(width);
-      },
-    });
+    renderEmptyState(this.layout.body, state, this.emptyBox.handlers());
     this.renderFooter();
   }
 
