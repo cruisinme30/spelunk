@@ -23,7 +23,7 @@ func TestAFloodOfChangesKeepsOnlyWhatIsInTheRoot(t *testing.T) {
 	ix.SetRoots([]protocol.Root{{ID: "r1", Path: root, Name: "app"}})
 	waitFor(t, ix, protocol.IndexStateReady)
 
-	if err := os.Remove(filepath.Join(root, "d0/f0.txt")); err != nil {
+	if err := os.Remove(filepath.Join(root, "d0", "f0.txt")); err != nil {
 		t.Fatal(err)
 	}
 	events := 10_000
@@ -31,7 +31,7 @@ func TestAFloodOfChangesKeepsOnlyWhatIsInTheRoot(t *testing.T) {
 		events = 1_000
 	}
 	changes := []protocol.FileChange{
-		{Path: filepath.Join(root, "d0/f0.txt"), Type: "deleted"},
+		{Path: filepath.Join(root, "d0", "f0.txt"), Type: "deleted"},
 		{Path: filepath.Join(root, "never-existed.txt"), Type: "deleted"},
 		{Path: root}, // the root itself
 		{Path: filepath.Join(root, "..", "sibling.txt")},
