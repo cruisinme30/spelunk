@@ -72,7 +72,7 @@ export interface DaemonEvents {
   progress: [IndexStatusResult];
 }
 
-/** One supervised daemon process. Emits "state", "batch" and "progress". */
+/** One supervised daemon process; see DaemonEvents for what it emits. */
 export class Daemon extends EventEmitter {
   state: DaemonState = "stopped";
   /** The running daemon's version, from its initialize reply. */
@@ -83,7 +83,7 @@ export class Daemon extends EventEmitter {
   private crashTimes: number[] = [];
   /** Crashes since the daemon last stayed ready for STABLE_RUN_MS; each doubles the pause before restarting. */
   private crashStreak = 0;
-  /** When the running daemon became ready, while it is. */
+  /** When the current process finished initialize; undefined before that and once it is gone. */
   private readySince: number | undefined;
   /** The restart scheduled after a crash, until it runs. */
   private restartTimer: NodeJS.Timeout | undefined;
@@ -309,6 +309,8 @@ export class Daemon extends EventEmitter {
     this.connection?.dispose(new Error("daemon exited"));
     this.connection = undefined;
     this.child = undefined;
+    const readySince = this.readySince;
+    this.readySince = undefined;
     if (this.stopping) {
       if (this.state !== "protocolMismatch") this.setState("stopped");
       return;
@@ -318,8 +320,7 @@ export class Daemon extends EventEmitter {
       return;
     }
     const now = this.now();
-    if (this.readySince !== undefined && now - this.readySince >= STABLE_RUN_MS) this.crashStreak = 0;
-    this.readySince = undefined;
+    if (readySince !== undefined && now - readySince >= STABLE_RUN_MS) this.crashStreak = 0;
     this.crashStreak++;
     this.crashTimes = this.crashTimes.filter((time) => now - time < CRASH_WINDOW_MS);
     this.crashTimes.push(now);
@@ -343,6 +344,7 @@ export class Daemon extends EventEmitter {
   private restartDelay(): number {
     const base = this.options.restartDelayMs ?? DEFAULT_RESTART_DELAY_MS;
     const cap = this.options.maxRestartDelayMs ?? DEFAULT_MAX_RESTART_DELAY_MS;
+    // The exponent is bounded so the power stays finite: a zero base times Infinity would be NaN.
     return Math.min(base * 2 ** Math.min(this.crashStreak - 1, 30), cap);
   }
 
@@ -354,6 +356,7 @@ export class Daemon extends EventEmitter {
   private killChild(): void {
     const child = this.child;
     this.child = undefined;
+    this.readySince = undefined;
     this.connection?.dispose();
     this.connection = undefined;
     if (child?.exitCode === null) child.kill("SIGKILL");
