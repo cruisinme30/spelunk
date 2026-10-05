@@ -4,7 +4,7 @@
 import { spawn as nodeSpawn, type ChildProcess, type ChildProcessByStdio } from "node:child_process";
 import { EventEmitter } from "node:events";
 import type { Readable, Writable } from "node:stream";
-import { Connection, type CancelSource } from "./jsonRpc";
+import { Connection, RpcError, type CancelSource } from "./jsonRpc";
 import {
   PROTOCOL_VERSION,
   type FileChange,
@@ -30,6 +30,8 @@ const DEFAULT_MAX_RESTARTS_PER_MINUTE = 3;
 const DEFAULT_RESTART_DELAY_MS = 200;
 /** How long stop() waits for the shutdown reply, and then for the process to exit, before killing it. */
 const SHUTDOWN_GRACE_MS = 2000;
+/** How long the initialize handshake may take; a daemon that doesn't answer by then counts as crashed. */
+const DEFAULT_INITIALIZE_TIMEOUT_MS = 20_000;
 /** How long a request waits for a starting or restarting daemon before failing. */
 const CONNECTION_WAIT_MS = 5000;
 /** How often a waiting request checks whether the daemon is ready. */
@@ -50,6 +52,7 @@ export interface DaemonOptions {
   log?(line: string): void;
   maxRestartsPerMinute?: number;
   restartDelayMs?: number;
+  initializeTimeoutMs?: number;
   /** For tests: replaces child_process.spawn. */
   spawn?: typeof nodeSpawn;
   /** For tests: replaces Date.now. */
@@ -172,7 +175,49 @@ export class Daemon extends EventEmitter {
 
   private async spawnAndInitialize(): Promise<void> {
     if (this.state !== "restarting") this.setState("starting");
-    const child = this.spawnChild();
+    let child: DaemonProcess;
+    let params: RpcRequests["initialize"][0];
+    try {
+      params = { protocol: PROTOCOL_VERSION, roots: this.options.roots(), settings: this.options.settings() };
+      child = this.spawnChild();
+    } catch (error) {
+      // Nothing is running, and trying again would fail the same way.
+      this.stopping = true;
+      this.setState("stopped", `The search daemon could not start: ${errorMessage(error)}`);
+      throw error;
+    }
+    const connection = this.connect(child);
+    const exited = this.watchExit(child);
+    let initializeTimer: NodeJS.Timeout | undefined;
+    const timedOut = new Promise<never>((_resolve, reject) => {
+      const timeoutMs = this.options.initializeTimeoutMs ?? DEFAULT_INITIALIZE_TIMEOUT_MS;
+      initializeTimer = setTimeout(() => {
+        reject(new Error(`daemon did not answer initialize within ${timeoutMs} ms`));
+      }, timeoutMs);
+    });
+    try {
+      const result = await Promise.race([
+        connection.request("initialize", params),
+        exited.then(() => {
+          throw new Error("daemon exited during initialize");
+        }),
+        timedOut,
+      ]);
+      // stop() or restart() while initialize was in flight: this process is no longer wanted.
+      if (this.stopping || this.child !== child) throw new Error("daemon start was superseded");
+      if (result.protocol !== PROTOCOL_VERSION) this.refuseProtocol(result.protocol);
+      this.daemonVersion = result.daemonVersion;
+      this.setState("ok");
+    } catch (error) {
+      if (!this.stopping && this.child === child) this.abandonStart(child, error);
+      throw error;
+    } finally {
+      clearTimeout(initializeTimer);
+    }
+  }
+
+  /** The connection to a new process; its notifications become this daemon's events. */
+  private connect(child: DaemonProcess): Connection {
     const connection = new Connection(child.stdout, child.stdin);
     this.connection = connection;
     connection.onNotification("search/batch", (batch) => this.emit("batch", batch));
@@ -180,37 +225,39 @@ export class Daemon extends EventEmitter {
     connection.on("error", (error) => {
       this.log(`[rpc] ${String(error)}`);
     });
+    return connection;
+  }
 
-    const exited = new Promise<number | null>((resolve) => {
-      child.on("exit", (code) => {
-        resolve(code);
+  /** Calls onExit when `child` exits or fails to start; the promise resolves then. */
+  private watchExit(child: DaemonProcess): Promise<void> {
+    return new Promise<void>((resolve) => {
+      child.on("exit", (code, signal) => {
+        this.onExit(child, `exited with ${String(code ?? signal)}`);
+        resolve();
       });
       child.on("error", (error) => {
         this.log(`[daemon] failed to start: ${error.message}`);
-        resolve(-1);
+        this.onExit(child, "failed to start");
+        resolve();
       });
     });
-    void exited.then((code) => {
-      this.onExit(child, code);
-    });
+  }
 
-    const initialized = connection.request("initialize", {
-      protocol: PROTOCOL_VERSION,
-      roots: this.options.roots(),
-      settings: this.options.settings(),
-    });
-    const diedFirst = exited.then(() => {
-      throw new Error("daemon exited during initialize");
-    });
-    try {
-      const result = await Promise.race([initialized, diedFirst]);
-      if (result.protocol !== PROTOCOL_VERSION) this.refuseProtocol(result.protocol);
-      this.daemonVersion = result.daemonVersion;
-      this.setState("ok");
-    } catch (error) {
-      if (this.state !== "protocolMismatch" && this.state !== "stopped") this.log(`[daemon] ${String(error)}`);
-      throw error;
+  /**
+   * A start that failed while the process may still run. A refused
+   * initialize (say, settings it can't read) stops: a restart would be
+   * refused too. Anything else (no answer, a garbled one) kills the process,
+   * which counts as a crash and restarts within the budget.
+   */
+  private abandonStart(child: DaemonProcess, error: unknown): void {
+    this.log(`[daemon] ${String(error)}`);
+    if (error instanceof RpcError) {
+      this.stopping = true;
+      this.killChild();
+      this.setState("stopped", `The search daemon refused to start: ${error.message}`);
+      return;
     }
+    child.kill("SIGKILL");
   }
 
   /** Stops a daemon that speaks another protocol version; restarting would not help. */
@@ -238,7 +285,7 @@ export class Daemon extends EventEmitter {
   }
 
   /** Restarts after a crash, unless that would exceed the per-minute budget. */
-  private onExit(child: ChildProcess, code: number | null): void {
+  private onExit(child: ChildProcess, how: string): void {
     if (child !== this.child) return; // an old process we already replaced
     this.connection?.dispose(new Error("daemon exited"));
     this.connection = undefined;
@@ -251,7 +298,7 @@ export class Daemon extends EventEmitter {
     this.crashTimes = this.crashTimes.filter((time) => now - time < CRASH_WINDOW_MS);
     this.crashTimes.push(now);
     const crashes = this.crashTimes.length;
-    this.log(`[daemon] exited with ${String(code)}; crash ${crashes} in the last minute`);
+    this.log(`[daemon] ${how}; crash ${crashes} in the last minute`);
     if (crashes > (this.options.maxRestartsPerMinute ?? DEFAULT_MAX_RESTARTS_PER_MINUTE)) {
       // The panel's banner and the status bar name the state; the message says why.
       this.setState("stopped", `The search daemon crashed ${crashes} times in a minute.`);
@@ -292,4 +339,8 @@ export class Daemon extends EventEmitter {
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
