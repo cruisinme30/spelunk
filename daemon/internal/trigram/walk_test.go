@@ -100,3 +100,19 @@ func TestListFilesSkipsWhatIsNotARegularFile(t *testing.T) {
 		t.Errorf("ListFiles = %q, want %q: symlinks (to folders, files, loops or nothing) are never followed", got, want)
 	}
 }
+
+func TestListFilesFollowsASymlinkedRoot(t *testing.T) {
+	// /tmp on macOS is a symlink: a root reached through one is still walked.
+	root := writeTree(t, map[string]string{"a.txt": "alpha\n", "src/b.txt": "beta\n"})
+	link := filepath.Join(t.TempDir(), "link")
+	if err := os.Symlink(root, link); err != nil {
+		t.Fatal(err)
+	}
+	files, err := ListFiles(context.Background(), link, WalkOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{"a.txt", "src/b.txt"}; !reflect.DeepEqual(paths(files), want) {
+		t.Errorf("ListFiles(symlink to root) = %q, want %q", paths(files), want)
+	}
+}

@@ -134,6 +134,11 @@ func gitListFiles(ctx context.Context, root string) ([]string, error) {
 
 // walkAllFiles lists every regular file under root except inside .git.
 func walkAllFiles(ctx context.Context, root string) ([]string, error) {
+	// WalkDir doesn't follow a symlink, even at the top: a root reached
+	// through one (/tmp on macOS, say) is walked where it points.
+	if resolved, err := filepath.EvalSymlinks(root); err == nil {
+		root = resolved
+	}
 	var paths []string
 	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
 		if err != nil {
