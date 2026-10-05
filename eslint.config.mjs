@@ -24,6 +24,7 @@ export default defineConfig(
       "**/dist-test/",
       "**/dist-e2e/",
       "**/out/",
+      "**/.vscode-test/", // the VS Code the e2e tests download
       "**/*.gen.ts", // generated from protocol/protocol.schema.json
       "daemon/",
       "testdata/",

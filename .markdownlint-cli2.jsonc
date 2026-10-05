@@ -10,5 +10,5 @@
   },
   "globs": ["**/*.md"],
   // The repos inside testdata/workspace are search fixtures, not documentation.
-  "ignores": ["**/node_modules/**", "**/dist/**", "testdata/workspace/*/**"],
+  "ignores": ["**/node_modules/**", "**/dist/**", "**/.vscode-test/**", "testdata/workspace/*/**"],
 }
