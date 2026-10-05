@@ -2,7 +2,7 @@
 // Show Welcome. It sets the shortcut preset and what to index, and shows
 // each repo's indexing as it runs.
 import * as vscode from "vscode";
-import { MESSAGE_VERSION, type WebviewMessage } from "./controller";
+import { MESSAGE_VERSION, type WebviewMessage } from "./webviewMessages";
 import type { HostToWebview, IndexStatusResult, WelcomeStateMsg as WelcomeState } from "./protocol.gen";
 import { parseWebviewMessage } from "./webviewMessages";
 import { webviewPage } from "./webviewPage";

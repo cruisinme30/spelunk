@@ -1,7 +1,7 @@
 // The search panel: a webview panel that hosts webview/ under
 // a strict content security policy.
 import * as vscode from "vscode";
-import { MESSAGE_VERSION, type WebviewMessage } from "./controller";
+import { MESSAGE_VERSION, type WebviewMessage } from "./webviewMessages";
 import type { HostToWebview } from "./protocol.gen";
 import { parseWebviewMessage } from "./webviewMessages";
 import { webviewPage } from "./webviewPage";

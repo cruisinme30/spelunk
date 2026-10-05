@@ -7,13 +7,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import * as vscode from "vscode";
 import { CommitDocuments } from "./commitDocuments";
-import {
-  type ControllerOptions,
-  type PersistedState,
-  SearchController,
-  type Ui,
-  type WebviewMessage,
-} from "./controller";
+import { type ControllerOptions, type PersistedState, SearchController, type Ui } from "./controller";
 import { Daemon, type DaemonState } from "./daemon";
 import { HelpPanel } from "./helpPanel";
 import { SearchPanel } from "./panel";
@@ -30,6 +24,7 @@ import type {
 } from "./protocol.gen";
 import { makeRoot } from "./roots";
 import { closeOnOpen, daemonSettings, recentQueriesLimit, uiSettings, welcomeSettings } from "./settings";
+import type { WebviewMessage } from "./webviewMessages";
 import { WELCOMED_KEY, WelcomePanel } from "./welcomePanel";
 
 /** The globalState key that keeps the query and recent queries across sessions. */

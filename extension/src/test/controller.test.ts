@@ -9,12 +9,10 @@ import { test } from "node:test";
 import {
   type Backend,
   type ControllerOptions,
-  MESSAGE_VERSION,
   type PersistedState,
   SearchController,
   textWithoutCompletedWord,
   type Ui,
-  type WebviewMessage,
 } from "../controller";
 import type {
   Completion,
@@ -32,7 +30,7 @@ import type {
 import { RpcError } from "../jsonRpc";
 import { ErrorCodes } from "../protocol.gen";
 import { makeRoot } from "../roots";
-import { parseWebviewMessage } from "../webviewMessages";
+import { MESSAGE_VERSION, parseWebviewMessage, type WebviewMessage } from "../webviewMessages";
 import { newTestDaemon, SKIP_WITHOUT_DAEMON as skip, untilIndexed } from "./realDaemon";
 
 const TEST_UI_SETTINGS: UiSettings = {

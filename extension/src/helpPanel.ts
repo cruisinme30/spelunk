@@ -1,7 +1,7 @@
 // The help page: the search guide in its own editor tab. Its Try
 // buttons run an example in the search panel.
 import * as vscode from "vscode";
-import type { WebviewMessage } from "./controller";
+import type { WebviewMessage } from "./webviewMessages";
 import { parseWebviewMessage } from "./webviewMessages";
 import { webviewPage } from "./webviewPage";
 

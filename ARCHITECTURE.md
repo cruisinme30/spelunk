@@ -60,8 +60,8 @@ Nothing else defines a cross-boundary type.
 - `src/jsonRpc.ts` is the JSON-RPC client that talks to the daemon.
 - `src/controller.ts` is the host side of the search panel: it turns panel messages into daemon calls. It has no `vscode`
   import, so it is tested against the real daemon in plain Node.
-- `src/webviewMessages.ts` checks every message a webview posts before the host acts on it; the webview is not trusted
-  to send well-formed ones.
+- `src/webviewMessages.ts` defines the messages webviews post and checks each one before the host acts on it; the
+  webview is not trusted to send well-formed ones.
 - `src/panel.ts` hosts the search panel webview, `src/helpPanel.ts` the help page and `src/welcomePanel.ts` the
   welcome page; all use the page shell in `src/webviewPage.ts`. `src/commitDocuments.ts` shows commits as read-only
   diffs, named by `src/commitText.ts`.

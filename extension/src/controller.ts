@@ -4,7 +4,6 @@
 import { CancelSource, RpcError } from "./jsonRpc";
 import {
   type Completion,
-  type Envelope,
   ErrorCodes,
   type HostToWebview,
   type IndexStatusResult,
@@ -16,16 +15,13 @@ import {
   type RpcRequests,
   type SearchBatchParams,
   type UiSettings,
-  type WebviewToHost,
 } from "./protocol.gen";
+import type { WebviewMessage } from "./webviewMessages";
 
 /** Lines of context above and below the match in a file preview. */
 const DEFAULT_PREVIEW_CONTEXT_LINES = 7;
 /** Longer queries (a pasted file, say) are searched but not kept in the recent list, which lives in globalState. */
 const MAX_REMEMBERED_QUERY_LENGTH = 1000;
-
-/** The `v` of every message between the extension host and a webview. */
-export const MESSAGE_VERSION: Envelope["v"] = 1;
 
 /**
  * The box without the word the suggestions would replace, when the cursor
@@ -85,11 +81,6 @@ export interface ControllerOptions {
   uiSettings(): UiSettings;
   previewContextLines?: number;
 }
-
-/** A message from the search panel webview, discriminated by `type`. */
-export type WebviewMessage = {
-  [K in keyof WebviewToHost]: { v: typeof MESSAGE_VERSION; type: K; payload: WebviewToHost[K] };
-}[keyof WebviewToHost];
 
 /** A query/parse answer, plus the text to search while a word is being completed. */
 interface ParsedForSearch {

@@ -1,8 +1,16 @@
-// Checks what a webview posts before the host acts on it. postMessage carries
-// any JSON, so a message whose shape doesn't match the protocol is dropped
-// here instead of failing (or doing something odd) deep inside a handler.
-import { MESSAGE_VERSION, type WebviewMessage } from "./controller";
-import type { WebviewToHost } from "./protocol.gen";
+// The messages webviews post to the host, and the checks they pass before
+// the host acts on them. postMessage carries any JSON, so a message whose
+// shape doesn't match the protocol is dropped here instead of failing (or
+// doing something odd) deep inside a handler.
+import type { Envelope, WebviewToHost } from "./protocol.gen";
+
+/** The `v` of every message between the extension host and a webview. */
+export const MESSAGE_VERSION: Envelope["v"] = 1;
+
+/** A message from any of the extension's webviews, discriminated by `type`. */
+export type WebviewMessage = {
+  [K in keyof WebviewToHost]: { v: typeof MESSAGE_VERSION; type: K; payload: WebviewToHost[K] };
+}[keyof WebviewToHost];
 
 type Fields = Record<string, unknown>;
 /** Returns the checked payload of one message type, or undefined when its shape is wrong. */
