@@ -59,7 +59,8 @@ export function toggleCase(text: string, query: ParsedQuery | undefined, caseSen
   const [existing] = operatorNodes(query, "case");
   if (!existing) {
     const operator = caseSensitiveByDefault ? "case:no" : "case:yes";
-    return { text: `${operator} ${text}`.trimEnd(), cursor: operator.length + 1 };
+    const edited = `${operator} ${text}`.trimEnd();
+    return { text: edited, cursor: Math.min(operator.length + 1, edited.length) };
   }
   const pressed = isCasePressed(query, caseSensitiveByDefault);
   if (pressed !== caseSensitiveByDefault) return removeSpan(text, existing.span);

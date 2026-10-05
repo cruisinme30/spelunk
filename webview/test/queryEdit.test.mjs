@@ -70,6 +70,12 @@ test("applyEdits counts astral characters as two UTF-16 code units", () => {
   assert.deepEqual(applyEdits("😀😀", [edit(2, 4, "x")]), { text: "😀x", cursor: 3 });
 });
 
+test("Aa on an empty box writes case:yes (or case:no) with the cursor inside the text", () => {
+  assert.deepEqual(toggleCase("", undefined, false), { text: "case:yes", cursor: 8 });
+  assert.deepEqual(toggleCase("", undefined, true), { text: "case:no", cursor: 7 });
+  assert.deepEqual(toggleCase("😀", undefined, false), { text: "case:yes 😀", cursor: 9 });
+});
+
 test("Aa removes an explicit case:yes along with one neighbouring space", () => {
   const raw = "x case:yes";
   const query = parsed(raw, { kind: "and", children: [term("x", 0), operator("case", "yes", 2)] }, "yes");
