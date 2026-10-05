@@ -183,6 +183,81 @@ test("the first result is selected and previewed; ↓ moves the selection", asyn
   assert.equal(await page.locator('[data-testid="preview"] mark').count(), 1);
 });
 
+/** A commit result for "retry" from Jane; `overrides` replaces any field. */
+const commitResult = (ref, subject, overrides) => ({
+  kind: "commit",
+  ref,
+  repoId: "r1",
+  sha: "4c18e9b0000000000000000000000000000000000",
+  subject,
+  author: { name: "Jane Doe", email: "jane@payments.example" },
+  at: "2026-10-01T00:00:00Z",
+  files: [{ path: "payments/charge.py", added: 5, removed: 1 }],
+  diffHits: 0,
+  matchedTerms: [0],
+  subjectHits: [],
+  inMessage: false,
+  ...overrides,
+});
+
+test("commit rows say whether the message or the diff matched, and a preview says so too", async (t) => {
+  // @covers screen:words-in-messages
+  const page = await openPanel(t);
+  await restore(page);
+  await fromHost(page, "index.status", {
+    repos: [{ repoId: "r1", name: "payments-api", tree: "ready", history: "ready" }],
+  });
+  const seq = await typeAndParse(page, "retry", parsedQuery("retry", textNode("retry", 0), { mode: "history" }));
+  const items = [
+    commitResult("c1", "Cap total retry timeout", {
+      subjectHits: [{ start: 10, end: 15 }],
+      inMessage: true,
+      diffHits: 3,
+    }),
+    commitResult("c2", "Back off between charge attempts", {
+      inMessage: true,
+      bodyLine: { text: "So a retry storm can't hammer the processor.", hits: [{ start: 5, end: 10 }] },
+    }),
+    commitResult("c3", "Rename attempt counter", { diffHits: 2 }),
+  ];
+  await fromHost(page, "search.batch", { seq, searchId: "s1", items });
+  await fromHost(page, "search.done", { seq, searchId: "s1", total: 3, truncated: false, hidden: [], ms: 3 });
+  const meta = await page.locator(".row.commit .commit-meta").allInnerTexts();
+  assert.match(meta[0], /in message · 3 hits in diff/);
+  assert.match(meta[1], /in message only/);
+  assert.match(meta[2], /2 hits in diff/);
+  assert.doesNotMatch(meta[2], /message/);
+  const bodyLine = page.locator('[data-ref="c2"] .commit-body-line');
+  assert.equal(await bodyLine.innerText(), "So a retry storm can't hammer the processor.");
+  assert.equal(await bodyLine.locator("mark").innerText(), "retry");
+
+  await page.click('[data-ref="c2"]');
+  await waitForSent(page, "result.select", { ref: "c2" });
+  await fromHost(page, "preview.result", {
+    ref: "c2",
+    preview: {
+      kind: "commit",
+      sha: "4c18e9b0000000000000000000000000000000000",
+      subject: "Back off between charge attempts",
+      body: "So a retry storm can't hammer the processor.",
+      author: "Jane Doe <jane@payments.example>",
+      at: "2026-10-01T00:00:00Z",
+      files: [{ path: "payments/charge.py", added: 5, removed: 1, hiddenByFilter: false }],
+      hunks: [
+        {
+          path: "payments/charge.py",
+          header: "@@ -41 +41 @@",
+          lines: [{ kind: "add", text: "sleep(delay)", hits: [] }],
+        },
+      ],
+      subjectHits: [],
+      bodyHits: [{ start: 5, end: 10 }],
+    },
+  });
+  assert.equal(await page.locator('[data-testid="preview"] pre.body mark').innerText(), "retry");
+  assert.equal(await page.locator('[data-testid="matched-in-message"]').count(), 1);
+});
+
 test("Enter opens the selected result; ⌘Enter opens it to the side", async (t) => {
   const page = await panelWithResults(t);
   await waitForSent(page, "result.select");

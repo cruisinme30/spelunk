@@ -30,3 +30,4 @@ covered.
 | 20 | Values — time windows for `since:` | `since-values` | `SinceValues` | M2 |
 | 21 | Values — file types and folders for `f:` | `path-values` | `PathValues` | M2 |
 | 22 | Values — `repo:`, `lang:`, `type:`, `case:`, `count:`, `sym:`, `msg:` | `other-values` | `OtherValues` | M2 |
+| 23 | Bare words match commit messages too | `words-in-messages` | `MessageWords` | M3 |

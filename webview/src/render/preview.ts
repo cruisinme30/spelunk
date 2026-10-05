@@ -1,5 +1,6 @@
 // The preview pane: a file excerpt around the match, or a commit's diff.
 import { element, fileStat, highlight, plural, scrollIntoContainer, shortSha, timeAgo } from "../format";
+import { textTerms } from "../parsedQuery";
 import type { OpenWhere, Preview } from "../protocol.gen";
 import { repoName, type ViewState } from "../state";
 
@@ -53,6 +54,7 @@ export function renderPreview(
     renderCommitPreview(container, preview, header, {
       showHiddenFiles: state.showHiddenFiles,
       onShowHiddenFiles: handlers.onShowHiddenFiles,
+      hasTextTerms: textTerms(state.parsed).length > 0,
     });
   }
 }
@@ -108,13 +110,15 @@ function renderFilePreview(container: HTMLElement, preview: FilePreview, { repo,
 interface HiddenFilesToggle {
   showHiddenFiles: boolean;
   onShowHiddenFiles: () => void;
+  /** Whether the query has plain words, which match changed lines or the message. */
+  hasTextTerms: boolean;
 }
 
 function renderCommitPreview(
   container: HTMLElement,
   preview: CommitPreview,
   { repo, actions }: PreviewHeader,
-  { showHiddenFiles, onShowHiddenFiles }: HiddenFilesToggle,
+  { showHiddenFiles, onShowHiddenFiles, hasTextTerms }: HiddenFilesToggle,
 ): void {
   container.append(
     element(
@@ -123,7 +127,7 @@ function renderCommitPreview(
       element(
         "div",
         { class: "commit-title" },
-        element("span", { class: "preview-title" }, preview.subject),
+        element("span", { class: "preview-title" }, highlight(preview.subject, preview.subjectHits)),
         element("code", { class: "sha" }, shortSha(preview.sha)),
       ),
       element(
@@ -134,7 +138,20 @@ function renderCommitPreview(
       actions,
     ),
   );
-  if (preview.body.trim()) container.append(element("pre", { class: "body" }, preview.body.trim()));
+  if (preview.body.trim())
+    container.append(element("pre", { class: "body" }, highlight(preview.body, preview.bodyHits)));
+  // Plain words match the message too, so a diff without marks isn't a mistake.
+  const diffHasHits = preview.hunks.some((hunk) => hunk.lines.some((line) => line.hits.length > 0));
+  const messageHasHits = preview.subjectHits.length > 0 || preview.bodyHits.length > 0;
+  if (hasTextTerms && messageHasHits && !diffHasHits) {
+    container.append(
+      element(
+        "div",
+        { class: "message-note muted", "data-testid": "matched-in-message" },
+        "Matched in the message, not in any changed line.",
+      ),
+    );
+  }
 
   // Files outside an f: filter stay hidden until "Show all".
   const hiddenFiles = preview.files.filter((file) => file.hiddenByFilter);

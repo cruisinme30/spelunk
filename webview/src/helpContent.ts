@@ -8,7 +8,7 @@ export const BASICS: string[] = [
   "Plain words match file names and file contents together.",
   "Words separated by spaces must all appear in the same file. Use quotes for an exact phrase.",
   "Results update as you type. Matching ignores case unless you add `case:yes`.",
-  "Adding `author:` or `msg:` switches the results to commits, and text then matches inside each commit’s diff.",
+  "Adding `author:` or `msg:` switches the results to commits, and text then matches each commit’s diff or message.",
 ];
 
 /** The points of the Combining section. */

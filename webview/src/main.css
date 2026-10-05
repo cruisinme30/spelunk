@@ -783,6 +783,13 @@ mark.term-color-3 {
   font-size: 12px;
 }
 
+.row.commit .commit-body-line {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+}
+
 .row.commit .commit-files {
   display: flex;
   flex-wrap: wrap;
@@ -935,6 +942,12 @@ pre.body {
   padding: 8px 14px;
   white-space: pre-wrap;
   color: var(--muted);
+  font-size: 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.message-note {
+  padding: 8px 14px;
   font-size: 12px;
   border-bottom: 1px solid var(--line);
 }

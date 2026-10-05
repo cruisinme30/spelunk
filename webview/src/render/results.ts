@@ -373,12 +373,22 @@ export class ResultsView {
         element("span", {}, item.author.name),
         element("span", {}, timeAgo(item.at)),
         element("span", {}, repoName(this.state, item.repoId)),
-        item.diffHits ? element("span", {}, plural(item.diffHits, "hit") + " in diff") : null,
+        commitMatchPlace(item),
         ...tags,
       ),
+      item.bodyLine
+        ? element("div", { class: "commit-body-line" }, highlight(item.bodyLine.text, item.bodyLine.hits))
+        : null,
       element("div", { class: "commit-files" }, ...files),
     );
   }
+}
+
+/** Where a commit's text terms matched: "in message · 3 hits in diff", "in message only" or "3 hits in diff". */
+function commitMatchPlace(item: ItemOf<"commit">): HTMLElement | null {
+  const inDiff = item.diffHits ? plural(item.diffHits, "hit") + " in diff" : "";
+  if (item.inMessage) return element("span", {}, inDiff ? `in message · ${inDiff}` : "in message only");
+  return inDiff ? element("span", {}, inDiff) : null;
 }
 
 /** "Only files whose full path matches .*test\.py$ are searched.", above the code section. */
