@@ -9,7 +9,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 import type { Daemon, DaemonState } from "../daemon";
 import { makeRoot } from "../roots";
-import { newFakeDaemon } from "./fakeDaemon";
+import { newFakeDaemon, nonExecutableFile } from "./fakeDaemon";
 import { newTestDaemon, SKIP_WITHOUT_DAEMON as skip, waitFor } from "./realDaemon";
 
 const RESTART_BUDGET = 3;
@@ -91,6 +91,25 @@ function isRunning(pid: number): boolean {
 }
 
 const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+for (const [what, binary] of [
+  ["a missing binary", "/nonexistent/unified-search-daemon"],
+  ["a binary that isn't executable", nonExecutableFile()],
+] as const) {
+  test(`${what} stops at once with the reason, without restart attempts`, async () => {
+    const counter = countingSpawn();
+    const { daemon, states } = newFakeDaemon("ok", { binary, args: [], spawn: counter.spawn });
+    const messages: (string | undefined)[] = [];
+    daemon.on("state", (_state, message) => messages.push(message));
+    await assert.rejects(daemon.start());
+    await pause(100);
+    assert.equal(daemon.state, "stopped");
+    assert.match(messages.at(-1) ?? "", /could not start: .*(ENOENT|EACCES)/);
+    assert.equal(counter.spawns, 1);
+    assert.deepEqual(states, ["starting", "stopped"]);
+    await assert.rejects(daemon.request("index/status", {}), /stopped/, "requests fail at once, not after a wait");
+  });
+}
 
 test("a daemon that never answers initialize is killed and restarted, not waited on forever", async () => {
   const counter = countingSpawn();

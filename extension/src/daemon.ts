@@ -236,8 +236,10 @@ export class Daemon extends EventEmitter {
         resolve();
       });
       child.on("error", (error) => {
-        this.log(`[daemon] failed to start: ${error.message}`);
-        this.onExit(child, "failed to start");
+        // Only a process that never started gets no "exit": a missing or non-executable binary.
+        if (child.pid !== undefined) return;
+        this.log(`[daemon] failed to start ${this.options.binary}: ${error.message}`);
+        this.onExit(child, undefined, error);
         resolve();
       });
     });
@@ -284,8 +286,11 @@ export class Daemon extends EventEmitter {
     return child;
   }
 
-  /** Restarts after a crash, unless that would exceed the per-minute budget. */
-  private onExit(child: ChildProcess, how: string): void {
+  /**
+   * Restarts after a crash, unless that would exceed the per-minute budget.
+   * A binary that could not be run at all (`spawnError`) is not retried.
+   */
+  private onExit(child: ChildProcess, how: string | undefined, spawnError?: Error): void {
     if (child !== this.child) return; // an old process we already replaced
     this.connection?.dispose(new Error("daemon exited"));
     this.connection = undefined;
@@ -294,11 +299,15 @@ export class Daemon extends EventEmitter {
       if (this.state !== "protocolMismatch") this.setState("stopped");
       return;
     }
+    if (spawnError) {
+      this.setState("stopped", `The search daemon could not start: ${spawnError.message}`);
+      return;
+    }
     const now = this.now();
     this.crashTimes = this.crashTimes.filter((time) => now - time < CRASH_WINDOW_MS);
     this.crashTimes.push(now);
     const crashes = this.crashTimes.length;
-    this.log(`[daemon] ${how}; crash ${crashes} in the last minute`);
+    this.log(`[daemon] ${how ?? "exited"}; crash ${crashes} in the last minute`);
     if (crashes > (this.options.maxRestartsPerMinute ?? DEFAULT_MAX_RESTARTS_PER_MINUTE)) {
       // The panel's banner and the status bar name the state; the message says why.
       this.setState("stopped", `The search daemon crashed ${crashes} times in a minute.`);
