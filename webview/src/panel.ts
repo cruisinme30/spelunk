@@ -76,6 +76,7 @@ export class SearchPanel {
   private queryChanged(immediate = false, asTyped = false): void {
     clearTimeout(this.debounceTimer);
     const report = () => {
+      this.debounceTimer = undefined;
       const { input } = this.layout;
       this.state.seq++;
       saveDraft(input.value);
@@ -100,7 +101,21 @@ export class SearchPanel {
     if (!text) this.showEmptyState();
   }
 
-  private applyFix(fix: Fix): void {
+  /**
+   * Whether edits worked out for `basis` (the text the daemon parsed or
+   * searched) still fit the box. Spans index that text, so after another
+   * keystroke they would cut the wrong characters; the box is reported now
+   * instead, and fresh edits arrive with its parse.
+   */
+  private editsFit(basis: string | undefined): boolean {
+    if (this.layout.input.value === basis) return true;
+    if (this.debounceTimer !== undefined) this.queryChanged(true);
+    return false;
+  }
+
+  /** Applies a fix-it, completion or note's undo, worked out for `basis` (by default, the parsed text). */
+  private applyFix(fix: Fix, basis = this.state.parsed?.raw): void {
+    if (!this.editsFit(basis)) return;
     const edited = applyEdits(this.layout.input.value, fix.edits);
     this.setQuery(edited.text, edited.cursor);
     this.layout.input.focus();
@@ -154,10 +169,12 @@ export class SearchPanel {
     );
 
     caseButton.addEventListener("click", () => {
+      if (!this.editsFit(this.parsedText)) return;
       const edited = toggleCase(input.value, this.state.parsed, this.state.ui.caseSensitive);
       this.setQuery(edited.text, edited.cursor);
     });
     regexButton.addEventListener("click", () => {
+      if (!this.editsFit(this.parsedText)) return;
       const edited = toggleRegex(input.value, this.state.parsed);
       this.setQuery(edited.text, edited.cursor);
     });
@@ -194,6 +211,7 @@ export class SearchPanel {
     renderRepoMenu(repoMenu, this.state.repos, scopedRepo(this.state.parsed), {
       onPick: (repoName) => {
         this.toggleRepoMenu(false);
+        if (!this.editsFit(this.parsedText)) return;
         const edited = scopeToRepo(input.value, this.state.parsed, repoName);
         this.setQuery(edited.text, edited.cursor);
         input.focus();
@@ -205,6 +223,11 @@ export class SearchPanel {
   private open(ref: string, event: MouseEvent | KeyboardEvent): void {
     const where: OpenWhere = event.metaKey || event.ctrlKey ? "side" : "current";
     send("result.open", { ref, where });
+  }
+
+  /** The text the newest parse is of; before any parse, the empty box. */
+  private get parsedText(): string {
+    return this.state.parsed?.raw ?? "";
   }
 
   private get completionsVisible(): boolean {
@@ -466,9 +489,11 @@ export class SearchPanel {
     state.done = undefined;
     state.selectedRef = "";
     state.preview = undefined;
+    // A note's undo indexes the text this search ran on, which may be the box without the word being completed.
+    const searchedText = state.searchText ?? state.parsed?.raw;
     const handlers = {
       onApplyFix: (fix: Fix) => {
-        this.applyFix(fix);
+        this.applyFix(fix, searchedText);
       },
       // Load more fetches the next page of this same search; its batches carry the same searchId.
       onLoadMore: (id: string, cursor: string) => {
