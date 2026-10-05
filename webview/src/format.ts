@@ -54,6 +54,19 @@ export function element<K extends keyof HTMLElementTagNameMap>(
   return created;
 }
 
+/** A `<button type="button">` that calls `onClick` when clicked. */
+export function button(
+  attributes: Record<string, AttributeValue>,
+  onClick: () => void,
+  ...children: Child[]
+): HTMLButtonElement {
+  const created = element("button", { type: "button", ...attributes }, ...children);
+  created.addEventListener("click", () => {
+    onClick();
+  });
+  return created;
+}
+
 /** Whether UTF-16 offset `index` falls between the two halves of a surrogate pair. */
 function splitsSurrogatePair(text: string, index: number): boolean {
   const before = text.codePointAt(index - 1);

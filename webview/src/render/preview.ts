@@ -1,5 +1,5 @@
 // The preview pane: a file excerpt around the match, or a commit's diff.
-import { element, fileStat, highlight, plural, scrollIntoContainer, shortSha, timeAgo } from "../format";
+import { button, element, fileStat, highlight, plural, scrollIntoContainer, shortSha, timeAgo } from "../format";
 import { textTerms } from "../parsedQuery";
 import type { OpenWhere, Preview } from "../protocol.gen";
 import { repoName, type ViewState } from "../state";
@@ -162,12 +162,7 @@ function renderCommitPreview(
     ...shownFiles.map((file) => fileStat(file.path, file.added, file.removed)),
   );
   if (hiddenFiles.length > 0 && !showHiddenFiles) {
-    const showAll = element(
-      "button",
-      { type: "button", class: "btn link", "data-testid": "show-all-files" },
-      "Show all",
-    );
-    showAll.addEventListener("click", onShowHiddenFiles);
+    const showAll = button({ class: "btn link", "data-testid": "show-all-files" }, onShowHiddenFiles, "Show all");
     files.append(
       element("span", { class: "muted" }, `${plural(hiddenFiles.length, "other changed file")} hidden by f:`),
       showAll,

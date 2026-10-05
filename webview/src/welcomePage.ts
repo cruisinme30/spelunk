@@ -2,7 +2,7 @@
 // shown once after installing and by Spelunk: Show Welcome. It asks
 // for the search shortcut and how much to index, and shows each repo's
 // indexing while it runs.
-import { element, isIndexing, percent, progressBar } from "./format";
+import { button, element, isIndexing, percent, progressBar } from "./format";
 import { onHostMessage, send } from "./host";
 import type { RepoStatus, WelcomeStateMessage as WelcomeState } from "./protocol.gen";
 
@@ -196,31 +196,28 @@ function actions(settings: WelcomeState): HTMLElement {
   const keys = settings.mac ? MAC_KEYS : OTHER_KEYS;
   const key =
     settings.preset === "quickOpen" ? keys.quickOpen : settings.preset === "findInFiles" ? keys.findInFiles : "";
-  const start = element(
-    "button",
-    { type: "button", class: "btn primary", "data-testid": "start" },
+  const start = button(
+    { class: "btn primary", "data-testid": "start" },
+    () => {
+      send("welcome.start", {});
+    },
     "Start searching",
     key ? element("kbd", {}, key) : null,
   );
-  start.addEventListener("click", () => {
-    send("welcome.start", {});
-  });
-  const settingsButton = element(
-    "button",
-    { type: "button", class: "btn", "data-testid": "open-settings" },
+  const settingsButton = button(
+    { class: "btn", "data-testid": "open-settings" },
+    () => {
+      send("settings.open", {});
+    },
     "Open settings",
   );
-  settingsButton.addEventListener("click", () => {
-    send("settings.open", {});
-  });
-  const guide = element(
-    "button",
-    { type: "button", class: "btn link", "data-testid": "open-help" },
+  const guide = button(
+    { class: "btn link", "data-testid": "open-help" },
+    () => {
+      send("help.open", {});
+    },
     "Read the search guide",
   );
-  guide.addEventListener("click", () => {
-    send("help.open", {});
-  });
   return element("div", { class: "welcome-actions" }, start, settingsButton, guide);
 }
 

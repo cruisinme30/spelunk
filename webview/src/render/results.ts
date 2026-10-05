@@ -1,6 +1,17 @@
 // The result list: sections for file names, definitions, code and commits,
 // appended to as batches stream in, plus hidden-result notes and Load more.
-import { codeList, element, fileStat, highlight, plural, shortSha, termClass, timeAgo, trimIndent } from "../format";
+import {
+  button,
+  codeList,
+  element,
+  fileStat,
+  highlight,
+  plural,
+  shortSha,
+  termClass,
+  timeAgo,
+  trimIndent,
+} from "../format";
 import { operatorNodes, textNodes, textTerms } from "../parsedQuery";
 import type { Fix, HiddenNote, ResultItem, SearchDoneMessage } from "../protocol.gen";
 import { repoName, type ViewState } from "../state";
@@ -168,11 +179,15 @@ export class ResultsView {
     // The daemon sends a cursor when there are more pages; Load more asks for the next one.
     if (done.nextCursor) {
       const cursor = done.nextCursor;
-      const button = element("button", { type: "button", class: "btn", "data-testid": "load-more" }, "Load more");
-      button.addEventListener("click", () => {
-        this.handlers.onLoadMore(done.searchId, cursor);
-      });
-      this.loadMore.append(button);
+      this.loadMore.append(
+        button(
+          { class: "btn", "data-testid": "load-more" },
+          () => {
+            this.handlers.onLoadMore(done.searchId, cursor);
+          },
+          "Load more",
+        ),
+      );
     }
     if (done.error) {
       this.preview.replaceChildren(element("div", { class: "notice error" }, done.error));
@@ -210,14 +225,7 @@ export class ResultsView {
    */
   private renderNote(note: HiddenNote): HTMLElement {
     if (note.reason === "symbol") return this.renderTextSearchNote(note);
-    const showThem = element(
-      "button",
-      { type: "button", class: "btn link", "data-testid": "show-hidden" },
-      UNDO_LABEL[note.reason] ?? "Show them",
-    );
-    showThem.addEventListener("click", () => {
-      this.handlers.onApplyFix(note.undo);
-    });
+    const showThem = this.showHiddenButton(note, UNDO_LABEL[note.reason] ?? "Show them");
     return element(
       "div",
       { class: "note", "data-reason": note.reason },
@@ -228,19 +236,23 @@ export class ResultsView {
 
   /** "Want every usage, not just definitions? · Search RetryPolicy as text · 23". */
   private renderTextSearchNote(note: HiddenNote): HTMLElement {
-    const search = element(
-      "button",
-      { type: "button", class: "btn link", "data-testid": "show-hidden" },
-      `${note.undo.title} · ${note.count.toLocaleString("en-US")}`,
-    );
-    search.addEventListener("click", () => {
-      this.handlers.onApplyFix(note.undo);
-    });
+    const search = this.showHiddenButton(note, `${note.undo.title} · ${note.count.toLocaleString("en-US")}`);
     return element(
       "div",
       { class: "note", "data-reason": note.reason },
       element("span", {}, "Want every usage, not just definitions?"),
       search,
+    );
+  }
+
+  /** The button that undoes the filter that hid `note`'s results. */
+  private showHiddenButton(note: HiddenNote, label: string): HTMLButtonElement {
+    return button(
+      { class: "btn link", "data-testid": "show-hidden" },
+      () => {
+        this.handlers.onApplyFix(note.undo);
+      },
+      label,
     );
   }
 

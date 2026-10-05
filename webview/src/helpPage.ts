@@ -1,7 +1,7 @@
 // Entry point of the help page webview (bundled to dist/webview/help.js):
 // the search guide. Every example has a Try button that runs it in
 // the search panel.
-import { element } from "./format";
+import { button, element } from "./format";
 import { BASICS, COMBINING, EXAMPLES, KEYS } from "./helpContent";
 import { send } from "./host";
 import { OPERATOR_GROUPS, type OperatorEntry, type OperatorGroup, shortName } from "./operators";
@@ -27,11 +27,13 @@ function bulletList(lines: string[]): HTMLElement {
 }
 
 function tryButton(query: string): HTMLElement {
-  const button = element("button", { type: "button", class: "btn", "data-testid": "try", "data-query": query }, "Try");
-  button.addEventListener("click", () => {
-    send("help.try", { query });
-  });
-  return button;
+  return button(
+    { class: "btn", "data-testid": "try", "data-query": query },
+    () => {
+      send("help.try", { query });
+    },
+    "Try",
+  );
 }
 
 function operatorTable(groups: OperatorGroup[]): HTMLElement {
@@ -120,14 +122,13 @@ function keysSection(): HTMLElement {
 }
 
 function settingsSection(): HTMLElement {
-  const openSettings = element(
-    "button",
-    { type: "button", class: "btn", "data-testid": "open-settings" },
+  const openSettings = button(
+    { class: "btn", "data-testid": "open-settings" },
+    () => {
+      send("settings.open", {});
+    },
     "Open search settings",
   );
-  openSettings.addEventListener("click", () => {
-    send("settings.open", {});
-  });
   return section(
     "settings",
     "Settings",

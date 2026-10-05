@@ -1,5 +1,5 @@
 // The empty box: recent queries and the operator cheat sheet.
-import { element } from "../format";
+import { button, element } from "../format";
 import { OPERATOR_GROUPS, type OperatorGroup, shortName } from "../operators";
 import type { ViewState } from "../state";
 
@@ -134,26 +134,26 @@ function clockIcon(): HTMLElement {
 
 /** A recent query: the row runs it, the × at its end takes it off the list. */
 function recentRow(query: string, selected: boolean, handlers: EmptyStateHandlers): HTMLElement {
-  const run = element(
-    "button",
-    { type: "button", class: "recent-run", "data-testid": "recent" },
+  const run = button(
+    { class: "recent-run", "data-testid": "recent" },
+    () => {
+      handlers.onRunRecent(query);
+    },
     clockIcon(),
     element("code", {}, query),
   );
-  run.addEventListener("click", () => {
-    handlers.onRunRecent(query);
-  });
-  const remove = element("button", {
-    type: "button",
-    class: "recent-remove",
-    title: "Remove from recent",
-    "aria-label": `Remove ${query} from recent`,
-    "data-testid": "recent-remove",
-  });
+  const remove = button(
+    {
+      class: "recent-remove",
+      title: "Remove from recent",
+      "aria-label": `Remove ${query} from recent`,
+      "data-testid": "recent-remove",
+    },
+    () => {
+      handlers.onRemoveRecent(query);
+    },
+  );
   remove.innerHTML = REMOVE_ICON;
-  remove.addEventListener("click", () => {
-    handlers.onRemoveRecent(query);
-  });
   return element("div", { class: selected ? "recent-row selected" : "recent-row", "data-recent": query }, run, remove);
 }
 
@@ -186,9 +186,11 @@ function sheetCard(group: OperatorGroup, onInsert: (snippet: string) => void): H
   const tone = `tone-${group.tone}`;
   const entries = group.entries.map((entry) => {
     const short = shortName(entry);
-    const button = element(
-      "button",
-      { type: "button", class: "sheet-entry", "data-testid": "sheet-op" },
+    return button(
+      { class: "sheet-entry", "data-testid": "sheet-op" },
+      () => {
+        onInsert(entry.insert);
+      },
       element(
         "span",
         { class: "sheet-names" },
@@ -197,10 +199,6 @@ function sheetCard(group: OperatorGroup, onInsert: (snippet: string) => void): H
       ),
       element("span", { class: "muted" }, entry.summary),
     );
-    button.addEventListener("click", () => {
-      onInsert(entry.insert);
-    });
-    return button;
   });
   return element("div", { class: "card" }, element("span", { class: `card-title ${tone}` }, group.name), ...entries);
 }

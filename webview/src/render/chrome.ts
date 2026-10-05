@@ -1,7 +1,7 @@
 // The panel chrome around the results: index status, health and indexing
 // banners, query diagnostics, parsed-query chips and the key
 // hints footer.
-import { clamp, element, isIndexing, percent, plural, progressBar, termClass } from "../format";
+import { button, clamp, element, isIndexing, percent, plural, progressBar, termClass } from "../format";
 import type { Layout } from "../layout";
 import { fullName, OPERATOR_TONE } from "../operators";
 import { scopedRepo, type OperatorNode, type TextNode } from "../parsedQuery";
@@ -58,9 +58,7 @@ function healthTitle(banner: BannerMessage): string {
 }
 
 function restartButton(onRestart: () => void): HTMLElement {
-  const button = element("button", { type: "button", class: "btn", "data-testid": "restart" }, "Restart");
-  button.addEventListener("click", onRestart);
-  return button;
+  return button({ class: "btn", "data-testid": "restart" }, onRestart, "Restart");
 }
 
 function renderHealthBanner(banner: BannerMessage, onRestart: () => void): HTMLElement {
@@ -115,14 +113,16 @@ function renderDiagnostic(raw: string, diagnostic: Diagnostic, onFix: (fix: Fix)
     raw.slice(end),
   );
   const caret = element("code", { class: "caret" }, " ".repeat(start) + "^");
-  const fixes = diagnostic.fixes.map((fix, index) => {
-    const button = element("button", { type: "button", class: "btn fix", "data-testid": "fix" }, fix.title);
-    if (index === 0) button.append(element("kbd", {}, "⌘."));
-    button.addEventListener("click", () => {
-      onFix(fix);
-    });
-    return button;
-  });
+  const fixes = diagnostic.fixes.map((fix, index) =>
+    button(
+      { class: "btn fix", "data-testid": "fix" },
+      () => {
+        onFix(fix);
+      },
+      fix.title,
+      index === 0 ? element("kbd", {}, "⌘.") : null,
+    ),
+  );
   return element(
     "div",
     { class: `diagnostic ${diagnostic.severity}`, "data-code": diagnostic.code },
