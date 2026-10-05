@@ -15,7 +15,11 @@ const GLIMPSE_LINES = 2;
 const VALUE_LISTS: Partial<Record<OpName, { heading: string; hint?: string }>> = {
   since: {
     heading: "Time windows",
-    hint: "Or type a number and a unit: 45min, 3h, 10d, 3w, 2m, 1y. m is months; minutes are min.",
+    hint: "Or type a number and a unit: 45min, 3h, 10d, 3w, 2m, 1y. m is months; minutes are min. Or a date: 2026-09-30, or 2026-09 for a whole month.",
+  },
+  until: {
+    heading: "Time windows",
+    hint: "Or type a number and a unit (2w keeps what's older than two weeks), or a date: 2026-09-30, 2026-09.",
   },
   f: { heading: "Paths", hint: String.raw`file: takes a glob (*.go, src/**/*.ts) or a regex (_test\.py$).` },
   repo: { heading: "Repos", hint: "repo: also takes a glob (web-*) or a regex (^pay)." },
