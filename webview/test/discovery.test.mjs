@@ -9,9 +9,11 @@ import {
   openHelp,
   openPanel,
   parsedQuery,
+  QUERY,
   restore,
   sentMessages,
   textNode,
+  typeAndParse,
   useBrowser,
 } from "./harness.mjs";
 
@@ -40,7 +42,7 @@ const TIMEOUT_LINE_RESULT = {
 async function suggestingOperators(t) {
   const page = await openPanel(t);
   await restore(page);
-  await page.fill('[data-testid="query"]', "timeout s");
+  await page.fill(QUERY, "timeout s");
   const { seq } = await lastSent(page, "query.changed");
   const root = { kind: "and", children: [textNode("timeout", 0), textNode("s", 8, 1)], span: { start: 0, end: 9 } };
   await fromHost(page, "parse.result", {
@@ -80,7 +82,7 @@ test("operator suggestions explain each operator and keep the results in view", 
 test("the case: suggestion shows its description and values like every other operator", async (t) => {
   const page = await openPanel(t);
   await restore(page);
-  await page.fill('[data-testid="query"]', "ca");
+  await page.fill(QUERY, "ca");
   const { seq } = await lastSent(page, "query.changed");
   await fromHost(page, "parse.result", {
     seq,
@@ -107,7 +109,7 @@ test("since: lists time windows in groups, with when each starts and what change
   // @covers screen:since-values
   const page = await openPanel(t);
   await restore(page);
-  await page.fill('[data-testid="query"]', "timeout since:");
+  await page.fill(QUERY, "timeout since:");
   const { seq } = await lastSent(page, "query.changed");
   const since = { kind: "op", op: "since", value: "", match: "literal", span: { start: 8, end: 14 } };
   await fromHost(page, "parse.result", {
@@ -148,14 +150,14 @@ test("since: lists time windows in groups, with when each starts and what change
   assert.equal(await list.locator(".completion-operator.tone-history").count(), 3, "values take since:'s color");
   assert.match(await page.locator('[data-testid="value-hint"]').innerText(), /m is months/);
   await page.keyboard.press("Tab");
-  assert.equal(await page.inputValue('[data-testid="query"]'), "timeout since:today ");
+  assert.equal(await page.inputValue(QUERY), "timeout since:today ");
 });
 
 test("Tab inserts the suggested operator at the cursor", async (t) => {
   // @covers screen:operator-suggestions
   const { page } = await suggestingOperators(t);
   await page.keyboard.press("Tab");
-  assert.equal(await page.inputValue('[data-testid="query"]'), "timeout since:");
+  assert.equal(await page.inputValue(QUERY), "timeout since:");
   assert.equal((await lastSent(page, "query.changed")).text, "timeout since:");
 });
 
@@ -174,7 +176,7 @@ test("? while suggesting opens the help page", async (t) => {
   const { page } = await suggestingOperators(t);
   await page.keyboard.press("?");
   assert.equal((await sentMessages(page, "help.open")).length, 1);
-  assert.equal(await page.inputValue('[data-testid="query"]'), "timeout s");
+  assert.equal(await page.inputValue(QUERY), "timeout s");
 });
 
 const REPOS = [
@@ -187,9 +189,7 @@ test("the repo menu scopes the query to one repo, or back to all", async (t) => 
   const page = await openPanel(t);
   await restore(page);
   await fromHost(page, "index.status", { repos: REPOS });
-  await page.fill('[data-testid="query"]', "timeout");
-  const { seq } = await lastSent(page, "query.changed");
-  await fromHost(page, "parse.result", { seq, query: parsedQuery("timeout", textNode("timeout", 0)), completions: [] });
+  await typeAndParse(page, "timeout", parsedQuery("timeout", textNode("timeout", 0)));
   assert.equal(await page.locator('[data-testid="repos"]').innerText(), "All repos · 2");
 
   await page.click('[data-testid="repos"]');
@@ -197,7 +197,7 @@ test("the repo menu scopes the query to one repo, or back to all", async (t) => 
   const labels = (await options.allInnerTexts()).map((text) => text.replaceAll(/\s+/g, " ").trim());
   assert.deepEqual(labels, ["✓ All repos 2", "payments-api", "web-checkout"]);
   await options.nth(2).click();
-  assert.equal(await page.inputValue('[data-testid="query"]'), "repo:web-checkout timeout");
+  assert.equal(await page.inputValue(QUERY), "repo:web-checkout timeout");
   assert.equal(await page.locator('[data-testid="repo-menu"]').isVisible(), false);
 
   const scoped = {
@@ -219,22 +219,20 @@ test("the repo menu scopes the query to one repo, or back to all", async (t) => 
 
   await page.click('[data-testid="repos"]');
   await options.first().click();
-  assert.equal(await page.inputValue('[data-testid="query"]'), "timeout");
+  assert.equal(await page.inputValue(QUERY), "timeout");
 });
 
 test("a type:file note counts the code matches for the query's words and offers them", async (t) => {
   // @covers screen:file-names-only
   const page = await openPanel(t);
   await restore(page);
-  await page.fill('[data-testid="query"]', "type:file retry");
-  const { seq } = await lastSent(page, "query.changed");
   const type = { kind: "op", op: "type", value: "file", match: "literal", span: { start: 0, end: 9 } };
   const root = { kind: "and", children: [type, textNode("retry", 10)], span: { start: 0, end: 15 } };
-  await fromHost(page, "parse.result", {
-    seq,
-    query: parsedQuery("type:file retry", root, { globals: { case: null, count: null, type: "file" } }),
-    completions: [],
-  });
+  const seq = await typeAndParse(
+    page,
+    "type:file retry",
+    parsedQuery("type:file retry", root, { globals: { case: null, count: null, type: "file" } }),
+  );
   const chips = await page.locator('[data-testid="chips"]').innerText();
   assert.match(chips, /file names only/);
   assert.match(chips, /name\s*retry/);
@@ -250,7 +248,7 @@ test("a type:file note counts the code matches for the query's words and offers 
   const note = page.locator('[data-testid="hidden-notes"] .note');
   assert.equal(await note.locator("span").first().innerText(), "38 code matches for retry hidden by type:file");
   await note.locator('[data-testid="show-hidden"]').click();
-  assert.equal(await page.inputValue('[data-testid="query"]'), "retry");
+  assert.equal(await page.inputValue(QUERY), "retry");
 });
 
 test("the help page lists every operator with an example, and Try runs it", async (t) => {
@@ -285,16 +283,14 @@ test("a symbol search offers the text search, and no definitions say why", async
     repos: [{ repoId: "web", name: "web-checkout", tree: "indexing", history: "queued", progress: 0.64 }],
   });
   const text = "case:yes sym:retrypolicy";
-  await page.fill('[data-testid="query"]', text);
-  const { seq } = await lastSent(page, "query.changed");
   const caseNode = { kind: "op", op: "case", value: "yes", match: "literal", span: { start: 0, end: 8 } };
   const sym = { kind: "op", op: "sym", value: "retrypolicy", match: "literal", span: { start: 9, end: 24 } };
   const root = { kind: "and", children: [caseNode, sym], span: { start: 0, end: 24 } };
-  await fromHost(page, "parse.result", {
-    seq,
-    query: parsedQuery(text, root, { globals: { case: "yes", count: null, type: null } }),
-    completions: [],
-  });
+  const seq = await typeAndParse(
+    page,
+    text,
+    parsedQuery(text, root, { globals: { case: "yes", count: null, type: null } }),
+  );
   const ignoreCase = { title: "Ignore case", edits: [{ span: { start: 0, end: 9 }, newText: "" }] };
   const asText = {
     title: "Search retrypolicy as text",
@@ -319,5 +315,5 @@ test("a symbol search offers the text search, and no definitions say why", async
   assert.equal(await notes.nth(0).locator("span").first().innerText(), "4 definitions hidden by case:yes");
   assert.equal(await notes.nth(1).locator('[data-testid="show-hidden"]').innerText(), "Search retrypolicy as text · 6");
   await notes.nth(1).locator('[data-testid="show-hidden"]').click();
-  assert.equal(await page.inputValue('[data-testid="query"]'), "case:yes retrypolicy");
+  assert.equal(await page.inputValue(QUERY), "case:yes retrypolicy");
 });

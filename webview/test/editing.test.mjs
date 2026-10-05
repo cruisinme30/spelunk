@@ -10,6 +10,7 @@ import {
   lastSent,
   openPanel,
   parsedQuery,
+  QUERY,
   restore,
   sentMessages,
   textNode,
@@ -20,8 +21,6 @@ import {
 } from "./harness.mjs";
 
 useBrowser();
-
-const QUERY = '[data-testid="query"]';
 
 /** "sinse:6m" with an unknown-operator error whose fix rewrites it to since:. */
 const MISSPELT = parsedQuery("sinse:6m", null, {

@@ -17,6 +17,9 @@ export const UI_SETTINGS = {
   caseSensitive: false,
 };
 
+/** The query box. */
+export const QUERY = '[data-testid="query"]';
+
 let browser;
 /** Starts Chromium before the calling file's tests and closes it after them. */
 export function useBrowser() {
@@ -119,7 +122,7 @@ export const textNode = (value, start, termIndex = 0) => ({
 
 /** Types a query and answers its parse with `query`; returns the seq. */
 export async function typeAndParse(page, text, query) {
-  await page.fill('[data-testid="query"]', text);
+  await page.fill(QUERY, text);
   const { seq } = await lastSent(page, "query.changed");
   await fromHost(page, "parse.result", { seq, query, completions: [] });
   return seq;

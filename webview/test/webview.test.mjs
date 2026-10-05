@@ -13,6 +13,7 @@ import {
   openPanelWithSavedState,
   panelWithResults,
   parsedQuery,
+  QUERY,
   restore,
   sentMessages,
   textNode,
@@ -94,9 +95,9 @@ test("? in an empty box scrolls the cheat sheet into view when it sits below the
   const sheet = page.locator('[data-testid="sheet"]');
   const inView = () => sheet.evaluate((node) => node.getBoundingClientRect().top < globalThis.innerHeight);
   assert.equal(await inView(), false, "the sheet starts below the fold");
-  await page.locator('[data-testid="query"]').press("?");
+  await page.locator(QUERY).press("?");
   assert.equal(await inView(), true);
-  assert.equal(await page.inputValue('[data-testid="query"]'), "", "the ? isn't typed into the box");
+  assert.equal(await page.inputValue(QUERY), "", "the ? isn't typed into the box");
 });
 
 test("an empty box shows recent queries and all 16 operators", async (t) => {
@@ -142,15 +143,15 @@ test("⇧⌫ on an empty box removes the selected recent query and keeps the sel
     (await sentMessages(page, "recent.remove")).map((message) => message.payload.query),
     ["second", "third", "first"],
   );
-  await page.fill('[data-testid="query"]', "timeouts");
+  await page.fill(QUERY, "timeouts");
   await page.keyboard.press("Shift+Backspace");
-  assert.equal(await page.inputValue('[data-testid="query"]'), "timeout", "with text in the box it just deletes");
+  assert.equal(await page.inputValue(QUERY), "timeout", "with text in the box it just deletes");
 });
 
 test("typing sends query.changed with the text and a new seq", async (t) => {
   const page = await openPanel(t);
   await restore(page);
-  await page.fill('[data-testid="query"]', "retry_policy");
+  await page.fill(QUERY, "retry_policy");
   const message = await lastSent(page, "query.changed");
   assert.equal(message.text, "retry_policy");
   assert.equal(message.cursor, 12);
@@ -160,7 +161,7 @@ test("focus selects the box, and Esc with nothing else open asks to close the pa
   // @covers msg:focus msg:panel.close
   const page = await openPanel(t);
   await restore(page);
-  await page.fill('[data-testid="query"]', "retry");
+  await page.fill(QUERY, "retry");
   await page.evaluate(() => document.activeElement.blur());
   await fromHost(page, "focus", {});
   const box = await page.evaluate(() => ({
@@ -310,8 +311,8 @@ const withError = (raw) =>
 test("a parse result for an older seq is dropped and the newest one renders", async (t) => {
   const page = await openPanel(t);
   await restore(page);
-  await page.fill('[data-testid="query"]', "a");
-  await page.fill('[data-testid="query"]', "ab");
+  await page.fill(QUERY, "a");
+  await page.fill(QUERY, "ab");
   const [olderSeq, newestSeq] = (await sentMessages(page, "query.changed")).map((message) => message.payload.seq);
   await fromHost(page, "parse.result", { seq: olderSeq, query: withError("a"), completions: [] });
   assert.equal(await page.locator(DIAGNOSTIC_ROWS).count(), 0, "older seq ignored");
@@ -340,7 +341,7 @@ test("⌘. applies the first fix as a text edit followed by query.changed", asyn
   );
   assert.equal(await page.locator('[data-code="unknown_operator"]').count(), 1);
   await page.keyboard.press("Control+.");
-  assert.equal(await page.inputValue('[data-testid="query"]'), "since:6m");
+  assert.equal(await page.inputValue(QUERY), "since:6m");
   assert.equal((await lastSent(page, "query.changed")).text, "since:6m");
 });
 
@@ -363,7 +364,7 @@ test("Aa and .* reflect the query, and Aa removes case:yes from the text", async
   assert.equal(await page.getAttribute('[data-testid="toggle-case"]', "aria-pressed"), "true");
   assert.equal(await page.getAttribute('[data-testid="toggle-regex"]', "aria-pressed"), "true");
   await page.click('[data-testid="toggle-case"]');
-  assert.equal(await page.inputValue('[data-testid="query"]'), "/Retry/");
+  assert.equal(await page.inputValue(QUERY), "/Retry/");
 });
 
 test("hidden-result notes use singular units and name the filter", async (t) => {

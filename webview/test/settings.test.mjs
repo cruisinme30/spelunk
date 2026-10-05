@@ -6,6 +6,7 @@ import {
   fromHost,
   openPanel,
   parsedQuery,
+  QUERY,
   sentMessages,
   textNode,
   UI_SETTINGS,
@@ -19,7 +20,7 @@ test("the panel waits typingDelayMs after the last keystroke before it asks for 
   // @covers setting:typingDelayMs
   const page = await openPanel(t);
   await fromHost(page, "state.restore", { text: "", recent: [], settings: { ...UI_SETTINGS, typingDelayMs: 300 } });
-  await page.fill('[data-testid="query"]', "retry");
+  await page.fill(QUERY, "retry");
   assert.equal((await sentMessages(page, "query.changed")).length, 0, "nothing is sent while typing");
   const sent = await waitForSent(page, "query.changed", { text: "retry" });
   assert.equal(sent.text, "retry");
@@ -30,7 +31,7 @@ test("the parsed query is shown unless ui.showParsedQuery is off", async (t) => 
   for (const showParsedQuery of [true, false]) {
     const page = await openPanel(t);
     await fromHost(page, "state.restore", { text: "", recent: [], settings: { ...UI_SETTINGS, showParsedQuery } });
-    await page.fill('[data-testid="query"]', "retry");
+    await page.fill(QUERY, "retry");
     const { seq } = await waitForSent(page, "query.changed", { text: "retry" });
     await fromHost(page, "parse.result", { seq, query: parsedQuery("retry", textNode("retry", 0)), completions: [] });
     const chips = await page.locator('[data-testid="chips"]').innerText();

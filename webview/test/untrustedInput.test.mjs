@@ -15,6 +15,7 @@ import {
   openWelcome,
   pageErrors,
   parsedQuery,
+  QUERY,
   restore,
   sentMessages,
   textNode,
@@ -51,6 +52,10 @@ async function searchingPanel(t) {
 /** Whether any element that markup would have created exists, or its script ran. */
 const markupTookEffect = (page) =>
   page.evaluate(() => globalThis.__ran !== undefined || document.querySelector("#app img, #app b") !== null);
+
+/** The refs of the result rows on screen. */
+const shownReferences = (page) =>
+  page.locator('[data-testid="result"]').evaluateAll((rows) => rows.map((row) => row.dataset.ref));
 
 test("markup in results, previews, notes and banners shows as text and never runs", async (t) => {
   const { page, seq } = await searchingPanel(t);
@@ -95,7 +100,7 @@ test("markup in diagnostics, chips, suggestions and recent queries shows as text
   const page = await openPanel(t);
   await restore(page, [MARKUP]);
   assert.equal(await page.locator('[data-testid="recent"] code').textContent(), MARKUP);
-  await page.fill('[data-testid="query"]', MARKUP);
+  await page.fill(QUERY, MARKUP);
   const { seq } = await lastSent(page, "query.changed");
   const repo = { kind: "op", op: "repo", value: MARKUP, span: { start: 0, end: 4 }, resolved: { label: MARKUP } };
   const fixes = [{ title: MARKUP, edits: [] }];
@@ -196,7 +201,7 @@ test("a 1 MB line and 10,000 results in 100 batches render, and ↓ stops at the
   await fromHost(page, "search.done", { seq, searchId: "s1", total: 10_001, truncated: false, hidden: [], ms: 1 });
   assert.equal(await page.locator('[data-testid="result"]').count(), 10_001);
   await page.locator('[data-ref="b99-98"]').click();
-  await page.focus('[data-testid="query"]');
+  await page.focus(QUERY);
   await page.keyboard.press("ArrowDown");
   await page.keyboard.press("ArrowDown");
   await waitForSent(page, "result.select", { ref: "b99-99" });
@@ -241,16 +246,9 @@ test("a result of a kind the panel doesn't know is skipped, and the rest of its 
   const { page, seq } = await searchingPanel(t);
   const items = [{ kind: "notebookCell", ref: "n1", repoId: "r1" }, FILE_NAME_RESULT];
   await fromHost(page, "search.batch", { seq, searchId: "s1", items });
-  assert.deepEqual(
-    await page.locator('[data-testid="result"]').evaluateAll((rows) => rows.map((row) => row.dataset.ref)),
-    ["f1"],
-  );
+  assert.deepEqual(await shownReferences(page), ["f1"]);
   assert.deepEqual(pageErrors(page), []);
 });
-
-/** The refs of the result rows on screen. */
-const shownReferences = (page) =>
-  page.locator('[data-testid="result"]').evaluateAll((rows) => rows.map((row) => row.dataset.ref));
 
 test("a late batch of the old search is dropped once a newer query replaces it", async (t) => {
   const { page, seq } = await searchingPanel(t);
@@ -276,12 +274,12 @@ test("while the box has errors, the last good search keeps streaming its results
 test("a corrupt or old saved state leaves the box empty", async (t) => {
   for (const saved of ["text", 42, [1, 2], { text: 5 }, { text: { nested: true } }, { version: 0, query: "x" }]) {
     const page = await openPanelWithSavedState(t, saved);
-    assert.equal(await page.inputValue('[data-testid="query"]'), "", JSON.stringify(saved));
+    assert.equal(await page.inputValue(QUERY), "", JSON.stringify(saved));
     assert.equal((await sentMessages(page, "ready")).length, 1);
     assert.deepEqual(pageErrors(page), []);
   }
   const page = await openPanelWithSavedState(t, { text: "since:2w" });
-  assert.equal(await page.inputValue('[data-testid="query"]'), "since:2w", "a good draft is restored");
+  assert.equal(await page.inputValue(QUERY), "since:2w", "a good draft is restored");
 });
 
 test("the welcome page keeps progress within 0-100% and ignores malformed repo lists", async (t) => {

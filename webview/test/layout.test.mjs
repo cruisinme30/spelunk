@@ -11,6 +11,7 @@ import {
   openWelcome,
   pageErrors,
   parsedQuery,
+  QUERY,
   restore,
   textNode,
   typeAndParse,
@@ -19,8 +20,6 @@ import {
 } from "./harness.mjs";
 
 useBrowser();
-
-const QUERY = '[data-testid="query"]';
 
 test("in a short panel the query box stays in sight and the results keep some room", async (t) => {
   const page = await openPanel(t);
