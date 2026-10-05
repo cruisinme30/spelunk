@@ -138,12 +138,12 @@ func traceTo(conn *rpc.Conn, path string) (closeTrace func(), err error) {
 		defer mu.Unlock()
 		entry := traceEntry{Time: time.Now().UTC().Format(time.RFC3339Nano), Direction: direction, Message: body}
 		if err := encoder.Encode(entry); err != nil {
-			failed.Do(func() { fmt.Fprintf(os.Stderr, "unified-search-daemon: trace write failed: %v\n", err) })
+			failed.Do(func() { _, _ = fmt.Fprintf(os.Stderr, "unified-search-daemon: trace write failed: %v\n", err) })
 		}
 	}
 	closeTrace = func() {
 		if err := traceFile.Close(); err != nil {
-			fmt.Fprintf(os.Stderr, "unified-search-daemon: closing trace: %v\n", err)
+			_, _ = fmt.Fprintf(os.Stderr, "unified-search-daemon: closing trace: %v\n", err)
 		}
 	}
 	return closeTrace, nil
@@ -157,7 +157,7 @@ func optionsFromEnv() server.Options {
 	}
 	frozen, err := time.Parse(time.RFC3339, value)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "unified-search-daemon: ignoring UNIFIED_SEARCH_NOW: %v\n", err)
+		_, _ = fmt.Fprintf(os.Stderr, "unified-search-daemon: ignoring UNIFIED_SEARCH_NOW: %v\n", err)
 		return server.Options{}
 	}
 	return server.Options{Now: func() time.Time { return frozen }}
