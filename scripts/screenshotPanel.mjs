@@ -16,6 +16,7 @@
 //   --open <path>       a file open in the editor, relative to --workspace, for is:open (repeatable)
 //   --key <key>         a key to press after typing, as Playwright names it, e.g. Tab or ? (repeatable)
 //   --click <selector>  an element to click after the keys, e.g. '[data-testid="repos"]' (repeatable)
+//   --type <text>       text to type after the clicks, into whatever has the focus
 //   --help-page         render the help page instead of the search panel
 //   --out <file>        where to save the PNG (default: panel.png)
 //   --select <n>        press ↓ n times after the results arrive, to preview a result
@@ -42,6 +43,7 @@ const { values: args } = parseArgs({
     setting: { type: "string", multiple: true, default: [] },
     key: { type: "string", multiple: true, default: [] },
     click: { type: "string", multiple: true, default: [] },
+    type: { type: "string" },
     "help-page": { type: "boolean", default: false },
     first: { type: "string" },
     out: { type: "string", default: "panel.png" },
@@ -162,7 +164,7 @@ async function connectPanel(page, host, daemon) {
   return posted;
 }
 
-/** Types --first and --query, presses --key, clicks --click and moves down --select rows. */
+/** Types --first and --query, presses --key, clicks --click, types --type and moves down --select rows. */
 async function drivePanel(page, posted) {
   if (args.first) {
     await page.fill('[data-testid="query"]', args.first);
@@ -176,6 +178,7 @@ async function drivePanel(page, posted) {
   }
   for (const key of args.key) await page.keyboard.press(key);
   for (const selector of args.click) await page.click(selector);
+  if (args.type) await page.keyboard.type(args.type);
   const rowsDown = Number(args.select);
   for (let row = 0; row < rowsDown; row++) await page.keyboard.press("ArrowDown");
   if (rowsDown > 0) await until("preview.result", () => posted.includes("preview.result"));
