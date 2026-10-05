@@ -166,13 +166,9 @@ func TestAFolderOutsideGitSaysHistoryIsOff(t *testing.T) {
 // and the result summary.
 func commitSearch(t *testing.T, client *testClient, text string) ([]string, protocol.SearchResult) {
 	t.Helper()
-	batches := collectBatches(client)
-	var result protocol.SearchResult
-	if err := client.call(protocol.MethodSearchStart, protocol.SearchStartParams{SearchID: text, Text: text}, &result); err != nil {
-		t.Fatal(err)
-	}
+	items, result := search(t, client, text)
 	var subjects []string
-	for _, item := range batches.of(text) {
+	for _, item := range items {
 		subjects = append(subjects, item.RepoID+": "+item.Subject)
 	}
 	return subjects, result

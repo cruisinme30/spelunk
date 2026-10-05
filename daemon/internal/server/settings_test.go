@@ -13,6 +13,14 @@ import (
 func writeWorkspace(t *testing.T, files map[string]string) string {
 	t.Helper()
 	root := t.TempDir()
+	writeFilesUnder(t, root, files)
+	return root
+}
+
+// writeFilesUnder writes files (slash-separated paths to contents) under
+// root, making their folders.
+func writeFilesUnder(t *testing.T, root string, files map[string]string) {
+	t.Helper()
 	for path, content := range files {
 		full := filepath.Join(root, filepath.FromSlash(path))
 		if err := os.MkdirAll(filepath.Dir(full), 0o750); err != nil {
@@ -20,7 +28,6 @@ func writeWorkspace(t *testing.T, files map[string]string) string {
 		}
 		mustWriteFile(t, full, content)
 	}
-	return root
 }
 
 // paths runs text and returns the repo/path:line of each result.

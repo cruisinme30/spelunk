@@ -1,7 +1,6 @@
 package server
 
 import (
-	"os"
 	"path/filepath"
 	"reflect"
 	"testing"
@@ -24,14 +23,7 @@ func symbolWorkspace(t *testing.T) []protocol.Root {
 		"web-checkout/src/api/types.ts":       "export interface RetryPolicy {\n  maxAttempts: number;\n}\n",
 		"web-checkout/src/api/checkout.ts":    "import type { RetryPolicy } from \"./types\";\n",
 	}
-	root := t.TempDir()
-	for path, content := range files {
-		full := filepath.Join(root, filepath.FromSlash(path))
-		if err := os.MkdirAll(filepath.Dir(full), 0o750); err != nil {
-			t.Fatal(err)
-		}
-		mustWriteFile(t, full, content)
-	}
+	root := writeWorkspace(t, files)
 	var roots []protocol.Root
 	for _, name := range []string{"payments-api", "web-checkout", "shared-libs"} {
 		roots = append(roots, protocol.Root{ID: name, Path: filepath.Join(root, name), Name: name})

@@ -9,7 +9,6 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -191,13 +190,7 @@ func gitRepo(t *testing.T, commits ...gitCommit) string {
 	run(nil, "config", "user.email", "test@example.com")
 	run(nil, "config", "user.name", "Test")
 	for _, c := range commits {
-		for path, content := range c.files {
-			full := filepath.Join(root, filepath.FromSlash(path))
-			if err := os.MkdirAll(filepath.Dir(full), 0o750); err != nil {
-				t.Fatal(err)
-			}
-			mustWriteFile(t, full, content)
-		}
+		writeFilesUnder(t, root, c.files)
 		run(nil, "add", "--all")
 		date := c.at.Format(time.RFC3339)
 		run([]string{"GIT_AUTHOR_NAME=" + c.author, "GIT_AUTHOR_EMAIL=" + strings.ToLower(strings.ReplaceAll(c.author, " ", ".")) + "@example.com",
