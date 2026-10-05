@@ -106,3 +106,32 @@ test("Enter, Esc and ↓ during input method composition are left to the input m
   assert.equal((await sentMessages(page, "result.open")).length, 0);
   assert.equal((await sentMessages(page, "panel.close")).length, 0);
 });
+
+test("⌘Z undoes a fix-it, and redo applies it again", async (t) => {
+  const page = await openPanel(t);
+  await restore(page);
+  await page.click(QUERY);
+  await page.keyboard.type("sinse:6m");
+  const { seq } = await lastSent(page, "query.changed");
+  await fromHost(page, "parse.result", { seq, query: MISSPELT, completions: [] });
+  await page.keyboard.press("Control+.");
+  assert.equal(await page.inputValue(QUERY), "since:6m");
+  const sentAfterFix = (await sentMessages(page, "query.changed")).length;
+  await page.keyboard.press("ControlOrMeta+z");
+  assert.equal(await page.inputValue(QUERY), "sinse:6m");
+  assert.equal((await lastSent(page, "query.changed")).text, "sinse:6m", "undo is reported like typing");
+  await page.keyboard.press("ControlOrMeta+Shift+z");
+  assert.equal(await page.inputValue(QUERY), "since:6m");
+  assert.equal((await sentMessages(page, "query.changed")).length, sentAfterFix + 2);
+});
+
+test("the fix itself is reported once, not also as typing", async (t) => {
+  const page = await openPanel(t);
+  await restore(page);
+  await typeAndParse(page, "sinse:6m", MISSPELT);
+  const before = (await sentMessages(page, "query.changed")).length;
+  await page.keyboard.press("Control+.");
+  const after = await sentMessages(page, "query.changed");
+  assert.equal(after.length, before + 1);
+  assert.deepEqual(after.at(-1).payload, { text: "since:6m", cursor: 6, seq: after.at(-1).payload.seq });
+});

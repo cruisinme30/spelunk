@@ -46,6 +46,8 @@ export class SearchPanel {
   private results: ResultsView | undefined;
   private debounceTimer: ReturnType<typeof setTimeout> | undefined;
   private previewTimer: ReturnType<typeof setTimeout> | undefined;
+  /** Set while the panel itself edits the box, so its input event isn't taken for typing. */
+  private editingBox = false;
 
   /** Builds the panel's skeleton into `root`; start() brings it to life. */
   constructor(root: HTMLElement) {
@@ -93,12 +95,35 @@ export class SearchPanel {
 
   private setQuery(text: string, cursor = text.length): void {
     const { input } = this.layout;
-    input.value = text;
+    input.select();
+    this.typeIntoBox(text);
     input.setSelectionRange(cursor, cursor);
     this.state.completionsOpen = false;
     this.renderCompletions();
     this.queryChanged(true);
     if (!text) this.showEmptyState();
+  }
+
+  /**
+   * Replaces the box's selection with `text` the way typing would, so ⌘Z
+   * undoes a fix-it, completion or toggle; assigning input.value would wipe
+   * the box's undo history instead.
+   */
+  private typeIntoBox(text: string): void {
+    const { input } = this.layout;
+    const start = input.selectionStart ?? 0;
+    const end = input.selectionEnd ?? start;
+    const expected = input.value.slice(0, start) + text + input.value.slice(end);
+    if (!text && start === end) return; // "delete" on a caret would erase the character before it
+    input.focus();
+    this.editingBox = true;
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-deprecated -- still the only edit that joins the undo stack
+      document.execCommand(text ? "insertText" : "delete", false, text);
+    } finally {
+      this.editingBox = false;
+    }
+    if (input.value !== expected) input.value = expected; // execCommand unavailable
   }
 
   /**
@@ -136,8 +161,8 @@ export class SearchPanel {
     const before = input.value.slice(0, position);
     const separator = before && !before.endsWith(" ") && !snippet.startsWith(" ") ? " " : "";
     const cursor = before.length + separator.length + snippet.length - (PAIRED_SNIPPETS.has(snippet) ? 1 : 0);
-    input.value = before + separator + snippet + input.value.slice(position);
-    input.focus();
+    input.setSelectionRange(position, position);
+    this.typeIntoBox(separator + snippet);
     input.setSelectionRange(cursor, cursor);
     this.state.completionsOpen = true;
     this.state.sheetOpen = false;
@@ -149,6 +174,7 @@ export class SearchPanel {
   private bindEvents(): void {
     const { input, caseButton, regexButton, reposButton, settingsButton, body } = this.layout;
     input.addEventListener("input", () => {
+      if (this.editingBox) return;
       this.state.completionsOpen = true;
       this.state.completionIndex = 0;
       this.state.sheetOpen = false;
