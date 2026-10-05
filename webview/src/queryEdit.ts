@@ -2,6 +2,7 @@
 // and the repo menu are all text edits followed by an ordinary
 // query.changed, so the daemon stays the only parser. Spans come from the
 // parsed query; nothing here scans the raw text.
+import { clamp } from "./format";
 import { operatorNodes, textNodes, topLevelOperators } from "./parsedQuery";
 import type { ParsedQuery, Span, TextEdit } from "./protocol.gen";
 
@@ -16,16 +17,23 @@ const REGEX_SPECIAL = /[\\^$.|?*+()[\]{}]/;
 /** RE2 metacharacters plus the / that delimits a /regex/ term. */
 const REGEX_SPECIAL_OR_SLASH = /[\\^$.|?*+()[\]{}/]/g;
 
-/** Applies non-overlapping edits; the cursor lands after the last one. */
+/**
+ * Applies non-overlapping edits; the cursor lands after the last one. Spans
+ * are clipped to the text, and a span that overlaps an earlier edit starts
+ * where that edit ended, so no character is ever copied twice.
+ */
 export function applyEdits(text: string, edits: TextEdit[]): Edited {
-  const sorted = [...edits].sort((first, second) => first.span.start - second.span.start);
+  const sorted = edits
+    .filter(({ span }) => Number.isFinite(span.start) && Number.isFinite(span.end))
+    .sort((first, second) => first.span.start - second.span.start);
   let result = "";
   let position = 0;
   let cursor = text.length;
   for (const edit of sorted) {
-    result += text.slice(position, edit.span.start) + edit.newText;
+    const start = clamp(edit.span.start, position, text.length);
+    result += text.slice(position, start) + edit.newText;
     cursor = result.length;
-    position = edit.span.end;
+    position = clamp(edit.span.end, start, text.length);
   }
   result += text.slice(position);
   return { text: result, cursor: Math.min(cursor, result.length) };
@@ -33,7 +41,8 @@ export function applyEdits(text: string, edits: TextEdit[]): Edited {
 
 /** Removes a span plus one neighbouring space, so no double space is left. */
 function removeSpan(text: string, span: Span): Edited {
-  let { start, end } = span;
+  let start = clamp(span.start, 0, text.length);
+  let end = clamp(span.end, start, text.length);
   if (text[end] === " ") end++;
   else if (start > 0 && text[start - 1] === " ") start--;
   return { text: text.slice(0, start) + text.slice(end), cursor: start };

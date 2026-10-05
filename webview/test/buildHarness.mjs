@@ -1,6 +1,7 @@
 // Builds test/out/searchPanel.html (the search panel), test/out/help.html
 // (the help page) and test/out/welcome.html (the welcome page): the real webview bundles, with a fake acquireVsCodeApi in
-// place of VS Code. Tests talk to a page through these globals:
+// place of VS Code. Also test/out/queryEdit.mjs, the pure query edits as an ES module for unit tests in Node.
+// Tests talk to a page through these globals:
 //
 //   window.__sent                every message the webview sent, in order
 //   window.__fromHost(type, p)   delivers a host message to the webview
@@ -58,3 +59,10 @@ const css = readFileSync(join(here, "../src/main.css"), "utf8");
 await buildPage("main.ts", "searchPanel");
 await buildPage("helpPage.ts", "help");
 await buildPage("welcomePage.ts", "welcome");
+await build({
+  entryPoints: [join(here, "../src/queryEdit.ts")],
+  bundle: true,
+  format: "esm",
+  target: "es2022",
+  outfile: join(out, "queryEdit.mjs"),
+});
