@@ -729,6 +729,11 @@ mark {
   border-color: var(--tone-match);
 }
 
+.badge.rank-open {
+  color: var(--tone-scope);
+  border-color: var(--tone-scope);
+}
+
 .demoted .path {
   opacity: 0.75;
 }

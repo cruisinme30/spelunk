@@ -74,9 +74,9 @@
       "enum": ["best", "path"]
     },
     "RankReason": {
-      "description": "RankReason is why best-match order put a file where it is: it defines a searched name, or it was moved down as a test, vendored or generated file. Absent when nothing stands out or the order is path.",
+      "description": "RankReason is why best-match order put a file where it is: it defines a searched name or is open in the editor, or it was moved down as a test, vendored or generated file. Absent when nothing stands out or the order is path.",
       "type": "string",
-      "enum": ["definition", "test", "vendored", "generated"]
+      "enum": ["definition", "open", "test", "vendored", "generated"]
     },
     "Match": {
       "description": "Match says how a value was written: bare (literal), quoted (phrase), /regex/, or a path glob such as *.go (f: and repo: only).",

@@ -86,12 +86,13 @@ const (
 	ResultOrderPath ResultOrder = "path"
 )
 
-// RankReason is why best-match order put a file where it is: it defines a searched name, or it was moved down as a test, vendored or generated file. Absent when nothing stands out or the order is path.
+// RankReason is why best-match order put a file where it is: it defines a searched name or is open in the editor, or it was moved down as a test, vendored or generated file. Absent when nothing stands out or the order is path.
 type RankReason = string
 
 // RankReason values.
 const (
 	RankReasonDefinition RankReason = "definition"
+	RankReasonOpen       RankReason = "open"
 	RankReasonTest       RankReason = "test"
 	RankReasonVendored   RankReason = "vendored"
 	RankReasonGenerated  RankReason = "generated"

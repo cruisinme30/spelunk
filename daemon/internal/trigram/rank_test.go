@@ -4,6 +4,7 @@ import (
 	"reflect"
 	"slices"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -165,6 +166,25 @@ func TestBestMatchPutsUncommittedThenRecentlyChangedFilesFirst(t *testing.T) {
 	items, _ := runItems(t, "timeout", bestMatchSettings, "", repo)
 	if got, want := files(items), []string{"line c.py", "line b.py", "line a.py"}; !reflect.DeepEqual(got, want) {
 		t.Errorf("order = %q, want %q (uncommitted, then changed an hour ago, then three months ago)", got, want)
+	}
+}
+
+func TestBestMatchPutsOpenFilesAfterDefinitionsAndBeforeFileNames(t *testing.T) {
+	repo := rankedRepo()
+	repo.Open = map[string]bool{"src/client.py": true, "src/retry.py": true}
+	items, _ := runItems(t, "retry", bestMatchSettings, "", repo)
+	code := []string{}
+	for _, entry := range files(items) {
+		if strings.HasPrefix(entry, "line src/") {
+			code = append(code, entry)
+		}
+	}
+	if want := []string{"line src/retry.py", "line src/client.py", "line src/retry_policy.py", "line src/backoff.py"}; !reflect.DeepEqual(code, want) {
+		t.Errorf("order = %q, want %q", code, want)
+	}
+	want := map[string]string{"src/retry.py": protocol.RankReasonDefinition, "src/client.py": protocol.RankReasonOpen}
+	if got := reasons(items); got["src/retry.py"] != want["src/retry.py"] || got["src/client.py"] != want["src/client.py"] {
+		t.Errorf("reasons = %v, want %v (a definition outranks open as the reason)", got, want)
 	}
 }
 

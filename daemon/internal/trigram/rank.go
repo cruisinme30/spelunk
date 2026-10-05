@@ -1,7 +1,7 @@
 package trigram
 
-// Best-match order (order:best): files that define a searched name or are
-// named after it come first, and tests, vendored and generated files last.
+// Best-match order (order:best): files that define a searched name, are
+// named after it or are open in the editor come first, and tests, vendored and generated files last.
 // Ranking moves whole files: a file's lines stay together, in line order.
 //
 // It works in two steps so results still stream and pages never overlap:
@@ -35,6 +35,7 @@ const (
 	scoreNameIsTerm  = 40 // retry.py for retry
 	scoreNameHasTerm = 20 // retry_policy.py for retry
 	scorePathHasTerm = 5  // retry/client.py for retry
+	scoreOpen        = 30 // open in the editor
 	scoreUncommitted = 15
 	scoreRecent      = 10
 	scoreTest        = -1000
@@ -82,6 +83,12 @@ func (s *searcher) rankDoc(repo *Repo, doc *Doc) docRank {
 		r.reason = protocol.RankReasonDefinition
 	}
 	r.score += s.nameScore(doc.Path)
+	if repo.Open[doc.Path] {
+		r.score += scoreOpen
+		if r.reason == "" {
+			r.reason = protocol.RankReasonOpen
+		}
+	}
 	if repo.History != nil {
 		if repo.History.Dirty(doc.Path) {
 			r.score += scoreUncommitted

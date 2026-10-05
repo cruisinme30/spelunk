@@ -35,6 +35,7 @@ const ORDER_LABEL: Record<ResultOrder, string> = { best: "best match first", pat
 /** The badge a result's file shows for why best-match order put it where it is. */
 const RANK_BADGE: Record<RankReason, string> = {
   definition: "definition",
+  open: "open",
   test: "test",
   vendored: "vendored",
   generated: "generated",
@@ -431,7 +432,7 @@ function rankBadge(reason: RankReason | undefined): HTMLElement | null {
 
 /** " demoted" for a test, vendored or generated file, which reads dimmer; "" otherwise. */
 function demoted(reason: RankReason | undefined): string {
-  return reason && reason !== "definition" ? " demoted" : "";
+  return reason === "test" || reason === "vendored" || reason === "generated" ? " demoted" : "";
 }
 
 function makeSection(title: string, testId: string): Section {

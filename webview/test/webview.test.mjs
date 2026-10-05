@@ -193,7 +193,7 @@ test("section titles say results are best match first, and each file says why it
     items: [
       { ...FILE_NAME_RESULT, path: "http/retry.py", rankReason: "definition" },
       line("http/retry.py", "definition"),
-      line("src/client.py"),
+      line("src/client.py", "open"),
       line("tests/retry_test.py", "test"),
     ],
   });
@@ -201,7 +201,8 @@ test("section titles say results are best match first, and each file says why it
   assert.match(await page.locator('[data-testid="section-code"] .section-title').innerText(), /best match first/i);
   const groups = page.locator('[data-testid="code-group"]');
   assert.equal(await groups.nth(0).locator('[data-testid="rank-reason"]').innerText(), "definition");
-  assert.equal(await groups.nth(1).locator('[data-testid="rank-reason"]').count(), 0);
+  assert.equal(await groups.nth(1).locator('[data-testid="rank-reason"]').innerText(), "open");
+  assert.doesNotMatch((await groups.nth(1).getAttribute("class")) ?? "", /demoted/);
   assert.equal(await groups.nth(2).locator('[data-testid="rank-reason"]').innerText(), "test");
   assert.match((await groups.nth(2).getAttribute("class")) ?? "", /demoted/);
 });

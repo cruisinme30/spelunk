@@ -50,8 +50,8 @@ export type OpName = "f" | "repo" | "lang" | "type" | "sym" | "is" | "author" | 
 /** ResultOrder is how current files are sorted: best match first, or by repo, path and line. */
 export type ResultOrder = "best" | "path";
 
-/** RankReason is why best-match order put a file where it is: it defines a searched name, or it was moved down as a test, vendored or generated file. Absent when nothing stands out or the order is path. */
-export type RankReason = "definition" | "test" | "vendored" | "generated";
+/** RankReason is why best-match order put a file where it is: it defines a searched name or is open in the editor, or it was moved down as a test, vendored or generated file. Absent when nothing stands out or the order is path. */
+export type RankReason = "definition" | "open" | "test" | "vendored" | "generated";
 
 /** Match says how a value was written: bare (literal), quoted (phrase), /regex/, or a path glob such as *.go (f: and repo: only). */
 export type Match = "literal" | "phrase" | "regex" | "glob";
