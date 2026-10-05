@@ -7,7 +7,7 @@ import { OPERATOR_GROUPS } from "./operators";
 export const BASICS: string[] = [
   "Plain words match file names and file contents together.",
   "Words separated by spaces must all appear in the same file. Use quotes for an exact phrase.",
-  "Results update as you type. Matching ignores case unless you add `case:yes`, and finds parts of words unless you add `word:yes`.",
+  "Results update as you type. Matching ignores case unless you add `case:yes` (or `case:smart`, which matches case only when the query has a capital letter), and finds parts of words unless you add `word:yes`.",
   "Adding `author:` or `msg:` switches the results to commits, and text then matches each commit’s diff or message.",
 ];
 

@@ -38,10 +38,11 @@ export const OPERATOR_GROUPS: OperatorGroup[] = [
     entries: [
       {
         operator: "case",
-        label: "case:yes|no",
+        label: "case:yes|no|smart",
         insert: "case:yes ",
-        summary: "Case-sensitive or not. Insensitive by default.",
-        description: "Match capital letters exactly, or not. Default is no.",
+        summary: "Case-sensitive, or not, or only with a capital. Insensitive by default.",
+        description:
+          "Match capital letters exactly, or not. smart matches them only when the query has a capital letter, so retry finds Retry but RetryPolicy doesn't find retrypolicy. Default is no, unless the Case Sensitive setting says otherwise.",
         example: "case:yes RetryPolicy",
       },
       {

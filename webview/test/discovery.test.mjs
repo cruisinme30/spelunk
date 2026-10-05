@@ -91,8 +91,8 @@ test("the case: suggestion shows its description and values like every other ope
     completions: [operatorCompletion("case:", "Match case", 0, 2)],
   });
   const option = await page.locator('[data-testid="completion"]').first().innerText();
-  assert.match(option, /Case-sensitive or not/);
-  assert.match(option, /\byes\b[\s\S]*\bno\b/);
+  assert.match(option, /Case-sensitive, or not, or only with a capital/);
+  assert.match(option, /\byes\b[\s\S]*\bno\b[\s\S]*\bsmart\b/);
 });
 
 /** A since: value suggestion as the daemon sends it. */
