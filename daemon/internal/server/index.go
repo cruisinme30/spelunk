@@ -12,8 +12,8 @@ import (
 
 // registerIndex registers the index/* handlers.
 func (s *Server) registerIndex() {
-	s.conn.Handle(protocol.MethodIndexStatus, s.indexStatus)
-	s.conn.Handle(protocol.MethodIndexRebuild, s.rebuild)
+	s.handle(protocol.MethodIndexStatus, s.indexStatus)
+	s.handle(protocol.MethodIndexRebuild, s.rebuild)
 }
 
 // notifyIndexStatus sends index/progress.

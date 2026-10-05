@@ -50,16 +50,44 @@ func New(conn *rpc.Conn, opts Options) *Server {
 		s.now = time.Now
 	}
 	s.index = indexer.New(s.settings, s.notifyIndexStatus)
-	conn.Handle(protocol.MethodInitialize, s.initialize)
-	conn.Handle(protocol.MethodShutdown, s.shutdown)
+	conn.Handle(protocol.MethodShutdown, s.shutdown) // answered again after shutdown, as LSP allows
 	conn.OnNotify(protocol.MethodExit, func(json.RawMessage) { s.exit() })
-	conn.OnNotify(protocol.MethodWorkspaceSetRoots, s.setRoots)
-	conn.OnNotify(protocol.MethodSettingsUpdate, s.updateSettings)
-	conn.OnNotify(protocol.MethodWorkspaceDidChangeFiles, s.didChangeFiles)
-	conn.Handle(protocol.MethodQueryParse, s.parse)
+	s.handle(protocol.MethodInitialize, s.initialize)
+	s.onNotify(protocol.MethodWorkspaceSetRoots, s.setRoots)
+	s.onNotify(protocol.MethodSettingsUpdate, s.updateSettings)
+	s.onNotify(protocol.MethodWorkspaceDidChangeFiles, s.didChangeFiles)
+	s.handle(protocol.MethodQueryParse, s.parse)
 	s.registerSearch()
 	s.registerIndex()
 	return s
+}
+
+// handle registers h for method, refusing the request once shutdown has
+// been asked for: the index work it would start or read is stopped.
+func (s *Server) handle(method string, h rpc.Handler) {
+	s.conn.Handle(method, func(ctx context.Context, params json.RawMessage) (any, error) {
+		if s.shuttingDown() {
+			return nil, rpc.Errorf(rpc.CodeInvalidRequest, "%s after shutdown", method)
+		}
+		return h(ctx, params)
+	})
+}
+
+// onNotify registers h for method, ignoring the notification once shutdown
+// has been asked for, so no new index work starts on a stopped indexer.
+func (s *Server) onNotify(method string, h rpc.NotificationHandler) {
+	s.conn.OnNotify(method, func(params json.RawMessage) {
+		if !s.shuttingDown() {
+			h(params)
+		}
+	})
+}
+
+// shuttingDown reports whether shutdown has been asked for.
+func (s *Server) shuttingDown() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.shutdownRequested
 }
 
 // DefaultSettings mirrors the defaults declared in extension/package.json.

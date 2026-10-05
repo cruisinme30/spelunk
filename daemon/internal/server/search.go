@@ -28,9 +28,9 @@ const (
 // registerSearch registers the handlers for searching and for what the
 // client does with a result.
 func (s *Server) registerSearch() {
-	s.conn.Handle(protocol.MethodSearchStart, s.search)
-	s.conn.Handle(protocol.MethodPreviewGet, s.preview)
-	s.conn.Handle(protocol.MethodOpenResolve, s.openResolve)
+	s.handle(protocol.MethodSearchStart, s.search)
+	s.handle(protocol.MethodPreviewGet, s.preview)
+	s.handle(protocol.MethodOpenResolve, s.openResolve)
 }
 
 // batcher sends results as search/batch notifications of at most
