@@ -21,7 +21,7 @@ export interface LineEdit {
 }
 
 /** What a replace will change, and the files it leaves alone. */
-export interface CheckedReplace {
+interface CheckedReplace {
   edits: LineEdit[];
   /** The absolute paths of the files the edits change. */
   files: string[];

@@ -6,13 +6,11 @@ import { clamp, wrapIndex } from "./format";
 import { saveRecentWidth, send } from "./host";
 import type { Layout } from "./layout";
 import { addPin, forgetQuery, namePin } from "./pinnedQueries";
-import type { renderEmptyState } from "./render/emptyState";
+import type { EmptyStateHandlers } from "./render/emptyState";
 import { emptyBoxQueries, type ViewState } from "./state";
 
-type EmptyStateHandlers = Parameters<typeof renderEmptyState>[2];
-
 /** What the empty box needs from the panel. */
-export interface EmptyBoxPanel {
+interface EmptyBoxPanel {
   /** Puts a query in the box and searches it. */
   setQuery(text: string): void;
   /** Inserts a cheat-sheet snippet at the cursor. */

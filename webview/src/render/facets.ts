@@ -27,7 +27,7 @@ interface ShownBucket {
 }
 
 /** What the facet row does when a bucket is clicked. */
-export interface FacetHandlers {
+interface FacetHandlers {
   onToggle: (filter: string, exclude: boolean) => void;
   onExpand: (field: Facet["field"]) => void;
 }

@@ -59,7 +59,7 @@ export function createReplaceRow(): ReplaceRow {
 }
 
 /** What the row needs from the panel. */
-export interface ReplaceHooks {
+interface ReplaceHooks {
   /** The query the results on screen are for, or undefined while there is none to replace. */
   searchedText(): string | undefined;
   typingDelayMs(): number;
