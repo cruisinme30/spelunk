@@ -5,6 +5,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-10-05
+
 ### Added
 
 - `is:open`, `is:changed` and `is:test` (short form `i:`) keep the files open in editor tabs, the files with
@@ -53,6 +55,7 @@ All notable changes to this project are documented here. The format follows
 
 - A commit's preview said its other files were hidden by `f:` even when `lang:` hid them; it now says "hidden by
   filters".
+- The help page lists `min` and `h` among the time-window units.
 
 ## [1.0.1] - 2026-10-05
 
@@ -191,7 +194,8 @@ All notable changes to this project are documented here. The format follows
 - The `case:` suggestion shows its description and values like the other operators.
 - `sym:` queries return no results instead of wrong ones until symbol search exists.
 
-[Unreleased]: https://github.com/cruisinme30/spelunk/compare/v1.0.1...HEAD
+[Unreleased]: https://github.com/cruisinme30/spelunk/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/cruisinme30/spelunk/compare/v1.0.1...v1.1.0
 [1.0.1]: https://github.com/cruisinme30/spelunk/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/cruisinme30/spelunk/compare/v0.2.0...v1.0.0
 [0.2.0]: https://github.com/cruisinme30/spelunk/compare/v0.1.0...v0.2.0
