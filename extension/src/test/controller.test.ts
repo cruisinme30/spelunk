@@ -20,6 +20,7 @@ import type {
   Completion,
   HostToWebview,
   IndexState,
+  IndexStatusResult,
   OpenTarget,
   ParsedQuery,
   ParseResult,
@@ -393,4 +394,18 @@ test("results open in a preview editor unless open.preview is off", async () => 
   preview = false; // read again on every open, so a change applies at once
   await controller.step(1);
   assert.deepEqual(host.previews, [true, false]);
+});
+
+test("a panel opened after indexing finished still gets each repo's state", () => {
+  // The daemon reports indexing only when it changes, and the panel drops
+  // messages while it is closed, so restore must resend the last report.
+  const host = recordingUi();
+  const { backend, listeners } = scriptedBackend(() => NO_RESULTS);
+  const controller = newController(backend, host.ui);
+  const status: IndexStatusResult = {
+    repos: [{ repoId: "r1", name: "unified-search", tree: "ready", history: "ready" }],
+  };
+  listeners.get("progress")?.(status);
+  controller.restore();
+  assert.deepEqual(host.payloads("index.status").at(-1), status);
 });

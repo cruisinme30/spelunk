@@ -120,6 +120,8 @@ export class SearchController {
   private stepIndex = -1;
   /** Repos whose working-tree index is ready, from the last index/progress. */
   private readyRepos = new Set<string>();
+  /** The last index/progress, which a panel opened later needs: the daemon only reports changes. */
+  private lastProgress: IndexStatusResult | undefined;
 
   /** Listens for the backend's batches and indexing progress; `initial` is the state saved last session. */
   constructor(
@@ -142,7 +144,10 @@ export class SearchController {
     return this.state.text;
   }
 
-  /** Sends the box text, recent queries and settings to a (re)opened panel. A given query replaces the text. */
+  /**
+   * Sends the box text, recent queries, settings and each repo's indexing to a
+   * (re)opened panel. A given query replaces the text.
+   */
   restore(query?: string): void {
     if (query !== undefined) this.state.text = query;
     this.ui.post("state.restore", {
@@ -150,6 +155,7 @@ export class SearchController {
       recent: this.state.recent,
       settings: this.options.uiSettings(),
     });
+    if (this.lastProgress) this.ui.post("index.status", this.lastProgress);
   }
 
   /** Handles one message from the search panel. */
@@ -321,6 +327,7 @@ export class SearchController {
    * typed while it was indexing could not include its results.
    */
   private onIndexProgress(progress: IndexStatusResult): void {
+    this.lastProgress = progress;
     const ready = progress.repos.filter((repo) => repo.tree === "ready").map((repo) => repo.repoId);
     const newlyReady = ready.some((id) => !this.readyRepos.has(id));
     this.readyRepos = new Set(ready);
