@@ -4,6 +4,7 @@ import (
 	"errors"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/cruisinme30/unified-search/daemon/internal/protocol"
@@ -102,5 +103,37 @@ func TestOpenTargetIsTheMatch(t *testing.T) {
 	got, _ = OpenTarget(repo, Ref{RepoID: "r", Path: "retry.go"})
 	if got.Line != 1 || got.Column != 1 {
 		t.Errorf("OpenTarget(file name) = %+v, want the top of the file", got)
+	}
+}
+
+func TestPreviewClipsALongLineAroundItsMatch(t *testing.T) {
+	long := strings.Repeat("x", 500_000) + "needle" + strings.Repeat("y", 500_000)
+	root := writeTree(t, map[string]string{"min.js": "first\n" + long + "\n" + strings.Repeat("z", 10_000) + "\n"})
+	repo := &Repo{ID: "r", Name: "r", Root: root}
+	plan := mustPlan(t, "needle", defaultSettings, "")
+	got, err := Preview(repo, Ref{RepoID: "r", Path: "min.js", Line: 2, Column: 500_000, Length: 6}, plan, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i, line := range got.Lines {
+		if n := len([]rune(line)); n > maxPreviewLineRunes+2 {
+			t.Errorf("line %d has %d runes, want at most %d and the ellipses", got.FirstLine+i, n, maxPreviewLineRunes)
+		}
+	}
+	shown := []rune(got.Lines[1])
+	if len(got.Hits) != 1 || len(got.Hits[0].Ranges) != 1 {
+		t.Fatalf("hits = %+v, want needle marked on line 2", got.Hits)
+	}
+	if r := got.Hits[0].Ranges[0]; string(shown[r.Start:r.End]) != "needle" {
+		t.Errorf("hit %+v covers %q, want needle", r, string(shown[r.Start:r.End]))
+	}
+	// Without the plan, the ref's own match is marked in the clipped line.
+	got, err = Preview(repo, Ref{RepoID: "r", Path: "min.js", Line: 2, Column: 500_000, Length: 6}, nil, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	shown = []rune(got.Lines[0])
+	if r := got.Hits[0].Ranges[0]; len(shown) > maxPreviewLineRunes+2 || string(shown[r.Start:r.End]) != "needle" {
+		t.Errorf("preview without the plan = %d runes, hit %+v; want a clipped line with needle marked", len(shown), r)
 	}
 }

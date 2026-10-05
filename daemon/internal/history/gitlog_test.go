@@ -1,12 +1,31 @@
 package history
 
 import (
+	"context"
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
+
+func TestALongDiffLineIsClippedInThePreview(t *testing.T) {
+	r := newTestRepo(t)
+	sha := r.commit("Ada <ada@example.com>", "minified", day(1), map[string]string{
+		"app.min.js": strings.Repeat("x", 300_000) + "needle" + strings.Repeat("y", 300_000) + "\n",
+	})
+	repo := &Repo{ID: "r", Name: "r", Root: r.root, Store: r.ingest()}
+	preview, err := Preview(context.Background(), repo, Ref{RepoID: "r", SHA: sha}, plan(t, "type:commit needle"), 3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	line := preview.Hunks[0].Lines[0]
+	shown := []rune(line.Text)
+	if len(shown) > 2_002 || len(line.Hits) != 1 || string(shown[line.Hits[0].Start:line.Hits[0].End]) != "needle" {
+		t.Errorf("diff line = %d runes with hits %+v, want a clipped window with needle marked", len(shown), line.Hits)
+	}
+}
 
 func TestSaveRemovesTempFilesACrashLeftBehind(t *testing.T) {
 	r, _ := paymentsHistory(t)

@@ -48,9 +48,10 @@ func Preview(ctx context.Context, repo *Repo, ref Ref, plan *query.Plan, context
 	for h := range hunks {
 		for l := range hunks[h].Lines {
 			line := &hunks[h].Lines[l]
-			line.Hits = []protocol.Hit{}
 			if line.Kind != "ctx" {
-				line.Hits = trigram.TermHits(line.Text, terms)
+				line.Text, line.Hits = trigram.PreviewLine(line.Text, terms)
+			} else {
+				line.Text, line.Hits = trigram.PreviewLine(line.Text, nil)
 			}
 		}
 	}

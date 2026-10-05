@@ -781,11 +781,21 @@ const (
 // clipLine converts byte hits to UTF-16 hits on the text shown, clipping
 // long lines (such as minified code) to a window around the first match.
 func clipLine(text string, hits []byteHit) (string, []protocol.Hit) {
+	return clipWindow(text, hits, maxResultLineRunes)
+}
+
+// clipWindow converts byte hits, sorted by start, to UTF-16 hits on the
+// text shown: all of text when it has at most maxRunes runes, or else a
+// window of maxRunes runes from clipLeadRunes before the first hit (or
+// from the start, without hits), with an ellipsis for each cut end.
+func clipWindow(text string, hits []byteHit, maxRunes int) (string, []protocol.Hit) {
 	start, end := 0, len(text)
 	prefix, suffix := "", ""
-	if utf8.RuneCountInString(text) > maxResultLineRunes {
-		start = backRunes(text, hits[0].start, clipLeadRunes)
-		end = forwardRunes(text, start, maxResultLineRunes)
+	if len(text) > maxRunes && utf8.RuneCountInString(text) > maxRunes {
+		if len(hits) > 0 {
+			start = backRunes(text, hits[0].start, clipLeadRunes)
+		}
+		end = forwardRunes(text, start, maxRunes)
 		if start > 0 {
 			prefix = ellipsis
 		}
