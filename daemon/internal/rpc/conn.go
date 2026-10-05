@@ -427,11 +427,18 @@ func (c *Conn) handleNotification(method string, params json.RawMessage) {
 	}
 }
 
-// dispatch runs a request's handler on its own goroutine and sends the answer.
+// dispatch runs a request's handler on its own goroutine and sends the
+// answer. A request whose id is already in flight is refused: its cancel
+// and its response could not be told apart from the first one's.
 func (c *Conn) dispatch(connCtx context.Context, m message) {
 	id := m.ID
-	requestCtx, cancel := context.WithCancel(connCtx)
 	c.mu.Lock()
+	if _, busy := c.inflight[string(id)]; busy {
+		c.mu.Unlock()
+		c.sendError(id, Errorf(CodeInvalidRequest, "request id %s is already in flight", id))
+		return
+	}
+	requestCtx, cancel := context.WithCancel(connCtx)
 	handler := c.requestHandlers[m.Method]
 	c.inflight[string(id)] = cancel
 	c.mu.Unlock()

@@ -139,6 +139,35 @@ func TestServeAnswersEveryValidIDForm(t *testing.T) {
 	}
 }
 
+func TestDuplicateInFlightIDIsRefusedAndTheFirstStaysCancellable(t *testing.T) {
+	// @covers rpc:$/cancelRequest
+	started := make(chan struct{}, 2)
+	peer := newRawPeer(t, func(c *Conn) {
+		c.Handle("slow", func(ctx context.Context, _ json.RawMessage) (any, error) {
+			started <- struct{}{}
+			<-ctx.Done()
+			return nil, ctx.Err()
+		})
+	})
+	peer.send(t, `{"jsonrpc":"2.0","id":1,"method":"slow"}`)
+	<-started
+	peer.send(t, `{"jsonrpc":"2.0","id":1,"method":"slow"}`)
+	if got := peer.receive(t); errorCode(got) != CodeInvalidRequest || got["id"] != 1.0 {
+		t.Fatalf("second request with in-flight id 1 = %v, want InvalidRequest", got)
+	}
+	peer.send(t, `{"jsonrpc":"2.0","method":"$/cancelRequest","params":{"id":1}}`)
+	if got := peer.receive(t); errorCode(got) != CodeRequestCancelled || got["id"] != 1.0 {
+		t.Fatalf("response after cancelling id 1 = %v, want RequestCancelled", got)
+	}
+	// Once answered, the id is free again.
+	peer.send(t, `{"jsonrpc":"2.0","id":1,"method":"slow"}`)
+	<-started
+	peer.send(t, `{"jsonrpc":"2.0","method":"$/cancelRequest","params":{"id":1}}`)
+	if got := peer.receive(t); errorCode(got) != CodeRequestCancelled {
+		t.Fatalf("reused id 1 after cancel = %v, want RequestCancelled", got)
+	}
+}
+
 func TestServeEndsOnFramingErrors(t *testing.T) {
 	for name, wire := range map[string]string{
 		"header_without_body": "Content-Length: 10\r\n\r\n",

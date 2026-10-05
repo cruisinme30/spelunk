@@ -15,7 +15,9 @@
 //   - Every request gets exactly one response. A handler returns an [*Error]
 //     to choose the code the caller sees; any other error, or a panic,
 //     becomes CodeInternalError. A request the peer cancelled is answered
-//     with CodeRequestCancelled even if its handler ignores the cancel.
+//     with CodeRequestCancelled even if its handler ignores the cancel. A
+//     request reusing the id of one still in flight is refused with
+//     CodeInvalidRequest.
 //   - A message that is not a JSON-RPC message (invalid JSON, a batch, a
 //     bare value, an id that is not a string, number or null) is answered
 //     with an error whose id is null, and the connection carries on.
