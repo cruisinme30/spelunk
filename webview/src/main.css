@@ -568,10 +568,10 @@ mark.term-color-3 {
   color: var(--muted);
 }
 
-.section-title.split {
+.section-title.spread,
+.completion-group.spread {
   display: flex;
   justify-content: space-between;
-  background: none;
 }
 
 .section-title .muted {
@@ -1129,11 +1129,6 @@ pre.body {
   margin-top: 4px;
   padding-top: 4px;
   opacity: 0.85;
-}
-
-.glimpse .completion-group.split {
-  display: flex;
-  justify-content: space-between;
 }
 
 .glimpse .completion-group code {

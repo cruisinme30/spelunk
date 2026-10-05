@@ -174,7 +174,7 @@ function renderGlimpse(searchText: string, glimpse: ResultsGlimpse): HTMLElement
     { class: "glimpse", "data-testid": "results-glimpse" },
     element(
       "div",
-      { class: "completion-group split" },
+      { class: "completion-group spread" },
       element("span", {}, "Results for ", element("code", {}, searchText), " keep updating"),
       element("span", {}, plural(glimpse.total, "match", "matches")),
     ),

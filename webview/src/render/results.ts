@@ -401,7 +401,7 @@ function makeSection(title: string, testId: string): Section {
   const root = element(
     "div",
     { class: "result-section", "data-testid": testId, hidden: true },
-    element("div", { class: "section-title split" }, element("span", {}, title), count),
+    element("div", { class: "section-title spread" }, element("span", {}, title), count),
     list,
   );
   return { root, list, count };

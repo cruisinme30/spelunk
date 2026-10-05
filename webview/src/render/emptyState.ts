@@ -90,7 +90,7 @@ function sheetCard(group: OperatorGroup, onInsert: (snippet: string) => void): H
 function renderSheet(onInsert: (snippet: string) => void): HTMLElement {
   const title = element(
     "div",
-    { class: "section-title split" },
+    { class: "section-title spread" },
     element("span", {}, "Operators"),
     element("span", { class: "muted" }, "Click one to insert it"),
   );
