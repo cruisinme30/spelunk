@@ -3,7 +3,7 @@
 // hints footer.
 import { clamp, element, percent, plural, termClass } from "../format";
 import type { Layout } from "../layout";
-import { OPERATOR_CHIP_LABEL, OPERATOR_TONE } from "../operators";
+import { fullName, OPERATOR_TONE } from "../operators";
 import { scopedRepo } from "../parsedQuery";
 import type {
   BannerMsg as BannerMessage,
@@ -227,7 +227,7 @@ function chipsFor(node: QueryNode, context: ChipContext): Node[] {
         element(
           "span",
           { class: `chip tone-${OPERATOR_TONE[node.op]}` },
-          element("span", { class: "chip-label" }, OPERATOR_CHIP_LABEL[node.op]),
+          element("span", { class: "chip-label" }, fullName(node.op)),
           element("code", {}, operatorChipValue(node)),
           node.resolved ? element("span", { class: "resolved" }, `→ ${node.resolved.label}`) : null,
         ),

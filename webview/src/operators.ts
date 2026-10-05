@@ -202,20 +202,6 @@ export const OPERATOR_TONE: Record<OpName, Tone> = {
   count: "output",
 };
 
-/** How each operator reads in the parsed-query chips. */
-export const OPERATOR_CHIP_LABEL: Record<OpName, string> = {
-  f: "file",
-  repo: "repo",
-  lang: "language",
-  type: "type",
-  sym: "symbol",
-  author: "author",
-  msg: "message",
-  since: "since",
-  case: "case",
-  count: "count",
-};
-
 /** The two spellings of each operator: file: and f:. The daemon also accepts the OpName itself (lang:, sym:, msg:). */
 const OPERATOR_NAMES: Record<OpName, { full: string; short: string }> = {
   f: { full: "file", short: "f" },
@@ -235,6 +221,11 @@ export function opNameFor(spelling: string): OpName | undefined {
   return (Object.keys(OPERATOR_NAMES) as OpName[]).find(
     (op) => op === spelling || OPERATOR_NAMES[op].full === spelling || OPERATOR_NAMES[op].short === spelling,
   );
+}
+
+/** How an operator reads in full, as in the parsed-query chips: "f" → "file". */
+export function fullName(op: OpName): string {
+  return OPERATOR_NAMES[op].full;
 }
 
 /** An entry's short name, "f:", shown beside its full name; absent for syntax. */
