@@ -41,7 +41,8 @@ removed `timeout` or `retry`. Drop `author:` and the same box searches current f
 | [`scripts/`](scripts/) | `test-all.sh`, the spec-coverage check and the panel screenshot tool |
 | [`testdata/`](testdata/) | A fixture workspace whose files match the design mockups |
 
-[ARCHITECTURE.md](ARCHITECTURE.md) explains how the pieces fit together.
+The [wiki](https://github.com/cruisinme30/unified-search/wiki) explains how the pieces fit together, with diagrams
+and every design mock.
 
 ## Development
 

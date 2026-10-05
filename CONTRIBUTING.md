@@ -1,7 +1,7 @@
 # Contributing
 
 Thanks for helping. This guide covers setup, how the repo is laid out, and the conventions every change follows.
-Start with [ARCHITECTURE.md](ARCHITECTURE.md) for the map of the code.
+Start with the [wiki](https://github.com/cruisinme30/unified-search/wiki) for the map of the code.
 
 ## Setup
 

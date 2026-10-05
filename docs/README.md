@@ -16,7 +16,7 @@ extension (Unified Search: Open Help) is the query-language reference.
 
 ## For contributors
 
-- [ARCHITECTURE.md](../ARCHITECTURE.md): the code map and the rules that always hold.
+- [Wiki](https://github.com/cruisinme30/unified-search/wiki): the code map, the rules that always hold, and the design mocks.
 - [CONTRIBUTING.md](../CONTRIBUTING.md): setup, commit and code conventions, tests.
 - [dev/implementation-plan.md](dev/implementation-plan.md): the original build plan: scope, interfaces between the
   parts, indexing, performance budgets, the order of work and risks.

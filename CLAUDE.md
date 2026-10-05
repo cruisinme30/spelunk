@@ -1,7 +1,8 @@
 # Working notes for Claude
 
-Read [ARCHITECTURE.md](ARCHITECTURE.md) (code map and invariants) and [CONTRIBUTING.md](CONTRIBUTING.md)
-(conventions) first. They're the source of truth; this file only adds what an agent needs on top.
+Read the [wiki](https://github.com/cruisinme30/unified-search/wiki) (code map, invariants and mocks; clone
+`unified-search.wiki.git` to read it locally) and [CONTRIBUTING.md](CONTRIBUTING.md) (conventions) first.
+They're the source of truth; this file only adds what an agent needs on top.
 
 - Plans live in `docs/dev/`: read `implementation-plan.md` before changing behaviour, `test-plan.md` before adding
   tests. Record milestone evidence in `docs/dev/progress.md`.
