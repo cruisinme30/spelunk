@@ -361,14 +361,14 @@ func TestFiltersThatCanHideResultsCarryAnUndo(t *testing.T) {
 	}
 }
 
-func TestTypeIsAKindFilterWithAnUndo(t *testing.T) {
+func TestTypeSetsTypeFilterWithAnUndo(t *testing.T) {
 	text := "type:file lang:python retry"
 	plan := mustPlan(t, text, defaultSettings)
-	if plan.KindFilter == nil || plan.KindFilter.Text != "type:file" || ApplyFix(text, plan.KindFilter.Undo) != "lang:python retry" {
-		t.Errorf("KindFilter = %+v, want type:file with an undo giving %q", plan.KindFilter, "lang:python retry")
+	if plan.TypeFilter == nil || plan.TypeFilter.Text != "type:file" || ApplyFix(text, plan.TypeFilter.Undo) != "lang:python retry" {
+		t.Errorf("TypeFilter = %+v, want type:file with an undo giving %q", plan.TypeFilter, "lang:python retry")
 	}
-	if mustPlan(t, "retry", defaultSettings).KindFilter != nil {
-		t.Error("KindFilter of a query without type: = non-nil, want nil")
+	if mustPlan(t, "retry", defaultSettings).TypeFilter != nil {
+		t.Error("TypeFilter of a query without type: = non-nil, want nil")
 	}
 }
 
@@ -383,13 +383,13 @@ func TestTypeAddedOrRemovedPicksOneSideOfTheDiff(t *testing.T) {
 	// Removing type:added could leave a query of current files, so its undo
 	// searches every changed line instead.
 	text := "type:added retry -f:vendor/"
-	f := mustPlan(t, text, defaultSettings).KindFilter
+	f := mustPlan(t, text, defaultSettings).TypeFilter
 	if f == nil || f.Text != "type:added" || ApplyFix(text, f.Undo) != "type:commit retry -f:vendor/" {
-		t.Errorf("KindFilter = %+v, want type:added with an undo giving %q", f, "type:commit retry -f:vendor/")
+		t.Errorf("TypeFilter = %+v, want type:added with an undo giving %q", f, "type:commit retry -f:vendor/")
 	}
 	either := mustPlan(t, text, defaultSettings).OnEitherSide()
-	if either.DiffSide != "" || either.KindFilter != nil || len(either.Filters) != 0 {
-		t.Errorf("OnEitherSide() = side %q, kind filter %v, %d filters; want both sides and no filters", either.DiffSide, either.KindFilter, len(either.Filters))
+	if either.DiffSide != "" || either.TypeFilter != nil || len(either.Filters) != 0 {
+		t.Errorf("OnEitherSide() = side %q, type filter %v, %d filters; want both sides and no filters", either.DiffSide, either.TypeFilter, len(either.Filters))
 	}
 }
 

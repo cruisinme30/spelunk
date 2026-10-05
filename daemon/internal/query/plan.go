@@ -51,9 +51,9 @@ type Plan struct {
 	// Filters are the top-level conjuncts that can hide results; engines
 	// count what each one hid ("3 commits hidden by -f:vendor/").
 	Filters []Filter
-	// KindFilter is set when type: narrows the result kinds, so engines can
+	// TypeFilter is set when type: narrows the result kinds, so engines can
 	// count what it hid ("17 code matches hidden by type:file").
-	KindFilter *Filter
+	TypeFilter *Filter
 	// CaseFilter is set when the query says case:yes, or smart case (from
 	// case:smart or the setting) matches case, so engines can count the
 	// matches that differ only in case ("1 match hidden by case:yes").
@@ -74,13 +74,13 @@ type Plan struct {
 type Filter struct {
 	// Reason is the HiddenNote reason that names the kind of filter:
 	// "pathFilter" (-f:), "not" (any other negation), "since" (since:),
-	// "kind" (kind:), and, for Plan.KindFilter, Plan.CaseFilter,
+	// "kind" (kind:), and, for Plan.TypeFilter, Plan.CaseFilter,
 	// Plan.WordFilter and Plan.SymbolFilter, "type", "case", "word" and
 	// "symbol".
 	Reason string
 	// Index is the position of the filter's conjunct in Plan.Pred.Kids, so
 	// an engine can tell which filter a result failed. It is -1 for
-	// KindFilter, CaseFilter, WordFilter and SymbolFilter, which have no conjunct.
+	// TypeFilter, CaseFilter, WordFilter and SymbolFilter, which have no conjunct.
 	Index int
 	// Text is the filter as typed, e.g. -f:vendor/.
 	Text string
@@ -430,9 +430,9 @@ func (p *Plan) addGlobalFilter(node *protocol.Node, src *source) {
 	case node.Op == protocol.OpNameType && p.DiffSide != "":
 		// Removing it could leave nothing that searches commits.
 		undo := replaceFix("Search every changed line", node.Span, "type:commit")
-		p.KindFilter = &Filter{Reason: "type", Index: -1, Text: text, Undo: undo}
+		p.TypeFilter = &Filter{Reason: "type", Index: -1, Text: text, Undo: undo}
 	case node.Op == protocol.OpNameType:
-		p.KindFilter = &Filter{Reason: "type", Index: -1, Text: text, Undo: removeFix("Remove "+text, src, node.Span)}
+		p.TypeFilter = &Filter{Reason: "type", Index: -1, Text: text, Undo: removeFix("Remove "+text, src, node.Span)}
 	case node.Op == protocol.OpNameCase && p.CaseSensitive:
 		undo := removeFix("Ignore case", src, node.Span)
 		if node.Value == "smart" { // removing it may leave the setting's smart case on
@@ -842,7 +842,7 @@ func (p *Plan) OnEitherSide() *Plan {
 // with term and every other regex with re (left alone when re is nil).
 func (p *Plan) relaxed(term func(*Content), re func(*regexp.Regexp) *regexp.Regexp) *Plan {
 	copied := *p
-	copied.Filters, copied.KindFilter, copied.CaseFilter, copied.WordFilter = nil, nil, nil, nil
+	copied.Filters, copied.TypeFilter, copied.CaseFilter, copied.WordFilter = nil, nil, nil, nil
 	r := relaxer{term: term, re: re, terms: map[*Content]*Content{}}
 	if r.re == nil {
 		r.re = func(re *regexp.Regexp) *regexp.Regexp { return re }

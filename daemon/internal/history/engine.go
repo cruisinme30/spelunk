@@ -48,7 +48,7 @@ func Search(ctx context.Context, plan *query.Plan, repos []Repo, planID int, emi
 	if plan.WordFilter != nil {
 		s.hiddenByWord = engine.CountPartialWords(ctx, plan, repos, Search) - s.counted
 	}
-	if plan.DiffSide != "" && plan.KindFilter != nil {
+	if plan.DiffSide != "" && plan.TypeFilter != nil {
 		s.hiddenBySide = engine.CountOnEitherSide(ctx, plan, repos, Search) - s.counted
 	}
 	if errors.Is(ctx.Err(), context.Canceled) {
@@ -95,7 +95,7 @@ func (s *searcher) stats() engine.Stats {
 	if w := s.plan.WordFilter; w != nil && s.hiddenByWord > 0 {
 		stats.Hidden = append(stats.Hidden, w.Note(s.hiddenByWord, "commits"))
 	}
-	if k := s.plan.KindFilter; k != nil && s.hiddenBySide > 0 {
+	if k := s.plan.TypeFilter; k != nil && s.hiddenBySide > 0 {
 		stats.Hidden = append(stats.Hidden, k.Note(s.hiddenBySide, "commits"))
 	}
 	return stats

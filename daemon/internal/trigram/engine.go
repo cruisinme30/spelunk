@@ -93,7 +93,7 @@ func Search(ctx context.Context, plan *query.Plan, repos []Repo, planID int, emi
 		switch {
 		case plan.Kinds[query.KindLine]:
 			s.addCodeLines(repos)
-		case onlyFiles && plan.KindFilter != nil:
+		case onlyFiles && plan.TypeFilter != nil:
 			s.countCodeLinesHiddenByType(repos)
 		}
 	}
@@ -138,8 +138,8 @@ type searcher struct {
 	facets *engine.Facets
 	// hidden counts, per filter index, results that only that filter removed.
 	hidden map[int]int
-	// hiddenByKind counts code matches a type:file query left out.
-	hiddenByKind int
+	// hiddenByType counts code matches a type:file query left out.
+	hiddenByType int
 	// hiddenByCase counts results that differ only in case from case:yes.
 	hiddenByCase int
 	// hiddenByWord counts results that are only parts of words under word:yes.
@@ -224,8 +224,8 @@ func (s *searcher) stats(unit string) engine.Stats {
 	if s.hiddenByWord > 0 {
 		stats.Hidden = append(stats.Hidden, s.plan.WordFilter.Note(s.hiddenByWord, unit))
 	}
-	if s.hiddenByKind > 0 && s.plan.KindFilter != nil {
-		stats.Hidden = append(stats.Hidden, s.plan.KindFilter.Note(s.hiddenByKind, "matches"))
+	if s.hiddenByType > 0 && s.plan.TypeFilter != nil {
+		stats.Hidden = append(stats.Hidden, s.plan.TypeFilter.Note(s.hiddenByType, "matches"))
 	}
 	return stats
 }
@@ -520,7 +520,7 @@ func lineOf(content []byte, number int) (string, bool) {
 func (s *searcher) countCodeLinesHiddenByType(repos []Repo) {
 	s.forEachCandidate(repos, func(_ rankedCandidate, matcher *lineMatcher, leaf func(query.Pred) bool) {
 		if query.Eval(s.plan.Pred, leaf) {
-			s.hiddenByKind += len(matcher.lines(query.Contributing(s.plan.Pred, leaf)))
+			s.hiddenByType += len(matcher.lines(query.Contributing(s.plan.Pred, leaf)))
 		}
 	})
 }
