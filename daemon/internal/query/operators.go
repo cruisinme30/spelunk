@@ -60,11 +60,11 @@ var operators = []operator{
 	{name: protocol.OpNameLang, full: "language", short: "l", summary: "Programming language", examples: []string{"python", "go", "typescript"}, interpret: asLanguage},
 	{name: protocol.OpNameRepo, full: "repo", short: "r", summary: "Repo name, as a regex or a glob", interpret: asPathRegex},
 	{name: protocol.OpNameMsg, full: "message", short: "m", scope: scopeHistoryOnly, summary: "Words in the commit message", interpret: asText},
-	{name: protocol.OpNameType, full: "type", short: "t", global: true, summary: "Only file names, code, commits, or lines commits added or removed", examples: []string{"file", "code", "commit", TypeAdded, TypeRemoved}, interpret: oneOf("file", "code", "commit", TypeAdded, TypeRemoved)},
-	{name: protocol.OpNameCase, full: "case", short: "c", global: true, summary: "Match case (yes), ignore it (no), or match it when the query has a capital (smart)", examples: []string{"yes", "no", "smart"}, interpret: oneOf("yes", "no", "smart")},
-	{name: protocol.OpNameWord, full: "word", short: "w", global: true, summary: "Match whole words only (yes) or parts of words too (no)", examples: []string{"yes", "no"}, interpret: oneOf("yes", "no")},
+	{name: protocol.OpNameType, full: "type", short: "t", global: true, summary: "Only file names, code, commits, or lines commits added or removed", examples: fixedValueNames(protocol.OpNameType), interpret: oneOf(fixedValueNames(protocol.OpNameType)...)},
+	{name: protocol.OpNameCase, full: "case", short: "c", global: true, summary: "Match case (yes), ignore it (no), or match it when the query has a capital (smart)", examples: fixedValueNames(protocol.OpNameCase), interpret: oneOf(fixedValueNames(protocol.OpNameCase)...)},
+	{name: protocol.OpNameWord, full: "word", short: "w", global: true, summary: "Match whole words only (yes) or parts of words too (no)", examples: fixedValueNames(protocol.OpNameWord), interpret: oneOf(fixedValueNames(protocol.OpNameWord)...)},
 	{name: protocol.OpNameCount, full: "count", short: "n", global: true, summary: "How many results", examples: []string{"50", "200", "all"}, interpret: asCount},
-	{name: protocol.OpNameOrder, full: "order", short: "o", global: true, scope: scopeWorkingTreeOnly, summary: "Best match first, or by path", examples: []string{"best", "path"}, interpret: oneOf("best", "path")},
+	{name: protocol.OpNameOrder, full: "order", short: "o", global: true, scope: scopeWorkingTreeOnly, summary: "Best match first, or by path", examples: fixedValueNames(protocol.OpNameOrder), interpret: oneOf(fixedValueNames(protocol.OpNameOrder)...)},
 }
 
 // The values of is:, the file states it can match.
@@ -88,10 +88,7 @@ func historyType(value string) bool {
 
 // SymbolKinds are the values of kind:, the kinds of definition that
 // internal/symbols tells apart.
-var SymbolKinds = []string{
-	protocol.SymbolKindFunction, protocol.SymbolKindMethod, protocol.SymbolKindClass,
-	protocol.SymbolKindInterface, protocol.SymbolKindType, protocol.SymbolKindOther,
-}
+var SymbolKinds = fixedValueNames(protocol.OpNameKind)
 
 // currentState reports whether an is: value describes files as they are
 // now (open, changed), which no commit can match. is:test is a rule about

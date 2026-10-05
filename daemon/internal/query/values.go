@@ -715,6 +715,16 @@ var fixedValues = map[protocol.OpName][]fixedValue{
 	},
 }
 
+// fixedValueNames lists the values of a fixed-value operator, in order;
+// the operator table checks values against it.
+func fixedValueNames(name protocol.OpName) []string {
+	names := make([]string, len(fixedValues[name]))
+	for i, v := range fixedValues[name] {
+		names[i] = v.value
+	}
+	return names
+}
+
 func fixedCandidates(values []fixedValue, fragment string) []valueCandidate {
 	var candidates []valueCandidate
 	for _, v := range values {
