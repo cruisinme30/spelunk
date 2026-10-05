@@ -269,6 +269,57 @@ func TestWordYesMatchesWholeWordsInDiffs(t *testing.T) {
 	}
 }
 
+func TestTypeAddedAndRemovedSearchOneSideOfTheDiff(t *testing.T) {
+	// @covers op:type
+	r, shas := paymentsHistory(t)
+	repo := Repo{ID: "r1", Name: "payments-api", Root: r.root, Store: r.ingest()}
+	tests := []struct {
+		query string
+		want  []string
+	}{
+		// Raise timeout added "var timeout = 1;", and Vendor update replaced it.
+		{`type:added "timeout = 1"`, []string{"Raise timeout"}},
+		{`type:removed "timeout = 1"`, []string{"Vendor update"}},
+		{`type:commit "timeout = 1"`, []string{"Vendor update", "Raise timeout"}},
+		{"type:removed timeout", []string{"Vendor update"}},
+		{"type:added timeout -f:vendor/", []string{"Raise timeout", "Fix flaky checkout test"}},
+		// Text terms skip the message; msg: still reads it.
+		{"type:added flaky", []string{}},
+		{"type:added msg:flaky timeout", []string{"Fix flaky checkout test"}},
+	}
+	for _, tt := range tests {
+		got, _ := runSearch(t, tt.query, repo)
+		if !reflect.DeepEqual(got, tt.want) {
+			t.Errorf("%s = %q, want %q", tt.query, got, tt.want)
+		}
+	}
+
+	_, items := runSearch(t, "type:removed timeout", repo)
+	if vendor := items[0]; vendor.DiffHits != 1 || vendor.InMessage || len(vendor.SubjectHits) != 0 {
+		t.Errorf("Vendor update: %d diff hits, in message %v, subject hits %v; want 1 removed line and nothing in the message",
+			vendor.DiffHits, vendor.InMessage, vendor.SubjectHits)
+	}
+	stats, err := Search(context.Background(), plan(t, "type:added flaky"), []Repo{repo}, 1, func(protocol.ResultItem) {})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(stats.Hidden) != 1 || stats.Hidden[0].Count != 1 || stats.Hidden[0].Reason != "type" || stats.Hidden[0].Filter != "type:added" {
+		t.Errorf("type:added flaky hidden = %+v, want 1 commit hidden by type:added", stats.Hidden)
+	}
+
+	preview, err := Preview(context.Background(), &repo, Ref{RepoID: "r1", SHA: shas["vendor"]}, plan(t, "type:removed timeout"), 3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lines := preview.Hunks[0].Lines
+	if len(lines) != 2 || lines[0].Kind != "del" || len(lines[0].Hits) != 1 || lines[1].Kind != "add" || len(lines[1].Hits) != 0 {
+		t.Errorf("type:removed preview lines = %+v, want the removed line marked and the added line not", lines)
+	}
+	if len(preview.Files) != 1 || preview.Files[0].HiddenByFilter {
+		t.Errorf("type:removed preview files = %+v, want the file shown", preview.Files)
+	}
+}
+
 func TestPreviewShowsTheDiffWithContextAndMarksTheTerms(t *testing.T) {
 	r, shas := paymentsHistory(t)
 	repo := Repo{ID: "r1", Name: "payments-api", Root: r.root, Store: r.ingest()}

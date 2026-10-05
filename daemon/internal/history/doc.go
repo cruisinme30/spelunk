@@ -13,7 +13,8 @@
 // commit results, newest first. A commit matches when one of its changed
 // files satisfies the whole predicate: path and language leaves test that
 // file's path, text terms its added and removed lines or the commit's
-// message, and author:, msg:, since: and repo: the commit itself. Preview and OpenTarget turn a commit
+// message (type:added and type:removed keep them to one side of the diff),
+// and author:, msg:, since: and repo: the commit itself. Preview and OpenTarget turn a commit
 // result into its diff, read with git show.
 //
 // A Store also answers what the working-tree engine and the completions

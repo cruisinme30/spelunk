@@ -39,19 +39,26 @@ func Preview(ctx context.Context, repo *Repo, ref Ref, plan *query.Plan, context
 	}
 	hunks, files := parseShow(out)
 	var terms []*query.Content
+	marked := map[string]bool{"add": true, "del": true} // the kinds of line whose terms are marked
 	if plan != nil {
 		terms = plan.Terms
+		switch plan.DiffSide {
+		case query.TypeAdded:
+			marked = map[string]bool{"add": true}
+		case query.TypeRemoved:
+			marked = map[string]bool{"del": true}
+		}
 		finder := trigram.NewLineFinder()
 		message := newMessageView(&commit, finder)
 		for i := range files {
-			view := newFileView(changedLinesOf(files[i].Path, hunks), finder, message)
+			view := newFileView(changedLinesOf(files[i].Path, hunks), finder, message, plan.DiffSide)
 			files[i].HiddenByFilter = !query.Eval(plan.Pred, leafFor(repo, &commit, view))
 		}
 	}
 	for h := range hunks {
 		for l := range hunks[h].Lines {
 			line := &hunks[h].Lines[l]
-			if line.Kind != "ctx" {
+			if marked[line.Kind] {
 				line.Text, line.Hits = trigram.PreviewLine(line.Text, terms)
 			} else {
 				line.Text, line.Hits = trigram.PreviewLine(line.Text, nil)
@@ -92,7 +99,7 @@ func readCommitHeader(ctx context.Context, root, sha string) (Commit, error) {
 }
 
 // changedLinesOf collects the added and removed lines of one file's hunks,
-// so the plan's leaves can judge the file as Search did.
+// with their signs, so the plan's leaves can judge the file as Search did.
 func changedLinesOf(path string, hunks []protocol.Hunk) *FileChange {
 	file := &FileChange{Path: path}
 	var text bytes.Buffer
@@ -101,10 +108,16 @@ func changedLinesOf(path string, hunks []protocol.Hunk) *FileChange {
 			continue
 		}
 		for _, line := range hunk.Lines {
-			if line.Kind == "add" || line.Kind == "del" {
-				text.WriteString(line.Text)
-				text.WriteByte('\n')
+			switch line.Kind {
+			case "add":
+				file.Signs = append(file.Signs, signAdded)
+			case "del":
+				file.Signs = append(file.Signs, signRemoved)
+			default:
+				continue
 			}
+			text.WriteString(line.Text)
+			text.WriteByte('\n')
 		}
 	}
 	file.Text = text.Bytes()

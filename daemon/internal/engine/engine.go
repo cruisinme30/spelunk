@@ -45,6 +45,13 @@ func CountPartialWords[R any](ctx context.Context, plan *query.Plan, repos []R, 
 	return countAll(ctx, plan.MatchingPartialWords(), repos, search)
 }
 
+// CountOnEitherSide counts the commits search finds for plan with its text
+// terms on both sides of diffs and in messages, as without type:added or
+// type:removed, or 0 if that search fails.
+func CountOnEitherSide[R any](ctx context.Context, plan *query.Plan, repos []R, search SearchFunc[R]) int {
+	return countAll(ctx, plan.OnEitherSide(), repos, search)
+}
+
 // countAll counts every result search finds for a relaxed copy of a plan,
 // or 0 if that search fails.
 func countAll[R any](ctx context.Context, relaxed *query.Plan, repos []R, search SearchFunc[R]) int {
