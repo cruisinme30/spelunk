@@ -189,19 +189,24 @@ mark.term-color-3 {
   gap: 6px;
 }
 
-.toggle {
+/* The search bar's toggles and every other button. */
+.toggle,
+.btn {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  min-width: 36px;
-  height: 32px;
-  padding: 0 8px;
   border-radius: 6px;
   border: 1px solid var(--border);
   background: var(--btn);
   color: var(--btn-fg);
   font-size: 12px;
   cursor: pointer;
+}
+
+.toggle {
+  justify-content: center;
+  min-width: 36px;
+  height: 32px;
+  padding: 0 8px;
 }
 
 .toggle[aria-pressed="true"] {
@@ -460,17 +465,9 @@ mark.term-color-3 {
 }
 
 .btn {
-  display: inline-flex;
-  align-items: center;
   gap: 6px;
   height: 30px;
   padding: 0 10px;
-  border-radius: 6px;
-  border: 1px solid var(--border);
-  background: var(--btn);
-  color: var(--btn-fg);
-  font-size: 12px;
-  cursor: pointer;
 }
 
 .btn.link {
