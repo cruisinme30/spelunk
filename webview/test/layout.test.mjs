@@ -6,7 +6,9 @@ import { test } from "node:test";
 import {
   CODE_LINE_RESULT,
   fromHost,
+  openHelp,
   openPanel,
+  openWelcome,
   pageErrors,
   parsedQuery,
   restore,
@@ -45,4 +47,24 @@ test("in a short panel the query box stays in sight and the results keep some ro
   assert.ok(box && box.y >= 0 && box.y + box.height <= 260, `query box at ${JSON.stringify(box)}`);
   assert.ok((await page.locator("#body").boundingBox()).height >= 120);
   assert.deepEqual(pageErrors(page), []);
+});
+
+/** How far the page is wider than its window, in pixels (0 when it fits). */
+const horizontalOverflow = (page) =>
+  page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+
+test("the help page and the welcome page fit a narrow editor without scrolling sideways", async (t) => {
+  for (const width of [200, 360]) {
+    const help = await openHelp(t);
+    await help.setViewportSize({ width, height: 500 });
+    assert.equal(await horizontalOverflow(help), 0, `help at ${width}px`);
+
+    const welcome = await openWelcome(t);
+    await welcome.setViewportSize({ width, height: 500 });
+    await fromHost(welcome, "welcome.state", { preset: "none", historyDepth: "all", symbols: false, mac: false });
+    await fromHost(welcome, "index.status", {
+      repos: [{ repoId: "a", name: "payments-api", tree: "indexing", history: "ready", progress: 0.3 }],
+    });
+    assert.equal(await horizontalOverflow(welcome), 0, `welcome at ${width}px`);
+  }
 });

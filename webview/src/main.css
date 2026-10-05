@@ -1227,6 +1227,7 @@ pre.body {
 
 .guide {
   flex: 1;
+  min-width: 0;
   max-width: 880px;
   padding: 24px 24px 48px;
   border-left: 1px solid var(--line);
@@ -1263,6 +1264,8 @@ pre.body {
 .operator-table th,
 .operator-table td,
 .key-table td {
+  /* Long examples wrap rather than widen a narrow page past its edge. */
+  overflow-wrap: anywhere;
   padding: 8px 12px;
   text-align: left;
   border-top: 1px solid var(--line);
@@ -1451,7 +1454,7 @@ pre.body {
 
 .index-options select {
   height: 36px;
-  min-width: 200px;
+  min-width: min(200px, 100%);
   padding: 0 10px;
   border: 1px solid var(--border);
   border-radius: 6px;
