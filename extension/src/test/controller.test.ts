@@ -183,10 +183,12 @@ test("a query round-trips to results, preview and open through the real daemon",
       target: { path: join(workspace, "client.py"), line: 3, column: 14, length: 12 },
       where: "side",
     });
+    assert.equal(host.closedPanels(), 0, "opening to the side keeps the panel open");
+    await controller.handle({ v: MESSAGE_VERSION, type: "result.open", payload: { ref, where: "current" } });
     assert.equal(host.closedPanels(), 1, "closeOnOpen closes the panel");
 
     await controller.step(1);
-    assert.equal(host.opened.length, 2, "F4 opens a result without the panel");
+    assert.equal(host.opened.length, 3, "F4 opens a result without the panel");
   } finally {
     await daemon.stop();
   }
@@ -377,7 +379,7 @@ test("with closeOnOpen off, opening a result leaves the panel open", async () =>
   const host = recordingUi();
   const controller = newController(threeResultsBackend(), host.ui, { closeOnOpen: () => false });
   await controller.handle(queryChanged("retry", 1));
-  await controller.handle({ v: MESSAGE_VERSION, type: "result.open", payload: { ref: "ref-0", where: "side" } });
+  await controller.handle({ v: MESSAGE_VERSION, type: "result.open", payload: { ref: "ref-0", where: "current" } });
   assert.equal(host.opened.length, 1);
   assert.equal(host.closedPanels(), 0);
 });

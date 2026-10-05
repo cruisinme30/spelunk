@@ -376,7 +376,8 @@ export class SearchController {
     if (!(await this.openRef(ref, where))) return;
     if (index !== -1) this.ui.showOpened(index + 1, this.results.length);
     this.rememberQuery();
-    if (this.options.closeOnOpen()) this.ui.hidePanel();
+    // Opening to the side puts the file next to the results, so they stay.
+    if (where !== "side" && this.options.closeOnOpen()) this.ui.hidePanel();
   }
 
   /** Opens a result; a stale ref greys its row out instead. Returns whether it opened. */

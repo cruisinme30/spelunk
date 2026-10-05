@@ -57,7 +57,8 @@ Search for "Unified Search" in Settings. The most useful ones:
   History keeps these files' line counts but not their lines.
 - `unifiedSearch.index.historyDepth`: how much Git history to index: `6m`, `2y` (the default) or `all`.
 - `unifiedSearch.index.symbols`: find definitions for `sym:` while indexing (on by default).
-- `unifiedSearch.open.closeOnOpen`: hide the panel after opening a result (on by default).
+- `unifiedSearch.open.closeOnOpen`: hide the panel after opening a result (on by default). Opening to the side
+  (⌘↵) always keeps it open.
 
 Indexes stay on your machine. Nothing is sent anywhere.
 

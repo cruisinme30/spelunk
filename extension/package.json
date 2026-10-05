@@ -175,7 +175,7 @@
           "type": "boolean",
           "default": true,
           "scope": "application",
-          "description": "Hide the search panel after opening a result. F4 keeps stepping through the results."
+          "description": "Hide the search panel after opening a result, except to the side. F4 keeps stepping through the results."
         },
         "unifiedSearch.index.historyDepth": {
           "type": "string",

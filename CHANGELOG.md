@@ -48,6 +48,8 @@ All notable changes to this project are documented here. The format follows
 
 - A reopened search panel no longer ignores the queries typed into it.
 - A search panel opened after indexing finished shows the workspace's repos ("All repos · 0" before).
+- Opening a result to the side (⌘↵) keeps the search panel open; `open.closeOnOpen` hides it only for results opened
+  in its place.
 - Indexing progress bars fill in VS Code: they were set with style attributes, which webviews block.
 - A saved index that can't be read says so while it is rebuilt, and an index that can't be saved (a full disk) keeps
   serving with a warning.
