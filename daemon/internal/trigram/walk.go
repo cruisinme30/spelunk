@@ -171,8 +171,10 @@ func isBinaryFile(path string) bool {
 	return isBinary(head[:n])
 }
 
-// isBinary reports whether a file's first bytes contain a NUL.
-func isBinary(head []byte) bool { return bytes.IndexByte(head, 0) >= 0 }
+// isBinary reports whether a file's first bytes contain a NUL, unless they
+// start with a UTF-16 byte order mark: UTF-16 text is full of NULs, and is
+// converted to UTF-8 when it is read (see decodeText).
+func isBinary(head []byte) bool { return !hasUTF16BOM(head) && bytes.IndexByte(head, 0) >= 0 }
 
 // closeReadOnly closes a file that was only read: a close error can't lose data.
 func closeReadOnly(f *os.File) { _ = f.Close() }

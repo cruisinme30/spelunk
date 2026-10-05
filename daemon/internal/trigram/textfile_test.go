@@ -8,7 +8,67 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"unicode/utf16"
+
+	"github.com/cruisinme30/unified-search/daemon/internal/protocol"
 )
+
+// utf16File encodes text as UTF-16 with a byte order mark.
+func utf16File(text string, bigEndian bool) string {
+	out := []byte{0xff, 0xfe}
+	if bigEndian {
+		out = []byte{0xfe, 0xff}
+	}
+	for _, unit := range utf16.Encode([]rune(text)) {
+		hi, lo := byte(unit>>8), byte(unit)
+		if bigEndian {
+			out = append(out, hi, lo)
+		} else {
+			out = append(out, lo, hi)
+		}
+	}
+	return string(out)
+}
+
+func TestDecodeTextShowsWhatAnEditorShows(t *testing.T) {
+	tests := []struct {
+		name, raw, want string
+	}{
+		{"plain_text_is_unchanged", "a\nb\r\nc", "a\nb\r\nc"},
+		{"utf8_bom_is_dropped", "\xef\xbb\xbf" + "package main\n", "package main\n"},
+		{"utf16le_is_converted", utf16File("café 😀\r\nworld\n", false), "café 😀\r\nworld\n"},
+		{"utf16be_is_converted", utf16File("café 😀\nworld\n", true), "café 😀\nworld\n"},
+		{"utf16_odd_byte_is_a_replacement", utf16File("ab", false) + "\x63", "ab�"},
+		{"lone_cr_ends_a_line", "one\rtwo\r\nthree\r", "one\ntwo\r\nthree\n"},
+		{"invalid_utf8_is_kept", "caf\xe9\n", "caf\xe9\n"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := string(decodeText([]byte(tt.raw))); got != tt.want {
+				t.Errorf("decodeText(%q) = %q, want %q", tt.raw, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestBinarySniffingKeepsUTF16Text(t *testing.T) {
+	tests := []struct {
+		name, head string
+		want       bool
+	}{
+		{"nul_is_binary", "PNG\x00\x00", true},
+		{"utf16_with_bom_is_text", utf16File("hello", false), false},
+		{"utf32_bom_is_binary", "\xff\xfe\x00\x00h\x00\x00\x00", true},
+		{"text_is_text", "hello", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := isBinary([]byte(tt.head)); got != tt.want {
+				t.Errorf("isBinary(%q) = %v, want %v", tt.head, got, tt.want)
+			}
+		})
+	}
+}
 
 func TestBuildReadsFilesAsTheyAreNow(t *testing.T) {
 	root := writeTree(t, map[string]string{"a.txt": "alpha\n", "grew.txt": "small\n", "now-binary.txt": "text\n"})
@@ -56,5 +116,46 @@ func TestReadTextReportsWhyAFileIsNotRead(t *testing.T) {
 		if _, _, err := readText(filepath.Join(root, tt.path), 50); !errors.Is(err, tt.want) {
 			t.Errorf("readText(%s) error = %v, want %v", tt.path, err, tt.want)
 		}
+	}
+}
+
+func TestEncodingsAndLineEndsMatchTheEditor(t *testing.T) {
+	// Each file's "needle" is on line 2 at UTF-16 column 4 as VS Code shows
+	// the file: after a hidden BOM, in UTF-16 text, or after a lone CR.
+	files := map[string]string{
+		"bom.txt":   "\xef\xbb\xbf" + "first\n😀  needle\n",
+		"utf16.txt": utf16File("first\r\n😀  needle\r\n", false),
+		"mac.txt":   "first\r😀  needle\r",
+	}
+	root := writeTree(t, files)
+	listed, err := ListFiles(context.Background(), root, WalkOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(listed) != 3 {
+		t.Fatalf("ListFiles = %q, want all three files (UTF-16 is text)", paths(listed))
+	}
+	shard, err := Build(context.Background(), root, listed, BuildOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	repo := Repo{ID: "r", Name: "r", Root: root, Shard: shard}
+	items, _ := runItems(t, "needle", defaultSettings, "", repo)
+	if len(items) != 3 {
+		t.Fatalf("results = %q, want one per file", summarize(items))
+	}
+	for _, item := range items {
+		ref, _ := ParseRef(item.Ref)
+		if item.Line != 2 || ref.Column != 4 || item.Text != "😀  needle" || !reflect.DeepEqual(item.Hits, []protocol.Hit{{Start: 4, End: 10}}) {
+			t.Errorf("%s: line %d column %d text %q hits %+v; want line 2, column 4, the line without BOM or CR, hit 4-10", item.Path, item.Line, ref.Column, item.Text, item.Hits)
+		}
+		preview, err := Preview(&repo, ref, nil, 1)
+		if err != nil || preview.Lines[0] != "first" || preview.Lines[1] != "😀  needle" {
+			t.Errorf("%s: preview lines = %q, %v; want the decoded lines", item.Path, preview.Lines, err)
+		}
+	}
+	anchored, _ := runItems(t, "/^first$/", defaultSettings, "", repo)
+	if len(anchored) != 3 {
+		t.Errorf("/^first$/ = %q, want line 1 of every file: the BOM and the lone CR are not part of the line", summarize(anchored))
 	}
 }
