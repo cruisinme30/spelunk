@@ -55,7 +55,7 @@ func Preview(repo *Repo, ref Ref, plan *query.Plan, contextLines int) (protocol.
 		if number == ref.Line {
 			own = &ref
 		}
-		text, ranges := previewLine(line, terms, own)
+		text, ranges := markLine(line, terms, own)
 		shown = append(shown, text)
 		if len(ranges) > 0 {
 			hits = append(hits, protocol.LineHits{Line: number, Ranges: ranges})
@@ -124,17 +124,17 @@ const maxPreviewLineRunes = 2_000
 // marked by start, in UTF-16 offsets into the text returned. The history
 // engine shows diff lines with it too.
 func PreviewLine(line string, terms []*query.Content) (string, []protocol.Hit) {
-	text, hits := previewLine(line, terms, nil)
+	text, hits := markLine(line, terms, nil)
 	if hits == nil {
 		hits = []protocol.Hit{}
 	}
 	return text, hits
 }
 
-// previewLine is PreviewLine for a working-tree preview: when terms mark
+// markLine is PreviewLine for a working-tree preview: when terms mark
 // nothing on the result's own line (own, nil on other lines), its ref's
 // match is marked instead.
-func previewLine(line string, terms []*query.Content, own *Ref) (string, []protocol.Hit) {
+func markLine(line string, terms []*query.Content, own *Ref) (string, []protocol.Hit) {
 	var hits []byteHit
 	for _, term := range terms {
 		hits = append(hits, lineHits(term, func(n int) [][]int { return term.Re.FindAllStringIndex(line, n) })...)

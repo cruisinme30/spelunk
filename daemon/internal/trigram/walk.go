@@ -151,6 +151,7 @@ func gitIgnored(ctx context.Context, root string, paths []string) map[string]boo
 			relative[i] = strings.TrimPrefix(path, prefix)
 		}
 		dir := filepath.Join(root, filepath.FromSlash(repo))
+		//nolint:gosec // G204: dir is a folder inside the root being indexed; the paths go to git on stdin
 		cmd := exec.CommandContext(ctx, "git", "-C", dir, "check-ignore", "-z", "--stdin")
 		cmd.Stdin = strings.NewReader(strings.Join(relative, "\x00") + "\x00")
 		out, _ := cmd.Output() // exit status 1 means "none ignored"; outside Git there is no output

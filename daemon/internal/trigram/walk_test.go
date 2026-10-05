@@ -97,7 +97,7 @@ func TestListFilesSkipsWhatIsNotARegularFile(t *testing.T) {
 		if err := os.Chmod(full, 0); err != nil {
 			t.Fatal(err)
 		}
-		t.Cleanup(func() { _ = os.Chmod(full, 0o700) }) // so the temp dir can be removed
+		t.Cleanup(func() { _ = os.Chmod(full, 0o700) }) //nolint:gosec // G302: "locked" is a folder, which needs x so the temp dir can be removed
 	}
 	files, err := ListFiles(context.Background(), root, WalkOptions{})
 	if err != nil {
