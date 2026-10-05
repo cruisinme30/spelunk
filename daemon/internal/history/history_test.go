@@ -498,7 +498,7 @@ func TestSearchCountsCommitsByRepoAuthorAndMonth(t *testing.T) {
 		engine.FacetRepo:   {"payments-api 3 repo:payments-api"},
 		engine.FacetAuthor: {`Jane Doe 1 author:"Jane Doe"`, `Jason Kim 1 author:"Jason Kim"`, `Marta Ruiz 1 author:"Marta Ruiz"`},
 		// in local time: these dates are September and October in every zone from UTC-12 to UTC+13
-		engine.FacetMonth: {"Sep 2026 2 since:2026-09 until:2026-09", "Oct 2026 1 since:2026-10 until:2026-10"},
+		engine.FacetMonth: {"Oct 2026 1 since:2026-10 until:2026-10", "Sep 2026 2 since:2026-09 until:2026-09"},
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("facets:\n got %q\nwant %q", got, want)

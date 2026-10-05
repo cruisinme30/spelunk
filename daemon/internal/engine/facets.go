@@ -57,7 +57,7 @@ func (f *Facets) Count(field, label, filter string) {
 }
 
 // List returns each field that has a bucket, biggest bucket first (ties by
-// label), with at most maxFacetBuckets buckets.
+// label) or, for months, newest first, with at most maxFacetBuckets buckets.
 func (f *Facets) List() []protocol.Facet {
 	var facets []protocol.Facet
 	for _, field := range f.fields {
@@ -69,6 +69,9 @@ func (f *Facets) List() []protocol.Facet {
 			continue
 		}
 		slices.SortFunc(buckets, func(a, b protocol.FacetBucket) int {
+			if field == FacetMonth {
+				return cmp.Compare(b.Filter, a.Filter) // since:2026-10 … before since:2026-09 …
+			}
 			return cmp.Or(cmp.Compare(b.Count, a.Count), cmp.Compare(a.Label, b.Label))
 		})
 		facet := protocol.Facet{Field: field, Buckets: buckets}
