@@ -87,7 +87,7 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi {
     if (message.type === "help.try") void vscode.commands.executeCommand("unifiedSearch.open", message.payload);
     else if (message.type === "settings.open") ui.openSettings();
   });
-  const welcome = createWelcomePanel(context.extensionUri, daemon, ui);
+  const welcome = createWelcomePanel(context.extensionUri, daemon, ui, logError("welcome"));
   forwardDaemonEventsToPanel(daemon, panel);
 
   context.subscriptions.push(
@@ -123,7 +123,12 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi {
 }
 
 /** The welcome page, fed the settings it shows and the daemon's indexing progress. */
-function createWelcomePanel(extensionUri: vscode.Uri, daemon: Daemon, ui: Ui): WelcomePanel {
+function createWelcomePanel(
+  extensionUri: vscode.Uri,
+  daemon: Daemon,
+  ui: Ui,
+  onError: (error: unknown) => void,
+): WelcomePanel {
   const welcome = new WelcomePanel(
     extensionUri,
     {
@@ -131,7 +136,7 @@ function createWelcomePanel(extensionUri: vscode.Uri, daemon: Daemon, ui: Ui): W
       indexStatus: () => daemon.request("index/status", {}),
     },
     (message) => {
-      handleWelcome(message, welcome, () => {
+      handleWelcome(message, welcome, onError, () => {
         ui.openSettings();
       });
     },
@@ -148,14 +153,19 @@ function createWelcomePanel(extensionUri: vscode.Uri, daemon: Daemon, ui: Ui): W
  * opens Keyboard Shortcuts filtered to this extension, and Start opens the
  * search panel.
  */
-function handleWelcome(message: WebviewMessage, welcome: WelcomePanel, openSettings: () => void): void {
+function handleWelcome(
+  message: WebviewMessage,
+  welcome: WelcomePanel,
+  onError: (error: unknown) => void,
+  openSettings: () => void,
+): void {
   switch (message.type) {
     case "welcome.choose": {
-      void saveWelcomeChoice(message.payload);
+      saveWelcomeChoice(message.payload).catch(onError);
       return;
     }
     case "welcome.shortcut": {
-      void configuration().update("shortcut.preset", "none", vscode.ConfigurationTarget.Global);
+      configuration().update("shortcut.preset", "none", vscode.ConfigurationTarget.Global).then(undefined, onError);
       void vscode.commands.executeCommand("workbench.action.openGlobalKeybindings", "unifiedSearch");
       return;
     }
