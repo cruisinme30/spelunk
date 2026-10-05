@@ -18,7 +18,9 @@ removed `timeout` or `retry`. Drop `author:` and the same box searches current f
 ## Features (planned for the first release)
 
 - **One query language.** Combine text, `"phrases"`, `/regex/`, `AND`, `OR`, `( )` and `-exclusions` with
-  operators: `f:` (path), `repo:`, `lang:`, `type:`, `sym:`, `author:`, `msg:`, `since:`, `case:`, `count:`.
+  operators, each with a full name and a one-letter short one: `file:` / `f:`, `repo:` / `r:`, `language:` / `l:`,
+  `type:` / `t:`, `symbol:` / `s:`, `author:` / `a:`, `message:` / `m:`, `since:` / `d:`, `case:` / `c:`,
+  `count:` / `n:`.
 - **Results as you type,** from local indexes: a trigram index of current files, symbols, and a commit index of
   diffs, messages and authors.
 - **Helpful when you're wrong:** errors with one-key fixes, completions for operators and values (authors, repos,

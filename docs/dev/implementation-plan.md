@@ -99,8 +99,10 @@ andExpr  = unary { [ "AND" ] unary } ;       (* a space is an implicit AND *)
 unary    = [ "-" ] primary ;
 primary  = "(" orExpr ")" | operator | term ;
 operator = name ":" value ;
-name     = "f" | "repo" | "lang" | "type" | "sym" | "author" | "msg"
-         | "since" | "case" | "count" ;
+name     = "f" | "file" | "r" | "repo" | "l" | "language" | "lang"
+         | "t" | "type" | "s" | "symbol" | "sym" | "a" | "author"
+         | "m" | "message" | "msg" | "d" | "since" | "c" | "case"
+         | "n" | "count" ;
 value    = quoted | regex | bare ;
 term     = quoted | regex | bare ;
 quoted   = '"' { char | '\\"' } '"' ;
@@ -110,6 +112,9 @@ bare     = 1*( any char except space, "(", ")", '"' ) ;
 
 ### Lexical rules
 
+- Every operator has a full name and a one-letter short name: `file:` `f:`, `repo:` `r:`, `language:` `l:`,
+  `type:` `t:`, `symbol:` `s:`, `author:` `a:`, `message:` `m:`, `since:` `d:`, `case:` `c:`, `count:` `n:`. The
+  older `lang:`, `sym:` and `msg:` still work. Suggestions and help show the full name.
 - `AND` and `OR` are keywords only in uppercase. Lowercase `or` is a search term.
 - AND binds tighter than OR. `a b OR c` means `(a b) OR c`.
 - A word shaped like `name:` with an unknown name is an error, not a term. Quoting it (`"sinse:6m"`) makes it a term.

@@ -15,9 +15,9 @@ One search box for file names, code and Git history, across every repo in your w
 3. Click a result to preview it, press ↵ to open it at the match, ⌘↵ to open it to the side, and F4 or ⇧F4 to step
    through results without the panel.
 
-Type an operator such as `since:`, `f:`, `repo:`, `lang:` or `author:` to see the values it takes: time windows with
-how many files changed in each, the file types and folders in your workspace, your repos, their languages and their
-authors.
+Type an operator such as `since:`, `file:`, `repo:`, `language:` or `author:` (or its short name: `d:`, `f:`, `r:`,
+`l:`, `a:`) to see the values it takes: time windows with how many files changed in each, the file types and folders
+in your workspace, your repos, their languages and their authors.
 
 Press `?` in an empty box for every operator, or run **Unified Search: Open Help** for the full guide with examples.
 

@@ -7,6 +7,8 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- Every operator has a full name and a one-letter short name, such as `file:` and `f:` or `author:` and `a:`.
+  Suggestions and help show the full name with the short one beside it; `lang:`, `sym:` and `msg:` still work.
 - Search daemon skeleton: JSON-RPC 2.0 over stdio, initialize/shutdown lifecycle, crash restarts.
 - `protocol/` JSON Schema with generated TypeScript and Go types.
 - VS Code extension host: daemon supervisor, search controller and search panel.
