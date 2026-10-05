@@ -391,25 +391,9 @@ func messageHits(plan *query.Plan, text string) []protocol.Range {
 	for _, term := range plan.Terms {
 		mark(term.Re)
 	}
-	walkMessages(plan.Pred, func(m *query.Message) { mark(m.Re) })
+	query.VisitPositive(plan.Pred, func(m *query.Message) { mark(m.Re) })
 	slices.SortFunc(ranges, func(a, b protocol.Range) int { return a.Start - b.Start })
 	return ranges
-}
-
-// walkMessages calls visit for every msg: leaf of p that isn't negated.
-func walkMessages(p query.Pred, visit func(*query.Message)) {
-	switch p := p.(type) {
-	case *query.And:
-		for _, kid := range p.Kids {
-			walkMessages(kid, visit)
-		}
-	case *query.Or:
-		for _, kid := range p.Kids {
-			walkMessages(kid, visit)
-		}
-	case *query.Message:
-		visit(p)
-	}
 }
 
 // countHidden credits a commit that doesn't match to the first top-level

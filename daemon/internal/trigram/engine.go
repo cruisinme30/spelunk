@@ -358,7 +358,7 @@ func (s *searcher) addSymbols(repos []Repo) {
 func (s *searcher) symbolResult(repo *Repo, doc *Doc, symbol *symbols.Symbol) protocol.ResultItem {
 	hits := []protocol.Hit{}
 	for _, kid := range s.plan.Pred.Kids {
-		walkSymbols(kid, func(sym *query.Symbol) {
+		query.VisitPositive(kid, func(sym *query.Symbol) {
 			for _, loc := range sym.Re.FindAllStringIndex(symbol.Name, -1) {
 				if loc[1] > loc[0] {
 					r := UTF16Range(symbol.Name, loc[0], loc[1])
@@ -376,22 +376,6 @@ func (s *searcher) symbolResult(repo *Repo, doc *Doc, symbol *symbols.Symbol) pr
 	return protocol.ResultItem{
 		Kind: query.KindSymbol, Ref: ref.String(), RepoID: repo.ID, Path: doc.Path, Line: symbol.Line,
 		Name: symbol.Name, SymbolKind: symbol.Kind, Hits: hits,
-	}
-}
-
-// walkSymbols calls visit for every sym: leaf of p that isn't negated.
-func walkSymbols(p query.Pred, visit func(*query.Symbol)) {
-	switch p := p.(type) {
-	case *query.And:
-		for _, kid := range p.Kids {
-			walkSymbols(kid, visit)
-		}
-	case *query.Or:
-		for _, kid := range p.Kids {
-			walkSymbols(kid, visit)
-		}
-	case *query.Symbol:
-		visit(p)
 	}
 }
 

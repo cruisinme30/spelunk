@@ -471,6 +471,23 @@ func Eval(p Pred, leaf func(Pred) bool) bool {
 	}
 }
 
+// VisitPositive calls visit for every leaf of p of type T that isn't
+// negated.
+func VisitPositive[T Pred](p Pred, visit func(T)) {
+	switch p := p.(type) {
+	case *And:
+		for _, kid := range p.Kids {
+			VisitPositive(kid, visit)
+		}
+	case *Or:
+		for _, kid := range p.Kids {
+			VisitPositive(kid, visit)
+		}
+	case T:
+		visit(p)
+	}
+}
+
 // Contributing returns the content terms that make p true: every term of a
 // true AND, the true branches of an OR, nothing under NOT. Engines show
 // matches only for these, so results(A OR B) = results(A) ∪ results(B).
