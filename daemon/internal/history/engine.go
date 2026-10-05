@@ -196,12 +196,19 @@ func (s *searcher) repoExcluded(repo *Repo) bool {
 }
 
 // candidates narrows a segment's commits with its trigram indexes: text
-// terms through the changed lines, msg: through the messages.
+// terms through the changed lines and the messages, msg: through the
+// messages alone.
 func (s *searcher) candidates(seg *segment) []uint32 {
 	ids := trigram.Narrow(s.plan.Pred, func(leaf query.Pred) []uint32 {
 		switch leaf := leaf.(type) {
 		case *query.Content:
-			return seg.diffs.Candidates(trigram.ContentLiteral(leaf), s.plan.CaseSensitive)
+			literal := trigram.ContentLiteral(leaf)
+			inDiffs := seg.diffs.Candidates(literal, s.plan.CaseSensitive)
+			inMessages := seg.messages.Candidates(literal, s.plan.CaseSensitive)
+			if inDiffs == nil || inMessages == nil {
+				return nil
+			}
+			return trigram.Union(inDiffs, inMessages)
 		case *query.Message:
 			return seg.messages.Candidates(query.RequiredLiteral(leaf.Re), s.plan.CaseSensitive)
 		default:
@@ -224,18 +231,36 @@ type fileView struct {
 	file    *FileChange
 	finder  *trigram.LineFinder
 	matches map[*query.Content][]int // per text term, the changed lines it matches
+	message *messageView             // the commit's message, shared by its files
+}
+
+// messageView is a commit's message, as text terms see it: the subject on
+// line 1 and the body after it.
+type messageView struct {
+	text    []byte
+	finder  *trigram.LineFinder
+	matches map[*query.Content][]int // per text term, the message lines it matches
 }
 
 // views returns a commit's files for matching.
 func views(c *Commit, finder *trigram.LineFinder) []*fileView {
+	message := newMessageView(c, finder)
 	if len(c.Files) == 0 {
-		return []*fileView{{file: &FileChange{}, finder: finder, matches: map[*query.Content][]int{}}}
+		return []*fileView{newFileView(&FileChange{}, finder, message)}
 	}
 	out := make([]*fileView, len(c.Files))
 	for i := range c.Files {
-		out[i] = &fileView{file: &c.Files[i], finder: finder, matches: map[*query.Content][]int{}}
+		out[i] = newFileView(&c.Files[i], finder, message)
 	}
 	return out
+}
+
+func newFileView(file *FileChange, finder *trigram.LineFinder, message *messageView) *fileView {
+	return &fileView{file: file, finder: finder, matches: map[*query.Content][]int{}, message: message}
+}
+
+func newMessageView(c *Commit, finder *trigram.LineFinder) *messageView {
+	return &messageView{text: []byte(c.Subject + "\n" + c.Body), finder: finder, matches: map[*query.Content][]int{}}
 }
 
 // leafFor evaluates predicate leaves against one commit and one of its files.
@@ -243,7 +268,7 @@ func leafFor(repo *Repo, c *Commit, view *fileView) func(query.Pred) bool {
 	return func(p query.Pred) bool {
 		switch p := p.(type) {
 		case *query.Content:
-			return len(view.lines(p)) > 0
+			return len(view.lines(p)) > 0 || len(view.message.lines(p)) > 0
 		case *query.Path:
 			return p.Re.MatchString(view.file.Path)
 		case *query.Lang:
@@ -280,6 +305,16 @@ func (v *fileView) lines(term *query.Content) []int {
 	}
 	found := v.finder.Lines(v.file.Text, term)
 	v.matches[term] = found
+	return found
+}
+
+// lines returns which lines of the message term matches, counted from 1.
+func (m *messageView) lines(term *query.Content) []int {
+	if found, ok := m.matches[term]; ok {
+		return found
+	}
+	found := m.finder.Lines(m.text, term)
+	m.matches[term] = found
 	return found
 }
 

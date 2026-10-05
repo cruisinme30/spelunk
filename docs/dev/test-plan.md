@@ -120,7 +120,8 @@ A generator produces random valid queries from the grammar. For each one, the da
 answer built from tools that share none of its code:
 
 - Working-tree queries are compared with ripgrep, using the same regex, case flag, path filter and excludes.
-- History queries are compared with `git log -G <regex> --author <who> --since <when> -- <paths>`.
+- History queries are compared with `git log -G <regex> --author <who> --since <when> -- <paths>`, plus
+  `git log --grep <regex>` for text terms, which also match the commit message.
 - `sym:` queries are compared with universal-ctags output, filtered directly.
 
 Any mismatch fails the run and is shrunk to the smallest query and file that still disagree.

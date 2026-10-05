@@ -130,6 +130,7 @@ bare     = 1*( any char except space, "(", ")", '"' ) ;
 | `sym:` | Literal or `/regex/` | Symbol definition names | Working tree only |
 | `author:` | Substring, or quoted full name | Author name and email, after `.mailmap` | History only |
 | `msg:` | Literal, phrase or regex | Commit subject and body | History only |
+| (none) | Literal, phrase or regex | File names and lines; in history, changed lines or the commit subject and body | Both |
 | `since:` | `<n>d`, `<n>w`, `<n>m` or `<n>y` | Commit date in history; last change time on current files | Both |
 | `type:` | `file`, `code` or `commit` | Which result kinds are returned | Both |
 | `case:` | `yes` or `no` | Case handling for every text match in the query | Both |

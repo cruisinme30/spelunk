@@ -42,8 +42,9 @@ func Preview(ctx context.Context, repo *Repo, ref Ref, plan *query.Plan, context
 	if plan != nil {
 		terms = plan.Terms
 		finder := trigram.NewLineFinder()
+		message := newMessageView(&commit, finder)
 		for i := range files {
-			view := &fileView{file: changedLinesOf(files[i].Path, hunks), finder: finder, matches: map[*query.Content][]int{}}
+			view := newFileView(changedLinesOf(files[i].Path, hunks), finder, message)
 			files[i].HiddenByFilter = !query.Eval(plan.Pred, leafFor(repo, &commit, view))
 		}
 	}

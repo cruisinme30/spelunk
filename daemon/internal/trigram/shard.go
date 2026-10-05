@@ -212,8 +212,8 @@ func intersect(a, b []uint32) []uint32 {
 	return out
 }
 
-// union returns the ids in either ascending list.
-func union(a, b []uint32) []uint32 {
+// Union returns the ids in either ascending list.
+func Union(a, b []uint32) []uint32 {
 	out := make([]uint32, 0, len(a)+len(b))
 	i, j := 0, 0
 	for i < len(a) || j < len(b) {

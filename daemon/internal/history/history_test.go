@@ -110,6 +110,31 @@ func TestHistoryQueries(t *testing.T) {
 	}
 }
 
+func TestTextTermsMatchTheMessageToo(t *testing.T) {
+	r, _ := paymentsHistory(t)
+	repo := Repo{ID: "r1", Name: "payments-api", Root: r.root, Store: r.ingest()}
+	tests := []struct {
+		query string
+		want  []string
+	}{
+		// Only the messages say flaky and update.
+		{"type:commit flaky", []string{"Fix flaky checkout test"}},
+		{"author:marta update", []string{"Vendor update"}},
+		// A message match still needs a file that passes f:.
+		{"type:commit f:vendor/ raise", []string{"Raise timeout"}},
+		{"type:commit f:^tests/ raise", []string{}},
+		// Leaving a word out leaves out the commits whose message has it.
+		{"type:commit timeout -flaky", []string{"Vendor update", "Raise timeout"}},
+		{"type:commit (flaky OR update)", []string{"Vendor update", "Fix flaky checkout test"}},
+	}
+	for _, tt := range tests {
+		got, _ := runSearch(t, tt.query, repo)
+		if !reflect.DeepEqual(got, tt.want) {
+			t.Errorf("%s = %q, want %q", tt.query, got, tt.want)
+		}
+	}
+}
+
 func TestCommitResultsSayWhatMatched(t *testing.T) {
 	r, shas := paymentsHistory(t)
 	repo := Repo{ID: "r1", Name: "payments-api", Root: r.root, Store: r.ingest()}

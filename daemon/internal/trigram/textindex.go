@@ -56,7 +56,7 @@ func Narrow(p query.Pred, leaf func(query.Pred) []uint32) []uint32 {
 			if ids == nil {
 				return nil
 			}
-			result = union(result, ids)
+			result = Union(result, ids)
 		}
 		return result
 	case *query.Not:
