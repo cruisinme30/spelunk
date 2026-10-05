@@ -23,7 +23,8 @@ Press `?` in an empty box for every operator, or run **Spelunk: Open Help** for 
 
 ## The query language
 
-Words are matched anywhere in file names and code. Combine them with operators. Each operator has a full name and a
+Words are matched anywhere in file names and code, and a word also finds file names that have its letters in order, as
+Quick Open does: `usrsvc` finds `UserService.ts`. Combine them with operators. Each operator has a full name and a
 one-letter short name that mean the same: `file:` and `f:`, `author:` and `a:`.
 
 | Write | To |

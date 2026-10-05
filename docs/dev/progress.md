@@ -252,6 +252,7 @@ Jason Kim and Marta Ruiz, and one uncommitted edit:
 | 27 | `author:jane is:test retry` | [test-history.png](proof/test-history.png) |
 | 28 | `word:yes retry` | [whole-words.png](proof/whole-words.png) |
 | 29 | `case:smart Retry` | [smart-case.png](proof/smart-case.png) |
+| 33 | `cfg` | [fuzzy-file-names.png](proof/fuzzy-file-names.png) |
 | 34 | `type:added retry_policy`, over a history where one commit only removed `retry_policy` lines | [added-removed-lines.png](proof/added-removed-lines.png) |
 | 35 | `sym:retry kind:class`, `ref:RetryPolicy` | [symbol-kinds.png](proof/symbol-kinds.png), [references.png](proof/references.png) |
 

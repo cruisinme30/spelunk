@@ -29,6 +29,10 @@ All notable changes to this project are documented here. The format follows
 - `ref:` (short form `x:`) finds the lines that use a name as a whole word and leaves out the lines that define it:
   `ref:RetryPolicy` finds the imports and calls, not `class RetryPolicy`. It matches by name, so a different
   `RetryPolicy` in another repo counts too.
+- A word also finds file names that have its letters in order, as Quick Open does: `usrsvc` finds `UserService.ts`
+  and `cfg` finds `config.py`. The match starts at a word of the name (a word with a `/` matches the whole path),
+  the matched letters are highlighted, and such names come after the ones that contain the word. Code lines,
+  phrases, regexes, `-` exclusions and `word:yes` stay exact.
 
 ### Fixed
 

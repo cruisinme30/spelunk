@@ -209,6 +209,28 @@ test("section titles say results are best match first, and each file says why it
   assert.match((await groups.nth(2).getAttribute("class")) ?? "", /demoted/);
 });
 
+/** A file-name result for "cfg" in http/config.*, with c, f and g each highlighted. */
+const fuzzyName = (path, ref) => ({
+  ...FILE_NAME_RESULT,
+  ref,
+  path,
+  nameHits: [5, 8, 10].map((start) => ({ start, end: start + 1 })),
+});
+
+test("a file name matched by its letters in order highlights each run of them", async (t) => {
+  // @covers screen:fuzzy-file-names
+  const page = await openPanel(t);
+  await restore(page);
+  const seq = await typeAndParse(page, "cfg", parsedQuery("cfg", textNode("cfg", 0)));
+  await fromHost(page, "search.batch", {
+    seq,
+    searchId: "s1",
+    items: [fuzzyName("http/config.py", "f1"), fuzzyName("http/config.yaml", "f2")],
+  });
+  const marks = page.locator('[data-testid="section-files"] .row.file').first().locator("mark");
+  assert.deepEqual(await marks.allInnerTexts(), ["c", "f", "g"]);
+});
+
 test("order:path, or the order setting, makes the titles say path order", async (t) => {
   // @covers screen:path-order
   const page = await openPanel(t);

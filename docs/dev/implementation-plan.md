@@ -132,7 +132,7 @@ bare     = 1*( any char except space, "(", ")", '"' ) ;
 | `ref:` | Name or quoted name | Whole-word uses of the name, minus the lines that define it | Working tree only |
 | `author:` | Substring, or quoted full name | Author name and email, after `.mailmap` | History only |
 | `msg:` | Literal, phrase or regex | Commit subject and body | History only |
-| (none) | Literal, phrase or regex | File names and lines; in history, changed lines or the commit subject and body | Both |
+| (none) | Literal, phrase or regex | File names (a bare word also by its letters in order, as Quick Open does) and lines; in history, changed lines or the commit subject and body | Both |
 | `since:` | `<n>d`, `<n>w`, `<n>m` or `<n>y` | Commit date in history; last change time on current files | Both |
 | `type:` | `file`, `code`, `commit`, `added` or `removed` | Which result kinds are returned; `added` and `removed` search only that side of each commit's diff | Both |
 | `case:` | `yes`, `no` or `smart` (match case only when the query has a capital letter) | Case handling for every text match in the query | Both |
