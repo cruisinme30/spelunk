@@ -137,6 +137,7 @@ func TestClosingFixesSurviveATrailingBackslash(t *testing.T) {
 		{`/abc\`, `/abc\\/`},
 		{`msg:"abc\`, `msg:"abc\\"`},
 		{"\"\xee\\", "\"�\\\\\""},
+		{`(x "abc`, `(x "abc")`},
 	}
 	for _, tt := range tests {
 		q := Parse(tt.query, testResolver)

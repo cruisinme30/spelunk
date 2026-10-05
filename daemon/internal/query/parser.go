@@ -229,7 +229,13 @@ func (p *parser) reportUnclosedParen(open token, inner *protocol.Node) {
 				closeAfter = &lastBranch.Children[0]
 			}
 		}
-		fixes = append(fixes, insertFix("Close it after "+p.src.excerpt(closeAfter.Span), closeAfter.Span.End, ")"))
+		closing := ")"
+		// An unclosed quote or regex runs to the end of the text, so a ")"
+		// inserted there would only join it; close it first.
+		if last := p.tokens[len(p.tokens)-2]; last.unclosed != 0 && last.end == closeAfter.Span.End {
+			closing = p.closing(last) + ")"
+		}
+		fixes = append(fixes, insertFix("Close it after "+p.src.excerpt(closeAfter.Span), closeAfter.Span.End, closing))
 	}
 	p.problems.errorf(DiagUnclosedParen, p.span(open), fixes, "Missing closing parenthesis")
 }
