@@ -61,3 +61,30 @@ All notable changes to this project are documented here. The format follows
 - A repo whose index failed no longer shows as "Indexing" in the status bar.
 - The `case:` suggestion shows its description and values like the other operators.
 - `sym:` queries return no results instead of wrong ones until symbol search exists.
+- A query can no longer hang or crash the daemon: queries with many misplaced globals parse in linear time, a
+  pasted megabyte parses in under a second, deeply nested parentheses no longer overflow the stack, and one query
+  reports at most 100 problems.
+- Fix-its no longer join words or land inside an unclosed quote, and closing a quote or regex that ends in a
+  backslash really closes it. A fix-it, completion or toggle computed for older text is not applied to newer text,
+  and ⌘Z undoes it.
+- Indexing never blocks on a FIFO, never reads through a symlink out of the root, and indexes nested repos,
+  submodules and roots reached through a symlink. Very long or minified lines are searched and previewed in
+  bounded time and memory.
+- A damaged saved index is rebuilt instead of crashing a search, saved indexes are synced before they replace the
+  old ones, and temp files left by a crash are removed.
+- History reads every commit whatever its message, date or the user's Git config (`diff.noPrefix`,
+  `log.showSignature` and others); a failed read no longer publishes a partial history.
+- A forged result ref can't open a file outside its folder through a symlink.
+- The daemon refuses oversized or malformed JSON-RPC frames without allocating them, answers every malformed
+  message, survives a panicking handler, stops writing once its output fails, and exits soon after VS Code goes away.
+- The extension recovers from garbage on the daemon's stdout, times out a daemon that never finishes starting, stops
+  at once when the binary is missing or not executable, and uses defaults for settings of the wrong type.
+- The search panel drops malformed or late messages, ignores a corrupt saved state, leaves keys to an input method
+  while it composes, keeps the query box in sight in a short panel, and fits the help and welcome pages in a narrow
+  editor. Highlights never split an emoji.
+
+### Changed
+
+- Files are searched as the editor shows them: a UTF-8 byte order mark is dropped, UTF-16 files with a byte order
+  mark are indexed (they were treated as binary), and a lone CR ends a line.
+- `sym:` finds Java and C# methods by their line, whatever its indent, and finds constructors explicitly.
