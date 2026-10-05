@@ -444,7 +444,6 @@ function forwardFileChanges(daemon: Daemon): vscode.Disposable {
   );
 }
 
-/** Opens a resolved result: a commit as a diff document, or a file with the match selected. */
 /** A resolved result to open: where, whether in a preview editor, and the result it came from. */
 interface Opening {
   target: OpenTarget;
@@ -453,6 +452,7 @@ interface Opening {
   item: ResultItem | undefined;
 }
 
+/** Opens a resolved result: a commit as a diff document, or a file with the match selected. */
 async function openTarget({ target, where, preview, item }: Opening, commitDocuments: CommitDocuments): Promise<void> {
   const viewColumn = where === "side" ? vscode.ViewColumn.Beside : vscode.ViewColumn.Active;
   if (target.sha && item) {
