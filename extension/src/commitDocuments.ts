@@ -2,19 +2,11 @@
 // open here: result.open on a commit resolves to a sha, and the document's
 // content comes from preview/get on the result's ref.
 import * as vscode from "vscode";
+import { commitDocumentName, renderCommit } from "./commitText";
 import type { Daemon } from "./daemon";
-import type { DiffLine, Preview } from "./protocol.gen";
 
-/** Characters of the commit subject kept in the document's title. */
-const MAX_SUBJECT_IN_TITLE = 60;
 /** Unchanged lines shown around each change, as `git show` does. */
 const DIFF_CONTEXT_LINES = 3;
-const DIFF_PREFIX: Record<DiffLine["kind"], string> = { add: "+", del: "-", ctx: " " };
-
-/** The first seven characters of a commit sha, as Git shows them. */
-function shortSha(sha: string): string {
-  return sha.slice(0, 7);
-}
 
 /** Provides the `unified-search-commit:` documents that show commits. */
 export class CommitDocuments implements vscode.TextDocumentContentProvider {
@@ -25,9 +17,8 @@ export class CommitDocuments implements vscode.TextDocumentContentProvider {
 
   /** The daemon's opaque ref rides in the URI query; nothing here parses it. */
   uriFor(ref: string, sha: string, subject?: string): vscode.Uri {
-    const subjectPart = subject ? " " + subject.replaceAll(/[\\/]/g, " ").slice(0, MAX_SUBJECT_IN_TITLE) : "";
-    const title = `${shortSha(sha)}${subjectPart}.diff`;
-    return vscode.Uri.parse(`${CommitDocuments.scheme}:/${encodeURIComponent(title)}`).with({ query: ref });
+    const name = encodeURIComponent(commitDocumentName(sha, subject));
+    return vscode.Uri.parse(`${CommitDocuments.scheme}:/${name}`).with({ query: ref });
   }
 
   /** The diff text for a URI made by uriFor(). */
@@ -35,33 +26,4 @@ export class CommitDocuments implements vscode.TextDocumentContentProvider {
     const preview = await this.daemon.request("preview/get", { ref: uri.query, contextLines: DIFF_CONTEXT_LINES });
     return renderCommit(preview);
   }
-}
-
-/** Formats a commit preview like `git show`. */
-function renderCommit(preview: Preview): string {
-  if (preview.kind !== "commit") return "";
-  const message = `${preview.subject}\n\n${preview.body}`.trimEnd().split("\n");
-  const lines = [
-    `commit ${preview.sha}`,
-    `Author: ${preview.author}`,
-    `Date:   ${preview.at}`,
-    "",
-    ...message.map((line) => "    " + line),
-    "",
-  ];
-  for (const file of preview.files) {
-    const marker = file.hiddenByFilter ? " " : "*";
-    lines.push(`${marker} ${file.path} +${file.added} -${file.removed}`);
-  }
-  lines.push("");
-  let currentPath = "";
-  for (const hunk of preview.hunks) {
-    if (hunk.path !== currentPath) {
-      lines.push(`--- a/${hunk.path}`, `+++ b/${hunk.path}`);
-      currentPath = hunk.path;
-    }
-    lines.push(hunk.header);
-    for (const line of hunk.lines) lines.push(DIFF_PREFIX[line.kind] + line.text);
-  }
-  return lines.join("\n") + "\n";
 }
