@@ -10,6 +10,10 @@ All notable changes to this project are documented here. The format follows
 - `is:open`, `is:changed` and `is:test` (short form `i:`) keep the files open in editor tabs, the files with
   uncommitted changes, or the test files; `retry -is:test` leaves tests out. In a commit search `is:test` keeps the
   commits' test-file changes. Its suggestions say how many files are in each state now.
+- `word:yes` (short form `w:`) matches whole words only, so `retry` no longer finds `retryCount` or `autoretry`. The
+  **ab** button between **Aa** and **.\*** adds and removes it, the `spelunk.wholeWord` setting makes it the
+  default, and `word:no` turns it off for one query. A note says how many matches were only parts of words, with
+  **Match parts of words** to show them.
 
 ### Fixed
 

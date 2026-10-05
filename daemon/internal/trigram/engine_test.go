@@ -174,7 +174,7 @@ func TestCaseYesReportsMatchesThatDifferOnlyInCase(t *testing.T) {
 }
 
 func TestWordYesMatchesWholeWordsAndReportsTheRest(t *testing.T) {
-	// @covers op:word
+	// @covers op:word screen:whole-words
 	repo := repoOf("r", map[string]string{
 		"retry.py":       "def retry(): pass\nretry_count = 0\nx = autoretry or retry()\n",
 		"retry_count.py": "x = 1\n",

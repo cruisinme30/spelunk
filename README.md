@@ -20,8 +20,8 @@ removed `timeout` or `retry`. Drop `author:` and the same box searches current f
 - **One query language.** Combine words, `"phrases"`, `/regex/`, `AND`, `OR`, `( )` and `-exclusions` with
   operators. Each has a full name and a one-letter short one: `file:` / `f:`, `repo:` / `r:`, `language:` / `l:`,
   `type:` / `t:`, `symbol:` / `s:`, `is:` / `i:`, `author:` / `a:`, `message:` / `m:`, `since:` / `d:`,
-  `case:` / `c:`, `count:` / `n:`, `order:` / `o:`. `is:open`, `is:changed` and `is:test` keep the files open in the
-  editor, the uncommitted ones, or the tests.
+  `case:` / `c:`, `word:` / `w:`, `count:` / `n:`, `order:` / `o:`. `is:open`, `is:changed` and `is:test` keep the
+  files open in the editor, the uncommitted ones, or the tests, and `word:yes` matches whole words only.
 - **Best match first.** Files that define what you searched for, are open in the editor, or are named after it come
   first; tests, vendored and generated files come last. `order:path` sorts by path instead.
 - **Files or commits from the same box.** A query searches current files, unless it has `author:`, `message:` or
