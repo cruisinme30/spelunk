@@ -90,7 +90,7 @@ func collectGlobals(src *source, query *protocol.ParsedQuery, problems *diagnost
 			// query can't run anyway.
 			fixes := []protocol.Fix{}
 			if src.length() <= maxQueryLength {
-				fixes = append(fixes, moveToTopLevel(src, written, removeSpan(src, removed)))
+				fixes = append(fixes, moveToTopLevel(src, written, removed))
 			}
 			problems.errorf(DiagGlobalMisplaced, node.Span, fixes,
 				"%s: applies to the whole query, so it can't be inside ( ), after - or in an OR branch", node.Op)
@@ -108,8 +108,9 @@ func collectGlobals(src *source, query *protocol.ParsedQuery, problems *diagnost
 // is the query without the global. If rest is an OR, it is wrapped in
 // parentheses: AND binds tighter, so "case:yes a OR b" would put case:yes
 // back inside an OR branch.
-func moveToTopLevel(src *source, global string, removed protocol.Span) protocol.Fix {
-	rest := strings.TrimSpace(src.slice(0, removed.Start) + src.slice(removed.End, src.length()))
+func moveToTopLevel(src *source, global string, span protocol.Span) protocol.Fix {
+	removed, filler := removeSpan(src, span)
+	rest := strings.TrimSpace(src.slice(0, removed.Start) + filler + src.slice(removed.End, src.length()))
 	if root := parseTree(rest); root != nil && root.Kind == protocol.NodeKindOr {
 		rest = "(" + rest + ")"
 	}

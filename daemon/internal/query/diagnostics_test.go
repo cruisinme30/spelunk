@@ -154,3 +154,24 @@ func TestAnInvalidOperandAfterMinusIsNotAlsoMissing(t *testing.T) {
 		t.Errorf("Parse(%q) diagnostics = %v, want only %s", q.Raw, got, DiagUnknownOperator)
 	}
 }
+
+func TestFixesThatRemoveTextNeverJoinWords(t *testing.T) {
+	tests := []struct{ query, code, fixed string }{
+		{"timeout sinse:6m -) x", DiagUnmatchedParen, "timeout sinse:6m - x"},
+		{"a -() b", DiagEmptyGroup, "a - b"},
+		{"(case:yes a) OR b", DiagGlobalMisplaced, "case:yes ((a) OR b)"},
+		{"a ) b", DiagUnmatchedParen, "a b"},
+	}
+	for _, tt := range tests {
+		q := Parse(tt.query, testResolver)
+		var got []string
+		for _, d := range q.Diagnostics {
+			if d.Code == tt.code {
+				got = append(got, ApplyFix(tt.query, d.Fixes[0]))
+			}
+		}
+		if len(got) != 1 || got[0] != tt.fixed {
+			t.Errorf("Parse(%q) %s fix gives %q, want %q", tt.query, tt.code, got, tt.fixed)
+		}
+	}
+}

@@ -70,23 +70,33 @@ func insertFix(title string, offset int, text string) protocol.Fix {
 	return replaceFix(title, protocol.Span{Start: offset, End: offset}, text)
 }
 
-// removeSpan widens span over one neighbouring space, so deleting it
-// leaves no double space behind.
-func removeSpan(src *source, span protocol.Span) protocol.Span {
+// removeSpan says how to delete span: the span to replace, widened over
+// one neighbouring space so no double space is left behind, and what to
+// put there instead. It takes the space only where that doesn't join the
+// span's other neighbour to the next word: the ) of "timeout -) x" is
+// removed alone, as taking a space too would make "timeout -x". A span
+// between two words, like the () of "a()b", becomes one space.
+func removeSpan(src *source, span protocol.Span) (protocol.Span, string) {
 	text := src.runes
 	start, end := src.runeIndex(span.Start), src.runeIndex(span.End)
+	openBefore := start == 0 || text[start-1] == ' ' || text[start-1] == '('
+	openAfter := end == len(text) || text[end] == ' ' || text[end] == ')'
+	filler := ""
 	switch {
-	case end < len(text) && text[end] == ' ':
+	case end < len(text) && text[end] == ' ' && openBefore:
 		end++
-	case start > 0 && text[start-1] == ' ':
+	case start > 0 && text[start-1] == ' ' && openAfter:
 		start--
+	case !openBefore && !openAfter:
+		filler = " "
 	}
-	return protocol.Span{Start: src.offsets[start], End: src.offsets[end]}
+	return protocol.Span{Start: src.offsets[start], End: src.offsets[end]}, filler
 }
 
 // removeFix deletes span (and one neighbouring space).
 func removeFix(title string, src *source, span protocol.Span) protocol.Fix {
-	return replaceFix(title, removeSpan(src, span), "")
+	removed, filler := removeSpan(src, span)
+	return replaceFix(title, removed, filler)
 }
 
 // editDistance is the Levenshtein distance between a and b.
