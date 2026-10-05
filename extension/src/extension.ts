@@ -34,7 +34,7 @@ import {
   uiSettings,
   welcomeSettings,
 } from "./settings";
-import type { WebviewMessage } from "./webviewMessages";
+import { messageGuard, type WebviewMessage } from "./webviewMessages";
 import { WELCOMED_KEY, WelcomePanel } from "./welcomePanel";
 
 /** The globalState key that keeps the query and recent queries across sessions. */
@@ -154,16 +154,7 @@ function createWelcomePanel(
 }
 
 /** The messages the welcome page sends; the others are the search panel's and the help page's. */
-const WELCOME_TYPES = [
-  "welcome.choose",
-  "welcome.shortcut",
-  "welcome.start",
-  "help.open",
-  "settings.open",
-] as const satisfies readonly WebviewMessage["type"][];
-type WelcomeMessage = Extract<WebviewMessage, { type: (typeof WELCOME_TYPES)[number] }>;
-const welcomeTypes: ReadonlySet<string> = new Set(WELCOME_TYPES);
-const fromWelcome = (message: WebviewMessage): message is WelcomeMessage => welcomeTypes.has(message.type);
+const fromWelcome = messageGuard(["welcome.choose", "welcome.shortcut", "welcome.start", "help.open", "settings.open"]);
 
 /**
  * Acts on the welcome page: a choice is saved in the user's settings (the

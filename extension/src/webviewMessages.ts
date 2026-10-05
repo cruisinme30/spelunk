@@ -13,6 +13,22 @@ export type WebviewMessage = {
   [K in keyof WebviewToHost]: { v: typeof MESSAGE_VERSION; type: K; payload: WebviewToHost[K] };
 }[keyof WebviewToHost];
 
+/**
+ * A type guard for the messages of `types`, for a handler that takes only
+ * some of them: messageGuard(["replace.preview", "replace.apply"]).
+ */
+export function messageGuard<const T extends readonly WebviewMessage["type"][]>(
+  types: T,
+): (message: WebviewMessage) => message is Extract<WebviewMessage, { type: T[number] }> {
+  const known: ReadonlySet<string> = new Set(types);
+  return (message): message is Extract<WebviewMessage, { type: T[number] }> => known.has(message.type);
+}
+
+/** The messages a messageGuard lets through. */
+export type GuardedBy<G> = G extends ((message: WebviewMessage) => message is infer M extends WebviewMessage)
+  ? M
+  : never;
+
 type Fields = Record<string, unknown>;
 /** Returns the checked payload of one message type, or undefined when its shape is wrong. */
 type PayloadCheck<K extends keyof WebviewToHost> = (payload: Fields) => WebviewToHost[K] | undefined;

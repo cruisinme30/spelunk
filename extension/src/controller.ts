@@ -21,7 +21,7 @@ import {
   type UiSettings,
 } from "./protocol.gen";
 import { checkReplace, type DocumentLines, type LineEdit } from "./replaceEdits";
-import type { WebviewMessage } from "./webviewMessages";
+import { type GuardedBy, messageGuard, type WebviewMessage } from "./webviewMessages";
 
 /** Lines of context above and below the match in a file preview. */
 const PREVIEW_CONTEXT_LINES = 7;
@@ -122,26 +122,12 @@ interface RunningSearch {
   cancel: CancelSource;
 }
 
-/** The types of the help and welcome pages' messages, which extension.ts handles. */
-const HELP_AND_WELCOME_TYPES = [
-  "help.try",
-  "welcome.choose",
-  "welcome.shortcut",
-  "welcome.start",
-] as const satisfies readonly WebviewMessage["type"][];
-type HelpOrWelcomeMessage = Extract<WebviewMessage, { type: (typeof HELP_AND_WELCOME_TYPES)[number] }>;
-const helpAndWelcomeTypes: ReadonlySet<string> = new Set(HELP_AND_WELCOME_TYPES);
-const fromHelpOrWelcome = (message: WebviewMessage): message is HelpOrWelcomeMessage =>
-  helpAndWelcomeTypes.has(message.type);
-/** The types of the Replace row's messages, which handleReplace handles. */
-const REPLACE_TYPES = [
-  "replace.preview",
-  "replace.apply",
-  "replace.save",
-] as const satisfies readonly WebviewMessage["type"][];
-type ReplaceMessage = Extract<WebviewMessage, { type: (typeof REPLACE_TYPES)[number] }>;
-const replaceTypes: ReadonlySet<string> = new Set(REPLACE_TYPES);
-const fromReplaceRow = (message: WebviewMessage): message is ReplaceMessage => replaceTypes.has(message.type);
+/** The help and welcome pages' messages, which extension.ts handles. */
+const fromHelpOrWelcome = messageGuard(["help.try", "welcome.choose", "welcome.shortcut", "welcome.start"]);
+type HelpOrWelcomeMessage = GuardedBy<typeof fromHelpOrWelcome>;
+/** The Replace row's messages, which handleReplace handles. */
+const fromReplaceRow = messageGuard(["replace.preview", "replace.apply", "replace.save"]);
+type ReplaceMessage = GuardedBy<typeof fromReplaceRow>;
 
 /** Turns panel messages into daemon calls; one per window. */
 export class SearchController {
