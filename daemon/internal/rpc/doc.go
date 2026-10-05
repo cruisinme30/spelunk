@@ -28,5 +28,6 @@
 //     ends inside a message, or a header or body over the size limits. A
 //     declared length is checked before anything is allocated for it.
 //   - Messages are written whole, one at a time, so concurrent handlers
-//     never interleave bytes on the wire.
+//     never interleave bytes on the wire. After a write fails nothing more
+//     is written, and Serve returns the write error.
 package rpc

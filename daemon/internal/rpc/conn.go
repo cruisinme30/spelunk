@@ -79,9 +79,10 @@ type Conn struct {
 	// received ("recv"). Set it before calling Serve.
 	Trace func(direction string, body []byte)
 
-	reader  *bufio.Reader
-	writer  io.Writer
-	writeMu sync.Mutex // one message at a time on the wire
+	reader   *bufio.Reader
+	writer   io.Writer
+	writeMu  sync.Mutex            // one message at a time on the wire
+	writeErr atomic.Pointer[error] // the first failed write; set under writeMu
 
 	mu                   sync.Mutex
 	requestHandlers      map[string]Handler
@@ -222,6 +223,9 @@ func WriteMessage(w io.Writer, body []byte) error {
 	return err
 }
 
+// send writes one message. After a write fails, the stream may hold part
+// of a message, so every later send fails with the same error instead of
+// writing after it, and Serve stops.
 func (c *Conn) send(v any) error {
 	body, err := json.Marshal(v)
 	if err != nil {
@@ -229,10 +233,28 @@ func (c *Conn) send(v any) error {
 	}
 	c.writeMu.Lock()
 	defer c.writeMu.Unlock()
+	if err := c.writeFailed(); err != nil {
+		return err
+	}
 	if c.Trace != nil {
 		c.Trace("send", body)
 	}
-	return WriteMessage(c.writer, body)
+	if err := WriteMessage(c.writer, body); err != nil {
+		err = fmt.Errorf("rpc: write: %w", err)
+		c.writeErr.Store(&err)
+		return err
+	}
+	return nil
+}
+
+// writeFailed returns the error that broke the output stream, if any. It
+// never waits for writeMu: the read loop calls it, and a writer holding
+// writeMu may itself be waiting for the peer to read.
+func (c *Conn) writeFailed() error {
+	if err := c.writeErr.Load(); err != nil {
+		return *err
+	}
+	return nil
 }
 
 // Notify sends a notification.
@@ -301,9 +323,10 @@ func decodeResponse(response *message, ok bool, out any) error {
 	return nil
 }
 
-// Serve reads messages until the input ends or ctx is cancelled. Requests
-// run concurrently; notifications run in order on this goroutine. When Serve
-// returns, every running handler has finished and pending Calls have failed.
+// Serve reads messages until the input ends, the input breaks its framing,
+// the output fails, or ctx is cancelled. Requests run concurrently;
+// notifications run in order on this goroutine. When Serve returns, every
+// running handler has finished and pending Calls have failed.
 func (c *Conn) Serve(ctx context.Context) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer c.shutdown(cancel)
@@ -319,6 +342,9 @@ func (c *Conn) Serve(ctx context.Context) error {
 			c.Trace("recv", body)
 		}
 		c.route(ctx, body)
+		if err := c.writeFailed(); err != nil {
+			return err
+		}
 	}
 }
 

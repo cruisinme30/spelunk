@@ -4,7 +4,11 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"io"
+	"runtime"
+	"sync"
 	"testing"
 	"time"
 )
@@ -205,5 +209,109 @@ func TestServeEndsOnFramingErrors(t *testing.T) {
 				t.Fatalf("Serve(%q) still running 2s after the input ended", wire)
 			}
 		})
+	}
+}
+
+// failingWriter fails every write after the first n bytes.
+type failingWriter struct {
+	mu   sync.Mutex
+	left int
+}
+
+func (w *failingWriter) Write(p []byte) (int, error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if len(p) > w.left {
+		n := w.left
+		w.left = 0
+		return n, errors.New("broken pipe")
+	}
+	w.left -= len(p)
+	return len(p), nil
+}
+
+func TestWriteFailureStopsServeAndNothingIsWrittenAfterIt(t *testing.T) {
+	connIn, peerOut := io.Pipe()
+	out := &failingWriter{left: 10} // fails inside the first response's header
+	conn := NewConn(connIn, out)
+	conn.Handle("echo", func(_ context.Context, params json.RawMessage) (any, error) { return params, nil })
+	served := make(chan error, 1)
+	go func() { served <- conn.Serve(context.Background()) }()
+	defer func() { _ = peerOut.Close() }()
+	go func() {
+		for i := range 5 {
+			_ = WriteMessage(peerOut, fmt.Appendf(nil, `{"jsonrpc":"2.0","id":%d,"method":"echo"}`, i))
+		}
+	}()
+	select {
+	case err := <-served:
+		if err == nil {
+			t.Fatal("Serve after a failed write = nil, want the write error")
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("Serve still running 2s after its output failed")
+	}
+	if err := conn.Notify("late", nil); err == nil {
+		t.Fatal("Notify after a failed write = nil, want the write error")
+	}
+}
+
+func TestConcurrentCallsAndCancelsLeaveNoGoroutinesBehind(t *testing.T) {
+	// @covers rpc:$/cancelRequest
+	before := runtime.NumGoroutine()
+	func() {
+		server, client := connectedPair(t)
+		server.Handle("work", func(ctx context.Context, params json.RawMessage) (any, error) {
+			var n int
+			_ = json.Unmarshal(params, &n)
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			case <-time.After(time.Duration(n%5) * time.Millisecond):
+				return n, nil
+			}
+		})
+		var wg sync.WaitGroup
+		for i := range 500 {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				ctx, cancel := context.WithCancel(context.Background())
+				defer cancel()
+				switch i % 4 {
+				case 0:
+					cancel() // cancelled before it is sent
+				case 1:
+					time.AfterFunc(time.Duration(i%3)*time.Millisecond, cancel)
+				}
+				var got int
+				err := client.Call(ctx, "work", i, &got)
+				if err == nil && got != i {
+					t.Errorf("Call(work, %d) = %d, want %d", i, got, i)
+				}
+				// Cancels for ids that are unknown, finished or malformed.
+				_ = client.Notify("$/cancelRequest", map[string]any{"id": 1_000_000 + i})
+				_ = client.Notify("$/cancelRequest", map[string]any{"id": i})
+				_ = client.Notify("$/cancelRequest", nil)
+			}()
+		}
+		wg.Wait()
+	}()
+	// Every handler has answered; only the pair's two Serve loops remain
+	// until the test's cleanup closes the pipes.
+	waitForGoroutines(t, before+2)
+}
+
+// waitForGoroutines fails unless the goroutine count drops to at most
+// limit within 2s.
+func waitForGoroutines(t *testing.T, limit int) {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for runtime.NumGoroutine() > limit {
+		if time.Now().After(deadline) {
+			buf := make([]byte, 1<<16)
+			t.Fatalf("%d goroutines still running, want at most %d:\n%s", runtime.NumGoroutine(), limit, buf[:runtime.Stack(buf, true)])
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
 }
