@@ -201,18 +201,25 @@ func (s *searcher) candidates(seg *segment) []uint32 {
 // fileView is one changed file, as the predicate's leaves see it. A commit
 // without files (an empty commit) is seen as one file with no path.
 type fileView struct {
-	file    *FileChange
-	finder  *trigram.LineFinder
-	matches map[*query.Content][]int // per text term, the changed lines it matches
-	message *messageView             // the commit's message, shared by its files
+	file *FileChange
+	termLines
+	message *messageView // the commit's message, shared by its files
 }
 
 // messageView is a commit's message, as text terms see it: the subject on
 // line 1 and the body after it.
-type messageView struct {
+type messageView struct{ termLines }
+
+// termLines is a text, a file's changed lines or a message, and which of
+// its lines each text term matches, worked out once per term.
+type termLines struct {
 	text    []byte
 	finder  *trigram.LineFinder
-	matches map[*query.Content][]int // per text term, the message lines it matches
+	matches map[*query.Content][]int
+}
+
+func newTermLines(text []byte, finder *trigram.LineFinder) termLines {
+	return termLines{text: text, finder: finder, matches: map[*query.Content][]int{}}
 }
 
 // views returns a commit's files for matching.
@@ -229,11 +236,11 @@ func views(c *Commit, finder *trigram.LineFinder) []*fileView {
 }
 
 func newFileView(file *FileChange, finder *trigram.LineFinder, message *messageView) *fileView {
-	return &fileView{file: file, finder: finder, matches: map[*query.Content][]int{}, message: message}
+	return &fileView{file: file, termLines: newTermLines(file.Text, finder), message: message}
 }
 
 func newMessageView(c *Commit, finder *trigram.LineFinder) *messageView {
-	return &messageView{text: []byte(c.message()), finder: finder, matches: map[*query.Content][]int{}}
+	return &messageView{newTermLines([]byte(c.message()), finder)}
 }
 
 // leafFor evaluates predicate leaves against one commit and one of its files.
@@ -270,24 +277,14 @@ func commitLeaf(repo *Repo, c *Commit, p query.Pred) (matched, ok bool) {
 	}
 }
 
-// lines returns which of the file's changed lines term matches, counted
-// from 1 in diff order.
-func (v *fileView) lines(term *query.Content) []int {
-	if found, ok := v.matches[term]; ok {
+// lines returns which lines of the text term matches, counted from 1 (for
+// a file, in diff order).
+func (t *termLines) lines(term *query.Content) []int {
+	if found, ok := t.matches[term]; ok {
 		return found
 	}
-	found := v.finder.Lines(v.file.Text, term)
-	v.matches[term] = found
-	return found
-}
-
-// lines returns which lines of the message term matches, counted from 1.
-func (m *messageView) lines(term *query.Content) []int {
-	if found, ok := m.matches[term]; ok {
-		return found
-	}
-	found := m.finder.Lines(m.text, term)
-	m.matches[term] = found
+	found := t.finder.Lines(t.text, term)
+	t.matches[term] = found
 	return found
 }
 
