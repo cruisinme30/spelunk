@@ -12,6 +12,7 @@
 // Options:
 //   --query <text>      what to type in the search box (default: leave it empty)
 //   --first <text>      a query to run before --query, e.g. to show that a broken query keeps the last results
+//   --replace <text>    open the Replace row and preview replacing the query's matches with <text>
 //   --recent <text>     a recent query (repeatable, newest first)
 //   --open <path>       a file open in the editor, relative to --workspace, for is:open (repeatable)
 //   --key <key>         a key to press after typing, as Playwright names it, e.g. Tab or ? (repeatable)
@@ -39,6 +40,7 @@ const { values: args } = parseArgs({
   options: {
     query: { type: "string", default: "" },
     recent: { type: "string", multiple: true, default: [] },
+    replace: { type: "string" },
     open: { type: "string", multiple: true, default: [] },
     setting: { type: "string", multiple: true, default: [] },
     key: { type: "string", multiple: true, default: [] },
@@ -142,6 +144,10 @@ async function connectPanel(page, host, daemon) {
     setContext: () => {},
     saveState: () => {},
     savePinned: () => {},
+    // A screenshot previews a replace but never applies one.
+    readDocument: async () => {},
+    applyEdits: async () => false,
+    saveFiles: () => {},
   };
   const openFiles = args.open.map((path) => join(args.workspace, path));
   // The extension's settings, minus the typing delay, so each keystroke searches at once.
@@ -164,7 +170,7 @@ async function connectPanel(page, host, daemon) {
   return posted;
 }
 
-/** Types --first and --query, presses --key, clicks --click, types --type and moves down --select rows. */
+/** Types --first and --query, previews --replace, presses --key, clicks --click, types --type and moves down --select rows. */
 async function drivePanel(page, posted) {
   if (args.first) {
     await page.fill('[data-testid="query"]', args.first);
@@ -175,6 +181,11 @@ async function drivePanel(page, posted) {
     await page.fill('[data-testid="query"]', args.query);
     await until("search.done or parse errors", () => posted.includes("search.done") || posted.includes("parse.result"));
     await page.waitForTimeout(150); // a query with errors gets no search.done
+  }
+  if (args.replace !== undefined) {
+    await page.click('[data-testid="toggle-replace"]');
+    await page.fill('[data-testid="replacement"]', args.replace);
+    await until("the replace preview", () => posted.at(-1) === "replace.plan");
   }
   for (const key of args.key) await page.keyboard.press(key);
   for (const selector of args.click) await page.click(selector);
