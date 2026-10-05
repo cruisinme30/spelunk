@@ -2,7 +2,14 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { rootId } from "../roots";
-import { daemonSettings, welcomeSettings, type ConfigReader } from "../settings";
+import {
+  closeOnOpen,
+  daemonSettings,
+  recentQueriesLimit,
+  uiSettings,
+  welcomeSettings,
+  type ConfigReader,
+} from "../settings";
 
 function configWith(values: Record<string, unknown>): ConfigReader {
   return { get: <T>(key: string, fallback: T) => (key in values ? (values[key] as T) : fallback) };
@@ -36,4 +43,67 @@ test("the welcome page shows the saved preset and index choices, and an unknown 
     mac: true,
   });
   assert.equal(welcomeSettings(configWith({ "shortcut.preset": "bogus" }), false).preset, "quickOpen");
+});
+
+test("settings of the wrong type or out of range fall back to defaults the daemon accepts", () => {
+  // @covers setting:defaultCount setting:index.maxFileSizeKB setting:index.exclude setting:caseSensitive
+  const wrong = configWith({
+    caseSensitive: "yes",
+    defaultCount: "lots",
+    "index.symbols": 1,
+    "index.exclude": "**/dist/**",
+    "index.includeIgnored": null,
+    "index.maxFileSizeKB": 1.5,
+    "index.location": 42,
+    "index.historyDepth": ["all"],
+  });
+  assert.deepEqual(daemonSettings(wrong, "/home/u"), {
+    caseSensitive: false,
+    defaultCount: 500,
+    historyDepth: "2y",
+    symbols: true,
+    exclude: ["**/vendor/**", "**/node_modules/**", "**/*.min.js"],
+    includeIgnored: false,
+    maxFileSizeKB: 2,
+    location: "/home/u/.unified-search/index",
+  });
+  const extremes = daemonSettings(
+    configWith({
+      defaultCount: -5,
+      "index.maxFileSizeKB": 1e300,
+      "index.exclude": ["a", 3, null, "b"],
+      "index.location": "",
+    }),
+    "/home/u",
+  );
+  assert.equal(extremes.defaultCount, 1);
+  assert.equal(extremes.maxFileSizeKB, 1024 * 1024, "kept inside the daemon's int");
+  assert.deepEqual(extremes.exclude, ["a", "b"]);
+  assert.equal(extremes.location, "/home/u/.unified-search/index", "an empty location means the default");
+  assert.equal(JSON.stringify(daemonSettings(configWith({ defaultCount: Number.NaN }), "/h")).includes("null"), false);
+});
+
+test("panel settings of the wrong type fall back to their defaults", () => {
+  // @covers setting:typingDelayMs setting:open.trigger setting:ui.recentQueries
+  const wrong = configWith({
+    typingDelayMs: "fast",
+    "open.trigger": 2,
+    "open.preview": "no",
+    "ui.showParsedQuery": 0,
+    caseSensitive: "true",
+    "ui.recentQueries": "many",
+    "open.closeOnOpen": "false",
+  });
+  assert.deepEqual(uiSettings(wrong), {
+    typingDelayMs: 120,
+    openTrigger: "doubleClick",
+    preview: true,
+    showParsedQuery: true,
+    caseSensitive: false,
+  });
+  assert.equal(recentQueriesLimit(wrong), 20, "not NaN, which would empty the recent list");
+  assert.equal(closeOnOpen(wrong), true);
+  assert.equal(recentQueriesLimit(configWith({ "ui.recentQueries": -3 })), 0);
+  assert.equal(recentQueriesLimit(configWith({ "ui.recentQueries": 2.6 })), 3);
+  assert.equal(uiSettings(configWith({ typingDelayMs: Number.POSITIVE_INFINITY })).typingDelayMs, 120);
 });

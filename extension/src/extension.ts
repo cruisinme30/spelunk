@@ -29,7 +29,7 @@ import type {
   WelcomeStateMsg as WelcomeState,
 } from "./protocol.gen";
 import { makeRoot } from "./roots";
-import { DEFAULTS, daemonSettings, uiSettings, welcomeSettings } from "./settings";
+import { closeOnOpen, daemonSettings, recentQueriesLimit, uiSettings, welcomeSettings } from "./settings";
 import { WELCOMED_KEY, WelcomePanel } from "./welcomePanel";
 
 /** The globalState key that keeps the query and recent queries across sessions. */
@@ -230,8 +230,8 @@ function setContext(key: string, value: boolean): void {
 
 function controllerOptions(): ControllerOptions {
   return {
-    recentLimit: () => configuration().get("ui.recentQueries", DEFAULTS.recentQueries),
-    closeOnOpen: () => configuration().get("open.closeOnOpen", DEFAULTS.closeOnOpen),
+    recentLimit: () => recentQueriesLimit(configuration()),
+    closeOnOpen: () => closeOnOpen(configuration()),
     uiSettings: () => uiSettings(configuration()),
   };
 }

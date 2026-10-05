@@ -7,7 +7,7 @@ export interface ConfigReader {
 }
 
 /** Defaults, matching the "default" values declared in package.json. */
-export const DEFAULTS = {
+const DEFAULTS = {
   caseSensitive: false,
   defaultCount: 500,
   typingDelayMs: 120,
@@ -28,17 +28,40 @@ export const DEFAULTS = {
 /** The hard cap on results per page; the daemon enforces the same limit. */
 const MAX_DEFAULT_COUNT = 50_000;
 const MAX_TYPING_DELAY_MS = 1000;
+/** The daemon reads maxFileSizeKB into an int; this keeps it well inside one (1 GiB). */
+const MAX_FILE_SIZE_KB = 1024 * 1024;
+const MAX_RECENT_QUERIES = 100;
 const HISTORY_DEPTHS: readonly Settings["historyDepth"][] = ["6m", "2y", "all"];
 const OPEN_TRIGGERS: readonly UiSettings["openTrigger"][] = ["doubleClick", "singleClick"];
 const SHORTCUT_PRESETS: readonly WelcomeState["preset"][] = ["quickOpen", "findInFiles", "none"];
 
-function clamp(value: number, min: number, max: number): number {
+// settings.json can hold anything, whatever type package.json declares, and
+// the daemon refuses an initialize whose settings have the wrong JSON types.
+// So every value is checked here, and a wrong one falls back to its default.
+
+/** A whole number within min..max; `fallback` for anything that isn't a finite number. */
+function clamp(value: unknown, min: number, max: number, fallback: number): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) return fallback;
   return Math.min(max, Math.max(min, Math.round(value)));
 }
 
-/** `value` if it is one of `allowed`, otherwise `fallback`: settings.json can hold anything. */
-function oneOf<T extends string>(value: string, allowed: readonly T[], fallback: T): T {
+/** `value` if it is one of `allowed`, otherwise `fallback`. */
+function oneOf<T extends string>(value: unknown, allowed: readonly T[], fallback: T): T {
   return allowed.find((candidate) => candidate === value) ?? fallback;
+}
+
+function boolean(value: unknown, fallback: boolean): boolean {
+  return typeof value === "boolean" ? value : fallback;
+}
+
+function string(value: unknown, fallback: string): string {
+  return typeof value === "string" ? value : fallback;
+}
+
+/** The strings of an array setting; `fallback` when it isn't an array. */
+function strings(value: unknown, fallback: readonly string[]): string[] {
+  if (!Array.isArray(value)) return [...fallback];
+  return value.filter((item): item is string => typeof item === "string");
 }
 
 /** Expands a leading `~` or `~/`, but not `~user/`, which names another user's home. */
@@ -50,31 +73,52 @@ function expandHome(path: string, home: string): string {
 
 /** The settings the daemon needs, validated and clamped. */
 export function daemonSettings(config: ConfigReader, home: string): Settings {
+  const read = (key: string, fallback: unknown) => config.get<unknown>(key, fallback);
   return {
-    caseSensitive: config.get("caseSensitive", DEFAULTS.caseSensitive),
-    defaultCount: clamp(config.get("defaultCount", DEFAULTS.defaultCount), 1, MAX_DEFAULT_COUNT),
-    historyDepth: oneOf(
-      config.get<string>("index.historyDepth", DEFAULTS.historyDepth),
-      HISTORY_DEPTHS,
-      DEFAULTS.historyDepth,
+    caseSensitive: boolean(read("caseSensitive", DEFAULTS.caseSensitive), DEFAULTS.caseSensitive),
+    defaultCount: clamp(read("defaultCount", DEFAULTS.defaultCount), 1, MAX_DEFAULT_COUNT, DEFAULTS.defaultCount),
+    historyDepth: oneOf(read("index.historyDepth", DEFAULTS.historyDepth), HISTORY_DEPTHS, DEFAULTS.historyDepth),
+    symbols: boolean(read("index.symbols", DEFAULTS.symbols), DEFAULTS.symbols),
+    exclude: strings(read("index.exclude", DEFAULTS.exclude), DEFAULTS.exclude),
+    includeIgnored: boolean(read("index.includeIgnored", DEFAULTS.includeIgnored), DEFAULTS.includeIgnored),
+    maxFileSizeKB: clamp(
+      read("index.maxFileSizeKB", DEFAULTS.maxFileSizeKB),
+      1,
+      MAX_FILE_SIZE_KB,
+      DEFAULTS.maxFileSizeKB,
     ),
-    symbols: config.get("index.symbols", DEFAULTS.symbols),
-    exclude: config.get<string[]>("index.exclude", [...DEFAULTS.exclude]),
-    includeIgnored: config.get("index.includeIgnored", DEFAULTS.includeIgnored),
-    maxFileSizeKB: Math.max(1, config.get("index.maxFileSizeKB", DEFAULTS.maxFileSizeKB)),
-    location: expandHome(config.get<string>("index.location", DEFAULTS.location), home),
+    location: expandHome(
+      string(read("index.location", DEFAULTS.location), DEFAULTS.location) || DEFAULTS.location,
+      home,
+    ),
   };
 }
 
 /** The settings the webview needs. */
 export function uiSettings(config: ConfigReader): UiSettings {
+  const read = (key: string, fallback: unknown) => config.get<unknown>(key, fallback);
   return {
-    typingDelayMs: clamp(config.get("typingDelayMs", DEFAULTS.typingDelayMs), 0, MAX_TYPING_DELAY_MS),
-    openTrigger: oneOf(config.get<string>("open.trigger", DEFAULTS.openTrigger), OPEN_TRIGGERS, DEFAULTS.openTrigger),
-    preview: config.get("open.preview", DEFAULTS.openPreview),
-    showParsedQuery: config.get("ui.showParsedQuery", DEFAULTS.showParsedQuery),
-    caseSensitive: config.get("caseSensitive", DEFAULTS.caseSensitive),
+    typingDelayMs: clamp(read("typingDelayMs", DEFAULTS.typingDelayMs), 0, MAX_TYPING_DELAY_MS, DEFAULTS.typingDelayMs),
+    openTrigger: oneOf(read("open.trigger", DEFAULTS.openTrigger), OPEN_TRIGGERS, DEFAULTS.openTrigger),
+    preview: boolean(read("open.preview", DEFAULTS.openPreview), DEFAULTS.openPreview),
+    showParsedQuery: boolean(read("ui.showParsedQuery", DEFAULTS.showParsedQuery), DEFAULTS.showParsedQuery),
+    caseSensitive: boolean(read("caseSensitive", DEFAULTS.caseSensitive), DEFAULTS.caseSensitive),
   };
+}
+
+/** How many recent queries to keep (0 keeps none). */
+export function recentQueriesLimit(config: ConfigReader): number {
+  return clamp(
+    config.get<unknown>("ui.recentQueries", DEFAULTS.recentQueries),
+    0,
+    MAX_RECENT_QUERIES,
+    DEFAULTS.recentQueries,
+  );
+}
+
+/** Whether opening a result closes the search panel. */
+export function closeOnOpen(config: ConfigReader): boolean {
+  return boolean(config.get<unknown>("open.closeOnOpen", DEFAULTS.closeOnOpen), DEFAULTS.closeOnOpen);
 }
 
 /** What the welcome page shows; `mac` writes keys as ⌘P rather than Ctrl+P. */
@@ -82,7 +126,7 @@ export function welcomeSettings(config: ConfigReader, mac: boolean): WelcomeStat
   const settings = daemonSettings(config, "");
   return {
     preset: oneOf(
-      config.get<string>("shortcut.preset", DEFAULTS.shortcutPreset),
+      config.get<unknown>("shortcut.preset", DEFAULTS.shortcutPreset),
       SHORTCUT_PRESETS,
       DEFAULTS.shortcutPreset,
     ),
