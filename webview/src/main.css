@@ -786,10 +786,6 @@ mark.term-color-3 {
   border-radius: 8px;
 }
 
-.note code {
-  font-family: var(--mono);
-}
-
 .more {
   padding: 6px 14px;
 }
@@ -1225,17 +1221,9 @@ pre.body {
   font-size: 12px;
 }
 
-#completions kbd.value {
-  font-family: var(--mono);
-}
-
 .completion.search-as-typed {
   border-top: 1px solid var(--line);
   margin-top: 4px;
-}
-
-.completion.search-as-typed code {
-  font-family: var(--mono);
 }
 
 .glimpse {
@@ -1247,7 +1235,6 @@ pre.body {
 
 .glimpse .completion-group code {
   text-transform: none;
-  font-family: var(--mono);
 }
 
 /* The repo menu under "All repos · 3". */
@@ -1356,10 +1343,6 @@ pre.body {
 .guide .lead {
   color: var(--muted);
   font-size: 15px;
-}
-
-.guide code {
-  font-family: var(--mono);
 }
 
 .operator-table,
