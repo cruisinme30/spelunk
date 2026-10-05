@@ -460,6 +460,8 @@ export class SearchPanel {
     const { input } = this.layout;
     if (settings) this.state.ui = settings;
     this.state.recent = recent;
+    // A shorter list mustn't leave ↵ pointing past its end.
+    this.state.recentIndex = clamp(this.state.recentIndex, 0, Math.max(recent.length - 1, 0));
     if (text !== input.value) {
       input.value = text;
       input.setSelectionRange(text.length, text.length);

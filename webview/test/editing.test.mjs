@@ -135,3 +135,13 @@ test("the fix itself is reported once, not also as typing", async (t) => {
   assert.equal(after.length, before + 1);
   assert.deepEqual(after.at(-1).payload, { text: "since:6m", cursor: 6, seq: after.at(-1).payload.seq });
 });
+
+test("a shorter recent list after a restore still runs the highlighted query on Enter", async (t) => {
+  const page = await openPanel(t);
+  await restore(page, ["first", "second", "third"]);
+  await page.keyboard.press("ArrowUp"); // wraps to "third"
+  await restore(page, ["only"]);
+  assert.equal(await page.locator(".recent-row.selected").count(), 1);
+  await page.keyboard.press("Enter");
+  assert.equal(await page.inputValue(QUERY), "only");
+});
