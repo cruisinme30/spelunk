@@ -3,8 +3,7 @@
 import * as vscode from "vscode";
 import { MESSAGE_VERSION, type WebviewMessage } from "./webviewMessages";
 import type { HostToWebview } from "./protocol.gen";
-import { parseWebviewMessage } from "./webviewMessages";
-import { webviewPage } from "./webviewPage";
+import { openWebviewPanel } from "./webviewPanel";
 
 interface QueuedMessage {
   type: keyof HostToWebview;
@@ -38,23 +37,16 @@ export class SearchPanel implements vscode.Disposable {
       this.post("focus", {});
       return;
     }
-    const webviewRoot = vscode.Uri.joinPath(this.extensionUri, "dist", "webview");
-    const panel = vscode.window.createWebviewPanel("spelunk", "Spelunk", vscode.ViewColumn.Active, {
-      enableScripts: true,
-      retainContextWhenHidden: true,
-      localResourceRoots: [webviewRoot],
-    });
-    this.panel = panel;
-    this.ready = false;
-    panel.webview.html = webviewPage(panel.webview, webviewRoot, "main.js", "Spelunk");
-    panel.webview.onDidReceiveMessage(
-      (raw: unknown) => {
-        const message = parseWebviewMessage(raw);
-        if (message) this.receive(message);
+    const panel = openWebviewPanel(
+      this.extensionUri,
+      { viewType: "spelunk", title: "Spelunk", script: "main.js", retainContextWhenHidden: true },
+      (message) => {
+        this.receive(message);
       },
-      undefined,
       this.panelDisposables,
     );
+    this.panel = panel;
+    this.ready = false;
     panel.onDidDispose(
       () => {
         this.onPanelDisposed();

@@ -1,9 +1,8 @@
 // The help page: the search guide in its own editor tab. Its Try
 // buttons run an example in the search panel.
-import * as vscode from "vscode";
+import type * as vscode from "vscode";
 import type { WebviewMessage } from "./webviewMessages";
-import { parseWebviewMessage } from "./webviewMessages";
-import { webviewPage } from "./webviewPage";
+import { openWebviewPanel } from "./webviewPanel";
 
 /** The help page's editor tab; at most one is open. */
 export class HelpPanel implements vscode.Disposable {
@@ -21,17 +20,12 @@ export class HelpPanel implements vscode.Disposable {
       this.panel.reveal();
       return;
     }
-    const webviewRoot = vscode.Uri.joinPath(this.extensionUri, "dist", "webview");
-    const panel = vscode.window.createWebviewPanel("spelunk.help", "Spelunk · Help", vscode.ViewColumn.Active, {
-      enableScripts: true,
-      localResourceRoots: [webviewRoot],
-    });
+    const panel = openWebviewPanel(
+      this.extensionUri,
+      { viewType: "spelunk.help", title: "Spelunk · Help", script: "help.js" },
+      this.onMessage,
+    );
     this.panel = panel;
-    panel.webview.html = webviewPage(panel.webview, webviewRoot, "help.js", "Spelunk · Help");
-    panel.webview.onDidReceiveMessage((raw: unknown) => {
-      const message = parseWebviewMessage(raw);
-      if (message) this.onMessage(message);
-    });
     panel.onDidDispose(() => {
       this.panel = undefined;
     });

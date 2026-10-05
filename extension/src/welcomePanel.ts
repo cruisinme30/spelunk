@@ -1,11 +1,10 @@
 // The welcome page: shown once after installing, and by Spelunk:
 // Show Welcome. It sets the shortcut preset and what to index, and shows
 // each repo's indexing as it runs.
-import * as vscode from "vscode";
+import type * as vscode from "vscode";
 import { MESSAGE_VERSION, type WebviewMessage } from "./webviewMessages";
 import type { HostToWebview, IndexStatusResult, WelcomeStateMsg as WelcomeState } from "./protocol.gen";
-import { parseWebviewMessage } from "./webviewMessages";
-import { webviewPage } from "./webviewPage";
+import { openWebviewPanel } from "./webviewPanel";
 
 /** The globalState key set once the welcome page has been shown. */
 export const WELCOMED_KEY = "spelunk.welcomed";
@@ -33,18 +32,15 @@ export class WelcomePanel implements vscode.Disposable {
       this.panel.reveal();
       return;
     }
-    const webviewRoot = vscode.Uri.joinPath(this.extensionUri, "dist", "webview");
-    const panel = vscode.window.createWebviewPanel("spelunk.welcome", "Welcome · Spelunk", vscode.ViewColumn.Active, {
-      enableScripts: true,
-      localResourceRoots: [webviewRoot],
-    });
+    const panel = openWebviewPanel(
+      this.extensionUri,
+      { viewType: "spelunk.welcome", title: "Welcome · Spelunk", script: "welcome.js" },
+      (message) => {
+        if (message.type === "ready") void this.sendState();
+        else this.onMessage(message);
+      },
+    );
     this.panel = panel;
-    panel.webview.html = webviewPage(panel.webview, webviewRoot, "welcome.js", "Welcome · Spelunk");
-    panel.webview.onDidReceiveMessage((raw: unknown) => {
-      const message = parseWebviewMessage(raw);
-      if (message?.type === "ready") void this.sendState();
-      else if (message) this.onMessage(message);
-    });
     panel.onDidDispose(() => {
       this.panel = undefined;
     });
