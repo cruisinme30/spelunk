@@ -1,10 +1,14 @@
 package symbols
 
 import (
+	"bytes"
 	"slices"
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
+
+	"github.com/cruisinme30/unified-search/daemon/internal/protocol"
 )
 
 // languages are the languages with rules, sorted, so a fuzzer's byte picks one.
@@ -36,6 +40,33 @@ var symbolSeeds = []string{
 	"\xff\xfe" + "class \xc3\x28Bad\n",
 	"class 😀 {\n",
 	"\x00def\x00 f():\n",
+}
+
+// FuzzExtract checks that Extract never panics, reports lines in order
+// within the file, and names that appear on their line.
+func FuzzExtract(f *testing.F) {
+	for i, seed := range symbolSeeds {
+		f.Add(uint8(i), []byte(seed))
+	}
+	names := languages()
+	kinds := []protocol.SymbolKind{class, iface, function, method, typeKind, otherKind}
+	f.Fuzz(func(t *testing.T, pick uint8, content []byte) {
+		lang := names[int(pick)%len(names)]
+		lines := bytes.Split(content, []byte("\n"))
+		previous := 0
+		for _, symbol := range Extract(lang, content) {
+			if symbol.Line <= previous || symbol.Line > len(lines) {
+				t.Fatalf("Extract(%s, %q): line %d after line %d, file has %d lines", lang, content, symbol.Line, previous, len(lines))
+			}
+			previous = symbol.Line
+			if symbol.Name == "" || !utf8.ValidString(symbol.Name) || !bytes.Contains(lines[symbol.Line-1], []byte(symbol.Name)) {
+				t.Fatalf("Extract(%s, %q): name %q is not on line %d", lang, content, symbol.Name, symbol.Line)
+			}
+			if !slices.Contains(kinds, symbol.Kind) {
+				t.Fatalf("Extract(%s, %q): unknown kind %q", lang, content, symbol.Kind)
+			}
+		}
+	})
 }
 
 // FuzzSqueezeSpaceKeepsMatches checks that the rules find the same symbol
