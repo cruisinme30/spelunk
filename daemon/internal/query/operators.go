@@ -97,9 +97,9 @@ func currentState(value string) bool {
 
 // lookupOperator finds an operator by any of its spellings: f, file.
 func lookupOperator(name string) (operator, bool) {
-	for _, op := range operators {
-		if op.accepts(name) {
-			return op, true
+	for i := range operators {
+		if op := &operators[i]; op.accepts(name) {
+			return *op, true
 		}
 	}
 	return operator{}, false
@@ -117,8 +117,8 @@ func (op operator) accepts(name string) bool {
 // operatorNames are the full names, which unknown-operator fixes offer.
 func operatorNames() []string {
 	names := make([]string, len(operators))
-	for i, op := range operators {
-		names[i] = op.full
+	for i := range operators {
+		names[i] = operators[i].full
 	}
 	return names
 }

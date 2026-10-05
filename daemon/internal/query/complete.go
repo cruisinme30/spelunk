@@ -48,7 +48,8 @@ func Complete(text string, cursor int, resolver Resolver, now time.Time) []proto
 func operatorCompletions(word token) []protocol.Completion {
 	prefix := strings.ToLower(word.value)
 	completions := []protocol.Completion{}
-	for _, op := range operators {
+	for i := range operators {
+		op := &operators[i]
 		if !slices.ContainsFunc(op.spellings(), func(name string) bool { return strings.HasPrefix(name, prefix) }) {
 			continue
 		}
