@@ -52,6 +52,8 @@ const { build } = createRequire(join(repoRoot, "extension/package.json"))("esbui
 const { chromium } = createRequire(join(repoRoot, "webview/package.json"))("playwright");
 
 const scratch = mkdtempSync(join(tmpdir(), "us-screenshot-"));
+/** A settings reader that has nothing set, so every setting is its default. */
+const defaultsOnly = { get: (_key, defaultValue) => defaultValue };
 try {
   await main();
 } finally {
@@ -65,7 +67,7 @@ async function main() {
   const daemon = new host.Daemon({
     binary: join(repoRoot, "daemon/bin/unified-search-daemon"),
     roots: () => workspaceRoots(host),
-    settings: () => ({ ...host.DEFAULTS, exclude: [...host.DEFAULTS.exclude], location: join(scratch, "index") }),
+    settings: () => ({ ...host.daemonSettings(defaultsOnly, scratch), location: join(scratch, "index") }),
   });
   await daemon.start();
   const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined });
@@ -123,7 +125,6 @@ async function connectPanel(page, host, daemon) {
     saveState: () => {},
   };
   // The extension's default settings, minus the typing delay, so each keystroke searches at once.
-  const defaultsOnly = { get: (_key, defaultValue) => defaultValue };
   const uiSettings = { ...host.uiSettings(defaultsOnly), typingDelayMs: 0 };
   const controller = new host.SearchController(
     daemon,
@@ -180,7 +181,7 @@ async function loadHost() {
         'export { SearchController } from "./controller";',
         'export { Daemon } from "./daemon";',
         'export { makeRoot } from "./roots";',
-        'export { DEFAULTS, uiSettings } from "./settings";',
+        'export { daemonSettings, uiSettings } from "./settings";',
       ].join("\n"),
       resolveDir: join(repoRoot, "extension/src"),
       loader: "ts",
