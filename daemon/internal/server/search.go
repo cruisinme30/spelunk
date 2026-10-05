@@ -124,7 +124,7 @@ func (s *Server) search(ctx context.Context, raw json.RawMessage) (any, error) {
 		}
 	}
 	result := protocol.SearchResult{
-		Total: stats.Total, Truncated: stats.Truncated, Hidden: stats.Hidden,
+		Total: stats.Total, Truncated: stats.Truncated, Hidden: stats.Hidden, Facets: stats.Facets,
 		Ms: int(time.Since(started).Milliseconds()),
 	}
 	if stats.NextOffset > 0 {

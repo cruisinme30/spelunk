@@ -3,11 +3,13 @@ package history
 import (
 	"context"
 	"errors"
+	"fmt"
 	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
 
+	"github.com/cruisinme30/spelunk/daemon/internal/engine"
 	"github.com/cruisinme30/spelunk/daemon/internal/protocol"
 	"github.com/cruisinme30/spelunk/daemon/internal/trigram"
 )
@@ -475,5 +477,30 @@ func TestParseRefRejectsWhatItDidNotWrite(t *testing.T) {
 		if _, ok := ParseRef(text); ok {
 			t.Errorf("ParseRef(%q) accepted it", text)
 		}
+	}
+}
+
+func TestSearchCountsCommitsByRepoAuthorAndMonth(t *testing.T) {
+	r, _ := paymentsHistory(t)
+	repo := Repo{ID: "r1", Name: "payments-api", Root: r.root, Store: r.ingest()}
+	stats, err := Search(context.Background(), plan(t, "type:commit timeout count:1"), []Repo{repo}, 1, func(protocol.ResultItem) {})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string][]string{}
+	for _, facet := range stats.Facets {
+		for _, bucket := range facet.Buckets {
+			got[facet.Field] = append(got[facet.Field], fmt.Sprintf("%s %d %s", bucket.Label, bucket.Count, bucket.Filter))
+		}
+	}
+	want := map[string][]string{
+		// every counted commit, not just the page count:1 shows
+		engine.FacetRepo:   {"payments-api 3 repo:payments-api"},
+		engine.FacetAuthor: {`Jane Doe 1 author:"Jane Doe"`, `Jason Kim 1 author:"Jason Kim"`, `Marta Ruiz 1 author:"Marta Ruiz"`},
+		// in local time: these dates are September and October in every zone from UTC-12 to UTC+13
+		engine.FacetMonth: {"Sep 2026 2 since:2026-09 until:2026-09", "Oct 2026 1 since:2026-10 until:2026-10"},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("facets:\n got %q\nwant %q", got, want)
 	}
 }

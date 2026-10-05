@@ -38,7 +38,9 @@ func Search(ctx context.Context, plan *query.Plan, repos []Repo, planID int, emi
 	}
 	ctx, cancel := context.WithTimeout(ctx, engine.Budget)
 	defer cancel()
-	s := &searcher{ctx: ctx, plan: plan, planID: planID, emit: emit, lines: trigram.NewLineFinder(), hidden: map[int]int{}}
+	s := &searcher{ctx: ctx, plan: plan, planID: planID, emit: emit, lines: trigram.NewLineFinder(), hidden: map[int]int{},
+		facets: engine.NewFacets(engine.FacetRepo, engine.FacetAuthor, engine.FacetMonth),
+	}
 	s.searchNewestFirst(repos)
 	if plan.CaseFilter != nil {
 		s.hiddenByCase = engine.CountIgnoringCase(ctx, plan, repos, Search) - s.counted
@@ -65,6 +67,8 @@ type searcher struct {
 	lines     *trigram.LineFinder
 	counted   int // matching commits so far
 	truncated bool
+	// facets count the matching commits by repo, author and month.
+	facets *engine.Facets
 	// hidden counts, per filter index, commits that only that filter removed.
 	hidden map[int]int
 	// hiddenByCase counts commits that differ only in case from case:yes.
@@ -79,6 +83,7 @@ type searcher struct {
 // stats summarizes the search.
 func (s *searcher) stats() engine.Stats {
 	stats := engine.NewStats(s.plan, s.counted, s.truncated)
+	stats.Facets = s.facets.List()
 	for i := range s.plan.Filters {
 		if f := &s.plan.Filters[i]; s.hidden[f.Index] > 0 {
 			stats.Hidden = append(stats.Hidden, f.Note(s.hidden[f.Index], "commits"))
@@ -174,6 +179,9 @@ func (s *searcher) visit(repo *Repo, c *Commit) {
 			s.emit(s.result(repo, c, files))
 		}
 		s.counted++
+		s.facets.CountRepo(repo.Name)
+		s.facets.CountAuthor(c.AuthorName)
+		s.facets.CountMonth(c.At, time.Local)
 	default:
 		s.countHidden(repo, c, files)
 	}

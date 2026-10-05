@@ -3,6 +3,7 @@ package trigram
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"reflect"
 	"runtime"
 	"strings"
@@ -10,6 +11,7 @@ import (
 	"time"
 	"unicode/utf16"
 
+	"github.com/cruisinme30/spelunk/daemon/internal/engine"
 	"github.com/cruisinme30/spelunk/daemon/internal/protocol"
 )
 
@@ -437,5 +439,25 @@ func TestAHugeLineIsSearchedInBoundedTimeAndMemory(t *testing.T) {
 	items, _ = runItems(t, "/a+/ f:run", defaultSettings, "", repo)
 	if len(items) != 1 || !reflect.DeepEqual(items[0].Hits, []protocol.Hit{{Start: 81, End: maxResultLineRunes + 1}}) {
 		t.Errorf("hits of a match past the window = %+v, want it marked from where it starts to the window's end", items)
+	}
+}
+
+func TestSearchCountsEveryResultByRepoLanguageAndFolder(t *testing.T) {
+	api := repoOf("api", map[string]string{"src/retry.py": "retry = 1\nretry = 2\n", "README.md": "no match\n"})
+	_, stats := run(t, "retry count:1", webRepo, api)
+	got := map[string][]string{}
+	for _, facet := range stats.Facets {
+		for _, bucket := range facet.Buckets {
+			got[facet.Field] = append(got[facet.Field], fmt.Sprintf("%s %d %s", bucket.Label, bucket.Count, bucket.Filter))
+		}
+	}
+	want := map[string][]string{
+		// every counted result, not just the page count:1 shows
+		engine.FacetRepo:   {"web 9 repo:web", "api 3 repo:api"},
+		engine.FacetLang:   {"Python 5 lang:python", "TypeScript 4 lang:typescript", "JavaScript 2 lang:javascript", "Markdown 1 lang:markdown"},
+		engine.FacetFolder: {"src/ 9 f:^src/", "vendor/ 2 f:^vendor/"},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("facets:\n got %q\nwant %q", got, want)
 	}
 }

@@ -18,6 +18,7 @@ type Stats struct {
 	Truncated  bool
 	NextOffset int // where the next page starts; 0 when this is the last page
 	Hidden     []protocol.HiddenNote
+	Facets     []protocol.Facet // every counted result by repo, language, folder, author or month
 }
 
 // NewStats starts the stats of a plan's search that counted results; the

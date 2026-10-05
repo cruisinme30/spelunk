@@ -134,6 +134,8 @@ type searcher struct {
 
 	counted   int
 	truncated bool
+	// facets count the results by repo, language and top folder.
+	facets *engine.Facets
 	// hidden counts, per filter index, results that only that filter removed.
 	hidden map[int]int
 	// hiddenByKind counts code matches a type:file query left out.
@@ -157,6 +159,7 @@ type searcher struct {
 func newSearcher(ctx context.Context, plan *query.Plan, planID int, emit func(protocol.ResultItem)) *searcher {
 	s := &searcher{
 		ctx: ctx, plan: plan, planID: planID, emit: emit, hidden: map[int]int{}, terms: termCache{},
+		facets:  engine.NewFacets(engine.FacetRepo, engine.FacetLang, engine.FacetFolder),
 		started: time.Now(), literals: map[int]string{},
 	}
 	s.holding = s.ranking()
@@ -177,10 +180,11 @@ func (s *searcher) stopped() bool {
 	return s.truncated
 }
 
-// add counts a result and emits it if it falls on the requested page.
-// In best-match order the page is held and sent sorted once it is full,
-// or once rankWindow has passed; score and quality rank the result's file.
-func (s *searcher) add(item protocol.ResultItem, score, quality int) {
+// add counts a result in doc of repo, and in its facets, and emits it if
+// it falls on the requested page. In best-match order the page is held and
+// sent sorted once it is full, or once rankWindow has passed; score and
+// quality rank the result's file.
+func (s *searcher) add(repo *Repo, doc *Doc, item protocol.ResultItem, score, quality int) {
 	if s.counted >= query.MaxResults {
 		s.truncated = true
 		return
@@ -196,6 +200,9 @@ func (s *searcher) add(item protocol.ResultItem, score, quality int) {
 		}
 	}
 	s.counted++
+	s.facets.CountRepo(repo.Name)
+	s.facets.CountLang(doc.Lang)
+	s.facets.CountFolder(doc.Path)
 	if s.holding && s.counted == s.plan.Offset+s.plan.Limit {
 		s.sendHeld()
 	}
@@ -205,6 +212,7 @@ func (s *searcher) add(item protocol.ResultItem, score, quality int) {
 // that hid something, counting unit.
 func (s *searcher) stats(unit string) engine.Stats {
 	stats := engine.NewStats(s.plan, s.counted, s.truncated)
+	stats.Facets = s.facets.List()
 	for i := range s.plan.Filters {
 		if f := &s.plan.Filters[i]; s.hidden[f.Index] > 0 {
 			stats.Hidden = append(stats.Hidden, f.Note(s.hidden[f.Index], unit))
@@ -341,7 +349,7 @@ func (s *searcher) addFileName(repo *Repo, doc *Doc, rank docRank) {
 			item.LastCommit = &commit
 		}
 	}
-	s.add(item, rank.score, 0)
+	s.add(repo, doc, item, rank.score, 0)
 }
 
 // nameHits highlights the matching text terms in a path, or the characters
@@ -428,7 +436,7 @@ func (s *searcher) addCodeLines(repos []Repo) {
 			if s.holding {
 				quality = s.lineQuality(line)
 			}
-			s.add(item, c.rank.score, quality)
+			s.add(c.repo, c.doc, item, c.rank.score, quality)
 		}
 	})
 }
@@ -454,7 +462,7 @@ func (s *searcher) addSymbols(repos []Repo) {
 			if query.Eval(s.plan.Pred, symbolLeaf) {
 				item := s.symbolResult(c.repo, c.doc, symbol)
 				item.RankReason = c.rank.reason
-				s.add(item, c.rank.score, 0)
+				s.add(c.repo, c.doc, item, c.rank.score, 0)
 			} else {
 				s.countHidden(symbolLeaf, func([]*query.Content) int { return 1 })
 			}
