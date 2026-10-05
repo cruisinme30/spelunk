@@ -948,12 +948,13 @@ pre.body {
   padding: 6px 0 12px;
 }
 
-/* The divider exists only while recent and the cheat sheet sit side by side. */
+/* The divider exists only while recent and the cheat sheet sit side by side: from 841px, their two flex bases
+   (280px and 560px) plus the 1px line. */
 .recent-divider {
   display: none;
 }
 
-@media (width > 841px) {
+@media (width >= 841px) {
   .empty {
     flex-wrap: nowrap;
     gap: 0;

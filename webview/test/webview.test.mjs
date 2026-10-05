@@ -72,11 +72,14 @@ test("a recent width saved in a wide panel still leaves the cheat sheet its mini
   assert.ok((await page.locator(".sheet").boundingBox()).width >= 320, "the cheat sheet keeps 320px");
 });
 
-test("the divider hides when recent and the cheat sheet stack", async (t) => {
+test("the divider shows once recent and the cheat sheet fit side by side, and hides when they stack", async (t) => {
   const page = await openPanel(t);
-  await page.setViewportSize({ width: 600, height: 700 });
+  await page.setViewportSize({ width: 841, height: 700 });
   await restore(page, ["sym:RetryPolicy"]);
-  assert.equal(await page.locator('[data-testid="recent-divider"]').isVisible(), false);
+  const divider = page.locator('[data-testid="recent-divider"]');
+  assert.equal(await divider.isVisible(), true);
+  await page.setViewportSize({ width: 600, height: 700 });
+  assert.equal(await divider.isVisible(), false);
 });
 
 test("an empty box shows recent queries and all 16 operators", async (t) => {
