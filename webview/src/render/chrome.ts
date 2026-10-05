@@ -4,7 +4,7 @@
 import { button, clamp, element, isIndexing, percent, plural, progressBar, termClass } from "../format";
 import type { Layout } from "../layout";
 import { fullName, OPERATOR_TONE } from "../operators";
-import { scopedRepo, type OperatorNode, type TextNode } from "../parsedQuery";
+import { diffSide, scopedRepo, type OperatorNode, type TextNode } from "../parsedQuery";
 import type {
   BannerMessage,
   CaseSetting,
@@ -175,7 +175,7 @@ export function renderChips(layout: Layout, state: ViewState, summary: HTMLEleme
     ...chipsFor(query.root, {
       mode: query.mode,
       fileNamesOnly: query.globals.type === "file",
-      diffSide: query.globals.type === "added" || query.globals.type === "removed" ? query.globals.type : null,
+      diffSide: diffSide(query),
     }),
     element("span", { class: `mode ${query.mode}`, "data-testid": "mode" }, modeLabel),
     summary,

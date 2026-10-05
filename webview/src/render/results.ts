@@ -13,7 +13,7 @@ import {
   termClass,
   timeAgo,
 } from "../format";
-import { operatorNodes, textNodes, textTerms } from "../parsedQuery";
+import { diffSide, operatorNodes, textNodes, textTerms } from "../parsedQuery";
 import type { Fix, HiddenNote, RankReason, ResultItem, ResultOrder, SearchDoneMessage } from "../protocol.gen";
 import { repoName, type ViewState } from "../state";
 
@@ -415,7 +415,7 @@ export class ResultsView {
         element("span", {}, item.author.name),
         element("span", {}, timeAgo(item.at)),
         element("span", {}, repoName(this.state, item.repoId)),
-        commitMatchPlace(item, this.state.parsed?.globals.type),
+        commitMatchPlace(item, diffSide(this.state.parsed)),
         ...tags,
       ),
       item.bodyLine
@@ -430,8 +430,8 @@ export class ResultsView {
  * Where a commit's text terms matched: "in message · 3 hits in diff", "in message only" or "3 hits in diff".
  * Under type:added or type:removed only that side of the diff is searched: "3 hits in added lines".
  */
-function commitMatchPlace(item: ItemOf<"commit">, type: string | null | undefined): HTMLElement | null {
-  const place = type === "added" || type === "removed" ? `in ${type} lines` : "in diff";
+function commitMatchPlace(item: ItemOf<"commit">, side: "added" | "removed" | null): HTMLElement | null {
+  const place = side ? `in ${side} lines` : "in diff";
   const inDiff = item.diffHits ? `${plural(item.diffHits, "hit")} ${place}` : "";
   if (item.inMessage) return element("span", {}, inDiff ? `in message · ${inDiff}` : "in message only");
   return inDiff ? element("span", {}, inDiff) : null;

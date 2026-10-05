@@ -70,3 +70,9 @@ export function scopedRepo(query: ParsedQuery | undefined): string | undefined {
   if (!only || others.length > 0) return undefined;
   return only.resolved?.label ?? only.value;
 }
+
+/** The side of the diff type:added or type:removed limits commit search to; null for both. */
+export function diffSide(query: ParsedQuery | undefined): "added" | "removed" | null {
+  const type = query?.globals.type;
+  return type === "added" || type === "removed" ? type : null;
+}
