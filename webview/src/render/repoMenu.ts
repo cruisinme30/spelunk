@@ -5,7 +5,7 @@ import { element } from "../format";
 import type { RepoStatus } from "../protocol.gen";
 
 /** What picking a row of the repo menu does. */
-export interface RepoMenuHandlers {
+interface RepoMenuHandlers {
   /** A repo name, or undefined for all repos. */
   onPick(repoName: string | undefined): void;
 }

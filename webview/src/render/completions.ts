@@ -27,7 +27,7 @@ const VALUE_LISTS: Partial<Record<OpName, { heading: string; hint?: string }>> =
 };
 
 /** What picking a suggestion, or dismissing them, does. */
-export interface CompletionHandlers {
+interface CompletionHandlers {
   onPick(index: number): void;
   onSearchAsTyped(): void;
 }

@@ -12,7 +12,7 @@ const MAX_OUTLINE_SYMBOLS = 8;
 const DIFF_SIGN = { add: "+", del: "−", ctx: " " } as const;
 
 /** What the preview's buttons do. */
-export interface PreviewHandlers {
+interface PreviewHandlers {
   onOpen: (ref: string, where: OpenWhere) => void;
   onShowHiddenFiles: () => void;
 }

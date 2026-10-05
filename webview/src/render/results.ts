@@ -44,13 +44,13 @@ interface Section {
 }
 
 /** What the result list's buttons do. */
-export interface ResultsHandlers {
+interface ResultsHandlers {
   onApplyFix(fix: Fix): void;
   onLoadMore(searchId: string, cursor: string): void;
 }
 
 /** How many results of each kind are on screen, plus the files and repos they come from. */
-export interface ResultCounts extends Record<ResultKind, number> {
+interface ResultCounts extends Record<ResultKind, number> {
   /** Distinct files among the code lines. */
   codeFiles: number;
   /** Distinct repos among all results. */

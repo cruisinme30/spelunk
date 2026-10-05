@@ -21,7 +21,7 @@ export interface OperatorEntry {
 }
 
 /** The color family of an operator group. */
-export type Tone = "match" | "logic" | "scope" | "history" | "output";
+type Tone = "match" | "logic" | "scope" | "history" | "output";
 
 /** A group of entries that share a color, such as Scope or History. */
 export interface OperatorGroup {
