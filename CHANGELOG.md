@@ -5,12 +5,62 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- A recent-queries width saved in a wide panel no longer squeezes the operator cheat sheet when the panel narrows,
+  and the divider between them shows from the first width where both fit.
+- Screen readers announce where the divider between recent queries and the operators is.
+
+## [0.2.0] - 2026-10-05
+
 ### Added
 
 - Drag the line between recent queries and the operators to resize them, or focus it and press ← →. Double-click it
   to reset; the panel remembers the width.
 - Every operator has a full name and a one-letter short name, such as `file:` and `f:` or `author:` and `a:`.
   Suggestions and help show the full name with the short one beside it; `lang:`, `sym:` and `msg:` still work.
+- Remove a recent query with the × at the end of its row, or select it and press ⇧⌫.
+
+### Fixed
+
+- A query can no longer hang or crash the daemon: queries with many misplaced globals parse in linear time, a
+  pasted megabyte parses in under a second, deeply nested parentheses no longer overflow the stack, and one query
+  reports at most 100 problems.
+- Fix-its no longer join words or land inside an unclosed quote, and closing a quote or regex that ends in a
+  backslash really closes it. A fix-it, completion or toggle computed for older text is not applied to newer text,
+  and ⌘Z undoes it.
+- Indexing never blocks on a FIFO, never reads through a symlink out of the root, and indexes nested repos,
+  submodules and roots reached through a symlink. Very long or minified lines are searched and previewed in
+  bounded time and memory.
+- A damaged saved index is rebuilt instead of crashing a search, saved indexes are synced before they replace the
+  old ones, and temp files left by a crash are removed.
+- History reads every commit whatever its message, date or the user's Git config (`diff.noPrefix`,
+  `log.showSignature` and others); a failed read no longer publishes a partial history.
+- A forged result ref can't open a file outside its folder through a symlink.
+- The daemon refuses oversized or malformed JSON-RPC frames without allocating them, answers every malformed
+  message, survives a panicking handler, stops writing once its output fails, and exits soon after VS Code goes away.
+- The extension recovers from garbage on the daemon's stdout, times out a daemon that never finishes starting, stops
+  at once when the binary is missing or not executable, and uses defaults for settings of the wrong type.
+- The search panel drops malformed or late messages, ignores a corrupt saved state, leaves keys to an input method
+  while it composes, keeps the query box in sight in a short panel, and fits the help and welcome pages in a narrow
+  editor. Highlights never split an emoji.
+- A pasted query of any length costs little: only its first 2000 characters are read, and it is reported as too
+  long.
+- A daemon that keeps crashing is restarted after a pause that doubles each time, up to 30 seconds, instead of every
+  200 ms forever.
+- A result after invalid UTF-8 in a file opens at the column VS Code shows: invalid bytes are replaced the way the
+  editor replaces them.
+
+### Changed
+
+- Files are searched as the editor shows them: a UTF-8 byte order mark is dropped, UTF-16 files with a byte order
+  mark are indexed (they were treated as binary), and a lone CR ends a line.
+- `sym:` finds Java and C# methods by their line, whatever its indent, and finds constructors explicitly.
+
+## [0.1.0] - 2026-10-05
+
+### Added
+
 - Search daemon skeleton: JSON-RPC 2.0 over stdio, initialize/shutdown lifecycle, crash restarts.
 - `protocol/` JSON Schema with generated TypeScript and Go types.
 - VS Code extension host: daemon supervisor, search controller and search panel.
@@ -65,37 +115,7 @@ All notable changes to this project are documented here. The format follows
 - A repo whose index failed no longer shows as "Indexing" in the status bar.
 - The `case:` suggestion shows its description and values like the other operators.
 - `sym:` queries return no results instead of wrong ones until symbol search exists.
-- A query can no longer hang or crash the daemon: queries with many misplaced globals parse in linear time, a
-  pasted megabyte parses in under a second, deeply nested parentheses no longer overflow the stack, and one query
-  reports at most 100 problems.
-- Fix-its no longer join words or land inside an unclosed quote, and closing a quote or regex that ends in a
-  backslash really closes it. A fix-it, completion or toggle computed for older text is not applied to newer text,
-  and ⌘Z undoes it.
-- Indexing never blocks on a FIFO, never reads through a symlink out of the root, and indexes nested repos,
-  submodules and roots reached through a symlink. Very long or minified lines are searched and previewed in
-  bounded time and memory.
-- A damaged saved index is rebuilt instead of crashing a search, saved indexes are synced before they replace the
-  old ones, and temp files left by a crash are removed.
-- History reads every commit whatever its message, date or the user's Git config (`diff.noPrefix`,
-  `log.showSignature` and others); a failed read no longer publishes a partial history.
-- A forged result ref can't open a file outside its folder through a symlink.
-- The daemon refuses oversized or malformed JSON-RPC frames without allocating them, answers every malformed
-  message, survives a panicking handler, stops writing once its output fails, and exits soon after VS Code goes away.
-- The extension recovers from garbage on the daemon's stdout, times out a daemon that never finishes starting, stops
-  at once when the binary is missing or not executable, and uses defaults for settings of the wrong type.
-- The search panel drops malformed or late messages, ignores a corrupt saved state, leaves keys to an input method
-  while it composes, keeps the query box in sight in a short panel, and fits the help and welcome pages in a narrow
-  editor. Highlights never split an emoji.
 
-- A pasted query of any length costs little: only its first 2000 characters are read, and it is reported as too
-  long.
-- A daemon that keeps crashing is restarted after a pause that doubles each time, up to 30 seconds, instead of every
-  200 ms forever.
-- A result after invalid UTF-8 in a file opens at the column VS Code shows: invalid bytes are replaced the way the
-  editor replaces them.
-
-### Changed
-
-- Files are searched as the editor shows them: a UTF-8 byte order mark is dropped, UTF-16 files with a byte order
-  mark are indexed (they were treated as binary), and a lone CR ends a line.
-- `sym:` finds Java and C# methods by their line, whatever its indent, and finds constructors explicitly.
+[Unreleased]: https://github.com/cruisinme30/unified-search/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/cruisinme30/unified-search/compare/v0.1.0...v0.2.0
+[0.1.0]: https://github.com/cruisinme30/unified-search/releases/tag/v0.1.0
