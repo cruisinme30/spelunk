@@ -36,6 +36,7 @@ func Extract(lang string, content []byte) []Symbol {
 		return nil
 	}
 	var found []Symbol
+	var squeezed []byte
 	number := 0
 	for rest := content; len(rest) > 0; {
 		number++
@@ -48,12 +49,34 @@ func Extract(lang string, content []byte) []Symbol {
 		if len(line) > maxLineBytes {
 			continue
 		}
-		if symbol, ok := match(rules, line); ok {
+		squeezed = squeezeSpace(squeezed[:0], line)
+		if symbol, ok := match(rules, squeezed); ok {
 			symbol.Line = number
 			found = append(found, symbol)
 		}
 	}
 	return found
+}
+
+// squeezeSpace appends line to buf with each run of whitespace (what \s
+// matches) turned into one space. The rules only ever ask whether there is
+// whitespace, never how much, so they match the same; but RE2 tracks a
+// thread per way to split a run between \s* and \s+, which made a 10 MB
+// file of blank-padded lines take seconds instead of milliseconds.
+func squeezeSpace(buf, line []byte) []byte {
+	inSpace := false
+	for _, c := range line {
+		if c == ' ' || c == '\t' || c == '\r' || c == '\f' || c == '\n' {
+			if !inSpace {
+				buf = append(buf, ' ')
+			}
+			inSpace = true
+			continue
+		}
+		buf = append(buf, c)
+		inSpace = false
+	}
+	return buf
 }
 
 // match applies the first rule that matches line.
