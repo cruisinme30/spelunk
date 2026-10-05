@@ -264,10 +264,11 @@ mark.term-color-3 {
   padding-bottom: 4px;
 }
 
-/* The small uppercase headings: suggestion groups, value-list sections and result sections. */
+/* The small uppercase headings: suggestion groups, value-list sections, result sections and the chips' label. */
 .completion-group,
 .completion-section,
-.section-title {
+.section-title,
+#chips .label {
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.06em;
@@ -499,13 +500,6 @@ mark.term-color-3 {
 
 #chips:empty {
   display: none;
-}
-
-#chips .label {
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
 }
 
 .chip {
