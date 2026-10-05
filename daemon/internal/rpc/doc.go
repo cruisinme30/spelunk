@@ -16,6 +16,10 @@
 //     to choose the code the caller sees; any other error, or a panic,
 //     becomes CodeInternalError. A request the peer cancelled is answered
 //     with CodeRequestCancelled even if its handler ignores the cancel.
+//   - Framing errors end the connection, because the stream cannot be
+//     resynchronised: a header without a valid Content-Length, input that
+//     ends inside a message, or a header or body over the size limits. A
+//     declared length is checked before anything is allocated for it.
 //   - Messages are written whole, one at a time, so concurrent handlers
 //     never interleave bytes on the wire.
 package rpc

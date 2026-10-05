@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net/textproto"
 	"strconv"
 	"strings"
 	"sync"
@@ -27,6 +26,21 @@ const (
 
 // readBufferSize is the reader's initial buffer: big enough for a typical batch.
 const readBufferSize = 64 << 10
+
+// maxHeaderSize bounds the header block of one message. Real headers are a
+// few dozen bytes; the bound keeps a peer that never ends its header (or
+// its header line) from filling memory.
+const maxHeaderSize = 8 << 10
+
+// maxBodySize bounds one message body. The buffer is allocated before the
+// body arrives, so a Content-Length beyond it is refused unread rather than
+// trusted. A variable so tests can shrink it.
+var maxBodySize = 64 << 20
+
+// ErrMessageTooLarge is returned by ReadMessage for a header block or a
+// Content-Length over the limit. The stream cannot be resynchronised after
+// it, so Serve stops.
+var ErrMessageTooLarge = errors.New("rpc: message too large")
 
 // cancelGrace bounds how long Call waits for the peer to answer a cancelled
 // request before giving up on it. A variable so tests can shorten it.
@@ -128,24 +142,72 @@ func (c *Conn) OnNotify(method string, h NotificationHandler) {
 	c.notificationHandlers[method] = h
 }
 
-// ReadMessage reads one Content-Length framed message body.
+// ReadMessage reads one Content-Length framed message body. It returns
+// io.EOF only when the input ends cleanly between messages; input that ends
+// inside a message is io.ErrUnexpectedEOF. A header block or body over the
+// size limits is ErrMessageTooLarge, and is never buffered or allocated.
 func ReadMessage(r *bufio.Reader) ([]byte, error) {
-	header, err := textproto.NewReader(r).ReadMIMEHeader()
-	if err != nil {
-		if errors.Is(err, io.EOF) && len(header) == 0 {
-			return nil, io.EOF
+	length := -1
+	headerBytes := 0
+	for {
+		line, err := readHeaderLine(r, &headerBytes)
+		if err != nil {
+			if errors.Is(err, io.EOF) && headerBytes > 0 {
+				err = io.ErrUnexpectedEOF
+			}
+			return nil, err
 		}
-		return nil, err
+		if line == "" {
+			break
+		}
+		name, value, ok := strings.Cut(line, ":")
+		if !ok {
+			return nil, fmt.Errorf("rpc: malformed header line %q", line)
+		}
+		if !strings.EqualFold(strings.TrimSpace(name), "Content-Length") {
+			continue // Content-Type and anything else carry nothing we need
+		}
+		n, err := strconv.Atoi(strings.TrimSpace(value))
+		if err != nil || n < 0 || (length >= 0 && n != length) {
+			return nil, fmt.Errorf("rpc: bad Content-Length %q", strings.TrimSpace(value))
+		}
+		length = n
 	}
-	length, err := strconv.Atoi(strings.TrimSpace(header.Get("Content-Length")))
-	if err != nil || length < 0 {
-		return nil, fmt.Errorf("rpc: bad Content-Length %q", header.Get("Content-Length"))
+	if length < 0 {
+		return nil, errors.New("rpc: header without Content-Length")
+	}
+	if length > maxBodySize {
+		return nil, fmt.Errorf("%w: Content-Length %d is over %d", ErrMessageTooLarge, length, maxBodySize)
 	}
 	body := make([]byte, length)
 	if _, err := io.ReadFull(r, body); err != nil {
+		if errors.Is(err, io.EOF) {
+			err = io.ErrUnexpectedEOF // the header promised a body
+		}
 		return nil, err
 	}
 	return body, nil
+}
+
+// readHeaderLine reads one header line without its line ending, adding its
+// size to *total and failing once *total passes maxHeaderSize.
+func readHeaderLine(r *bufio.Reader, total *int) (string, error) {
+	var line []byte
+	for {
+		chunk, err := r.ReadSlice('\n')
+		*total += len(chunk)
+		if *total > maxHeaderSize {
+			return "", fmt.Errorf("%w: header over %d bytes", ErrMessageTooLarge, maxHeaderSize)
+		}
+		line = append(line, chunk...)
+		switch {
+		case errors.Is(err, bufio.ErrBufferFull):
+			continue
+		case err != nil:
+			return "", err
+		}
+		return strings.TrimRight(string(line), "\r\n"), nil
+	}
 }
 
 // WriteMessage writes body with a Content-Length header.
