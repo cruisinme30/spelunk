@@ -17,35 +17,63 @@ export class RpcError extends Error {
 }
 
 const HEADER_END = "\r\n\r\n";
+/** A Content-Length header line; other header lines (Content-Type) are allowed and ignored. */
+const CONTENT_LENGTH_LINE = /^content-length:[ \t]*(\d+)[ \t]*\r?$/im;
+/**
+ * The largest body accepted. A bigger Content-Length is treated as a bad
+ * header: waiting for that many bytes would swallow every later reply.
+ */
+export const MAX_FRAME_BYTES = 256 * 1024 * 1024;
+/**
+ * The most bytes kept while looking for the end of a header. Real headers are
+ * a few dozen bytes; anything longer is stray output, of which only the tail
+ * (where a real header may be starting) is kept.
+ */
+const MAX_HEADER_BYTES = 64 * 1024;
+const KEPT_HEADER_TAIL_BYTES = 1024;
 
 /** Splits a byte stream into Content-Length framed message bodies. */
 export class FrameDecoder {
-  private buffered = Buffer.alloc(0);
+  private buffered: Buffer = Buffer.alloc(0);
 
-  /** `onBadFrame` hears about each header without a Content-Length; that header is skipped. */
+  /**
+   * `onBadFrame` hears about each header it skips: one without a usable
+   * Content-Length, or stray output too long to be a header.
+   */
   constructor(private readonly onBadFrame: (header: string) => void = () => {}) {}
 
   /** Adds a chunk and returns every complete body it finished. */
   push(chunk: Buffer): string[] {
-    this.buffered = Buffer.concat([this.buffered, chunk]);
+    let buffered: Buffer = Buffer.concat([this.buffered, chunk]);
     const bodies: string[] = [];
     for (;;) {
-      const headerEnd = this.buffered.indexOf(HEADER_END);
-      if (headerEnd === -1) break;
-      const header = this.buffered.subarray(0, headerEnd).toString("ascii");
+      const headerEnd = buffered.indexOf(HEADER_END);
+      if (headerEnd === -1) {
+        buffered = this.dropStrayOutput(buffered);
+        break;
+      }
+      const header = buffered.subarray(0, headerEnd).toString("latin1");
       const bodyStart = headerEnd + HEADER_END.length;
-      const lengthMatch = /content-length:\s*(\d+)/i.exec(header);
-      if (!lengthMatch) {
-        this.buffered = this.buffered.subarray(bodyStart); // skip the bad header so the stream can recover
+      const bodyLength = Number(CONTENT_LENGTH_LINE.exec(header)?.[1] ?? Number.NaN);
+      if (!(bodyLength <= MAX_FRAME_BYTES)) {
+        buffered = buffered.subarray(bodyStart); // skip the bad header so the stream can recover
         this.onBadFrame(header);
         continue;
       }
-      const bodyLength = Number(lengthMatch[1]);
-      if (this.buffered.length < bodyStart + bodyLength) break;
-      bodies.push(this.buffered.subarray(bodyStart, bodyStart + bodyLength).toString("utf8"));
-      this.buffered = this.buffered.subarray(bodyStart + bodyLength);
+      if (buffered.length < bodyStart + bodyLength) break;
+      bodies.push(buffered.subarray(bodyStart, bodyStart + bodyLength).toString("utf8"));
+      buffered = buffered.subarray(bodyStart + bodyLength);
     }
+    this.buffered = buffered;
     return bodies;
+  }
+
+  /** Keeps only the tail of a header-less run of bytes too long to be a header. */
+  private dropStrayOutput(buffered: Buffer): Buffer {
+    if (buffered.length <= MAX_HEADER_BYTES) return buffered;
+    const dropped = buffered.length - KEPT_HEADER_TAIL_BYTES;
+    this.onBadFrame(`${buffered.subarray(0, 80).toString("latin1")}… (${dropped} bytes without a header end)`);
+    return Buffer.from(buffered.subarray(dropped));
   }
 }
 

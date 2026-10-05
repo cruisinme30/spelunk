@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import { PassThrough } from "node:stream";
 import { test } from "node:test";
-import { CancelSource, Connection, encodeFrame, FrameDecoder, RpcError } from "../jsonRpc";
+import { CancelSource, Connection, encodeFrame, FrameDecoder, MAX_FRAME_BYTES, RpcError } from "../jsonRpc";
 
 test("frames split across chunks are reassembled in order", () => {
   const decoder = new FrameDecoder();
@@ -21,6 +21,51 @@ test("a frame without Content-Length is skipped and the frames after it still de
   const stream = Buffer.concat([encodeFrame("[1]"), Buffer.from("X-Bogus: 1\r\n\r\n"), encodeFrame("[2]")]);
   assert.deepEqual(decoder.push(stream), ["[1]", "[2]"]);
   assert.deepEqual(badHeaders, ["X-Bogus: 1"]);
+});
+
+/** Bodies whose UTF-8 is longer than their UTF-16 length: Content-Length counts bytes. */
+const MULTI_BYTE_BODIES = ['{"x":"é"}', '{"emoji":"😀🎉"}', '{"cjk":"検索"}', "{}"];
+
+test("splitting the stream at every byte boundary decodes the same bodies, multi-byte characters included", () => {
+  const stream = Buffer.concat(MULTI_BYTE_BODIES.map((body) => encodeFrame(body)));
+  for (let split = 0; split <= stream.length; split++) {
+    const decoder = new FrameDecoder();
+    const bodies = [...decoder.push(stream.subarray(0, split)), ...decoder.push(stream.subarray(split))];
+    assert.deepEqual(bodies, MULTI_BYTE_BODIES, `split at byte ${split}`);
+  }
+  const byteByByte = new FrameDecoder();
+  const bodies = [...stream].flatMap((byte) => byteByByte.push(Buffer.from([byte])));
+  assert.deepEqual(bodies, MULTI_BYTE_BODIES, "one byte per chunk");
+});
+
+test("headers are matched by line, case-insensitively, next to other headers", () => {
+  const badHeaders: string[] = [];
+  const decoder = new FrameDecoder((header) => badHeaders.push(header));
+  const stream = Buffer.from(
+    "content-length: 2\r\nContent-Type: application/vscode-jsonrpc\r\n\r\n{}" +
+      "X-Content-Length: 3\r\n\r\n" +
+      "stray log line\nContent-Length: 3\r\n\r\n[1]",
+  );
+  assert.deepEqual(decoder.push(stream), ["{}", "[1]"]);
+  assert.deepEqual(badHeaders, ["X-Content-Length: 3"], "a header that only ends in Content-Length is not one");
+});
+
+test("an absurd Content-Length is skipped instead of swallowing every later frame", () => {
+  const badHeaders: string[] = [];
+  const decoder = new FrameDecoder((header) => badHeaders.push(header));
+  const huge = `Content-Length: ${MAX_FRAME_BYTES + 1}\r\n\r\n`;
+  const infinite = `Content-Length: ${"9".repeat(400)}\r\n\r\n`;
+  assert.deepEqual(decoder.push(Buffer.concat([Buffer.from(huge + infinite), encodeFrame("[2]")])), ["[2]"]);
+  assert.equal(badHeaders.length, 2);
+});
+
+test("stray output without a header end is bounded, and a frame after it still decodes", () => {
+  const badHeaders: string[] = [];
+  const decoder = new FrameDecoder((header) => badHeaders.push(header));
+  const line = Buffer.from("x".repeat(1023) + "\n");
+  for (let index = 0; index < 1024; index++) assert.deepEqual(decoder.push(line), []);
+  assert.ok(badHeaders.length > 0, "the dropped output is reported");
+  assert.deepEqual(decoder.push(encodeFrame("[3]")), ["[3]"]);
 });
 
 /** A Connection over in-memory pipes: `peer` writes what the connection reads; `sent` collects what it wrote. */
