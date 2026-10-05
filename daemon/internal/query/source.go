@@ -44,6 +44,33 @@ func newSource(text string) *source {
 	return &source{text: text, runes: runes, offsets: offsets}
 }
 
+// maxParsedLength is how much of a query, in UTF-16 units, Parse and
+// Complete read. Past it a query is only reported as too long.
+const maxParsedLength = 2 * maxQueryLength
+
+// parsedPrefix returns the part of text that Parse and Complete read: all
+// of it, or (cut true) its longest prefix of whole code points that fits in
+// maxParsedLength.
+func parsedPrefix(text string) (prefix string, cut bool) {
+	length := 0
+	for i, r := range text {
+		length += utf16Width(r)
+		if length > maxParsedLength {
+			return text[:i], true
+		}
+	}
+	return text, false
+}
+
+// utf16Length is the length of text in UTF-16 units.
+func utf16Length(text string) int {
+	length := 0
+	for _, r := range text {
+		length += utf16Width(r)
+	}
+	return length
+}
+
 // utf16Width is how many UTF-16 units r takes: two above the Basic
 // Multilingual Plane (a surrogate pair), one otherwise.
 func utf16Width(r rune) int {

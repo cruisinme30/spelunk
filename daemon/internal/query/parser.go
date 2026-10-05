@@ -15,6 +15,9 @@ func Parse(text string, resolver Resolver) protocol.ParsedQuery {
 	if resolver == nil {
 		resolver = noResolver{}
 	}
+	if prefix, cut := parsedPrefix(text); cut {
+		return parseTooLong(text, prefix)
+	}
 	src := newSource(text)
 	p := &parser{src: src, tokens: lex(src), resolver: resolver}
 	checkLength(src, &p.problems)
@@ -28,6 +31,23 @@ func Parse(text string, resolver Resolver) protocol.ParsedQuery {
 	check(src, &query, &p.problems)
 	query.Diagnostics = sortedBySpan(p.problems.list)
 	return query
+}
+
+// parseTooLong parses a query longer than maxParsedLength: only its prefix
+// is read, for the tree the box colors, and the one problem reported is its
+// length. Lexing all of a pasted megabyte cost hundreds of megabytes for a
+// query that can't run anyway.
+func parseTooLong(text, prefix string) protocol.ParsedQuery {
+	var problems diagnostics
+	problems.errorf(DiagQueryTooLong, protocol.Span{Start: maxQueryLength, End: utf16Length(text)}, nil,
+		"Queries can be at most %d characters", maxQueryLength)
+	return protocol.ParsedQuery{
+		Version:     1,
+		Raw:         text,
+		Root:        parseTree(prefix),
+		Mode:        protocol.ModeWorkingTree,
+		Diagnostics: problems.list,
+	}
 }
 
 // parseTree returns the syntax tree of text without checking it. Fixes use

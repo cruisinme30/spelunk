@@ -1,8 +1,10 @@
 package query
 
 import (
+	"runtime"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/cruisinme30/unified-search/daemon/internal/protocol"
 )
@@ -125,9 +127,31 @@ func TestSinceInMonthsThatLooksLikeMinutesWarns(t *testing.T) {
 }
 
 func TestALongQueryReportsACappedNumberOfProblems(t *testing.T) {
-	q := Parse(strings.Repeat(")", 10*maxQueryLength), testResolver)
+	q := Parse(strings.Repeat(")", maxParsedLength), testResolver)
 	if len(q.Diagnostics) != maxDiagnostics || count(q.Diagnostics, DiagQueryTooLong) != 1 {
-		t.Errorf("Parse(10000 × \")\") has %d diagnostics with %d %s, want %d with 1", len(q.Diagnostics), count(q.Diagnostics, DiagQueryTooLong), DiagQueryTooLong, maxDiagnostics)
+		t.Errorf("Parse(%d × \")\") has %d diagnostics with %d %s, want %d with 1", maxParsedLength, len(q.Diagnostics), count(q.Diagnostics, DiagQueryTooLong), DiagQueryTooLong, maxDiagnostics)
+	}
+}
+
+func TestAPastedMegabyteIsOnlyReportedAsTooLong(t *testing.T) {
+	text := "timeout " + strings.Repeat("😀)", 1<<19)
+	var before, after runtime.MemStats
+	runtime.ReadMemStats(&before)
+	q := Parse(text, testResolver)
+	completions := Complete(text, len(text), testResolver, time.Now())
+	runtime.ReadMemStats(&after)
+	if allocated := after.TotalAlloc - before.TotalAlloc; allocated > 16<<20 {
+		t.Errorf("parsing and completing a 2 MB query allocated %d MB, want it bounded by the parsed prefix", allocated>>20)
+	}
+	want := protocol.Span{Start: maxQueryLength, End: utf16Length(text)}
+	if len(q.Diagnostics) != 1 || q.Diagnostics[0].Code != DiagQueryTooLong || q.Diagnostics[0].Span != want {
+		t.Errorf("Parse(2 MB) diagnostics = %+v, want only %s over %v", q.Diagnostics, DiagQueryTooLong, want)
+	}
+	if q.Raw != text || q.Root == nil || q.Root.Span.End > maxParsedLength {
+		t.Errorf("Parse(2 MB) keeps Raw and a tree of the first %d units, got root %+v", maxParsedLength, q.Root)
+	}
+	if len(completions) != 0 {
+		t.Errorf("Complete past the parsed prefix = %d completions, want none", len(completions))
 	}
 }
 

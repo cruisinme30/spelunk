@@ -20,7 +20,8 @@ func Complete(text string, cursor int, resolver Resolver, now time.Time) []proto
 	if resolver == nil {
 		resolver = noResolver{}
 	}
-	src := newSource(text)
+	prefix, _ := parsedPrefix(text) // a cursor past it completes nothing
+	src := newSource(prefix)
 	for _, t := range lex(src) {
 		if cursor < t.start || cursor > t.end || t.start == t.end {
 			continue
