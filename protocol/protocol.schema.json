@@ -277,7 +277,7 @@
         "type": {
           "oneOf": [
             {
-              "enum": ["file", "code", "commit"]
+              "enum": ["file", "code", "commit", "added", "removed"]
             },
             {
               "type": "null"

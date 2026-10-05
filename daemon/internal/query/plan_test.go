@@ -153,6 +153,7 @@ func TestResultKinds(t *testing.T) {
 		"type:code sym:Retry":         "symbol",
 		"author:jane timeout":         "commit",
 		"type:commit timeout":         "commit",
+		"type:added timeout":          "commit",
 	}
 	for query, want := range tests {
 		if got := kinds(mustPlan(t, query, defaultSettings)); got != want {
@@ -208,6 +209,27 @@ func TestTypeIsAKindFilterWithAnUndo(t *testing.T) {
 	}
 	if mustPlan(t, "retry", defaultSettings).KindFilter != nil {
 		t.Error("KindFilter of a query without type: = non-nil, want nil")
+	}
+}
+
+func TestTypeAddedOrRemovedPicksOneSideOfTheDiff(t *testing.T) {
+	// @covers op:type
+	tests := map[string]string{"type:added retry": TypeAdded, "t:removed retry": TypeRemoved, "type:commit retry": "", "author:jane": ""}
+	for text, want := range tests {
+		if got := mustPlan(t, text, defaultSettings).DiffSide; got != want {
+			t.Errorf("plan(%q).DiffSide = %q, want %q", text, got, want)
+		}
+	}
+	// Removing type:added could leave a query of current files, so its undo
+	// searches every changed line instead.
+	text := "type:added retry -f:vendor/"
+	f := mustPlan(t, text, defaultSettings).KindFilter
+	if f == nil || f.Text != "type:added" || ApplyFix(text, f.Undo) != "type:commit retry -f:vendor/" {
+		t.Errorf("KindFilter = %+v, want type:added with an undo giving %q", f, "type:commit retry -f:vendor/")
+	}
+	either := mustPlan(t, text, defaultSettings).OnEitherSide()
+	if either.DiffSide != "" || either.KindFilter != nil || len(either.Filters) != 0 {
+		t.Errorf("OnEitherSide() = side %q, kind filter %v, %d filters; want both sides and no filters", either.DiffSide, either.KindFilter, len(either.Filters))
 	}
 }
 

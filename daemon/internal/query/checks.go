@@ -152,12 +152,12 @@ func setGlobal(globals *protocol.Globals, node *protocol.Node) {
 }
 
 // needsHistory reports whether a subtree only makes sense over commits:
-// it has author:, msg: or type:commit.
+// it has author:, msg:, or type:commit, type:added or type:removed.
 func needsHistory(node *protocol.Node) bool {
 	found := false
 	walk(node, func(n *protocol.Node) {
 		if n.Kind == protocol.NodeKindOp && (n.Op == protocol.OpNameAuthor || n.Op == protocol.OpNameMsg ||
-			n.Op == protocol.OpNameType && n.Value == "commit") {
+			n.Op == protocol.OpNameType && historyType(n.Value)) {
 			found = true
 		}
 	})

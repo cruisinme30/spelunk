@@ -142,6 +142,8 @@ func TestModeIsHistoryWhenAuthorMsgOrTypeCommitAppear(t *testing.T) {
 		"author:jane timeout":         protocol.ModeHistory,
 		`msg:"fix flaky"`:             protocol.ModeHistory,
 		"type:commit timeout":         protocol.ModeHistory,
+		"type:added timeout":          protocol.ModeHistory,
+		"type:removed timeout":        protocol.ModeHistory,
 		"x -author:bot":               protocol.ModeHistory,
 		"type:file lang:python retry": protocol.ModeWorkingTree,
 	}

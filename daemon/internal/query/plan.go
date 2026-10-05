@@ -38,6 +38,10 @@ type Plan struct {
 	// WholeWord means text terms match only whole words: word:, or the
 	// wholeWord setting.
 	WholeWord bool
+	// DiffSide limits a history search's text terms to the lines commits
+	// added (TypeAdded, from type:added) or removed (TypeRemoved), leaving
+	// messages out; "" searches both sides of diffs and the messages.
+	DiffSide string
 	// Order is how current files are sorted: order:, or the order setting.
 	Order protocol.ResultOrder
 	// Limit is how many results one page returns (count:, or the default).
@@ -228,6 +232,9 @@ func NewPlan(q protocol.ParsedQuery, settings protocol.Settings, now time.Time, 
 		Offset:        offset,
 		Pred:          &And{},
 	}
+	if t := q.Globals.Type; t != nil && (*t == TypeAdded || *t == TypeRemoved) {
+		plan.DiffSide = *t
+	}
 	if q.Globals.Word != "" {
 		plan.WholeWord = q.Globals.Word == "yes"
 	}
@@ -347,13 +354,17 @@ func pageOffset(cursor string) (int, error) {
 
 // addGlobalFilter records a type:, case:yes, case:smart or word:yes global
 // as a filter whose hidden results the engine counts (the type:file,
-// case:yes and word:yes notes).
+// type:added, case:yes and word:yes notes).
 func (p *Plan) addGlobalFilter(node *protocol.Node, src *source) {
 	if node.Kind != protocol.NodeKindOp {
 		return
 	}
 	text := src.slice(node.Span.Start, node.Span.End)
 	switch {
+	case node.Op == protocol.OpNameType && p.DiffSide != "":
+		// Removing it could leave nothing that searches commits.
+		undo := replaceFix("Search every changed line", node.Span, "type:commit")
+		p.KindFilter = &Filter{Reason: "type", Index: -1, Text: text, Undo: undo}
 	case node.Op == protocol.OpNameType:
 		p.KindFilter = &Filter{Reason: "type", Index: -1, Text: text, Undo: removeFix("Remove "+text, src, node.Span)}
 	case node.Op == protocol.OpNameCase && p.CaseSensitive:
@@ -687,6 +698,15 @@ func (p *Plan) MatchingPartialWords() *Plan {
 	partial := p.relaxed(func(c *Content) { c.WholeWord = false }, nil)
 	partial.WholeWord = false
 	return partial
+}
+
+// OnEitherSide returns a copy of the plan whose text terms match both
+// sides of diffs and the messages, to count what type:added or
+// type:removed hid. The copy has no filters of its own.
+func (p *Plan) OnEitherSide() *Plan {
+	either := p.relaxed(func(*Content) {}, nil)
+	either.DiffSide = ""
+	return either
 }
 
 // relaxed copies the plan without its filters, changing each content term

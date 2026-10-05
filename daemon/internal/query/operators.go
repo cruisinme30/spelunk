@@ -50,7 +50,7 @@ var operators = []operator{
 	{name: protocol.OpNameLang, full: "language", short: "l", summary: "Programming language", examples: []string{"python", "go", "typescript"}, interpret: asLanguage},
 	{name: protocol.OpNameRepo, full: "repo", short: "r", summary: "Repo name, as a regex or a glob", interpret: asPathRegex},
 	{name: protocol.OpNameMsg, full: "message", short: "m", scope: scopeHistoryOnly, summary: "Words in the commit message", interpret: asText},
-	{name: protocol.OpNameType, full: "type", short: "t", global: true, summary: "Only file names, code, or commits", examples: []string{"file", "code", "commit"}, interpret: oneOf("file", "code", "commit")},
+	{name: protocol.OpNameType, full: "type", short: "t", global: true, summary: "Only file names, code, commits, or lines commits added or removed", examples: []string{"file", "code", "commit", TypeAdded, TypeRemoved}, interpret: oneOf("file", "code", "commit", TypeAdded, TypeRemoved)},
 	{name: protocol.OpNameCase, full: "case", short: "c", global: true, summary: "Match case (yes), ignore it (no), or match it when the query has a capital (smart)", examples: []string{"yes", "no", "smart"}, interpret: oneOf("yes", "no", "smart")},
 	{name: protocol.OpNameWord, full: "word", short: "w", global: true, summary: "Match whole words only (yes) or parts of words too (no)", examples: []string{"yes", "no"}, interpret: oneOf("yes", "no")},
 	{name: protocol.OpNameCount, full: "count", short: "n", global: true, summary: "How many results", examples: []string{"50", "200", "all"}, interpret: asCount},
@@ -63,6 +63,18 @@ const (
 	StateChanged = "changed" // uncommitted changes
 	StateTest    = "test"    // holds tests (lang.IsTest)
 )
+
+// The values of type: that search commits for lines on one side of their
+// diffs: lines a commit added, or lines it removed.
+const (
+	TypeAdded   = "added"
+	TypeRemoved = "removed"
+)
+
+// historyType reports whether a type: value searches commits.
+func historyType(value string) bool {
+	return value == "commit" || value == TypeAdded || value == TypeRemoved
+}
 
 // currentState reports whether an is: value describes files as they are
 // now (open, changed), which no commit can match. is:test is a rule about

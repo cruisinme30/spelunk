@@ -593,6 +593,8 @@ var fixedValues = map[protocol.OpName][]fixedValue{
 		{"file", "File names only", "Paths that match, no code lines"},
 		{"code", "Code lines only", "Matching lines, without the file-name section"},
 		{"commit", "Commits only", "Searches history: messages and diffs"},
+		{TypeAdded, "Lines commits added", "Who introduced it: only the + lines of diffs"},
+		{TypeRemoved, "Lines commits removed", "When it went away: only the - lines of diffs"},
 	},
 	protocol.OpNameCase: {
 		{"yes", "Match case exactly", "RetryPolicy, not retrypolicy"},

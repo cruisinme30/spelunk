@@ -124,7 +124,7 @@ export interface Globals {
   /** the query's case: value: yes, no or smart (match case only when the query has a capital letter). */
   case: "yes" | "no" | "smart" | null;
   count: number | "all" | null;
-  type: "file" | "code" | "commit" | null;
+  type: "file" | "code" | "commit" | "added" | "removed" | null;
   /** the query's word: value, yes or no; absent when the query doesn't say. */
   word?: "yes" | "no";
   /** the query's order: value, best or path; absent when the query doesn't say. */
