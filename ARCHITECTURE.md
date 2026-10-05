@@ -60,10 +60,12 @@ Nothing else defines a cross-boundary type.
 - `src/jsonRpc.ts` is the JSON-RPC client that talks to the daemon.
 - `src/controller.ts` is the host side of the search panel: it turns panel messages into daemon calls. It has no `vscode`
   import, so it is tested against the real daemon in plain Node.
-- `src/panel.ts` hosts the search panel webview and `src/helpPanel.ts` the help page; both use the page shell in
-  `src/webviewPage.ts`. `src/commitDocuments.ts` shows commits as read-only diffs.
+- `src/panel.ts` hosts the search panel webview, `src/helpPanel.ts` the help page and `src/welcomePanel.ts` the
+  welcome page; all use the page shell in `src/webviewPage.ts`. `src/commitDocuments.ts` shows commits as read-only
+  diffs.
+- `src/e2e/` holds the end-to-end tests, which `scripts/e2e.mjs` runs in a real VS Code window.
 
-### `webview/` (TypeScript, the search panel and the help page)
+### `webview/` (TypeScript, the search panel, the help page and the welcome page)
 
 - `src/panel.ts` (`SearchPanel`) handles input, keyboard and host messages, and calls the renderers.
 - `src/state.ts` holds `ViewState`; `src/host.ts` is the only code that talks to VS Code.
@@ -74,13 +76,16 @@ Nothing else defines a cross-boundary type.
 - `src/queryEdit.ts` holds the pure text edits behind fix-its, the Aa / .* toggles and the repo menu.
 - `src/helpPage.ts` is the help page's entry point; its words, including every example, are data in
   `src/helpContent.ts`, so a test can run each example against the real daemon.
+- `src/welcomePage.ts` is the welcome page's entry point: the shortcut choice, what to index, and each repo's
+  indexing.
 
 ### `testdata/`, `scripts/`
 
 `testdata/workspace/` holds three small repos whose files match the design mockups
 ([docs/dev/mocks.md](docs/dev/mocks.md)); the daemon tests search them with the mockups' queries.
 `scripts/test-all.sh` runs every linter and test layer, and `scripts/screenshotPanel.mjs` renders the panel for a
-query end to end (real daemon, controller and webview) to compare it with the mockups.
+query end to end (real daemon, controller and webview) to compare it with the mockups. `scripts/e2e.mjs` runs the
+commands in a real VS Code, and `scripts/checkBudgets.mjs` checks benchmark output against the performance budgets.
 
 ## Invariants
 

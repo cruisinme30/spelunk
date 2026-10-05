@@ -212,3 +212,21 @@ Screenshots, rendered end to end by `scripts/screenshotPanel.mjs`:
 
 **Changed from the plan:** `sym:RetryPolicy` matches names that contain RetryPolicy, as the mock shows
 (`RetryPolicyError`, `RetryPolicyConfig`), rather than only the exact name.
+
+## M5 · Setup + release — done, except what needs a real VS Code or the release secrets
+
+Exit gate: *mocks 15, 16 and 18; every budget green.* Scope: first-run page and shortcut presets; settings, error
+banners, daemon restarts; per-platform `.vsix` on the Marketplace and Open VSX.
+
+| Scope item | Evidence |
+| --- | --- |
+| First-run page (mock 15) | `webview/test/welcome.test.mjs`: the three shortcut choices with the platform's keys, each repo's indexing, and every choice sent to the host; `extension/src/test/settings.test.ts` maps the saved settings back to the page. [first-run.png](proof/first-run.png) |
+| Shortcut presets | `extension/src/test/manifest.test.ts`: the keys each preset binds, and none for `none` |
+| Opened file (mock 16) | `controller.test.ts` "opening a result says which of the results it is": the editor target, "2 of 3", F4 and ⇧F4 in turn, and ⌘P restoring the query |
+| Settings take effect without a reload (mock 18) | `server/settings_test.go`: case, page size and a new exclude pattern over `settings/update`; `indexer/settings_test.go`: `index.symbols`, `index.location`, `index.historyDepth`; extension and webview tests for the UI settings. Every setting has a test |
+| Banners and restarts | Built in M0 and M1 (`daemon.test.ts`, `webview.test.mjs`) |
+| Every command | `extension/src/e2e/commands.test.ts`, run in a real VS Code by `scripts/e2e.mjs` and by CI's e2e job. **Not yet run:** VS Code can't be downloaded in this environment |
+| Per-platform packages and publishing | `.github/workflows/release.yml`, on a `v*` tag only: `scripts/packageExtension.mjs` builds all six platforms, attached to a GitHub release, and published to the Marketplace and Open VSX when `VSCE_PAT` and `OVSX_PAT` are set. **Not yet run:** it runs on the first version tag |
+| Budgets | `scripts/checkBudgets.mjs` on Prometheus: every search's first result well under its budget (under 3 ms for current files, under 1 ms for history), the working tree indexed in 1.6 s, history read in 18–31 s with the newest commits searchable within 11 s. The release workflow repeats the check before it publishes |
+
+Spec coverage at sign-off: 119/119 (`node scripts/specCoverage.mjs --strict` passes).
