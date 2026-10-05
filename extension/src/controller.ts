@@ -170,8 +170,10 @@ export class SearchController {
   async handle(message: WebviewMessage): Promise<void> {
     switch (message.type) {
       case "ready": {
-        // A new webview counts seq from zero again.
+        // A new webview counts seq from zero again, so a search still running
+        // for the old one could pass for one of its own: it is dropped.
         this.latestSeq = 0;
+        this.search?.cancel.cancel();
         this.restore();
         return;
       }
@@ -307,7 +309,7 @@ export class SearchController {
   /** Load more: fetches the page after `pageCursor` of the search on screen, keeping its results. */
   private async onLoadMore(searchId: string, pageCursor: string): Promise<void> {
     const current = this.search;
-    if (current?.id !== searchId) return;
+    if (current?.id !== searchId || current.cancel.cancelled) return;
     const search: RunningSearch = { ...current, cancel: new CancelSource() };
     this.search = search;
     await this.requestPage(search, pageCursor);

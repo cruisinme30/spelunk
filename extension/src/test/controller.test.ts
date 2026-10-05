@@ -507,3 +507,16 @@ test("a search still running when a new webview says ready posts nothing to it",
   await controller.handle({ v: MESSAGE_VERSION, type: "results.more", payload: { searchId: "s1", cursor: "c" } });
   assert.deepEqual(host.payloads("search.done"), [], "load more cannot revive it");
 });
+
+test("a pasted query too long for the recent list is searched but not remembered", () => {
+  const host = recordingUi();
+  const controller = newController(parseOnlyBackend().backend, host.ui, { recentLimit: () => Number.NaN });
+  controller.restore("short");
+  controller.rememberQuery();
+  assert.deepEqual(host.payloads("state.restore").at(-1)?.recent, [], "a limit that isn't a number keeps nothing");
+  const kept = newController(parseOnlyBackend().backend, host.ui, {}, { text: "", recent: ["short"] });
+  kept.restore("x".repeat(5000));
+  kept.rememberQuery();
+  kept.restore();
+  assert.deepEqual(host.payloads("state.restore").at(-1)?.recent, ["short"]);
+});
