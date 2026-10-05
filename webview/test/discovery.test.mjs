@@ -11,6 +11,7 @@ import {
   parsedQuery,
   QUERY,
   restore,
+  searchDone,
   sentMessages,
   textNode,
   typeAndParse,
@@ -55,7 +56,7 @@ async function suggestingOperators(t) {
     searchText: "timeout",
   });
   await fromHost(page, "search.batch", { seq, searchId: "s1", items: [TIMEOUT_LINE_RESULT] });
-  await fromHost(page, "search.done", { seq, searchId: "s1", total: 41, truncated: false, hidden: [], ms: 2 });
+  await searchDone(page, seq, { total: 41, ms: 2 });
   return { page, seq };
 }
 
@@ -237,14 +238,7 @@ test("a type:file note counts the code matches for the query's words and offers 
   assert.match(chips, /file names only/);
   assert.match(chips, /name\s*retry/);
   const undo = { title: "Remove type:file", edits: [{ span: { start: 0, end: 10 }, newText: "" }] };
-  await fromHost(page, "search.done", {
-    seq,
-    searchId: "s1",
-    total: 0,
-    truncated: false,
-    ms: 1,
-    hidden: [{ reason: "type", filter: "type:file", count: 38, unit: "matches", undo }],
-  });
+  await searchDone(page, seq, { hidden: [{ reason: "type", filter: "type:file", count: 38, unit: "matches", undo }] });
   const note = page.locator('[data-testid="hidden-notes"] .note');
   assert.equal(await note.locator("span").first().innerText(), "38 code matches for retry hidden by type:file");
   await note.locator('[data-testid="show-hidden"]').click();
@@ -296,12 +290,7 @@ test("a symbol search offers the text search, and no definitions say why", async
     title: "Search retrypolicy as text",
     edits: [{ span: { start: 9, end: 24 }, newText: "retrypolicy" }],
   };
-  await fromHost(page, "search.done", {
-    seq,
-    searchId: "s1",
-    total: 0,
-    truncated: false,
-    ms: 1,
+  await searchDone(page, seq, {
     hidden: [
       { reason: "case", filter: "case:yes", count: 4, unit: "definitions", undo: ignoreCase },
       { reason: "symbol", filter: "sym:retrypolicy", count: 6, unit: "matches", undo: asText },

@@ -100,6 +100,10 @@ export const fromHost = (page, type, payload) =>
 export const restore = (page, recent = [], settings = {}) =>
   fromHost(page, "state.restore", { text: "", recent, settings: { ...UI_SETTINGS, ...settings } });
 
+/** The end of search "s1" for `seq`: nothing found, hidden or truncated, unless `fields` says otherwise. */
+export const searchDone = (page, seq, fields = {}) =>
+  fromHost(page, "search.done", { seq, searchId: "s1", total: 0, truncated: false, hidden: [], ms: 1, ...fields });
+
 /** A ParsedQuery as the daemon would send it; `overrides` replaces any field. */
 export const parsedQuery = (raw, root, overrides = {}) => ({
   version: 1,
@@ -171,6 +175,6 @@ export async function panelWithResults(testContext) {
   });
   const seq = await typeAndParse(page, "retry_policy", parsedQuery("retry_policy", textNode("retry_policy", 0)));
   await fromHost(page, "search.batch", { seq, searchId: "s1", items: [FILE_NAME_RESULT, CODE_LINE_RESULT] });
-  await fromHost(page, "search.done", { seq, searchId: "s1", total: 2, truncated: false, hidden: [], ms: 3 });
+  await searchDone(page, seq, { total: 2, ms: 3 });
   return page;
 }

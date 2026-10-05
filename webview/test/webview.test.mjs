@@ -16,6 +16,7 @@ import {
   parsedQuery,
   QUERY,
   restore,
+  searchDone,
   sentMessages,
   textNode,
   typeAndParse,
@@ -238,7 +239,7 @@ test("commit rows say whether the message or the diff matched, and a preview say
     commitResult("c3", "Rename attempt counter", { diffHits: 2 }),
   ];
   await fromHost(page, "search.batch", { seq, searchId: "s1", items });
-  await fromHost(page, "search.done", { seq, searchId: "s1", total: 3, truncated: false, hidden: [], ms: 3 });
+  await searchDone(page, seq, { total: 3, ms: 3 });
   const meta = await page.locator(".row.commit .commit-meta").allInnerTexts();
   assert.match(meta[0], /in message · 3 hits in diff/);
   assert.match(meta[1], /in message only/);
@@ -358,12 +359,7 @@ test("hidden-result notes use singular units and name the filter", async (t) => 
   await restore(page);
   const seq = await typeAndParse(page, "x -f:vendor/", parsedQuery("x -f:vendor/", textNode("x", 0)));
   const undo = { title: "Remove -f:vendor/", edits: [{ span: { start: 1, end: 12 }, newText: "" }] };
-  await fromHost(page, "search.done", {
-    seq,
-    searchId: "s1",
-    total: 0,
-    truncated: false,
-    ms: 1,
+  await searchDone(page, seq, {
     hidden: [{ reason: "pathFilter", filter: "-f:vendor/", count: 1, unit: "files", undo }],
   });
   assert.equal(
@@ -377,14 +373,7 @@ test("a case:yes note offers to ignore case", async (t) => {
   await restore(page);
   const seq = await typeAndParse(page, "case:yes Retry", parsedQuery("case:yes Retry", textNode("Retry", 9)));
   const undo = { title: "Ignore case", edits: [{ span: { start: 0, end: 9 }, newText: "" }] };
-  await fromHost(page, "search.done", {
-    seq,
-    searchId: "s1",
-    total: 0,
-    truncated: false,
-    ms: 1,
-    hidden: [{ reason: "case", filter: "case:yes", count: 5, unit: "matches", undo }],
-  });
+  await searchDone(page, seq, { hidden: [{ reason: "case", filter: "case:yes", count: 5, unit: "matches", undo }] });
   const note = page.locator('[data-testid="hidden-notes"] .note');
   assert.equal(await note.locator("span").first().innerText(), "5 matches hidden by case:yes");
   assert.equal(await note.locator('[data-testid="show-hidden"]').innerText(), "Ignore case");

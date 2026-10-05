@@ -13,6 +13,7 @@ import {
   parsedQuery,
   QUERY,
   restore,
+  searchDone,
   sentMessages,
   textNode,
   typeAndParse,
@@ -65,7 +66,7 @@ test("Show them on a note only edits the query the results are for", async (t) =
   const undo = { title: "Remove -f:vendor/", edits: [{ span: { start: 1, end: 12 }, newText: "" }] };
   const hidden = [{ reason: "pathFilter", filter: "-f:vendor/", count: 1, unit: "files", undo }];
   await fromHost(page, "search.batch", { seq, searchId: "s1", items: [CODE_LINE_RESULT] });
-  await fromHost(page, "search.done", { seq, searchId: "s1", total: 1, truncated: false, ms: 1, hidden });
+  await searchDone(page, seq, { total: 1, hidden });
   // The box now has an error; the results and their note are still the old query's.
   const diagnostics = [
     { severity: "error", code: "unclosed_paren", message: "(", span: { start: 0, end: 1 }, fixes: [] },

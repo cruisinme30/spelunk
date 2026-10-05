@@ -17,6 +17,7 @@ import {
   parsedQuery,
   QUERY,
   restore,
+  searchDone,
   sentMessages,
   textNode,
   typeAndParse,
@@ -83,7 +84,7 @@ test("markup in results, previews, notes and banners shows as text and never run
   await fromHost(page, "search.batch", { seq, searchId: "s1", items });
   const undo = { title: MARKUP, edits: [] };
   const hidden = [{ reason: "pathFilter", filter: MARKUP, count: 2, unit: "files", undo }];
-  await fromHost(page, "search.done", { seq, searchId: "s1", total: 4, truncated: false, hidden, ms: 1 });
+  await searchDone(page, seq, { total: 4, hidden });
   const lines = [MARKUP, MARKUP];
   const filePreview = { kind: "file", path: MARKUP, firstLine: 1, lines, focusLine: 1, hits: [], dirtyLines: [] };
   await fromHost(page, "preview.result", { ref: "f1", preview: { ...filePreview, symbols: [{ name: MARKUP }] } });
@@ -198,7 +199,7 @@ test("a 1 MB line and 10,000 results in 100 batches render, and ↓ stops at the
     );
     await fromHost(page, "search.batch", { seq, searchId: "s1", items });
   }
-  await fromHost(page, "search.done", { seq, searchId: "s1", total: 10_001, truncated: false, hidden: [], ms: 1 });
+  await searchDone(page, seq, { total: 10_001 });
   assert.equal(await page.locator('[data-testid="result"]').count(), 10_001);
   await page.locator('[data-ref="b99-98"]').click();
   await page.focus(QUERY);
@@ -255,7 +256,7 @@ test("a late batch of the old search is dropped once a newer query replaces it",
   await fromHost(page, "search.batch", { seq, searchId: "s1", items: [codeLine("old-1", "retry", [])] });
   await typeAndParse(page, "timeout", parsedQuery("timeout", textNode("timeout", 0)));
   await fromHost(page, "search.batch", { seq, searchId: "s1", items: [codeLine("old-2", "retry", [])] });
-  await fromHost(page, "search.done", { seq, searchId: "s1", total: 2, truncated: true, hidden: [], ms: 1 });
+  await searchDone(page, seq, { total: 2, truncated: true });
   assert.deepEqual(await shownReferences(page), ["old-1"]);
   assert.equal(await page.locator('[data-testid="summary"]').textContent(), "1 code match");
 });
