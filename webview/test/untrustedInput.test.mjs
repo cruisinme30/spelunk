@@ -7,6 +7,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+  FILE_NAME_RESULT,
   fromHost,
   openPanel,
   pageErrors,
@@ -99,4 +100,38 @@ test("tabs, control and right-to-left override characters in a line render as te
     items: [codeLine("l1", text, [{ start: 10, end: 15 }])],
   });
   assert.deepEqual(await marksOf(page, "l1"), { text, marks: [["retry", "term-color-0"]] });
+});
+
+test("malformed host messages are dropped, and the panel keeps working", async (t) => {
+  const page = await openPanel(t);
+  await restore(page, ["recent"]);
+  const broken = [
+    ["index.status", {}],
+    ["index.status", { repos: null }],
+    ["index.status", { repos: [null] }],
+    ["state.restore", {}],
+    ["state.restore", { text: "", recent: "x" }],
+    ["state.restore", { text: "", recent: [], settings: null }],
+    ["banner", null],
+    ["parse.result", { seq: 1 }],
+    ["search.batch", { seq: 1, searchId: "s1" }],
+    ["search.batch", { seq: 1, searchId: "s1", items: [null] }],
+    ["search.done", { seq: 1, searchId: "s1" }],
+    ["preview.result", null],
+    ["no.such.message", {}],
+  ];
+  for (const [type, payload] of broken) await fromHost(page, type, payload);
+  await page.evaluate(() => {
+    for (const data of [null, "text", { v: 1 }, { v: 1, type: "focus" }]) {
+      globalThis.dispatchEvent(new MessageEvent("message", { data }));
+    }
+  });
+  assert.deepEqual(pageErrors(page), []);
+  assert.equal(await page.locator('[data-testid="recent"]').count(), 1, "the recent queries survived");
+
+  const seq = await typeAndParse(page, "retry", parsedQuery("retry", textNode("retry", 0)));
+  await fromHost(page, "index.status", { repos: [{ repoId: "r1", name: "payments-api", tree: "ready" }] });
+  await fromHost(page, "search.batch", { seq, searchId: "s1", items: [FILE_NAME_RESULT] });
+  assert.equal(await page.locator('[data-testid="result"]').count(), 1);
+  assert.deepEqual(pageErrors(page), []);
 });
