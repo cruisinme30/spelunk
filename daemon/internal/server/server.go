@@ -92,6 +92,13 @@ func (s *Server) shuttingDown() bool {
 	return s.shutdownRequested
 }
 
+// Close stops index work, waiting up to the shutdown grace period, so a
+// daemon ending without a shutdown request (stdin closed, a signal) does
+// not leave a build half-written. Safe to call more than once.
+func (s *Server) Close() {
+	s.index.Close(shutdownGrace)
+}
+
 // DefaultSettings mirrors the defaults declared in extension/package.json.
 func DefaultSettings() protocol.Settings {
 	return protocol.Settings{
