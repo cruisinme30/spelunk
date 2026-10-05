@@ -44,6 +44,10 @@ All notable changes to this project are documented here. The format follows
 - `until:` (short form `u:`) is the other end of `since:`, with the same values. A day or a month counts in full, so
   `until:2026-09` keeps everything before October and `since:2026-09 until:2026-09` is September; `until:2w` keeps
   what is older than two weeks. A warning says when `until:` ends before `since:` starts.
+- Facets: a row above the results counts every result by repo, language and top folder, or a commit search's by
+  repo, author and month. Click a bucket to keep only it (`repo:payments-api`, `f:^src/`,
+  `since:2026-09 until:2026-09`), Alt-click to leave it out; a bucket the query keeps shows pressed, one it leaves
+  out stays struck through, and clicking either takes its filter back out.
 
 ### Fixed
 

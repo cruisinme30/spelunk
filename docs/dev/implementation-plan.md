@@ -224,7 +224,7 @@ Debouncing lives in the webview, using `typingDelayMs`. Applying a fix-it, accep
 | --- | --- | --- |
 | `parse.result` | `{ seq, query: ParsedQuery, completions: Completion[] }` | Chip row, error panel, autocomplete, Aa and `.*` toggle state |
 | `search.batch` | `{ seq, searchId, items: ResultItem[] }` | Appends results as they stream in |
-| `search.done` | `{ seq, searchId, total, truncated, nextCursor?, hidden: HiddenNote[], ms }` | Counts, "Load more", and the "N hidden by …" notes |
+| `search.done` | `{ seq, searchId, total, truncated, nextCursor?, hidden: HiddenNote[], facets?: Facet[], ms }` | Counts, "Load more", the "N hidden by …" notes, and the facets above the results |
 | `preview.result` | `{ ref, preview: Preview }` | Right-hand pane |
 | `index.status` | `{ repos: RepoStatus[] }` | Header dot, indexing banner (mock 14) |
 | `state.restore` | `{ text, recent: string[], pinned: PinnedQuery[], settings? }` | Reopening the panel where you left it, and settings changes |
@@ -254,7 +254,7 @@ framing. There is no network port. The host spawns one daemon per VS Code window
 | `workspace/setRoots` | notification | `{ roots: Root[] }` | — |
 | `settings/update` | notification | `{ settings: Settings }` | — |
 | `query/parse` | request | `{ text, cursor }` | `{ query: ParsedQuery, completions: Completion[] }` |
-| `search/start` | request | `{ searchId, text, cursor? }` | `{ total, truncated, nextCursor?, hidden: HiddenNote[], ms }` |
+| `search/start` | request | `{ searchId, text, cursor? }` | `{ total, truncated, nextCursor?, hidden: HiddenNote[], facets?: Facet[], ms }` |
 | `search/batch` | notification, daemon → host | `{ searchId, items: ResultItem[] }` | — |
 | `$/cancelRequest` | notification | `{ id }` | — |
 | `preview/get` | request | `{ ref, contextLines }` | `Preview` |

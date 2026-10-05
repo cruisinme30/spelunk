@@ -252,6 +252,7 @@ Jason Kim and Marta Ruiz, and one uncommitted edit:
 | 27 | `author:jane is:test retry` | [test-history.png](proof/test-history.png) |
 | 28 | `word:yes retry` | [whole-words.png](proof/whole-words.png) |
 | 29 | `case:smart Retry` | [smart-case.png](proof/smart-case.png) |
+| 30 | `retry`; `type:commit timeout author:"Jane Doe" -repo:shared-libs` after `type:commit timeout` | [result-facets.png](proof/result-facets.png), [result-facets-commits.png](proof/result-facets-commits.png) |
 | 31 | An empty box with a named and an unnamed pin, the second being named | [pinned-queries.png](proof/pinned-queries.png) |
 | 32 | `RetryPolicy`, replaced with `BackoffPolicy` (`--replace`) | [replace-in-files.png](proof/replace-in-files.png) |
 | 33 | `cfg` | [fuzzy-file-names.png](proof/fuzzy-file-names.png) |
