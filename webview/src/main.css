@@ -326,7 +326,6 @@ mark.term-color-3 {
 .search-panel.completing #completions {
   flex: 1 1 auto;
   min-height: 120px;
-  overflow: auto;
 }
 
 #completions .completion-operator {
@@ -335,7 +334,6 @@ mark.term-color-3 {
   padding: 2px 8px;
   border: 1px solid currentcolor;
   border-radius: 5px;
-  font-family: var(--mono);
 }
 
 .completion-text {
@@ -1301,7 +1299,6 @@ pre.body {
   border-radius: 5px;
   background: none;
   color: var(--fg);
-  font: inherit;
   text-align: left;
   cursor: pointer;
 }
