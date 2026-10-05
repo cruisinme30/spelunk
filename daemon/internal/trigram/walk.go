@@ -57,19 +57,19 @@ func ListFiles(ctx context.Context, root string, opts WalkOptions) ([]File, erro
 			// Git lists a submodule or a nested repo as one entry.
 			paths = append(paths, nestedRepoPaths(ctx, root, path)...)
 			continue
-		case !info.Mode().IsRegular():
-			continue
-		}
-		if opts.MaxFileBytes > 0 && info.Size() > opts.MaxFileBytes {
-			continue
-		}
-		if isBinaryFile(full) {
+		case !indexable(full, info, opts):
 			continue
 		}
 		files = append(files, File{Path: path})
 	}
 	sort.Slice(files, func(i, j int) bool { return files[i].Path < files[j].Path })
 	return files, nil
+}
+
+// indexable reports whether the file at full, which info describes, is one
+// to index: a regular file, not too big, and not binary.
+func indexable(full string, info os.FileInfo, opts WalkOptions) bool {
+	return info.Mode().IsRegular() && (opts.MaxFileBytes <= 0 || info.Size() <= opts.MaxFileBytes) && !isBinaryFile(full)
 }
 
 // nestedRepoPaths lists the files of the Git repo at dir (relative to
@@ -120,7 +120,7 @@ func SelectFiles(ctx context.Context, root string, paths []string, opts WalkOpti
 		}
 		full := filepath.Join(root, filepath.FromSlash(path))
 		info, err := os.Lstat(full)
-		if err != nil || !info.Mode().IsRegular() || opts.MaxFileBytes > 0 && info.Size() > opts.MaxFileBytes || isBinaryFile(full) {
+		if err != nil || !indexable(full, info, opts) {
 			continue
 		}
 		files = append(files, File{Path: path})
@@ -154,10 +154,8 @@ func gitIgnored(ctx context.Context, root string, paths []string) map[string]boo
 		cmd := exec.CommandContext(ctx, "git", "-C", dir, "check-ignore", "-z", "--stdin")
 		cmd.Stdin = strings.NewReader(strings.Join(relative, "\x00") + "\x00")
 		out, _ := cmd.Output() // exit status 1 means "none ignored"; outside Git there is no output
-		for _, path := range strings.Split(strings.TrimRight(string(out), "\x00"), "\x00") {
-			if path != "" {
-				ignored[prefix+path] = true
-			}
+		for _, path := range nulSeparated(out) {
+			ignored[prefix+path] = true
 		}
 	}
 	return ignored
@@ -210,13 +208,18 @@ func gitListFiles(ctx context.Context, root string) ([]string, error) {
 	}
 	seen := map[string]bool{}
 	var paths []string
-	for _, path := range strings.Split(strings.TrimRight(string(out), "\x00"), "\x00") {
-		if path != "" && !seen[path] { // a file with a merge conflict is listed once per stage
+	for _, path := range nulSeparated(out) {
+		if !seen[path] { // a file with a merge conflict is listed once per stage
 			seen[path] = true
 			paths = append(paths, path)
 		}
 	}
 	return paths, nil
+}
+
+// nulSeparated splits git's -z output into its non-empty entries.
+func nulSeparated(out []byte) []string {
+	return strings.FieldsFunc(string(out), func(r rune) bool { return r == 0 })
 }
 
 // walkAllFiles lists every regular file under root except inside .git.
