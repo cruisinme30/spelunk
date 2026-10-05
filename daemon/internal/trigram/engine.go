@@ -694,20 +694,45 @@ func (m *lineMatcher) everyLine(term *query.Content) []matchedLine {
 	return found
 }
 
-// matchLine returns the non-empty matches of term in one line, without
-// its trailing "\r".
+// matchLine returns the first non-empty matches of term in one line,
+// without its trailing "\r" (see lineHits).
 func matchLine(term *query.Content, line []byte, number int) (matchedLine, bool) {
 	line = bytes.TrimSuffix(line, []byte("\r"))
-	var hits []byteHit
-	for _, loc := range term.Re.FindAllIndex(line, -1) {
-		if loc[1] > loc[0] { // empty matches highlight nothing
-			hits = append(hits, byteHit{start: loc[0], end: loc[1], termIndex: term.TermIndex})
-		}
-	}
+	hits := lineHits(term, func(n int) [][]int { return term.Re.FindAllIndex(line, n) })
 	if len(hits) == 0 {
 		return matchedLine{}, false
 	}
 	return matchedLine{number: number, text: string(line), hits: hits}, true
+}
+
+// maxLineHits is how many matches of one term in one line are kept. A
+// result shows a window of maxResultLineRunes runes from shortly before the
+// first match, so later ones are never shown; finding every one of the
+// millions in a long minified line would take seconds and gigabytes.
+const maxLineHits = 2 * maxResultLineRunes
+
+// lineHits returns the first maxLineHits non-empty matches of term that
+// findAll (a FindAllIndex over one line, given a limit) reports. Empty
+// matches highlight nothing and are dropped; if the limit fills up with
+// them, the whole line is searched, so a match after them isn't missed.
+func lineHits(term *query.Content, findAll func(n int) [][]int) []byteHit {
+	locs := findAll(maxLineHits)
+	hits := nonEmptyHits(locs, term.TermIndex)
+	if len(hits) == 0 && len(locs) == maxLineHits {
+		hits = nonEmptyHits(findAll(-1), term.TermIndex)
+	}
+	return hits[:min(len(hits), maxLineHits)]
+}
+
+// nonEmptyHits turns the non-empty matches of a term into hits.
+func nonEmptyHits(locs [][]int, termIndex int) []byteHit {
+	var hits []byteHit
+	for _, loc := range locs {
+		if loc[1] > loc[0] {
+			hits = append(hits, byteHit{start: loc[0], end: loc[1], termIndex: termIndex})
+		}
+	}
+	return hits
 }
 
 // lines merges the matched lines of several terms, in line order.
@@ -772,9 +797,11 @@ func clipLine(text string, hits []byteHit) (string, []protocol.Hit) {
 	shift := utf16Len(prefix)
 	var out []protocol.Hit
 	for _, h := range hits {
-		if h.start < start || h.end > end {
+		if h.end <= start || h.start >= end {
 			continue // outside the clipped window
 		}
+		// A match that runs past an edge of the window is marked up to it.
+		h.start, h.end = max(h.start, start), min(h.end, end)
 		out = append(out, protocol.Hit{
 			Start:     shift + utf16Len(text[start:h.start]),
 			End:       shift + utf16Len(text[start:h.end]),

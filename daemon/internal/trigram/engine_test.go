@@ -3,6 +3,7 @@ package trigram
 import (
 	"context"
 	"reflect"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -302,5 +303,34 @@ func TestGlobPathFilterListsMatchingFilesAndHighlightsTheirNames(t *testing.T) {
 	// "src/client.ts": the highlight covers client.ts, not the slash before it.
 	if want := []protocol.Range{{Start: 4, End: 13}}; !reflect.DeepEqual(items[0].NameHits, want) {
 		t.Errorf("highlight on %s = %v, want %v", items[0].Path, items[0].NameHits, want)
+	}
+}
+
+func TestAHugeLineIsSearchedInBoundedTimeAndMemory(t *testing.T) {
+	// A minified bundle: one 2 MB line with a match every few bytes. Every
+	// match used to be collected (and converted) before the line was cut
+	// to the 400 runes a result shows.
+	line := strings.Repeat("aaa retry ", 200_000)
+	repo := repoOf("r", map[string]string{"bundle.min.js": line, "run.txt": strings.Repeat("b", 1_000) + strings.Repeat("a", 200_000)})
+	var before, after runtime.MemStats
+	runtime.GC()
+	runtime.ReadMemStats(&before)
+	items, _ := runItems(t, "aaa", defaultSettings, "", repo)
+	runtime.ReadMemStats(&after)
+	if allocated := after.TotalAlloc - before.TotalAlloc; allocated > 32<<20 {
+		t.Errorf("searching a 2 MB line allocated %d MB, want it bounded by the line, not its matches", allocated>>20)
+	}
+	if len(items) != 2 {
+		t.Fatalf("results = %d, want one per file", len(items))
+	}
+	for _, item := range items {
+		if n := len([]rune(item.Text)); n > maxResultLineRunes+2 || len(item.Hits) == 0 || len(item.Hits) > maxResultLineRunes {
+			t.Errorf("%s: %d runes with %d hits, want a clipped window with its hits", item.Path, n, len(item.Hits))
+		}
+	}
+	// A match longer than the window is marked up to the window's edge.
+	items, _ = runItems(t, "/a+/ f:run", defaultSettings, "", repo)
+	if len(items) != 1 || !reflect.DeepEqual(items[0].Hits, []protocol.Hit{{Start: 81, End: maxResultLineRunes + 1}}) {
+		t.Errorf("hits of a match past the window = %+v, want it marked from where it starts to the window's end", items)
 	}
 }
