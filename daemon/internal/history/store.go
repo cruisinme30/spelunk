@@ -88,18 +88,6 @@ func (s *Store) Commits() int {
 	return n
 }
 
-// Commit finds a commit by sha.
-func (s *Store) Commit(sha string) (*Commit, bool) {
-	for _, seg := range s.segments {
-		for i := range seg.commits {
-			if seg.commits[i].SHA == sha {
-				return &seg.commits[i], true
-			}
-		}
-	}
-	return nil, false
-}
-
 // LastCommit returns the newest commit that changed path, if the history
 // window holds one.
 func (s *Store) LastCommit(path string) (Touch, bool) {

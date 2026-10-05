@@ -102,7 +102,7 @@ func TestUnusualCommitsAreReadWhole(t *testing.T) {
 		{"last", "last", "Bea", day(1), []string{"last.txt"}},
 	}
 	for _, tt := range tests {
-		c, ok := store.Commit(shas[tt.name])
+		c, ok := commitBySHA(store, shas[tt.name])
 		if !ok {
 			t.Errorf("%s: commit missing", tt.name)
 			continue
@@ -117,7 +117,7 @@ func TestUnusualCommitsAreReadWhole(t *testing.T) {
 			t.Errorf("%s: files = %q, want %q", tt.name, got, tt.files)
 		}
 	}
-	if c, _ := store.Commit(shas["ctl"]); c.Body != "\x1e"+"body line" {
+	if c, _ := commitBySHA(store, shas["ctl"]); c.Body != "\x1e"+"body line" {
 		t.Errorf("body = %q, want the body as written", c.Body)
 	}
 

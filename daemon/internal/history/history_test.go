@@ -38,13 +38,25 @@ func paymentsHistory(t *testing.T) (*testRepo, map[string]string) {
 	return r, shas
 }
 
+// commitBySHA finds a commit in store by sha.
+func commitBySHA(store *Store, sha string) (*Commit, bool) {
+	for _, seg := range store.segments {
+		for i := range seg.commits {
+			if seg.commits[i].SHA == sha {
+				return &seg.commits[i], true
+			}
+		}
+	}
+	return nil, false
+}
+
 func TestIngestReadsCommitsNewestFirstWithTheirChangedLines(t *testing.T) {
 	r, shas := paymentsHistory(t)
 	store := r.ingest()
 	if store.Commits() != 4 || store.Head != shas["vendor"] {
 		t.Fatalf("store has %d commits up to %s, want 4 up to %s", store.Commits(), store.Head, shas["vendor"])
 	}
-	raise, ok := store.Commit(shas["raise"])
+	raise, ok := commitBySHA(store, shas["raise"])
 	if !ok {
 		t.Fatal("Raise timeout is missing")
 	}
@@ -58,7 +70,7 @@ func TestIngestReadsCommitsNewestFirstWithTheirChangedLines(t *testing.T) {
 	if !reflect.DeepEqual(raise.Files, want) {
 		t.Errorf("files = %+v, want %+v", raise.Files, want)
 	}
-	add, _ := store.Commit(shas["add"])
+	add, _ := commitBySHA(store, shas["add"])
 	if add.AuthorName != "Jane Doe" || add.AuthorEmail != "jane@payments.example" {
 		t.Errorf("old author = %s <%s>, want Jane Doe <jane@payments.example> after .mailmap", add.AuthorName, add.AuthorEmail)
 	}
@@ -71,7 +83,7 @@ func TestSkippedFilesAreListedWithoutTheirLines(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	raise, _ := store.Commit(shas["raise"])
+	raise, _ := commitBySHA(store, shas["raise"])
 	want := []FileChange{
 		{Path: "src/retry.py", Added: 1, Text: []byte("    timeout = 30\n")},
 		{Path: "vendor/lib/retry.js", Added: 1},
