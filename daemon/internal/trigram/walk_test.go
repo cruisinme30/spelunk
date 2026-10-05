@@ -75,6 +75,15 @@ func TestListFilesInGitRespectsGitignore(t *testing.T) {
 	}
 }
 
+// gitIn runs git in dir, failing the test on error.
+func gitIn(t *testing.T, dir string, args ...string) {
+	t.Helper()
+	cmd := exec.CommandContext(context.Background(), "git", append([]string{"-C", dir, "-c", "user.name=T", "-c", "user.email=t@example.com", "-c", "commit.gpgsign=false", "-c", "protocol.file.allow=always"}, args...)...)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("git %v: %v\n%s", args, err, out)
+	}
+}
+
 func TestListFilesSkipsWhatIsNotARegularFile(t *testing.T) {
 	root := writeTree(t, map[string]string{"a.txt": "alpha\n", "empty.txt": "", "locked/c.txt": "c\n", "unreadable.txt": "u\n"})
 	outside := writeTree(t, map[string]string{"secret.txt": "secret\n"})
@@ -114,5 +123,41 @@ func TestListFilesFollowsASymlinkedRoot(t *testing.T) {
 	}
 	if want := []string{"a.txt", "src/b.txt"}; !reflect.DeepEqual(paths(files), want) {
 		t.Errorf("ListFiles(symlink to root) = %q, want %q", paths(files), want)
+	}
+}
+
+func TestListFilesIncludesNestedReposAndSubmodules(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not installed")
+	}
+	library := writeTree(t, map[string]string{"lib.go": "package lib\n"})
+	gitIn(t, library, "init", "-q")
+	gitIn(t, library, "add", "-A")
+	gitIn(t, library, "commit", "-q", "-m", "lib")
+
+	root := writeTree(t, map[string]string{
+		"main.go": "package main\n", ".gitignore": "*.log\n",
+		"clone/.gitignore": "build/\n", "clone/x.go": "package x\n", "clone/build/out.go": "package out\n", "clone/notes.log": "log\n",
+	})
+	gitIn(t, root, "init", "-q")
+	gitIn(t, filepath.Join(root, "clone"), "init", "-q")
+	gitIn(t, root, "submodule", "add", "-q", library, "deps/lib")
+	gitIn(t, root, "commit", "-q", "-m", "main")
+
+	files, err := ListFiles(context.Background(), root, WalkOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Each repo's own .gitignore applies inside it: clone/ ignores build/,
+	// and *.log is ignored only by the outer repo.
+	want := []string{".gitignore", ".gitmodules", "clone/.gitignore", "clone/notes.log", "clone/x.go", "deps/lib/lib.go", "main.go"}
+	if got := paths(files); !reflect.DeepEqual(got, want) {
+		t.Errorf("ListFiles = %q, want %q", got, want)
+	}
+
+	// Re-reading saved files asks the repo that holds each one.
+	selected := SelectFiles(context.Background(), root, []string{"deps/lib/lib.go", "clone/build/out.go", "clone/x.go", "main.go", "debug.log"}, WalkOptions{})
+	if want := []string{"clone/x.go", "deps/lib/lib.go", "main.go"}; !reflect.DeepEqual(paths(selected), want) {
+		t.Errorf("SelectFiles = %q, want %q: a path in a submodule must not stop Git answering for the rest", paths(selected), want)
 	}
 }

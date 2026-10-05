@@ -29,25 +29,36 @@ type File struct {
 }
 
 // ListFiles returns the files under root to index, sorted by path. In a Git
-// repo, Git decides what .gitignore excludes (unless IncludeIgnored);
+// repo, Git decides what .gitignore excludes (unless IncludeIgnored), and
+// the files of nested repos and submodules are listed by their own Git;
 // elsewhere every file is listed. .git itself is never listed. Binary and
-// oversized files are left out.
+// oversized files are left out, and so is anything that isn't a regular
+// file: symlinks, FIFOs, sockets and devices.
 func ListFiles(ctx context.Context, root string, opts WalkOptions) ([]File, error) {
 	paths, err := candidatePaths(ctx, root, opts.IncludeIgnored)
 	if err != nil {
 		return nil, err
 	}
 	var files []File
-	for _, path := range paths {
+	// paths grows as nested repos are found, so it is walked by index.
+	for i := 0; i < len(paths); i++ {
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
 		}
+		path := strings.TrimSuffix(paths[i], "/") // Git lists a nested repo as "dir/"
 		if opts.Exclude.Excludes(path) {
 			continue
 		}
 		full := filepath.Join(root, filepath.FromSlash(path))
 		info, err := os.Lstat(full)
-		if err != nil || !info.Mode().IsRegular() {
+		switch {
+		case err != nil:
+			continue
+		case info.IsDir():
+			// Git lists a submodule or a nested repo as one entry.
+			paths = append(paths, nestedRepoPaths(ctx, root, path)...)
+			continue
+		case !info.Mode().IsRegular():
 			continue
 		}
 		if opts.MaxFileBytes > 0 && info.Size() > opts.MaxFileBytes {
@@ -62,18 +73,50 @@ func ListFiles(ctx context.Context, root string, opts WalkOptions) ([]File, erro
 	return files, nil
 }
 
+// nestedRepoPaths lists the files of the Git repo at dir (relative to
+// root), a submodule or a repo cloned inside another, as paths relative to
+// root. It lists nothing for a folder without its own .git, such as a
+// submodule that isn't checked out.
+func nestedRepoPaths(ctx context.Context, root, dir string) []string {
+	full := filepath.Join(root, filepath.FromSlash(dir))
+	if !hasGitDir(full) {
+		return nil
+	}
+	nested, err := gitListFiles(ctx, full)
+	if err != nil {
+		return nil
+	}
+	for i, path := range nested {
+		nested[i] = dir + "/" + path
+	}
+	return nested
+}
+
+// hasGitDir reports whether dir has a .git of its own: a folder in a
+// repo, a file in a submodule or worktree.
+func hasGitDir(dir string) bool {
+	_, err := os.Lstat(filepath.Join(dir, ".git"))
+	return err == nil
+}
+
 // SelectFiles returns which of paths (slash-separated, relative to root)
 // ListFiles would index now: files that exist and are not excluded,
 // ignored by Git, binary or too big. It is how files saved since the last
 // build are re-read without listing the whole repo.
 func SelectFiles(ctx context.Context, root string, paths []string, opts WalkOptions) []File {
+	local := make([]string, 0, len(paths))
+	for _, path := range paths {
+		if filepath.IsLocal(filepath.FromSlash(path)) && !opts.Exclude.Excludes(path) {
+			local = append(local, path)
+		}
+	}
 	ignored := map[string]bool{}
 	if !opts.IncludeIgnored {
-		ignored = gitIgnored(ctx, root, paths)
+		ignored = gitIgnored(ctx, root, local)
 	}
 	var files []File
-	for _, path := range paths {
-		if ignored[path] || opts.Exclude.Excludes(path) || !filepath.IsLocal(filepath.FromSlash(path)) {
+	for _, path := range local {
+		if ignored[path] {
 			continue
 		}
 		full := filepath.Join(root, filepath.FromSlash(path))
@@ -88,17 +131,61 @@ func SelectFiles(ctx context.Context, root string, paths []string, opts WalkOpti
 }
 
 // gitIgnored returns which of paths .gitignore excludes; none outside Git.
+// Each path is asked of the innermost repo that holds it: Git refuses a
+// path inside a submodule, and would then answer for no path at all.
 func gitIgnored(ctx context.Context, root string, paths []string) map[string]bool {
 	ignored := map[string]bool{}
-	cmd := exec.CommandContext(ctx, "git", "-C", root, "check-ignore", "-z", "--stdin")
-	cmd.Stdin = strings.NewReader(strings.Join(paths, "\x00") + "\x00")
-	out, _ := cmd.Output() // exit status 1 means "none ignored"; outside Git there is no output
-	for _, path := range strings.Split(strings.TrimRight(string(out), "\x00"), "\x00") {
-		if path != "" {
-			ignored[path] = true
+	repos := map[string]string{} // by folder, the nested repo holding it ("" for root's)
+	byRepo := map[string][]string{}
+	for _, path := range paths {
+		repo := innermostRepo(root, parentDir(path), repos)
+		byRepo[repo] = append(byRepo[repo], path)
+	}
+	for repo, inRepo := range byRepo {
+		prefix := ""
+		if repo != "" {
+			prefix = repo + "/"
+		}
+		relative := make([]string, len(inRepo))
+		for i, path := range inRepo {
+			relative[i] = strings.TrimPrefix(path, prefix)
+		}
+		dir := filepath.Join(root, filepath.FromSlash(repo))
+		cmd := exec.CommandContext(ctx, "git", "-C", dir, "check-ignore", "-z", "--stdin")
+		cmd.Stdin = strings.NewReader(strings.Join(relative, "\x00") + "\x00")
+		out, _ := cmd.Output() // exit status 1 means "none ignored"; outside Git there is no output
+		for _, path := range strings.Split(strings.TrimRight(string(out), "\x00"), "\x00") {
+			if path != "" {
+				ignored[prefix+path] = true
+			}
 		}
 	}
 	return ignored
+}
+
+// parentDir is the folder of a slash-separated relative path, "." at the top.
+func parentDir(path string) string {
+	if i := strings.LastIndexByte(path, '/'); i >= 0 {
+		return path[:i]
+	}
+	return "."
+}
+
+// innermostRepo returns the nested repo (relative to root) that holds dir,
+// or "" when that is root's own. known caches the answer for each folder.
+func innermostRepo(root, dir string, known map[string]string) string {
+	if dir == "." {
+		return ""
+	}
+	if repo, ok := known[dir]; ok {
+		return repo
+	}
+	repo := dir
+	if !hasGitDir(filepath.Join(root, filepath.FromSlash(dir))) {
+		repo = innermostRepo(root, parentDir(dir), known)
+	}
+	known[dir] = repo
+	return repo
 }
 
 // candidatePaths lists the files ListFiles then filters: what Git says the
