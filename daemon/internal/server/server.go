@@ -15,7 +15,7 @@ import (
 )
 
 // DaemonVersion is reported by initialize.
-const DaemonVersion = "0.2.0"
+const DaemonVersion = "1.0.0"
 
 // shutdownGrace is how long shutdown waits for index work to stop (the
 // shutdown request promises to finish within 2 seconds).

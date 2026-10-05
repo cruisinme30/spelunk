@@ -2,7 +2,7 @@
   "name": "spelunk",
   "displayName": "Spelunk",
   "description": "One search box for file names, code and Git history across every repo in the workspace.",
-  "version": "0.2.0",
+  "version": "1.0.0",
   "publisher": "spelunk",
   "license": "MIT",
   "repository": {
