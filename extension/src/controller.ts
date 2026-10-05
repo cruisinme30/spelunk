@@ -79,6 +79,8 @@ export interface ControllerOptions {
   recentLimit(): number;
   closeOnOpen(): boolean;
   uiSettings(): UiSettings;
+  /** The absolute paths of the files open in editor tabs, for is:open. */
+  openFiles(): string[];
 }
 
 /** A query/parse answer, plus the text to search while a word is being completed. */
@@ -95,6 +97,8 @@ interface RunningSearch {
   /** The query.changed seq it answers; the webview drops results for older ones. */
   seq: number;
   text: string;
+  /** The files open in the editor when it started; Load more keeps them, so pages agree. */
+  openFiles: string[];
   cancel: CancelSource;
 }
 
@@ -279,7 +283,8 @@ export class SearchController {
   private async parseForSearch(change: QueryChangedMessage): Promise<ParsedForSearch | undefined> {
     const { text, cursor, seq } = change;
     try {
-      const { query, completions } = await this.backend.request("query/parse", { text, cursor });
+      const openFiles = this.options.openFiles();
+      const { query, completions } = await this.backend.request("query/parse", { text, cursor, openFiles });
       // Esc or Enter on the suggestions asks to search the box exactly as typed.
       const searchText =
         change.asTyped === true ? undefined : await this.searchableWithoutWordBeingCompleted(text, cursor, completions);
@@ -310,7 +315,13 @@ export class SearchController {
   /** Starts a new search for `text`, replacing the results of the previous one. */
   private async startSearch(text: string, seq: number): Promise<void> {
     this.searchesStarted++;
-    const search: RunningSearch = { id: `s${this.searchesStarted}`, seq, text, cancel: new CancelSource() };
+    const search: RunningSearch = {
+      id: `s${this.searchesStarted}`,
+      seq,
+      text,
+      openFiles: this.options.openFiles(),
+      cancel: new CancelSource(),
+    };
     this.search = search;
     this.setResults([]);
     await this.requestPage(search);
@@ -330,8 +341,9 @@ export class SearchController {
    * and posts search.done, unless a newer search has replaced it meanwhile.
    */
   private async requestPage(search: RunningSearch, pageCursor?: string): Promise<void> {
-    const { id: searchId, text, seq, cancel } = search;
-    const params = pageCursor === undefined ? { searchId, text } : { searchId, text, cursor: pageCursor };
+    const { id: searchId, text, seq, openFiles, cancel } = search;
+    const params =
+      pageCursor === undefined ? { searchId, text, openFiles } : { searchId, text, openFiles, cursor: pageCursor };
     try {
       const result = await this.backend.request("search/start", params, cancel);
       if (this.search !== search || cancel.cancelled) return;

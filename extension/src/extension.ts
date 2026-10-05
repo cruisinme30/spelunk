@@ -239,7 +239,22 @@ function controllerOptions(): ControllerOptions {
     recentLimit: () => recentQueriesLimit(configuration()),
     closeOnOpen: () => closeOnOpen(configuration()),
     uiSettings: () => uiSettings(configuration()),
+    openFiles: openEditorFiles,
   };
+}
+
+/** The files on disk open in editor tabs, a diff's changed side included, for is:open. */
+function openEditorFiles(): string[] {
+  const paths = new Set<string>();
+  for (const group of vscode.window.tabGroups.all) {
+    for (const { input } of group.tabs) {
+      let uri: vscode.Uri | undefined;
+      if (input instanceof vscode.TabInputText) uri = input.uri;
+      else if (input instanceof vscode.TabInputTextDiff) uri = input.modified;
+      if (uri?.scheme === "file") paths.add(uri.fsPath);
+    }
+  }
+  return [...paths];
 }
 
 /** What the controller's Ui is built from. */

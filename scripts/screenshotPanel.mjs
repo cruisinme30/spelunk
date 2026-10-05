@@ -13,6 +13,7 @@
 //   --query <text>      what to type in the search box (default: leave it empty)
 //   --first <text>      a query to run before --query, e.g. to show that a broken query keeps the last results
 //   --recent <text>     a recent query (repeatable, newest first)
+//   --open <path>       a file open in the editor, relative to --workspace, for is:open (repeatable)
 //   --key <key>         a key to press after typing, as Playwright names it, e.g. Tab or ? (repeatable)
 //   --click <selector>  an element to click after the keys, e.g. '[data-testid="repos"]' (repeatable)
 //   --help-page         render the help page instead of the search panel
@@ -35,6 +36,7 @@ const { values: args } = parseArgs({
   options: {
     query: { type: "string", default: "" },
     recent: { type: "string", multiple: true, default: [] },
+    open: { type: "string", multiple: true, default: [] },
     key: { type: "string", multiple: true, default: [] },
     click: { type: "string", multiple: true, default: [] },
     "help-page": { type: "boolean", default: false },
@@ -124,12 +126,13 @@ async function connectPanel(page, host, daemon) {
     setContext: () => {},
     saveState: () => {},
   };
+  const openFiles = args.open.map((path) => join(args.workspace, path));
   // The extension's default settings, minus the typing delay, so each keystroke searches at once.
   const uiSettings = { ...host.uiSettings(defaultsOnly), typingDelayMs: 0 };
   const controller = new host.SearchController(
     daemon,
     ui,
-    { recentLimit: () => 20, closeOnOpen: () => false, uiSettings: () => uiSettings },
+    { recentLimit: () => 20, closeOnOpen: () => false, uiSettings: () => uiSettings, openFiles: () => openFiles },
     { text: "", recent: args.recent },
   );
   daemon.on("progress", (progress) => ui.post("index.status", progress));

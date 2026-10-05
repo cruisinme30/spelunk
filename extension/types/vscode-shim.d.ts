@@ -60,9 +60,15 @@ declare module "vscode" {
     dispose(): void;
   }
   export interface QuickPickItem { label: string; description?: string; detail?: string }
+  export class TabInputText { readonly uri: Uri }
+  export class TabInputTextDiff { readonly original: Uri; readonly modified: Uri }
+  export interface Tab { readonly input: unknown }
+  export interface TabGroup { readonly tabs: readonly Tab[] }
+  export interface TabGroups { readonly all: readonly TabGroup[] }
 
   export namespace window {
     export const activeTextEditor: TextEditor | undefined;
+    export const tabGroups: TabGroups;
     export function createWebviewPanel(viewType: string, title: string, showOptions: ViewColumn | { viewColumn: ViewColumn; preserveFocus?: boolean }, options?: WebviewPanelOptions & WebviewOptions): WebviewPanel;
     export function createOutputChannel(name: string): OutputChannel;
     export function createStatusBarItem(alignment?: StatusBarAlignment, priority?: number): StatusBarItem;

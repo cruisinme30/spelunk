@@ -84,6 +84,7 @@ function newController(backend: Backend, ui: Ui, options: Partial<ControllerOpti
     recentLimit: () => 20,
     closeOnOpen: () => true,
     uiSettings: () => TEST_UI_SETTINGS,
+    openFiles: () => [],
   };
   return new SearchController(backend, ui, { ...defaults, ...options }, initial);
 }
@@ -113,6 +114,7 @@ interface ScriptedParams {
   text: string;
   searchId?: string;
   ref?: string;
+  openFiles?: string[];
 }
 
 /**
@@ -557,6 +559,22 @@ test("a search still running when a new webview says ready posts nothing to it",
   assert.deepEqual(host.payloads("search.done"), []);
   await controller.handle({ v: MESSAGE_VERSION, type: "results.more", payload: { searchId: "s1", cursor: "c" } });
   assert.deepEqual(host.payloads("search.done"), [], "load more cannot revive it");
+});
+
+test("searches and parses carry the open files, and Load more keeps the search's own", async () => {
+  // @covers op:is
+  let open = ["/work/a.py"];
+  const sent: string[] = [];
+  const { backend } = scriptedBackend((method, { text, openFiles }) => {
+    sent.push(`${method} ${(openFiles ?? []).join(",")}`);
+    if (method === "query/parse") return { query: parsedQuery(text, true), completions: [] };
+    return { ...NO_RESULTS, nextCursor: "c" };
+  });
+  const controller = newController(backend, recordingUi().ui, { openFiles: () => open });
+  await controller.handle(queryChanged("is:open retry", 1));
+  open = ["/work/b.py"];
+  await controller.handle({ v: MESSAGE_VERSION, type: "results.more", payload: { searchId: "s1", cursor: "c" } });
+  assert.deepEqual(sent, ["query/parse /work/a.py", "search/start /work/a.py", "search/start /work/a.py"]);
 });
 
 test("load more for a search the query has moved on from is ignored", async () => {
