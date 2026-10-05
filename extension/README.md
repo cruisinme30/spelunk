@@ -37,7 +37,7 @@ one-letter short name that mean the same: `file:` and `f:`, `author:` and `a:`.
 | `repo:web`, `language:python` | Keep one repo or one language |
 | `type:file` | Show file names only |
 | `symbol:RetryPolicy` | Find where classes, functions and methods whose name contains RetryPolicy are defined |
-| `author:jane timeout` | Search the commits Jane wrote: their added and removed lines |
+| `author:jane timeout` | Search the commits Jane wrote: their added and removed lines and their messages |
 | `message:"fix flaky"`, `type:commit retry` | Search commit messages, or every commit's changes |
 | `since:today`, `since:2h`, `since:2w` | Keep files (or commits) changed today, in the last two hours, or in the last two weeks |
 | `count:50`, `count:all` | Show this many results per page |

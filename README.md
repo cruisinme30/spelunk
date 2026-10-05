@@ -21,7 +21,7 @@ removed `timeout` or `retry`. Drop `author:` and the same box searches current f
   `type:` / `t:`, `symbol:` / `s:`, `author:` / `a:`, `message:` / `m:`, `since:` / `d:`, `case:` / `c:`,
   `count:` / `n:`.
 - **Files or commits from the same box.** A query searches current files, unless it has `author:`, `message:` or
-  `type:commit`; then each result is a commit, and words match the lines it added or removed.
+  `type:commit`; then each result is a commit, and words match the lines it added or removed or its message.
 - **Results as you type,** from local indexes that keep up with saves within a second and new commits within seconds.
 - **Helpful when you're wrong:** errors with one-key fixes, warnings for likely slips such as `daemon|search`,
   completions for operators and their values, and notes like "3 commits hidden by `-file:vendor/`".
