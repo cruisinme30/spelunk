@@ -24,7 +24,7 @@ func compileGlob(pattern string) (Glob, error) {
 	return Glob{re: re}, err
 }
 
-// Match reports whether path (slash-separated, relative to the repo) matches.
+// match reports whether path (slash-separated, relative to the repo) matches.
 func (g Glob) match(path string) bool { return g.re.MatchString(path) }
 
 // Excluder holds the compiled index.exclude patterns.

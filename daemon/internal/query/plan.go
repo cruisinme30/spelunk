@@ -73,7 +73,7 @@ type Plan struct {
 // filter alone hid, and the panel shows the count with an undo.
 type Filter struct {
 	// Reason is the HiddenNote reason that names the kind of filter:
-	// "pathFilter" (-f:), "not" (any other negation), "since" (since:),
+	// "pathFilter" (-f:), "not" (any other negation), "since" (since: and until:),
 	// "kind" (kind:), and, for Plan.TypeFilter, Plan.CaseFilter,
 	// Plan.WordFilter and Plan.SymbolFilter, "type", "case", "word" and
 	// "symbol".

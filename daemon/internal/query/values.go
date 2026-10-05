@@ -25,7 +25,8 @@ type valueCandidate struct {
 
 // valueCandidates lists the values of op that match fragment (lowercase),
 // best first: authors, repos, languages and paths found in the workspace,
-// time windows for since: and until:, and the fixed values of type:, case: and count:.
+// time windows for since: and until:, file states for is:, and the fixed
+// values of type:, kind:, case:, word:, count: and order:.
 func valueCandidates(op operator, fragment string, resolver Resolver, now time.Time) []valueCandidate {
 	switch op.name {
 	case protocol.OpNameAuthor:

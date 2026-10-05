@@ -22,10 +22,12 @@
 //   - A Shard is immutable once built; the indexer publishes a new one
 //     rather than changing it, so searches need no locks.
 //   - The trigram prefilter may let through files that don't match, but
-//     never drops one that does: results equal a plain regex scan, line by
+//     never drops one that does: code results equal a plain regex scan, line by
 //     line, as ripgrep would report them, of each file's text as an editor
 //     shows it (see decodeText: no byte order mark, UTF-16 converted, a
 //     lone "\r" ending a line, and invalid UTF-8 replaced as VS Code does).
+//     File names are the exception: a bare word also matches a name with
+//     its letters in order (see fuzzy.go), as Quick Open does.
 //   - Only regular files are read, without following symlinks or blocking
 //     on a FIFO, and never past the size limit, even when a file changed
 //     after it was listed (see readText).

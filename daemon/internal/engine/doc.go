@@ -1,6 +1,7 @@
 // Package engine is what the working-tree and history search engines
 // share, so neither depends on the other: the page statistics a search
-// returns, the time budget it runs under, counting what case:yes hid, and
+// returns, the time budget it runs under, counting what case:yes, word:yes
+// and type:added or type:removed hid, the facets that count results, and
 // how a predicate tree narrows an index's candidate ids.
 //
 // Invariants:

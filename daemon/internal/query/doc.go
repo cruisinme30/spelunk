@@ -2,7 +2,7 @@
 // that turns a parsed query into what a search engine runs.
 //
 // Parse turns the text of the search box into a protocol.ParsedQuery: the
-// syntax tree, the globals (case:, count:, type:), the mode (current files
+// syntax tree, the globals (case:, word:, count:, type:, order:), the mode (current files
 // or commit history) and diagnostics, each with fix-its that edit the text.
 // Complete suggests operators and operator values at the cursor. NewPlan
 // lowers a query without errors into a Plan: a predicate tree of And, Or,
@@ -15,12 +15,12 @@
 //	query    = [ orExpr ]
 //	orExpr   = andExpr { "OR" andExpr }
 //	andExpr  = unary { [ "AND" ] unary }     a space is an implicit AND
-//	unary    = [ "-" ] primary
+//	unary    = [ "-" | "NOT" ] primary
 //	primary  = "(" orExpr ")" | operator | term
 //	operator = name ":" value
 //	term     = "quoted phrase" | /regex/ | bare
 //
-// AND and OR are keywords only in uppercase, and AND binds tighter than OR.
+// AND, OR and NOT are keywords only in uppercase, and AND binds tighter than OR.
 //
 // Invariants:
 //   - Parse never fails: every problem becomes a diagnostic, and NewPlan
