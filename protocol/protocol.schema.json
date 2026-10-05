@@ -821,6 +821,44 @@
         }
       ]
     },
+    "Facet": {
+      "description": "Facet counts a search's results by one field, biggest bucket first, for the buttons that narrow the results.",
+      "type": "object",
+      "properties": {
+        "field": {
+          "enum": ["repo", "lang", "folder", "author", "month"]
+        },
+        "buckets": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/FacetBucket"
+          }
+        },
+        "more": {
+          "type": "integer",
+          "description": "How many smaller buckets were left out"
+        }
+      },
+      "required": ["field", "buckets", "more"]
+    },
+    "FacetBucket": {
+      "description": "FacetBucket is one value of a facet: how many results have it, and the filter that keeps only them.",
+      "type": "object",
+      "properties": {
+        "label": {
+          "type": "string",
+          "description": "The value as shown, e.g. payments-api, Python, src/, Jane Doe, Sep 2026"
+        },
+        "count": {
+          "type": "integer"
+        },
+        "filter": {
+          "type": "string",
+          "description": "The filter that keeps only this bucket, as it would be typed, e.g. repo:payments-api; a - before it leaves the bucket out"
+        }
+      },
+      "required": ["label", "count", "filter"]
+    },
     "HiddenNote": {
       "description": "HiddenNote counts results a filter removed, with a fix that removes the filter.",
       "type": "object",
@@ -1093,6 +1131,12 @@
           "type": "array",
           "items": {
             "$ref": "#/$defs/HiddenNote"
+          }
+        },
+        "facets": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Facet"
           }
         },
         "ms": {
@@ -1521,6 +1565,12 @@
           "type": "array",
           "items": {
             "$ref": "#/$defs/HiddenNote"
+          }
+        },
+        "facets": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Facet"
           }
         },
         "ms": {

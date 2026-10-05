@@ -297,6 +297,23 @@ export type Preview =
       bodyHits: Range[];
     };
 
+/** Facet counts a search's results by one field, biggest bucket first, for the buttons that narrow the results. */
+export interface Facet {
+  field: "repo" | "lang" | "folder" | "author" | "month";
+  buckets: FacetBucket[];
+  /** How many smaller buckets were left out */
+  more: number;
+}
+
+/** FacetBucket is one value of a facet: how many results have it, and the filter that keeps only them. */
+export interface FacetBucket {
+  /** The value as shown, e.g. payments-api, Python, src/, Jane Doe, Sep 2026 */
+  label: string;
+  count: number;
+  /** The filter that keeps only this bucket, as it would be typed, e.g. repo:payments-api; a - before it leaves the bucket out */
+  filter: string;
+}
+
 /** HiddenNote counts results a filter removed, with a fix that removes the filter. */
 export interface HiddenNote {
   reason: "not" | "since" | "case" | "word" | "type" | "pathFilter" | "symbol" | "kind";
@@ -411,6 +428,7 @@ export interface SearchResult {
   truncated: boolean;
   nextCursor?: string;
   hidden: HiddenNote[];
+  facets?: Facet[];
   ms: number;
 }
 
@@ -592,6 +610,7 @@ export interface SearchDoneMessage {
   truncated: boolean;
   nextCursor?: string;
   hidden: HiddenNote[];
+  facets?: Facet[];
   ms: number;
   error?: string;
 }

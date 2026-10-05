@@ -602,6 +602,33 @@ func (v Preview) MarshalJSON() ([]byte, error) {
 	return json.Marshal(fields)
 }
 
+// Facet counts a search's results by one field, biggest bucket first, for the buttons that narrow the results.
+type Facet struct {
+	Field   string        `json:"field"`
+	Buckets []FacetBucket `json:"buckets"`
+	// More is how many smaller buckets were left out
+	More int `json:"more"`
+}
+
+// MarshalJSON emits [] rather than null for required arrays.
+func (v Facet) MarshalJSON() ([]byte, error) {
+	type plain Facet
+	p := plain(v)
+	if p.Buckets == nil {
+		p.Buckets = []FacetBucket{}
+	}
+	return json.Marshal(p)
+}
+
+// FacetBucket is one value of a facet: how many results have it, and the filter that keeps only them.
+type FacetBucket struct {
+	// Label is the value as shown, e.g. payments-api, Python, src/, Jane Doe, Sep 2026
+	Label string `json:"label"`
+	Count int    `json:"count"`
+	// Filter is the filter that keeps only this bucket, as it would be typed, e.g. repo:payments-api; a - before it leaves the bucket out
+	Filter string `json:"filter"`
+}
+
 // HiddenNote counts results a filter removed, with a fix that removes the filter.
 type HiddenNote struct {
 	Reason string `json:"reason"`
@@ -771,6 +798,7 @@ type SearchResult struct {
 	Truncated  bool         `json:"truncated"`
 	NextCursor string       `json:"nextCursor,omitempty"`
 	Hidden     []HiddenNote `json:"hidden"`
+	Facets     []Facet      `json:"facets,omitempty"`
 	Ms         int          `json:"ms"`
 }
 
@@ -1033,6 +1061,7 @@ type SearchDoneMessage struct {
 	Truncated  bool         `json:"truncated"`
 	NextCursor string       `json:"nextCursor,omitempty"`
 	Hidden     []HiddenNote `json:"hidden"`
+	Facets     []Facet      `json:"facets,omitempty"`
 	Ms         int          `json:"ms"`
 	Error      string       `json:"error,omitempty"`
 }
