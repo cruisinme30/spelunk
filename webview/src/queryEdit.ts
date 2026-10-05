@@ -1,5 +1,5 @@
-// Pure edits of the query text. Fix-its, completions, the Aa / .* toggles
-// and the repo menu are all text edits followed by an ordinary
+// Pure edits of the query text. Fix-its, completions, the Aa / ab / .*
+// toggles, the repo menu and the facet row are all text edits followed by an ordinary
 // query.changed, so the daemon stays the only parser. Spans come from the
 // parsed query; nothing here scans the raw text.
 import { clamp } from "./format";
@@ -46,6 +46,16 @@ function removeSpan(text: string, span: Span): Edited {
   if (text[end] === " ") end++;
   else if (start > 0 && text[start - 1] === " ") start--;
   return { text: text.slice(0, start) + text.slice(end), cursor: start };
+}
+
+/** Removes every span, right to left so earlier spans stay valid, and trims; the cursor lands at the end. */
+function removeSpans(text: string, spans: Span[]): Edited {
+  let rest = text;
+  for (const span of [...spans].sort((first, second) => second.start - first.start)) {
+    rest = removeSpan(rest, span).text;
+  }
+  const trimmed = rest.trim();
+  return { text: trimmed, cursor: trimmed.length };
 }
 
 /** A global that is yes or no, with a setting for its default: case: behind Aa, word: behind ab. */
@@ -163,14 +173,12 @@ function quoteIfNeeded(literal: string): string {
  * it for all repos. Negated repo: filters (-repo:legacy) are left alone.
  */
 export function scopeToRepo(text: string, query: ParsedQuery | undefined, repoName: string | undefined): Edited {
-  let edited: Edited = { text, cursor: text.length };
-  const spans = topLevelOperators(query, "repo")
-    .map((node) => node.span)
-    .sort((first, second) => second.start - first.start); // right to left, so earlier spans stay valid
-  for (const span of spans) edited = removeSpan(edited.text, span);
-  if (repoName === undefined) return { text: edited.text.trim(), cursor: edited.text.trim().length };
+  const rest = removeSpans(
+    text,
+    topLevelOperators(query, "repo").map((node) => node.span),
+  ).text;
+  if (repoName === undefined) return { text: rest, cursor: rest.length };
   const operator = `repo:${escapeRegex(repoName, new RegExp(REGEX_SPECIAL.source, "g"))}`;
-  const rest = edited.text.trim();
   const result = rest ? `${operator} ${rest}` : operator;
   return { text: result, cursor: result.length };
 }
@@ -217,14 +225,7 @@ export function facetState(query: ParsedQuery | undefined, filter: string): Face
  */
 export function toggleFacet(text: string, query: ParsedQuery | undefined, filter: string, exclude: boolean): Edited {
   const { state, spans } = facetSpans(query, filter);
-  if (state !== "none") {
-    let edited: Edited = { text, cursor: text.length };
-    for (const span of [...spans].sort((first, second) => second.start - first.start)) {
-      edited = removeSpan(edited.text, span);
-    }
-    const trimmed = edited.text.trim();
-    return { text: trimmed, cursor: trimmed.length };
-  }
+  if (state !== "none") return removeSpans(text, spans);
   const added = `${text.trimEnd()} ${exclude ? leaveOut(filter) : filter}`.trimStart();
   return { text: added, cursor: added.length };
 }
