@@ -53,8 +53,6 @@ export interface ViewState {
   repos: RepoStatus[];
   /** Daemon health; undefined while it is healthy. */
   banner: BannerMessage | undefined;
-  /** Whether ? opened the operator cheat sheet over the empty box. */
-  sheetOpen: boolean;
   /** The width in pixels the divider gave the recent queries; undefined for the default split. */
   recentWidth: number | undefined;
 }
@@ -92,7 +90,6 @@ export function createViewState(): ViewState {
     ui: { ...DEFAULT_UI_SETTINGS },
     repos: [],
     banner: undefined,
-    sheetOpen: false,
     recentWidth: undefined,
   };
 }

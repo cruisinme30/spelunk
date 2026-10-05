@@ -166,7 +166,6 @@ export class SearchPanel {
     this.typeIntoBox(separator + snippet);
     input.setSelectionRange(cursor, cursor);
     this.state.completionsOpen = true;
-    this.state.sheetOpen = false;
     this.queryChanged(true);
   }
 
@@ -178,7 +177,6 @@ export class SearchPanel {
       if (this.editingBox) return;
       this.state.completionsOpen = true;
       this.state.completionIndex = 0;
-      this.state.sheetOpen = false;
       this.queryChanged();
       if (!input.value) this.showEmptyState();
     });
@@ -276,19 +274,27 @@ export class SearchPanel {
     if (handled) event.preventDefault();
   }
 
+  /**
+   * ? while suggesting opens the help page; in an empty box it brings the
+   * operator sheet into view, which a narrow panel stacks below the recent
+   * queries. Returns false for a literal ? in a query.
+   */
+  private showOperators(): boolean {
+    if (this.completionsVisible) {
+      send("help.open", {}); // every operator, explained
+      return true;
+    }
+    if (this.layout.input.value) return false;
+    this.layout.body.querySelector(".sheet")?.scrollIntoView({ block: "nearest" });
+    return true;
+  }
+
   /** Returns whether the key was handled (and its default should be prevented). */
   private handleKey(event: KeyboardEvent): boolean {
     const modifier = event.metaKey || event.ctrlKey;
     switch (event.key) {
       case "?": {
-        if (this.completionsVisible) {
-          send("help.open", {}); // every operator, explained
-          return true;
-        }
-        if (this.layout.input.value) return false; // a literal ? in a query
-        this.state.sheetOpen = !this.state.sheetOpen;
-        this.showEmptyState();
-        return true;
+        return this.showOperators();
       }
       case ".": {
         if (!modifier) return false;

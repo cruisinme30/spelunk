@@ -28,9 +28,8 @@ const KEY_STEP = 24;
 
 /** Fills `body` with the recent queries and the operator cheat sheet. */
 export function renderEmptyState(body: HTMLElement, state: ViewState, handlers: EmptyStateHandlers): void {
-  const className = state.sheetOpen ? "empty sheet-open" : "empty";
   const recent = renderRecent(state, handlers);
-  const empty = element("div", { class: className }, recent);
+  const empty = element("div", { class: "empty" }, recent);
   empty.append(renderDivider(empty, recent, handlers.onResizeRecent), renderSheet(handlers.onInsert));
   setRecentWidth(empty, state.recentWidth);
   body.replaceChildren(empty);

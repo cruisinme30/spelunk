@@ -84,6 +84,21 @@ test("the divider shows once recent and the cheat sheet fit side by side, and hi
   assert.equal(await divider.isVisible(), false);
 });
 
+test("? in an empty box scrolls the cheat sheet into view when it sits below the recent queries", async (t) => {
+  const page = await openPanel(t);
+  await page.setViewportSize({ width: 600, height: 320 });
+  await restore(
+    page,
+    Array.from({ length: 12 }, (_, index) => `retry ${index}`),
+  );
+  const sheet = page.locator('[data-testid="sheet"]');
+  const inView = () => sheet.evaluate((node) => node.getBoundingClientRect().top < globalThis.innerHeight);
+  assert.equal(await inView(), false, "the sheet starts below the fold");
+  await page.locator('[data-testid="query"]').press("?");
+  assert.equal(await inView(), true);
+  assert.equal(await page.inputValue('[data-testid="query"]'), "", "the ? isn't typed into the box");
+});
+
 test("an empty box shows recent queries and all 16 operators", async (t) => {
   // @covers screen:empty-box
   const page = await openPanel(t);
