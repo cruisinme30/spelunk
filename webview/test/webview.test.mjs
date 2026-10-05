@@ -150,6 +150,97 @@ test("⇧⌫ on an empty box removes the selected recent query and keeps the sel
   assert.equal(await page.inputValue(QUERY), "timeout", "with text in the box it just deletes");
 });
 
+test("an empty box lists pinned queries, named or not, above the recent ones", async (t) => {
+  const page = await openPanel(t);
+  await restore(page, ["since:2w timeout", "sym:RetryPolicy", "retry_policy"], {}, [
+    { query: "author:jane timeout", name: "Flaky payment tests" },
+    { query: "sym:RetryPolicy" },
+  ]);
+  const titles = await page.locator(".recent > .section-title").allTextContents();
+  assert.deepEqual(titles, ["Pinned", "Recent"]);
+  assert.deepEqual(await page.locator('[data-testid="pinned"] .pinned-name').allTextContents(), [
+    "Flaky payment tests",
+  ]);
+  assert.deepEqual(await page.locator('[data-testid="pinned"] code').allTextContents(), [
+    "author:jane timeout",
+    "sym:RetryPolicy",
+  ]);
+  assert.deepEqual(
+    await page.locator('[data-testid="recent"] code').allTextContents(),
+    ["since:2w timeout", "retry_policy"],
+    "a pinned query isn't listed again under Recent",
+  );
+
+  // ↑↓ and ↵ go through the pinned queries first.
+  await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("ArrowDown");
+  assert.equal(await page.locator(".recent-row.selected").getAttribute("data-recent"), "since:2w timeout");
+  await page.keyboard.press("ArrowUp");
+  await page.keyboard.press("ArrowUp");
+  await page.keyboard.press("Enter");
+  assert.equal(await page.inputValue(QUERY), "author:jane timeout");
+});
+
+test("the star pins a recent query and asks for a name, which ↵ saves and Esc skips", async (t) => {
+  // @covers msg:pinned.save
+  const page = await openPanel(t);
+  await restore(page, ["first", "second"]);
+  await page.locator(".recent-row").nth(1).hover();
+  await page.locator('[data-testid="recent-pin"]').nth(1).click();
+  assert.deepEqual(await page.locator('[data-testid="recent"] code').allTextContents(), ["first"]);
+  const field = page.locator('[data-testid="pinned-name"]');
+  assert.equal(await page.evaluate(() => document.activeElement.dataset.testid), "pinned-name");
+  await field.fill("  Second one ");
+  await field.press("Enter");
+  assert.deepEqual(await page.locator('[data-testid="pinned"] .pinned-name').allTextContents(), ["Second one"]);
+  assert.deepEqual(
+    (await sentMessages(page, "pinned.save")).map((message) => message.payload),
+    [{ query: "second" }, { query: "second", name: "Second one" }],
+  );
+  assert.equal(
+    await page.evaluate(() => document.activeElement.dataset.testid),
+    "query",
+    "the box gets the focus back",
+  );
+  assert.equal((await sentMessages(page, "query.changed")).length, 0, "pinning doesn't run the query");
+
+  // A settings refresh while a name is typed leaves the field alone; Esc then keeps the old name.
+  await page.locator(".recent-row.pinned").hover();
+  await page.locator('[data-testid="pinned-rename"]').click();
+  await field.fill("Renamed");
+  await restore(page, ["first", "second"], {}, [{ query: "second", name: "Second one" }]);
+  assert.equal(await field.inputValue(), "Renamed");
+  await field.press("Escape");
+  assert.deepEqual(await page.locator('[data-testid="pinned"] .pinned-name').allTextContents(), ["Second one"]);
+  assert.equal((await sentMessages(page, "pinned.save")).length, 2, "Esc saves nothing");
+  assert.equal((await sentMessages(page, "panel.close")).length, 0, "Esc in the field doesn't close the panel");
+
+  // A blank name clears it.
+  await page.locator('[data-testid="pinned-rename"]').click();
+  await field.fill(" ");
+  await field.press("Enter");
+  assert.equal(await page.locator('[data-testid="pinned"] .pinned-name').count(), 0);
+  assert.deepEqual(await lastSent(page, "pinned.save"), { query: "second" });
+});
+
+test("the filled star and ⇧⌫ unpin a query, which goes back among the recent ones", async (t) => {
+  // @covers msg:pinned.remove
+  const page = await openPanel(t);
+  await restore(page, ["first", "second"], {}, [{ query: "second", name: "Two" }, { query: "other" }]);
+  await page.locator(".recent-row.pinned").first().hover();
+  await page.locator('[data-testid="pinned-unpin"]').first().click();
+  assert.deepEqual(await page.locator('[data-testid="pinned"] code').allTextContents(), ["other"]);
+  assert.deepEqual(await page.locator('[data-testid="recent"] code').allTextContents(), ["first", "second"]);
+  await page.keyboard.press("Shift+Backspace"); // the first row: "other"
+  assert.equal(await page.locator('[data-testid="pinned"]').count(), 0);
+  assert.deepEqual(await page.locator(".recent > .section-title").allTextContents(), ["Recent"]);
+  assert.deepEqual(
+    (await sentMessages(page, "pinned.remove")).map((message) => message.payload.query),
+    ["second", "other"],
+  );
+  assert.equal((await sentMessages(page, "recent.remove")).length, 0);
+});
+
 test("typing sends query.changed with the text and a new seq", async (t) => {
   const page = await openPanel(t);
   await restore(page);

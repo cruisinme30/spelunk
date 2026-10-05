@@ -41,7 +41,8 @@ import { renderEmptyState } from "./render/emptyState";
 import { renderRepoMenu } from "./render/repoMenu";
 import { renderPreview } from "./render/preview";
 import { ResultsView } from "./render/results";
-import { createViewState, hasErrors, type ViewState } from "./state";
+import { addPin, forgetQuery, namePin } from "./pinnedQueries";
+import { createViewState, emptyBoxQueries, hasErrors, type ViewState } from "./state";
 
 /** Cheat-sheet snippets that put the cursor between a pair: "|", /|/, (|). */
 const PAIRED_SNIPPETS = new Set(['""', "//", "()"]);
@@ -364,10 +365,10 @@ export class SearchPanel {
     }
   }
 
-  /** Enter searches as typed while suggesting (Tab accepts), runs a recent query, or opens the selected result. */
+  /** Enter searches as typed while suggesting (Tab accepts), runs a pinned or recent query, or opens the selected result. */
   private onEnter(event: KeyboardEvent, modifier: boolean): void {
     if (this.completionsVisible && !modifier) this.searchAsTyped();
-    else if (!this.layout.input.value) this.runRecent(this.state.recent[this.state.recentIndex]);
+    else if (!this.layout.input.value) this.runRecent(emptyBoxQueries(this.state)[this.state.recentIndex]);
     else if (this.state.selectedRef) this.open(this.state.selectedRef, event);
   }
 
@@ -375,27 +376,50 @@ export class SearchPanel {
     if (query) this.setQuery(query);
   }
 
-  /** Keeps the recent-query selection on the list, which may have got shorter. */
+  /** Keeps the empty box's selection on its rows, which may have got fewer. */
   private clampRecentIndex(): void {
-    this.state.recentIndex = clamp(this.state.recentIndex, 0, Math.max(this.state.recent.length - 1, 0));
+    const rows = emptyBoxQueries(this.state).length;
+    this.state.recentIndex = clamp(this.state.recentIndex, 0, Math.max(rows - 1, 0));
   }
 
-  /** Takes a query off the recent list; the selection stays on the same row, now the next query. */
-  private removeRecent(query: string): void {
-    const recent = this.state.recent.filter((kept) => kept !== query);
-    if (recent.length === this.state.recent.length) return;
-    this.state.recent = recent;
+  /** Unpins a query, or takes a recent one off the list; the selection stays on the same row, now the next query. */
+  private forget(query: string): void {
+    const removed = forgetQuery(this.state, query);
+    if (!removed) return;
+    send(removed, { query });
     this.clampRecentIndex();
-    send("recent.remove", { query });
     this.showEmptyState();
     this.layout.input.focus();
   }
 
-  /** ⇧⌫ on an empty box removes the selected recent query, as browsers do for their history. */
+  /** Pins a recent query at the end of the pinned list and opens its name field. */
+  private pin(query: string): void {
+    const saved = addPin(this.state, query);
+    if (!saved) return;
+    send("pinned.save", saved);
+    this.rename(query);
+  }
+
+  /** Opens the name field on a pinned query. */
+  private rename(query: string): void {
+    this.state.naming = query;
+    this.showEmptyState();
+    this.layout.body.querySelector<HTMLInputElement>(".pinned-name-field")?.focus();
+  }
+
+  /** The name field closed (the row redrew itself): saves the name, and gives the box the focus back unless it moved on. */
+  private onNamed(query: string, name: string | undefined): void {
+    const saved = namePin(this.state, query, name);
+    if (saved) send("pinned.save", saved);
+    const leftFor = document.activeElement;
+    if (!leftFor || leftFor === document.body || !leftFor.isConnected) this.layout.input.focus();
+  }
+
+  /** ⇧⌫ on an empty box unpins the selected query, or removes it from recent, as browsers do for their history. */
   private removeSelectedRecent(event: KeyboardEvent): boolean {
-    const selected = this.state.recent[this.state.recentIndex];
+    const selected = emptyBoxQueries(this.state)[this.state.recentIndex];
     if (!event.shiftKey || this.layout.input.value || !selected) return false;
-    this.removeRecent(selected);
+    this.forget(selected);
     return true;
   }
 
@@ -500,11 +524,18 @@ export class SearchPanel {
     if (preview.stale) this.results?.markStale(preview.ref);
   }
 
-  /** The host's saved box text, recent queries and settings: on opening, and after settings change. */
-  private onRestore({ text, recent, settings }: StateRestoreMessage): void {
+  /** The host's saved box text, recent and pinned queries, and settings: on opening, and after settings change. */
+  private onRestore({ text, recent, pinned, settings }: StateRestoreMessage): void {
     const { input } = this.layout;
     if (settings) this.state.ui = settings;
     this.state.recent = recent;
+    this.state.pinned = pinned;
+    // Saving a pin changes the settings, which sends this again: a name being typed stays as it is.
+    if (this.state.naming !== undefined && pinned.some((entry) => entry.query === this.state.naming)) {
+      this.clampRecentIndex();
+      return;
+    }
+    this.state.naming = undefined;
     // A shorter list mustn't leave ↵ pointing past its end.
     this.clampRecentIndex();
     if (text !== input.value) {
@@ -610,7 +641,19 @@ export class SearchPanel {
         this.runRecent(query);
       },
       onRemoveRecent: (query) => {
-        this.removeRecent(query);
+        this.forget(query);
+      },
+      onPin: (query) => {
+        this.pin(query);
+      },
+      onUnpin: (query) => {
+        this.forget(query);
+      },
+      onRename: (query) => {
+        this.rename(query);
+      },
+      onNamed: (query, name) => {
+        this.onNamed(query, name);
       },
       onInsert: (snippet) => {
         this.insertAtCursor(snippet);

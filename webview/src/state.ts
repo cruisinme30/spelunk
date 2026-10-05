@@ -4,6 +4,7 @@ import type {
   BannerMessage,
   Completion,
   ParsedQuery,
+  PinnedQuery,
   Preview,
   RepoStatus,
   SearchDoneMessage,
@@ -46,9 +47,14 @@ export interface ViewState {
   preview: PreviewState | undefined;
   /** Whether a commit preview also lists the files an f: filter hid. */
   showHiddenFiles: boolean;
-  /** Recent queries, newest first, and the one ↑↓ has selected. */
+  /** Recent queries, newest first. */
   recent: string[];
+  /** Pinned queries, in the order they were pinned (spelunk.ui.pinnedQueries). */
+  pinned: PinnedQuery[];
+  /** The empty box row ↑↓ has selected, counting the pinned queries first, then the recent ones. */
   recentIndex: number;
+  /** The pinned query whose name is being typed, if any. */
+  naming: string | undefined;
   ui: UiSettings;
   repos: RepoStatus[];
   /** Daemon health; undefined while it is healthy. */
@@ -88,12 +94,21 @@ export function createViewState(): ViewState {
     preview: undefined,
     showHiddenFiles: false,
     recent: [],
+    pinned: [],
     recentIndex: 0,
+    naming: undefined,
     ui: { ...DEFAULT_UI_SETTINGS },
     repos: [],
     banner: undefined,
     recentWidth: undefined,
   };
+}
+
+/** The empty box's rows, top to bottom: the pinned queries, then the recent ones not pinned. */
+export function emptyBoxQueries(state: ViewState): string[] {
+  const pinned = state.pinned.map((entry) => entry.query);
+  const kept = new Set(pinned);
+  return [...pinned, ...state.recent.filter((query) => !kept.has(query))];
 }
 
 /** Whether the parsed query has errors; its results are then the last good query's. */

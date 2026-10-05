@@ -38,6 +38,7 @@
   --tone-history: #f5b866;
   --tone-logic: var(--fg);
   --tone-output: var(--fg);
+  --star: #e8c062;
   --term-color-0: rgb(245 184 102 / 35%);
   --term-color-1: rgb(142 195 255 / 35%);
   --term-color-2: rgb(211 188 255 / 35%);
@@ -45,6 +46,7 @@
 }
 
 body.vscode-light {
+  --star: #a06b00;
   --tone-match: #6a3fb5;
   --tone-scope: #1f5fa8;
   --tone-history: #8a5300;
@@ -253,7 +255,7 @@ mark {
 .toggle:focus-visible,
 .btn:focus-visible,
 .recent-run:focus-visible,
-.recent-remove:focus-visible,
+.recent-action:focus-visible,
 .sheet-entry:focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 1px;
@@ -1109,8 +1111,8 @@ pre.body {
   gap: 10px;
 }
 
-/* Shown on the row under the mouse or selected with ↑↓, and when tabbed to. */
-.recent-remove {
+/* Pin, rename, unpin and remove: shown on the row under the mouse or selected with ↑↓, and when tabbed to. */
+.recent-action {
   display: inline-flex;
   flex: none;
   align-items: center;
@@ -1126,13 +1128,13 @@ pre.body {
   opacity: 0;
 }
 
-.recent-row.selected .recent-remove,
-.recent-row:hover .recent-remove,
-.recent-remove:focus-visible {
+.recent-row.selected .recent-action,
+.recent-row:hover .recent-action,
+.recent-action:focus-visible {
   opacity: 1;
 }
 
-.recent-remove:hover {
+.recent-action:hover {
   background: var(--line);
   color: var(--fg);
 }
@@ -1152,6 +1154,55 @@ pre.body {
 .recent-row.selected,
 .recent-row:hover {
   background: var(--sel);
+}
+
+/* A pinned query: a gold star, then its name, if it has one, before the query. */
+.recent-row.pinned .icon,
+.recent-row.pinned [data-testid="pinned-unpin"] {
+  color: var(--star);
+}
+
+.pinned-name {
+  flex: none;
+  max-width: 50%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+}
+
+.recent-row.naming {
+  gap: 10px;
+  min-height: 36px;
+  padding: 4px 8px 4px 14px;
+}
+
+.recent-row.naming code {
+  flex: 1;
+  min-width: 0;
+}
+
+.pinned-name-field {
+  flex: 0 1 130px;
+  min-width: 80px;
+  height: 26px;
+  padding: 0 8px;
+  border: 1px solid var(--focus);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--input-fg);
+  font: inherit;
+  font-size: 12.5px;
+}
+
+.pinned-name-field:focus {
+  outline: none;
+  border-color: var(--sash);
+}
+
+.pinned-name-hint {
+  flex: none;
+  font-size: 11px;
 }
 
 .card {
