@@ -370,12 +370,17 @@ export class SearchPanel {
     if (query) this.setQuery(query);
   }
 
+  /** Keeps the recent-query selection on the list, which may have got shorter. */
+  private clampRecentIndex(): void {
+    this.state.recentIndex = clamp(this.state.recentIndex, 0, Math.max(this.state.recent.length - 1, 0));
+  }
+
   /** Takes a query off the recent list; the selection stays on the same row, now the next query. */
   private removeRecent(query: string): void {
     const recent = this.state.recent.filter((kept) => kept !== query);
     if (recent.length === this.state.recent.length) return;
     this.state.recent = recent;
-    this.state.recentIndex = clamp(this.state.recentIndex, 0, Math.max(recent.length - 1, 0));
+    this.clampRecentIndex();
     send("recent.remove", { query });
     this.showEmptyState();
     this.layout.input.focus();
@@ -496,7 +501,7 @@ export class SearchPanel {
     if (settings) this.state.ui = settings;
     this.state.recent = recent;
     // A shorter list mustn't leave ↵ pointing past its end.
-    this.state.recentIndex = clamp(this.state.recentIndex, 0, Math.max(recent.length - 1, 0));
+    this.clampRecentIndex();
     if (text !== input.value) {
       input.value = text;
       input.setSelectionRange(text.length, text.length);
