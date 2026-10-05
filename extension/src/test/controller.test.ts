@@ -486,3 +486,24 @@ test("a query.changed whose seq is not a number is ignored and doesn't let older
     ["good"],
   );
 });
+
+test("a search still running when a new webview says ready posts nothing to it", async () => {
+  const host = recordingUi();
+  let answer: (() => void) | undefined;
+  const { backend, listeners } = scriptedBackend(async (method, { text }) => {
+    if (method === "query/parse") return { query: parsedQuery(text, true), completions: [] };
+    await new Promise<void>((resolve) => (answer = resolve));
+    return NO_RESULTS;
+  });
+  const controller = newController(backend, host.ui);
+  const searching = controller.handle(queryChanged("retry", 1));
+  await nextTurn();
+  await controller.handle({ v: MESSAGE_VERSION, type: "ready", payload: {} }); // the panel was closed and reopened
+  listeners.get("batch")?.({ searchId: "s1", items: THREE_RESULTS });
+  answer?.();
+  await searching;
+  assert.deepEqual(host.payloads("search.batch"), [], "seq 1 of the old webview would match the new one's seq 1");
+  assert.deepEqual(host.payloads("search.done"), []);
+  await controller.handle({ v: MESSAGE_VERSION, type: "results.more", payload: { searchId: "s1", cursor: "c" } });
+  assert.deepEqual(host.payloads("search.done"), [], "load more cannot revive it");
+});
