@@ -19,6 +19,7 @@
 //   --help-page         render the help page instead of the search panel
 //   --out <file>        where to save the PNG (default: panel.png)
 //   --select <n>        press ↓ n times after the results arrive, to preview a result
+//   --setting <k=v>     a spelunk.* setting, e.g. caseSensitive=smart; v is read as JSON when it parses (repeatable)
 //   --workspace <dir>   a folder of repos, one root per subfolder (default: testdata/workspace)
 //   --width, --height   the panel size in pixels (default: 1200 × 720)
 //
@@ -37,6 +38,7 @@ const { values: args } = parseArgs({
     query: { type: "string", default: "" },
     recent: { type: "string", multiple: true, default: [] },
     open: { type: "string", multiple: true, default: [] },
+    setting: { type: "string", multiple: true, default: [] },
     key: { type: "string", multiple: true, default: [] },
     click: { type: "string", multiple: true, default: [] },
     "help-page": { type: "boolean", default: false },
@@ -54,8 +56,19 @@ const { build } = createRequire(join(repoRoot, "extension/package.json"))("esbui
 const { chromium } = createRequire(join(repoRoot, "webview/package.json"))("playwright");
 
 const scratch = mkdtempSync(join(tmpdir(), "us-screenshot-"));
-/** A settings reader that has nothing set, so every setting is its default. */
-const defaultsOnly = { get: (_key, defaultValue) => defaultValue };
+/** A settings reader that has only the --setting values set; every other setting is its default. */
+const configured = { get: (key, defaultValue) => (settingValues.has(key) ? settingValues.get(key) : defaultValue) };
+const settingValues = new Map(args.setting.map((pair) => parseSetting(pair)));
+
+/** "caseSensitive=smart" → ["caseSensitive", "smart"]; "defaultCount=5" → ["defaultCount", 5]. */
+function parseSetting(pair) {
+  const [key, value] = [pair.slice(0, pair.indexOf("=")), pair.slice(pair.indexOf("=") + 1)];
+  try {
+    return [key, JSON.parse(value)];
+  } catch {
+    return [key, value];
+  }
+}
 try {
   await main();
 } finally {
@@ -69,7 +82,7 @@ async function main() {
   const daemon = new host.Daemon({
     binary: join(repoRoot, "daemon/bin/spelunk-daemon"),
     roots: () => workspaceRoots(host),
-    settings: () => ({ ...host.daemonSettings(defaultsOnly, scratch), location: join(scratch, "index") }),
+    settings: () => ({ ...host.daemonSettings(configured, scratch), location: join(scratch, "index") }),
   });
   await daemon.start();
   const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined });
@@ -127,8 +140,8 @@ async function connectPanel(page, host, daemon) {
     saveState: () => {},
   };
   const openFiles = args.open.map((path) => join(args.workspace, path));
-  // The extension's default settings, minus the typing delay, so each keystroke searches at once.
-  const uiSettings = { ...host.uiSettings(defaultsOnly), typingDelayMs: 0 };
+  // The extension's settings, minus the typing delay, so each keystroke searches at once.
+  const uiSettings = { ...host.uiSettings(configured), typingDelayMs: 0 };
   const controller = new host.SearchController(
     daemon,
     ui,
