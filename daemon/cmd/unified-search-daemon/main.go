@@ -58,7 +58,7 @@ func serve(stdin io.Reader, stdout, stderr io.Writer, signals <-chan os.Signal) 
 	if path := os.Getenv("UNIFIED_SEARCH_TRACE"); path != "" {
 		closeTrace, err := traceTo(conn, path)
 		if err != nil {
-			fmt.Fprintf(stderr, "unified-search-daemon: trace disabled: %v\n", err)
+			_, _ = fmt.Fprintf(stderr, "unified-search-daemon: trace disabled: %v\n", err)
 		} else {
 			defer closeTrace()
 		}
@@ -74,7 +74,7 @@ func serve(stdin io.Reader, stdout, stderr io.Writer, signals <-chan os.Signal) 
 	go func() { served <- conn.Serve(ctx) }()
 	servedCode := func(err error) int {
 		if err != nil {
-			fmt.Fprintln(stderr, "unified-search-daemon:", err)
+			_, _ = fmt.Fprintln(stderr, "unified-search-daemon:", err)
 			return 1
 		}
 		return 0
