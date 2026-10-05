@@ -168,6 +168,18 @@ func TestDuplicateInFlightIDIsRefusedAndTheFirstStaysCancellable(t *testing.T) {
 	}
 }
 
+func TestPanickingNotificationHandlerDoesNotEndTheConnection(t *testing.T) {
+	peer := newRawPeer(t, func(c *Conn) {
+		c.OnNotify("boom", func(json.RawMessage) { panic("notification handler bug") })
+		c.Handle("echo", func(_ context.Context, params json.RawMessage) (any, error) { return params, nil })
+	})
+	peer.send(t, `{"jsonrpc":"2.0","method":"boom"}`)
+	peer.send(t, `{"jsonrpc":"2.0","id":2,"method":"echo","params":"alive"}`)
+	if got := peer.receive(t); got["result"] != "alive" {
+		t.Fatalf("echo after a panicking notification = %v, want alive", got)
+	}
+}
+
 func TestServeEndsOnFramingErrors(t *testing.T) {
 	for name, wire := range map[string]string{
 		"header_without_body": "Content-Length: 10\r\n\r\n",

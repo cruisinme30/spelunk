@@ -417,14 +417,19 @@ func (c *Conn) cancelInflight(params json.RawMessage) {
 	}
 }
 
-// handleNotification calls the handler registered for a notification, if any.
+// handleNotification calls the handler registered for a notification, if
+// any. A notification has no response to carry an error, so a panicking
+// handler is recovered and the notification dropped: the read loop, and
+// with it the connection, must survive.
 func (c *Conn) handleNotification(method string, params json.RawMessage) {
 	c.mu.Lock()
 	handler := c.notificationHandlers[method]
 	c.mu.Unlock()
-	if handler != nil {
-		handler(params)
+	if handler == nil {
+		return
 	}
+	defer func() { _ = recover() }()
+	handler(params)
 }
 
 // dispatch runs a request's handler on its own goroutine and sends the

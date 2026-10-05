@@ -20,7 +20,9 @@
 //     CodeInvalidRequest.
 //   - A message that is not a JSON-RPC message (invalid JSON, a batch, a
 //     bare value, an id that is not a string, number or null) is answered
-//     with an error whose id is null, and the connection carries on.
+//     with an error whose id is null, and the connection carries on. A
+//     panicking notification handler is recovered and its notification
+//     dropped.
 //   - Framing errors end the connection, because the stream cannot be
 //     resynchronised: a header without a valid Content-Length, input that
 //     ends inside a message, or a header or body over the size limits. A
