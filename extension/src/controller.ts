@@ -99,18 +99,17 @@ interface RunningSearch {
   cancel: CancelSource;
 }
 
-/** Messages from the help and welcome pages, which extension.ts handles. */
-type OtherPageMessage = Extract<
-  WebviewMessage,
-  { type: "help.try" | "welcome.choose" | "welcome.shortcut" | "welcome.start" }
->;
-const OTHER_PAGE_MESSAGES: ReadonlySet<WebviewMessage["type"]> = new Set<OtherPageMessage["type"]>([
+/** The types of the help and welcome pages' messages, which extension.ts handles. */
+const HELP_AND_WELCOME_TYPES = [
   "help.try",
   "welcome.choose",
   "welcome.shortcut",
   "welcome.start",
-]);
-const fromOtherPage = (message: WebviewMessage): message is OtherPageMessage => OTHER_PAGE_MESSAGES.has(message.type);
+] as const satisfies readonly WebviewMessage["type"][];
+type HelpOrWelcomeMessage = Extract<WebviewMessage, { type: (typeof HELP_AND_WELCOME_TYPES)[number] }>;
+const helpAndWelcomeTypes: ReadonlySet<string> = new Set(HELP_AND_WELCOME_TYPES);
+const fromHelpOrWelcome = (message: WebviewMessage): message is HelpOrWelcomeMessage =>
+  helpAndWelcomeTypes.has(message.type);
 
 /** Turns panel messages into daemon calls; one per window. */
 export class SearchController {
@@ -174,7 +173,7 @@ export class SearchController {
 
   /** Handles one message from the search panel. */
   async handle(message: WebviewMessage): Promise<void> {
-    if (fromOtherPage(message)) return;
+    if (fromHelpOrWelcome(message)) return;
     switch (message.type) {
       case "ready": {
         // A new webview counts seq from zero again, so a search still running
