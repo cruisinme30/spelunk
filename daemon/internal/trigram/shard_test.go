@@ -45,19 +45,6 @@ func TestCandidates(t *testing.T) {
 	}
 }
 
-func TestIntersectAndUnion(t *testing.T) {
-	a, b := []uint32{1, 3, 5, 7}, []uint32{3, 4, 7, 9}
-	if got := intersect(a, b); !reflect.DeepEqual(got, []uint32{3, 7}) {
-		t.Errorf("intersect = %v, want [3 7]", got)
-	}
-	if got := intersect([]uint32{1}, []uint32{2}); got == nil || len(got) != 0 {
-		t.Errorf("intersect of disjoint lists = %#v, want an empty, non-nil list (nil means any doc)", got)
-	}
-	if got := Union(a, b); !reflect.DeepEqual(got, []uint32{1, 3, 4, 5, 7, 9}) {
-		t.Errorf("union = %v, want [1 3 4 5 7 9]", got)
-	}
-}
-
 func TestBuildReadsListedFiles(t *testing.T) {
 	root := writeTree(t, map[string]string{"a.go": "package a\n\nfunc A() {}\n", "b.py": "print(1)\n"})
 	var reports []float64

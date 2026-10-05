@@ -10,6 +10,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/cruisinme30/spelunk/daemon/internal/engine"
 	"github.com/cruisinme30/spelunk/daemon/internal/lang"
 	"github.com/cruisinme30/spelunk/daemon/internal/symbols"
 )
@@ -185,52 +186,12 @@ func candidates(postings map[uint32][]uint32, literal string, caseSensitive bool
 	sort.Slice(lists, func(i, j int) bool { return len(lists[i]) < len(lists[j]) })
 	result := lists[0]
 	for _, list := range lists[1:] {
-		result = intersect(result, list)
+		result = engine.Intersect(result, list)
 		if len(result) == 0 {
 			break
 		}
 	}
 	return result
-}
-
-// intersect returns the ids in both ascending lists. The result is never
-// nil: nil means "any doc" to callers, and no common id means "no doc".
-func intersect(a, b []uint32) []uint32 {
-	out := []uint32{}
-	for i, j := 0, 0; i < len(a) && j < len(b); {
-		switch {
-		case a[i] == b[j]:
-			out = append(out, a[i])
-			i++
-			j++
-		case a[i] < b[j]:
-			i++
-		default:
-			j++
-		}
-	}
-	return out
-}
-
-// Union returns the ids in either ascending list.
-func Union(a, b []uint32) []uint32 {
-	out := make([]uint32, 0, len(a)+len(b))
-	i, j := 0, 0
-	for i < len(a) || j < len(b) {
-		switch {
-		case j == len(b) || i < len(a) && a[i] < b[j]:
-			out = append(out, a[i])
-			i++
-		case i == len(a) || b[j] < a[i]:
-			out = append(out, b[j])
-			j++
-		default:
-			out = append(out, a[i])
-			i++
-			j++
-		}
-	}
-	return out
 }
 
 // savedShard is the on-disk form of a Shard.

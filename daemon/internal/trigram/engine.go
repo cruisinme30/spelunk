@@ -7,14 +7,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/cruisinme30/spelunk/daemon/internal/engine"
 	"github.com/cruisinme30/spelunk/daemon/internal/protocol"
 	"github.com/cruisinme30/spelunk/daemon/internal/query"
 	"github.com/cruisinme30/spelunk/daemon/internal/symbols"
 )
-
-// SearchBudget is how long one search may run before it returns what it
-// has, marked truncated.
-const SearchBudget = 2 * time.Second
 
 // Repo is a repo's published index plus what results need to name it.
 type Repo struct {
@@ -71,22 +68,14 @@ func (r *Repo) changedSince(doc *Doc, after time.Time) bool {
 	return ok && !at.Before(after)
 }
 
-// Stats describe one page of a search.
-type Stats struct {
-	Total      int // results counted, at most query.MaxResults
-	Truncated  bool
-	NextOffset int // where the next page starts; 0 when this is the last page
-	Hidden     []protocol.HiddenNote
-}
-
 // Search runs plan over repos, in order, and calls emit for each result on
 // the requested page. File-name results come before code results. It also
 // counts every result (for Total and Load more) and what each filter hid.
 //
-// A search that runs past SearchBudget returns what it found so far,
+// A search that runs past engine.Budget returns what it found so far,
 // marked truncated; only a cancelled ctx makes it return an error.
-func Search(ctx context.Context, plan *query.Plan, repos []Repo, planID int, emit func(protocol.ResultItem)) (Stats, error) {
-	ctx, cancel := context.WithTimeout(ctx, SearchBudget)
+func Search(ctx context.Context, plan *query.Plan, repos []Repo, planID int, emit func(protocol.ResultItem)) (engine.Stats, error) {
+	ctx, cancel := context.WithTimeout(ctx, engine.Budget)
 	defer cancel()
 	s := &searcher{ctx: ctx, plan: plan, planID: planID, emit: emit, hidden: map[int]int{}, terms: termCache{}}
 	onlyFiles := plan.Kinds[query.KindFile] && !plan.Kinds[query.KindLine]
@@ -109,7 +98,7 @@ func Search(ctx context.Context, plan *query.Plan, repos []Repo, planID int, emi
 		s.hiddenByCase = countIgnoringCase(ctx, plan, repos) - s.counted
 	}
 	if errors.Is(ctx.Err(), context.Canceled) {
-		return Stats{}, context.Cause(ctx)
+		return engine.Stats{}, context.Cause(ctx)
 	}
 	return s.stats(resultUnit(plan, onlyFiles)), nil
 }
@@ -180,8 +169,8 @@ func (s *searcher) add(item protocol.ResultItem) {
 
 // stats summarizes the search, with one hidden-results note per filter
 // that hid something, counting unit.
-func (s *searcher) stats(unit string) Stats {
-	stats := Stats{Total: s.counted, Truncated: s.truncated, Hidden: []protocol.HiddenNote{}}
+func (s *searcher) stats(unit string) engine.Stats {
+	stats := engine.Stats{Total: s.counted, Truncated: s.truncated, Hidden: []protocol.HiddenNote{}}
 	if next := s.plan.Offset + s.plan.Limit; next < s.counted {
 		stats.NextOffset = next
 	}
@@ -507,10 +496,10 @@ func (s *searcher) candidateDocs(shard *Shard) []uint32 {
 
 // narrowShard returns the docs that can satisfy p, or nil for "any doc".
 func narrowShard(shard *Shard, p query.Pred, caseSensitive bool) []uint32 {
-	return Narrow(p, func(leaf query.Pred) []uint32 {
+	return engine.Narrow(p, func(leaf query.Pred) []uint32 {
 		switch leaf := leaf.(type) {
 		case *query.Content:
-			return shard.Candidates(ContentLiteral(leaf), caseSensitive)
+			return shard.Candidates(engine.ContentLiteral(leaf), caseSensitive)
 		case *query.Symbol:
 			// A definition's name is in the file's text.
 			return shard.Candidates(query.RequiredLiteral(leaf.Re), caseSensitive)

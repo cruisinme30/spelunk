@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/cruisinme30/spelunk/daemon/internal/engine"
 	"github.com/cruisinme30/spelunk/daemon/internal/lang"
 	"github.com/cruisinme30/spelunk/daemon/internal/protocol"
 	"github.com/cruisinme30/spelunk/daemon/internal/query"
@@ -31,11 +32,11 @@ const maxResultFiles = 20
 // the requested page as soon as it is found, newest first across all repos.
 // It counts every match (for Total and Load more) and what each filter hid,
 // like trigram.Search.
-func Search(ctx context.Context, plan *query.Plan, repos []Repo, planID int, emit func(protocol.ResultItem)) (trigram.Stats, error) {
+func Search(ctx context.Context, plan *query.Plan, repos []Repo, planID int, emit func(protocol.ResultItem)) (engine.Stats, error) {
 	if plan.Mode != protocol.ModeHistory {
-		return trigram.Stats{}, errors.New("history engine got a working-tree plan")
+		return engine.Stats{}, errors.New("history engine got a working-tree plan")
 	}
-	ctx, cancel := context.WithTimeout(ctx, trigram.SearchBudget)
+	ctx, cancel := context.WithTimeout(ctx, engine.Budget)
 	defer cancel()
 	s := &searcher{ctx: ctx, plan: plan, planID: planID, emit: emit, lines: trigram.NewLineFinder(), hidden: map[int]int{}}
 	s.searchNewestFirst(repos)
@@ -43,7 +44,7 @@ func Search(ctx context.Context, plan *query.Plan, repos []Repo, planID int, emi
 		s.hiddenByCase = countIgnoringCase(ctx, plan, repos) - s.counted
 	}
 	if errors.Is(ctx.Err(), context.Canceled) {
-		return trigram.Stats{}, context.Cause(ctx)
+		return engine.Stats{}, context.Cause(ctx)
 	}
 	return s.stats(), nil
 }
@@ -76,8 +77,8 @@ type searcher struct {
 }
 
 // stats summarizes the search.
-func (s *searcher) stats() trigram.Stats {
-	stats := trigram.Stats{Total: s.counted, Truncated: s.truncated, Hidden: []protocol.HiddenNote{}}
+func (s *searcher) stats() engine.Stats {
+	stats := engine.Stats{Total: s.counted, Truncated: s.truncated, Hidden: []protocol.HiddenNote{}}
 	if next := s.plan.Offset + s.plan.Limit; next < s.counted {
 		stats.NextOffset = next
 	}
@@ -199,16 +200,16 @@ func (s *searcher) repoExcluded(repo *Repo) bool {
 // terms through the changed lines and the messages, msg: through the
 // messages alone.
 func (s *searcher) candidates(seg *segment) []uint32 {
-	ids := trigram.Narrow(s.plan.Pred, func(leaf query.Pred) []uint32 {
+	ids := engine.Narrow(s.plan.Pred, func(leaf query.Pred) []uint32 {
 		switch leaf := leaf.(type) {
 		case *query.Content:
-			literal := trigram.ContentLiteral(leaf)
+			literal := engine.ContentLiteral(leaf)
 			inDiffs := seg.diffs.Candidates(literal, s.plan.CaseSensitive)
 			inMessages := seg.messages.Candidates(literal, s.plan.CaseSensitive)
 			if inDiffs == nil || inMessages == nil {
 				return nil
 			}
-			return trigram.Union(inDiffs, inMessages)
+			return engine.Union(inDiffs, inMessages)
 		case *query.Message:
 			return seg.messages.Candidates(query.RequiredLiteral(leaf.Re), s.plan.CaseSensitive)
 		default:

@@ -28,53 +28,6 @@ func (ix *TextIndex) Candidates(literal string, caseSensitive bool) []uint32 {
 // Size is how many texts the index holds.
 func (ix *TextIndex) Size() int { return ix.size }
 
-// Narrow returns the ids that can satisfy p in ascending order, or nil for
-// "any id". leaf narrows one leaf predicate, returning nil when it can't
-// (paths, authors and the like). AND intersects, OR unites, and NOT never
-// narrows: the ids that fail its kid are not known.
-func Narrow(p query.Pred, leaf func(query.Pred) []uint32) []uint32 {
-	switch p := p.(type) {
-	case *query.And:
-		var result []uint32
-		narrowed := false
-		for _, kid := range p.Kids {
-			ids := Narrow(kid, leaf)
-			switch {
-			case ids == nil:
-				continue
-			case !narrowed:
-				result, narrowed = ids, true
-			default:
-				result = intersect(result, ids)
-			}
-		}
-		return result
-	case *query.Or:
-		result := []uint32{}
-		for _, kid := range p.Kids {
-			ids := Narrow(kid, leaf)
-			if ids == nil {
-				return nil
-			}
-			result = Union(result, ids)
-		}
-		return result
-	case *query.Not:
-		return nil
-	default:
-		return leaf(p)
-	}
-}
-
-// ContentLiteral is the literal every match of a text term contains, the
-// one to narrow candidates with: the term itself, or what its regex requires.
-func ContentLiteral(term *query.Content) string {
-	if term.Literal != "" {
-		return term.Literal
-	}
-	return query.RequiredLiteral(term.Re)
-}
-
 // LineFinder finds the lines of texts that text terms match, exactly as
 // searches match the lines of files. Share one across a search's texts:
 // what it works out about each term is kept. It is not safe for

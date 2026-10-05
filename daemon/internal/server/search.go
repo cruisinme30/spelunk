@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/cruisinme30/spelunk/daemon/internal/engine"
 	"github.com/cruisinme30/spelunk/daemon/internal/history"
 	"github.com/cruisinme30/spelunk/daemon/internal/protocol"
 	"github.com/cruisinme30/spelunk/daemon/internal/query"
@@ -104,7 +105,7 @@ func (s *Server) search(ctx context.Context, raw json.RawMessage) (any, error) {
 	}
 	planID := s.plans.remember(plan)
 	batch := &batcher{conn: s.conn, searchID: params.SearchID}
-	var stats trigram.Stats
+	var stats engine.Stats
 	if plan.Mode == protocol.ModeHistory {
 		stats, err = history.Search(ctx, plan, s.index.HistoryRepos(), planID, batch.add)
 	} else {

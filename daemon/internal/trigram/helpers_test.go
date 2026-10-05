@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cruisinme30/spelunk/daemon/internal/engine"
 	"github.com/cruisinme30/spelunk/daemon/internal/lang"
 	"github.com/cruisinme30/spelunk/daemon/internal/protocol"
 	"github.com/cruisinme30/spelunk/daemon/internal/query"
@@ -71,7 +72,7 @@ func mustPlan(tb testing.TB, text string, settings protocol.Settings, cursor str
 }
 
 // run searches repos and returns the emitted results, summarised.
-func run(t *testing.T, text string, repos ...Repo) ([]string, Stats) {
+func run(t *testing.T, text string, repos ...Repo) ([]string, engine.Stats) {
 	t.Helper()
 	items, stats := runItems(t, text, defaultSettings, "", repos...)
 	return summarize(items), stats
@@ -79,7 +80,7 @@ func run(t *testing.T, text string, repos ...Repo) ([]string, Stats) {
 
 // runItems searches repos and returns the emitted results. Every result
 // carries plan ID 7.
-func runItems(t *testing.T, text string, settings protocol.Settings, cursor string, repos ...Repo) ([]protocol.ResultItem, Stats) {
+func runItems(t *testing.T, text string, settings protocol.Settings, cursor string, repos ...Repo) ([]protocol.ResultItem, engine.Stats) {
 	t.Helper()
 	var items []protocol.ResultItem
 	stats, err := Search(context.Background(), mustPlan(t, text, settings, cursor), repos, 7, func(item protocol.ResultItem) {

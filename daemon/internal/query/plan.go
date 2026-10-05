@@ -490,7 +490,7 @@ func Contributing(p Pred, leaf func(Pred) bool) []*Content {
 
 // historyScanWarnings warns when a history regex has no literal of three
 // or more characters and nothing else narrows the commits: the trigram
-// index can't help, so the search scans every commit (within trigram.SearchBudget).
+// index can't help, so the search scans every commit (within engine.Budget).
 func historyScanWarnings(plan *Plan) []protocol.Diagnostic {
 	if plan.Mode != protocol.ModeHistory || narrowsHistory(plan.Pred) {
 		return nil
