@@ -14,7 +14,7 @@ func ApplyFix(text string, fix protocol.Fix) string {
 	position := 0
 	// Edits in a fix never overlap; apply them in span order.
 	edits := slices.Clone(fix.Edits)
-	slices.SortFunc(edits, func(a, b protocol.TextEdit) int { return a.Span.Start - b.Span.Start })
+	slices.SortFunc(edits, func(x, y protocol.TextEdit) int { return x.Span.Start - y.Span.Start })
 	for _, edit := range edits {
 		b.WriteString(src.slice(position, edit.Span.Start))
 		b.WriteString(edit.NewText)
