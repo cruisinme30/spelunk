@@ -597,6 +597,7 @@ var fixedValues = map[protocol.OpName][]fixedValue{
 	protocol.OpNameCase: {
 		{"yes", "Match case exactly", "RetryPolicy, not retrypolicy"},
 		{"no", "Ignore case", "RetryPolicy, retrypolicy and RETRYPOLICY"},
+		{"smart", "Match case only when the query has a capital", "RetryPolicy matches case; retrypolicy ignores it"},
 	},
 	protocol.OpNameWord: {
 		{"yes", "Whole words only", "retry, not retryCount or autoretry"},

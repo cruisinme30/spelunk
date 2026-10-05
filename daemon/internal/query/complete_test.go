@@ -78,7 +78,7 @@ func TestCompletingValuesOfFixedOperators(t *testing.T) {
 	tests := map[string]string{
 		"type:":    "file code commit",
 		"type:c":   "code commit",
-		"case:":    "yes no",
+		"case:":    "yes no smart",
 		"since:":   "today yesterday 30min 2h 2w 30d 6m 1y",
 		"lang:ty":  "typescript",
 		"repo:web": "web-checkout",
