@@ -2,8 +2,8 @@
 
 One search box for file names, code and Git history, across every repo in your workspace.
 
-> **Early development.** Searching current files, definitions and Git history works: file names, code lines,
-> `symbol:` definitions and commits, with the whole query language, previews and opening results.
+> Searching current files, definitions and Git history works: file names, code lines, `symbol:` definitions and
+> commits, with the whole query language, previews and opening results.
 
 ## Getting started
 

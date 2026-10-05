@@ -11,8 +11,10 @@ removed `timeout` or `retry`. Drop `author:` and the same box searches current f
 
 ![The search panel showing code matches for retry_policy, with a preview](docs/dev/proof/search-panel-results-and-preview.png)
 
-> **Status: early development, no Marketplace release yet.** Searching current files, definitions and Git history
-> works, with the whole query language, previews and opening results.
+> **Status: [1.0.0 is out](https://github.com/cruisinme30/spelunk/releases/tag/v1.0.0)** on GitHub, not yet on the
+> Marketplace. Download the `.vsix` for your platform from the
+> [latest release](https://github.com/cruisinme30/spelunk/releases/latest) and run **Extensions: Install from VSIX…**
+> in VS Code.
 
 ## What it does
 
