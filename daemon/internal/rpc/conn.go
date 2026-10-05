@@ -151,34 +151,9 @@ func (c *Conn) OnNotify(method string, h NotificationHandler) {
 // inside a message is io.ErrUnexpectedEOF. A header block or body over the
 // size limits is ErrMessageTooLarge, and is never buffered or allocated.
 func ReadMessage(r *bufio.Reader) ([]byte, error) {
-	length := -1
-	headerBytes := 0
-	for {
-		line, err := readHeaderLine(r, &headerBytes)
-		if err != nil {
-			if errors.Is(err, io.EOF) && headerBytes > 0 {
-				err = io.ErrUnexpectedEOF
-			}
-			return nil, err
-		}
-		if line == "" {
-			break
-		}
-		name, value, ok := strings.Cut(line, ":")
-		if !ok {
-			return nil, fmt.Errorf("rpc: malformed header line %q", line)
-		}
-		if !strings.EqualFold(strings.TrimSpace(name), "Content-Length") {
-			continue // Content-Type and anything else carry nothing we need
-		}
-		n, err := strconv.Atoi(strings.TrimSpace(value))
-		if err != nil || n < 0 || (length >= 0 && n != length) {
-			return nil, fmt.Errorf("rpc: bad Content-Length %q", strings.TrimSpace(value))
-		}
-		length = n
-	}
-	if length < 0 {
-		return nil, errors.New("rpc: header without Content-Length")
+	length, err := readContentLength(r)
+	if err != nil {
+		return nil, err
 	}
 	if length > maxBodySize {
 		return nil, fmt.Errorf("%w: Content-Length %d is over %d", ErrMessageTooLarge, length, maxBodySize)
@@ -191,6 +166,41 @@ func ReadMessage(r *bufio.Reader) ([]byte, error) {
 		return nil, err
 	}
 	return body, nil
+}
+
+// readContentLength reads a header block up to its blank line and returns
+// its Content-Length. Input that ends inside the block is io.ErrUnexpectedEOF.
+func readContentLength(r *bufio.Reader) (int, error) {
+	length := -1
+	headerBytes := 0
+	for {
+		line, err := readHeaderLine(r, &headerBytes)
+		if err != nil {
+			if errors.Is(err, io.EOF) && headerBytes > 0 {
+				err = io.ErrUnexpectedEOF
+			}
+			return 0, err
+		}
+		if line == "" {
+			break
+		}
+		name, value, ok := strings.Cut(line, ":")
+		if !ok {
+			return 0, fmt.Errorf("rpc: malformed header line %q", line)
+		}
+		if !strings.EqualFold(strings.TrimSpace(name), "Content-Length") {
+			continue // Content-Type and anything else carry nothing we need
+		}
+		n, err := strconv.Atoi(strings.TrimSpace(value))
+		if err != nil || n < 0 || (length >= 0 && n != length) {
+			return 0, fmt.Errorf("rpc: bad Content-Length %q", strings.TrimSpace(value))
+		}
+		length = n
+	}
+	if length < 0 {
+		return 0, errors.New("rpc: header without Content-Length")
+	}
+	return length, nil
 }
 
 // readHeaderLine reads one header line without its line ending, adding its

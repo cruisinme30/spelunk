@@ -80,7 +80,8 @@ func errorCode(m map[string]any) int {
 	if !ok {
 		return 0
 	}
-	return int(e["code"].(float64))
+	code, _ := e["code"].(float64)
+	return int(code)
 }
 
 func TestServeAnswersMessagesThatAreNotJSONRPCAndCarriesOn(t *testing.T) {
@@ -129,7 +130,10 @@ func TestServeAnswersEveryValidIDForm(t *testing.T) {
 	for _, id := range []string{`null`, `"abc"`, `0`, `-3`, `1.5`, `""`} {
 		peer.send(t, `{"jsonrpc":"2.0","id":`+id+`,"method":"echo","params":"x","unknown":{"extra":1}}`)
 		got := peer.receive(t)
-		encoded, _ := json.Marshal(got["id"])
+		encoded, err := json.Marshal(got["id"])
+		if err != nil {
+			t.Fatal(err)
+		}
 		if string(encoded) != id || got["result"] != "x" {
 			t.Fatalf("response to id %s = %v, want result x with the same id", id, got)
 		}
