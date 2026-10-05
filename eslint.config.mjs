@@ -22,6 +22,7 @@ export default defineConfig(
       "**/node_modules/",
       "**/dist/",
       "**/dist-test/",
+      "**/dist-e2e/",
       "**/out/",
       "**/*.gen.ts", // generated from protocol/protocol.schema.json
       "daemon/",

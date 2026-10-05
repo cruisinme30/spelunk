@@ -2,6 +2,7 @@
 **/*.gen.ts
 **/dist/
 **/dist-test/
+**/dist-e2e/
 **/out/
 **/node_modules/
 package-lock.json
