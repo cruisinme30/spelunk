@@ -10,8 +10,9 @@ import { readFileSync } from "node:fs";
 const FIRST_RESULT_MS = { BenchmarkLargeRepo: 100, BenchmarkLargeHistory: 250 };
 /** How long the working-tree index may take to build. */
 const TREE_BUILD_MS = 2 * 60_000;
-/** How long the history index may take to read: 15 minutes, and a minute to the first searchable commits. */
+/** How long the history index may take to read. */
 const HISTORY_READ_MS = 15 * 60_000;
+/** How long until the first commits of a history read are searchable. */
 const HISTORY_FIRST_SEARCHABLE_MS = 60_000;
 
 const file = process.argv[2];
