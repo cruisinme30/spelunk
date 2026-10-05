@@ -3,7 +3,7 @@
 // query.changed, so the daemon stays the only parser. Spans come from the
 // parsed query; nothing here scans the raw text.
 import { clamp } from "./format";
-import { operatorNodes, textNodes, topLevelOperators } from "./parsedQuery";
+import { operatorNodes, textNodes, topLevelConjuncts, topLevelOperators } from "./parsedQuery";
 import type { CaseSetting, ParsedQuery, Span, TextEdit } from "./protocol.gen";
 
 /** The query text and cursor after an edit. */
@@ -173,4 +173,58 @@ export function scopeToRepo(text: string, query: ParsedQuery | undefined, repoNa
   const rest = edited.text.trim();
   const result = rest ? `${operator} ${rest}` : operator;
   return { text: result, cursor: result.length };
+}
+
+/** Whether a facet bucket's filter is in the query: kept (repo:x), left out (-repo:x), or neither. */
+export type FacetState = "kept" | "left-out" | "none";
+
+/**
+ * The filters a facet bucket's filter is made of: "since:2026-09 until:2026-09"
+ * is two. The daemon writes these, quoting any value with a space.
+ */
+function filterParts(filter: string): string[] {
+  return filter.match(/(?:[^\s"]|"(?:\\.|[^"\\])*")+/g) ?? [];
+}
+
+/** The filter that leaves a bucket out: -repo:x, or -(since:… until:…) for one of several parts. */
+export function leaveOut(filter: string): string {
+  return filterParts(filter).length > 1 ? `-(${filter})` : `-${filter}`;
+}
+
+/** The top-level conjuncts that hold a bucket's filter, and whether they keep or leave it out. */
+function facetSpans(query: ParsedQuery | undefined, filter: string): { state: FacetState; spans: Span[] } {
+  const raw = query?.raw ?? "";
+  const conjuncts = topLevelConjuncts(query).map((node) => ({
+    span: node.span,
+    text: raw.slice(node.span.start, node.span.end),
+  }));
+  const excluded = conjuncts.find((conjunct) => conjunct.text === leaveOut(filter));
+  if (excluded) return { state: "left-out", spans: [excluded.span] };
+  const kept = filterParts(filter).map((part) => conjuncts.find((conjunct) => conjunct.text === part)?.span);
+  const spans = kept.filter((span) => span !== undefined);
+  return spans.length > 0 && spans.length === kept.length ? { state: "kept", spans } : { state: "none", spans: [] };
+}
+
+/** Whether the query keeps or leaves out a facet bucket. */
+export function facetState(query: ParsedQuery | undefined, filter: string): FacetState {
+  return facetSpans(query, filter).state;
+}
+
+/**
+ * A facet bucket's click: takes its filter back out of the query when it is
+ * there, kept or left out; otherwise adds it at the end, or with `exclude`
+ * (Alt-click) the filter that leaves it out.
+ */
+export function toggleFacet(text: string, query: ParsedQuery | undefined, filter: string, exclude: boolean): Edited {
+  const { state, spans } = facetSpans(query, filter);
+  if (state !== "none") {
+    let edited: Edited = { text, cursor: text.length };
+    for (const span of [...spans].sort((first, second) => second.start - first.start)) {
+      edited = removeSpan(edited.text, span);
+    }
+    const trimmed = edited.text.trim();
+    return { text: trimmed, cursor: trimmed.length };
+  }
+  const added = `${text.trimEnd()} ${exclude ? leaveOut(filter) : filter}`.trimStart();
+  return { text: added, cursor: added.length };
 }

@@ -37,6 +37,7 @@ covered.
 | 27 | `author:` + `is:test` → the test changes in commits | `test-history` | `TestHistory` | 1.1 |
 | 28 | `word:yes` keeps whole words | `whole-words` | `WholeWords` | 1.1 |
 | 29 | `case:smart` matches case when the query has a capital | `smart-case` | `SmartCase` | 1.1 |
+| 30 | Facets — counts by repo, language and folder (author and month for commits) narrow the results | `result-facets` | `Facets` | 1.1 |
 | 31 | Pinned queries: star a recent query, name it, keep it on top | `pinned-queries` | `PinnedQueries` | 1.1 |
 | 32 | Replace in current files: preview every edit, then one undoable change | `replace-in-files` | `Replace` | 1.1 |
 | 33 | Bare words find file names by their letters in order | `fuzzy-file-names` | `FuzzyNames` | 1.1 |

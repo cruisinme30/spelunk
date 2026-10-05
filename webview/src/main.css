@@ -427,6 +427,7 @@ ins {
    diagnostics go too: they are usually about the word being completed
    ("since: needs a value"), and come back once a suggestion is picked. */
 .search-panel.completing #chips,
+.search-panel.completing #facets,
 .search-panel.completing #diagnostics,
 .search-panel.completing #body {
   display: none;
@@ -600,6 +601,82 @@ ins {
 
 #chips:empty {
   display: none;
+}
+
+/* ===== Facets: counts that narrow the results ===== */
+
+#facets {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 14px;
+  padding: 6px 14px;
+  font-size: 12px;
+  color: var(--muted);
+  border-bottom: 1px solid var(--line);
+}
+
+#facets:empty {
+  display: none;
+}
+
+.facet {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+
+.facet .label {
+  margin-right: 2px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.facet-bucket {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding: 0 8px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--btn);
+  color: var(--btn-fg);
+  font: inherit;
+  cursor: pointer;
+}
+
+.facet-bucket:hover {
+  background: var(--hover);
+}
+
+.facet-bucket:focus-visible {
+  outline: 1px solid var(--focus);
+  outline-offset: 1px;
+}
+
+.facet-count {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.facet-bucket.kept {
+  border-color: var(--focus);
+  background: var(--sel);
+  color: var(--sel-fg, var(--fg));
+}
+
+.facet-bucket.left-out .facet-label {
+  text-decoration: line-through;
+  color: var(--muted);
+}
+
+.facet-bucket.more {
+  border-style: dashed;
+  color: var(--muted);
 }
 
 .chip {

@@ -25,6 +25,7 @@ import {
   isWordPressed,
   scopeToRepo,
   toggleCase,
+  toggleFacet,
   toggleRegex,
   toggleWord,
 } from "./queryEdit";
@@ -39,6 +40,7 @@ import {
 } from "./render/chrome";
 import { completionsVisible, renderCompletions, type ResultsGlimpse } from "./render/completions";
 import { renderEmptyState } from "./render/emptyState";
+import { renderFacets } from "./render/facets";
 import { renderRepoMenu } from "./render/repoMenu";
 import { renderPreview } from "./render/preview";
 import { ResultsView } from "./render/results";
@@ -555,6 +557,7 @@ export class SearchPanel {
     this.results?.showLastGood(errors && state.lastGoodText ? state.lastGoodText : undefined);
     renderChips(this.layout, state, this.summary);
     this.renderSummary();
+    this.renderFacets();
     if (!query.root && !errors) this.showEmptyState();
     this.renderFooter();
   }
@@ -598,6 +601,7 @@ export class SearchPanel {
     this.state.done = done;
     this.resultsFor(done.searchId).finish(done);
     this.renderSummary();
+    this.renderFacets();
     if (this.completionsVisible) this.renderCompletions();
   }
 
@@ -612,6 +616,7 @@ export class SearchPanel {
     this.results = undefined;
     this.replace.refresh();
     this.layout.chips.replaceChildren();
+    this.layout.facets.replaceChildren();
     this.layout.diagnostics.replaceChildren();
     renderEmptyState(this.layout.body, state, this.emptyBox.handlers());
     this.renderFooter();
@@ -663,6 +668,19 @@ export class SearchPanel {
         this.renderPreview();
       },
       replacementsFor: (path, line) => (item ? this.replace.replacementsFor(item.repoId, path, line) : undefined),
+    });
+  }
+
+  /** The facet row; a click edits the query, and the search that follows redraws it. */
+  private renderFacets(): void {
+    renderFacets(this.layout.facets, this.state, {
+      onToggle: (filter, exclude) => {
+        if (this.editQuery((text) => toggleFacet(text, this.state.parsed, filter, exclude))) this.layout.input.focus();
+      },
+      onExpand: (field) => {
+        this.state.expandedFacets.add(field);
+        this.renderFacets();
+      },
     });
   }
 

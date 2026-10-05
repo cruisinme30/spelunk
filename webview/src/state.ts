@@ -3,6 +3,7 @@
 import type {
   BannerMessage,
   Completion,
+  Facet,
   ParsedQuery,
   PinnedQuery,
   Preview,
@@ -61,6 +62,10 @@ export interface ViewState {
   banner: BannerMessage | undefined;
   /** The width in pixels the divider gave the recent queries; undefined for the default split. */
   recentWidth: number | undefined;
+  /** Each facet bucket seen, by filter, so a bucket the query leaves out (and so finds nothing) still shows. */
+  facetLabels: Map<string, { field: Facet["field"]; label: string }>;
+  /** The facets whose "+N" showed every bucket. */
+  expandedFacets: Set<Facet["field"]>;
 }
 
 /**
@@ -101,6 +106,8 @@ export function createViewState(): ViewState {
     repos: [],
     banner: undefined,
     recentWidth: undefined,
+    facetLabels: new Map(),
+    expandedFacets: new Set(),
   };
 }
 

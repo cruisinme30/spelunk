@@ -49,10 +49,14 @@ export function operatorNodes(query: ParsedQuery | undefined, operator: OpName):
  * level, so not negated and not inside an OR.
  */
 export function topLevelOperators(query: ParsedQuery | undefined, operator: OpName): OperatorNode[] {
+  return topLevelConjuncts(query).filter((node): node is OperatorNode => node.kind === "op" && node.op === operator);
+}
+
+/** The nodes ANDed at the top level of the query: every node, when it is a single one. */
+export function topLevelConjuncts(query: ParsedQuery | undefined): Node[] {
   const root = query?.root;
   if (!root) return [];
-  const conjuncts = root.kind === "and" ? root.children : [root];
-  return conjuncts.filter((node): node is OperatorNode => node.kind === "op" && node.op === operator);
+  return root.kind === "and" ? root.children : [root];
 }
 
 /** The path patterns that scope a search (top-level `f:` values); code results come only from matching paths. */

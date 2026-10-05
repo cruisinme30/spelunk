@@ -21,6 +21,7 @@ export interface Layout {
   banner: HTMLElement;
   diagnostics: HTMLElement;
   chips: HTMLElement;
+  facets: HTMLElement;
   body: HTMLElement;
   footer: HTMLElement;
 }
@@ -168,6 +169,12 @@ export function createLayout(root: HTMLElement): Layout {
     banner: element("div", { id: "banner", "data-testid": "banner" }),
     diagnostics: element("div", { id: "diagnostics", "data-testid": "diagnostics" }),
     chips: element("div", { id: "chips", "data-testid": "chips" }),
+    facets: element("div", {
+      id: "facets",
+      role: "toolbar",
+      "aria-label": "Narrow the results",
+      "data-testid": "facets",
+    }),
     body: element("div", { id: "body" }),
     footer: element("div", { id: "key-hints", "data-testid": "keys" }),
   };

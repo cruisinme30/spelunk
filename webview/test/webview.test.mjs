@@ -730,3 +730,90 @@ test("Load more asks for the next page of the same search and appends it", async
   assert.equal(await page.locator('[data-testid="result"]').count(), 2, "the next page is appended");
   assert.equal(await page.locator('[data-testid="load-more"]').count(), 0, "the last page has no Load more");
 });
+
+/** The facets the daemon sends with a search of the payments workspace for retry_policy. */
+const FACETS = [
+  {
+    field: "repo",
+    more: 0,
+    buckets: [
+      { label: "payments-api", count: 5, filter: "repo:payments-api" },
+      { label: "shared-libs", count: 2, filter: "repo:shared-libs" },
+    ],
+  },
+  { field: "lang", more: 0, buckets: [{ label: "Python", count: 7, filter: "lang:python" }] },
+  {
+    field: "folder",
+    more: 2,
+    buckets: ["src", "tests", "http", "docs", "scripts", "vendor"].map((folder, index) => ({
+      label: `${folder}/`,
+      count: 6 - index,
+      filter: `f:^${folder}/`,
+    })),
+  },
+];
+
+/** The facet row's buckets as "label count", by field. */
+const facetRow = (page) =>
+  page.$$eval('[data-testid="facets"] .facet', (groups) =>
+    Object.fromEntries(
+      groups.map((group) => [
+        group.dataset.field,
+        [...group.querySelectorAll("button")].map((button) => button.textContent),
+      ]),
+    ),
+  );
+
+test("the facet row counts the results, and a click keeps a bucket or Alt-click leaves it out", async (t) => {
+  // @covers screen:result-facets
+  const page = await panelWithResults(t);
+  const seq = (await lastSent(page, "query.changed")).seq;
+  await searchDone(page, seq, { total: 7, facets: FACETS });
+  assert.deepEqual(await facetRow(page), {
+    repo: ["payments-api5", "shared-libs2"],
+    lang: ["Python7"],
+    // five buckets, then the sixth and the daemon's two more behind +3
+    folder: ["src/6", "tests/5", "http/4", "docs/3", "scripts/2", "+3"],
+  });
+  const bucket = await page.locator('[data-filter="repo:payments-api"]').boundingBox();
+  assert.ok(bucket.height < 30, `a bucket is a small pill, not ${String(bucket.height)}px tall`);
+  await page.click('[data-testid="facets"] [data-field="folder"] [data-testid="facet-more"]');
+  assert.ok((await facetRow(page)).folder.includes("vendor/1"), "+3 shows every bucket sent");
+
+  await page.click('[data-filter="repo:payments-api"]');
+  assert.equal(await page.inputValue(QUERY), "retry_policy repo:payments-api");
+  await page.fill(QUERY, "retry_policy");
+  await page.click('[data-filter="repo:shared-libs"]', { modifiers: ["Alt"] });
+  assert.equal(await page.inputValue(QUERY), "retry_policy -repo:shared-libs");
+});
+
+test("a left-out bucket stays in the facet row, struck through, and a click brings it back", async (t) => {
+  // @covers screen:result-facets
+  const page = await panelWithResults(t);
+  await searchDone(page, (await lastSent(page, "query.changed")).seq, { total: 7, facets: FACETS });
+  const raw = "retry_policy -repo:shared-libs";
+  const repo = { kind: "op", op: "repo", value: "shared-libs", match: "regex", span: { start: 14, end: 30 } };
+  const root = {
+    kind: "and",
+    children: [textNode("retry_policy", 0), { kind: "not", child: repo, span: { start: 13, end: 30 } }],
+  };
+  const seq = await typeAndParse(page, raw, parsedQuery(raw, root));
+  await fromHost(page, "search.batch", { seq, searchId: "s2", items: [FILE_NAME_RESULT] });
+  // shared-libs found nothing, so the daemon no longer counts it
+  await searchDone(page, seq, {
+    searchId: "s2",
+    total: 5,
+    facets: [{ ...FACETS[0], buckets: [FACETS[0].buckets[0]] }, FACETS[1]],
+  });
+  const leftOut = page.locator('[data-filter="repo:shared-libs"]');
+  assert.equal(await leftOut.getAttribute("class"), "facet-bucket left-out");
+  assert.equal(await leftOut.getAttribute("aria-pressed"), "true");
+  await leftOut.click();
+  assert.equal(await page.inputValue(QUERY), "retry_policy");
+});
+
+test("the facet row stays hidden when there is nothing to choose between", async (t) => {
+  const page = await panelWithResults(t);
+  await searchDone(page, (await lastSent(page, "query.changed")).seq, { total: 2, facets: [FACETS[1]] });
+  assert.equal(await page.isVisible('[data-testid="facets"]'), false);
+});

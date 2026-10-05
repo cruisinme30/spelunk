@@ -6,12 +6,14 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   applyEdits,
+  facetState,
   isCasePressed,
   isCaseSmart,
   isRegexPressed,
   isWordPressed,
   scopeToRepo,
   toggleCase,
+  toggleFacet,
   toggleRegex,
   toggleWord,
 } from "./out/queryEdit.mjs";
@@ -164,4 +166,53 @@ test("the repo menu writes a repo: scope into an empty box and escapes the name"
 test("the repo menu ignores a repo: span past the end of the text", () => {
   const query = parsed("t", { kind: "and", children: [term("t", 0), operator("repo", "x", 50)] });
   assert.deepEqual(scopeToRepo("t", query), { text: "t", cursor: 1 });
+});
+
+/** A NOT of `child`, whose span starts one character earlier, at the -. */
+const not = (child) => ({ kind: "not", child, span: { start: child.span.start - 1, end: child.span.end } });
+
+test("a facet click adds its filter at the end, and Alt-click the filter that leaves it out", () => {
+  // @covers screen:result-facets
+  const query = parsed("retry", term("retry", 0));
+  assert.deepEqual(toggleFacet("retry", query, "repo:api", false), { text: "retry repo:api", cursor: 14 });
+  assert.deepEqual(toggleFacet("retry ", query, "repo:api", true), { text: "retry -repo:api", cursor: 15 });
+  // A bucket of several filters is left out as a group.
+  const month = "since:2026-09 until:2026-09";
+  assert.deepEqual(toggleFacet("retry", query, month, true).text, `retry -(${month})`);
+  assert.deepEqual(toggleFacet("", undefined, `author:"Jane Doe"`, false), {
+    text: `author:"Jane Doe"`,
+    cursor: 17,
+  });
+});
+
+test("a facet bucket the query keeps or leaves out shows so, and a click takes it back out", () => {
+  // @covers screen:result-facets
+  const kept = parsed("retry repo:api", { kind: "and", children: [term("retry", 0), operator("repo", "api", 6)] });
+  assert.equal(facetState(kept, "repo:api"), "kept");
+  assert.equal(facetState(kept, "repo:web"), "none");
+  assert.deepEqual(toggleFacet("retry repo:api", kept, "repo:api", true), { text: "retry", cursor: 5 });
+
+  const leftOut = parsed("-repo:api retry", {
+    kind: "and",
+    children: [not(operator("repo", "api", 1)), term("retry", 10)],
+  });
+  assert.equal(facetState(leftOut, "repo:api"), "left-out");
+  assert.deepEqual(toggleFacet("-repo:api retry", leftOut, "repo:api", false), { text: "retry", cursor: 5 });
+
+  // Each of a month's two filters must be in the query for the month to be kept.
+  const raw = "since:2026-09 x until:2026-09";
+  const month = parsed(raw, {
+    kind: "and",
+    children: [operator("since", "2026-09", 0), term("x", 14), operator("until", "2026-09", 16)],
+  });
+  assert.equal(facetState(month, "since:2026-09 until:2026-09"), "kept");
+  assert.equal(facetState(month, "since:2026-08 until:2026-08"), "none");
+  assert.deepEqual(toggleFacet(raw, month, "since:2026-09 until:2026-09", false), { text: "x", cursor: 1 });
+  // Inside an OR, a filter doesn't scope the whole query.
+  const either = parsed("repo:api OR x", {
+    kind: "or",
+    children: [operator("repo", "api", 0), term("x", 12)],
+    span: { start: 0, end: 13 },
+  });
+  assert.equal(facetState(either, "repo:api"), "none");
 });
