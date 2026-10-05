@@ -27,6 +27,9 @@ type operator struct {
 	// full and short are the spellings people type: file: and f:. name is
 	// accepted too, so lang:, sym: and msg: keep working.
 	full, short string
+	// aliases are other spellings people bring from other tools: path: for
+	// file:, as GitHub and Sourcegraph spell it.
+	aliases []string
 	// global operators apply to the whole query and may appear once, at the top level.
 	global bool
 	scope  scope
@@ -42,7 +45,7 @@ type operator struct {
 // word that is exactly a short name offers that operator first, so "s"
 // offers symbol: before since:.
 var operators = []operator{
-	{name: protocol.OpNameF, full: "file", short: "f", summary: "File path, as a regex or a glob", examples: []string{"*.py", `\.py$`, "src/", "test"}, interpret: asPathRegex},
+	{name: protocol.OpNameF, full: "file", short: "f", aliases: []string{"path"}, summary: "File path, as a regex or a glob", examples: []string{"*.py", `\.py$`, "src/", "test"}, interpret: asPathRegex},
 	{name: protocol.OpNameAuthor, full: "author", short: "a", scope: scopeHistoryOnly, summary: "Commits by this person", interpret: asName},
 	{name: protocol.OpNameSince, full: "since", short: "d", summary: "Only changes inside a time window", examples: []string{"30d", "2w", "6m", "1y", "today", "yesterday", "2h"}, interpret: asDuration},
 	{name: protocol.OpNameSym, full: "symbol", short: "s", scope: scopeWorkingTreeOnly, summary: "Symbol definitions", interpret: asText},
@@ -104,7 +107,7 @@ func lookupOperator(name string) (operator, bool) {
 
 // spellings are the names an operator answers to, full name first.
 func (op operator) spellings() []string {
-	return []string{op.full, op.short, op.name}
+	return append([]string{op.full, op.short, op.name}, op.aliases...)
 }
 
 func (op operator) accepts(name string) bool {

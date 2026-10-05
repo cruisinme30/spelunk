@@ -86,6 +86,7 @@ func TestOperators(t *testing.T) {
 		{"case: yes", "case:yes x", "and(case=yes/literal literal:x)"},
 		{"count: number", "count:20 x", "and(count=20/literal literal:x)"},
 		{"count: all", "count:all x", "and(count=all/literal literal:x)"},
+		{"path: is file:, as GitHub spells it", "path:src/ -path:*.md x", "and(f=src//regex not(f=*.md/glob) literal:x)"},
 	}
 	// Every operator also answers to its short and full names.
 	aliases := []struct{ short, full, value, want string }{

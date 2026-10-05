@@ -113,7 +113,7 @@ export const OPERATOR_GROUPS: OperatorGroup[] = [
         label: "file:",
         insert: "file:",
         summary: "Regex or glob (*.go) on the file path.",
-        description: String.raw`A regex on the full file path (\.go$), or a glob (*.go, src/**/*.ts).`,
+        description: String.raw`A regex on the full file path (\.go$), or a glob (*.go, src/**/*.ts). path: works too.`,
         example: String.raw`file:.*test\.py$ timeout`,
       },
       {
@@ -254,9 +254,12 @@ export const OPERATOR_TONE: Record<OpName, Tone> = {
   order: "output",
 };
 
-/** The two spellings of each operator: file: and f:. The daemon also accepts the OpName itself (lang:, sym:, msg:). */
-const OPERATOR_NAMES: Record<OpName, { full: string; short: string }> = {
-  f: { full: "file", short: "f" },
+/**
+ * The two spellings of each operator: file: and f:, and any alias brought from other tools (path:). The daemon also
+ * accepts the OpName itself (lang:, sym:, msg:).
+ */
+const OPERATOR_NAMES: Record<OpName, { full: string; short: string; aliases?: string[] }> = {
+  f: { full: "file", short: "f", aliases: ["path"] },
   repo: { full: "repo", short: "r" },
   lang: { full: "language", short: "l" },
   type: { full: "type", short: "t" },
@@ -273,11 +276,12 @@ const OPERATOR_NAMES: Record<OpName, { full: string; short: string }> = {
   order: { full: "order", short: "o" },
 };
 
-/** The operator a typed name stands for, in any spelling: "f", "file" → "f". */
+/** The operator a typed name stands for, in any spelling: "f", "file", "path" → "f". */
 export function opNameFor(spelling: string): OpName | undefined {
-  return (Object.keys(OPERATOR_NAMES) as OpName[]).find(
-    (op) => op === spelling || OPERATOR_NAMES[op].full === spelling || OPERATOR_NAMES[op].short === spelling,
-  );
+  return (Object.keys(OPERATOR_NAMES) as OpName[]).find((op) => {
+    const names = OPERATOR_NAMES[op];
+    return op === spelling || names.full === spelling || names.short === spelling || names.aliases?.includes(spelling);
+  });
 }
 
 /** How an operator reads in full, as in the parsed-query chips: "f" → "file". */

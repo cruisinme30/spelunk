@@ -27,7 +27,8 @@ func TestCompletingOperatorsByPrefix(t *testing.T) {
 }
 
 func TestCompletingOperatorsOffersFullNames(t *testing.T) {
-	// A short name offers its operator first; an old name offers the new one.
+	// A short name offers its operator first; an old name or an alias (path:)
+	// offers the full one.
 	tests := map[string]string{
 		"s":    "symbol: since:",
 		"f":    "file:",
@@ -36,6 +37,7 @@ func TestCompletingOperatorsOffersFullNames(t *testing.T) {
 		"lang": "language:",
 		"msg":  "message:",
 		"sym":  "symbol:",
+		"pa":   "file:",
 	}
 	for text, want := range tests {
 		if got := strings.Join(labels(text, len(text)), " "); got != want {
