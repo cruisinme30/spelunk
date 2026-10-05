@@ -172,3 +172,13 @@ func TestEmptyQueryHasNoRootAndNoDiagnostics(t *testing.T) {
 		}
 	}
 }
+
+func TestAStrayParenKeepsGlobalsAtTheTopLevel(t *testing.T) {
+	q := Parse("case:yes a ) b", testResolver)
+	if got := codes(q.Diagnostics); len(got) != 1 || got[0] != DiagUnmatchedParen {
+		t.Errorf("Parse(%q) diagnostics = %v, want only %s", q.Raw, got, DiagUnmatchedParen)
+	}
+	if q.Globals.Case == nil || *q.Globals.Case != "yes" || len(q.Root.Children) != 3 {
+		t.Errorf("Parse(%q) = case %v with %d top-level children, want case:yes and 3", q.Raw, q.Globals.Case, len(q.Root.Children))
+	}
+}

@@ -91,7 +91,16 @@ func (p *parser) parseQuery() *protocol.Node {
 			continue
 		}
 		before := p.pos
-		if node := p.parseOr(); node != nil {
+		node := p.parseOr()
+		switch {
+		case node == nil:
+		case node.Kind == protocol.NodeKindAnd:
+			// Keep one flat top-level AND, where globals belong: "case:yes
+			// a ) b" is case:yes AND a AND b, not (case:yes AND a) AND b.
+			for i := range node.Children {
+				parts = append(parts, &node.Children[i])
+			}
+		default:
 			parts = append(parts, node)
 		}
 		if p.pos == before { // nothing consumed: a stray keyword was reported; skip it
