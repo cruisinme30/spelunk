@@ -97,7 +97,7 @@ func (p *parser) advance() token {
 
 // startsOperand reports whether a token can begin a unary expression.
 func startsOperand(kind tokenKind) bool {
-	return kind == tokenTerm || kind == tokenOperator || kind == tokenMinus || kind == tokenOpenParen
+	return kind == tokenTerm || kind == tokenOperator || kind == tokenMinus || kind == tokenNot || kind == tokenOpenParen
 }
 
 func (*parser) span(t token) protocol.Span { return protocol.Span{Start: t.start, End: t.end} }
@@ -183,24 +183,27 @@ func (p *parser) reportMissingOperand(keyword token, side string) {
 		"Nothing %s %s to combine", side, word)
 }
 
+// parseUnary parses an operand and the "-" or NOT that may negate it:
+// NOT x is -x, spelled as GitHub and Sourcegraph do.
 func (p *parser) parseUnary() *protocol.Node {
-	if !p.at(tokenMinus) {
+	if !p.at(tokenMinus) && !p.at(tokenNot) {
 		return p.parsePrimary()
 	}
-	minus := p.advance()
+	negation := p.advance()
 	before := p.pos
 	operand := p.parsePrimary()
 	// An operand that was there but invalid, like -sinse:6m, has already
-	// been reported; only a minus followed by nothing is missing one.
+	// been reported; only a negation followed by nothing is missing one.
 	if operand == nil && p.pos == before {
-		p.problems.errorf(DiagMissingOperand, p.span(minus),
-			[]protocol.Fix{removeFix("Remove -", p.src, p.span(minus))},
-			"Nothing after - to exclude")
+		word := p.src.slice(negation.start, negation.end)
+		p.problems.errorf(DiagMissingOperand, p.span(negation),
+			[]protocol.Fix{removeFix("Remove "+word, p.src, p.span(negation))},
+			"Nothing after %s to exclude", word)
 	}
 	if operand == nil {
 		return nil
 	}
-	return &protocol.Node{Kind: protocol.NodeKindNot, Child: operand, Span: protocol.Span{Start: minus.start, End: operand.Span.End}}
+	return &protocol.Node{Kind: protocol.NodeKindNot, Child: operand, Span: protocol.Span{Start: negation.start, End: operand.Span.End}}
 }
 
 func (p *parser) parsePrimary() *protocol.Node {
@@ -334,7 +337,7 @@ func (p *parser) warnIfPipeMeantAsOr(t token) {
 // orSafe reports whether each part stays one plain term when joined with OR.
 func orSafe(parts []string) bool {
 	for _, part := range parts {
-		if part == "AND" || part == "OR" || strings.ContainsAny(part[:1], "-/") || strings.Contains(part, ":") {
+		if part == "AND" || part == "OR" || part == "NOT" || strings.ContainsAny(part[:1], "-/") || strings.Contains(part, ":") {
 			return false
 		}
 	}

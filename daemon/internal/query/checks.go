@@ -80,7 +80,7 @@ func collectGlobals(src *source, query *protocol.ParsedQuery, problems *diagnost
 		written := src.slice(node.Span.Start, node.Span.End)
 		switch {
 		case !atTop[node]:
-			// Moving a negated global drops its minus: "-count:5" isn't meaningful.
+			// Moving a negated global drops its minus or NOT: "-count:5" isn't meaningful.
 			removed := node.Span
 			if parent != nil && parent.Kind == protocol.NodeKindNot {
 				removed = parent.Span
@@ -93,7 +93,7 @@ func collectGlobals(src *source, query *protocol.ParsedQuery, problems *diagnost
 				fixes = append(fixes, moveToTopLevel(src, written, removed))
 			}
 			problems.errorf(DiagGlobalMisplaced, node.Span, fixes,
-				"%s: applies to the whole query, so it can't be inside ( ), after - or in an OR branch", node.Op)
+				"%s: applies to the whole query, so it can't be inside ( ), after - or NOT, or in an OR branch", node.Op)
 		case seen[node.Op]:
 			problems.errorf(DiagDuplicateGlobal, node.Span, []protocol.Fix{removeFix("Remove "+written, src, node.Span)},
 				"%s: can appear only once", node.Op)

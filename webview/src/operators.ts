@@ -99,7 +99,7 @@ export const OPERATOR_GROUPS: OperatorGroup[] = [
         label: "-term · -f:vendor/",
         insert: "-",
         summary: "Exclude a term or any operator.",
-        description: "Exclude a word or anything an operator matches.",
+        description: "Exclude a word or anything an operator matches. NOT works too: NOT f:vendor/ is -f:vendor/.",
         example: "timeout -f:vendor/",
       },
     ],

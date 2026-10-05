@@ -13,6 +13,7 @@ const (
 	tokenMinus // "-" directly in front of something: negation
 	tokenAnd   // the keyword AND
 	tokenOr    // the keyword OR
+	tokenNot   // the keyword NOT: negation, like "-"
 	tokenTerm  // a bare, quoted or /regex/ text term
 	tokenOperator
 )
@@ -66,7 +67,7 @@ func splitOperator(word string) (name, rest string, ok bool) {
 }
 
 // lexer splits query text into tokens: parentheses, a leading "-",
-// the keywords AND and OR, operators (name:value) and text terms. It works
+// the keywords AND, OR and NOT, operators (name:value) and text terms. It works
 // rune by rune but records token positions as UTF-16 offsets, the unit
 // spans use. It never fails: an unclosed quote or regex becomes a token
 // marked unclosed, which the parser reports.
@@ -137,7 +138,7 @@ func (l *lexer) delimitedTerm(delimiter rune) {
 	l.pos = end
 }
 
-// word lexes a bare word: a term, an operator, or AND / OR.
+// word lexes a bare word: a term, an operator, or AND / OR / NOT.
 func (l *lexer) word() {
 	runes := l.src.runes
 	start := l.pos
@@ -155,6 +156,8 @@ func (l *lexer) word() {
 		l.emit(tokenAnd, start, end)
 	case "OR":
 		l.emit(tokenOr, start, end)
+	case "NOT":
+		l.emit(tokenNot, start, end)
 	default:
 		t := l.emit(tokenTerm, start, end)
 		t.value = word
