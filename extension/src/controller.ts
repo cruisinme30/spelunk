@@ -1,7 +1,7 @@
 // Host side of the search panel: turns panel messages into daemon calls and
 // streams results back. It has no vscode import: extension.ts supplies the
 // Ui, and tests drive the controller against the real daemon in plain Node.
-import { CancelSource, RpcError } from "./jsonRpc";
+import { CancelSource, RpcError, errorMessage } from "./jsonRpc";
 import {
   type Completion,
   ErrorCodes,
@@ -359,8 +359,15 @@ export class SearchController {
   }
 
   private postSearchFailed(seq: number, searchId: string, error: unknown): void {
-    const message = error instanceof Error ? error.message : String(error);
-    this.ui.post("search.done", { seq, searchId, total: 0, truncated: false, hidden: [], ms: 0, error: message });
+    this.ui.post("search.done", {
+      seq,
+      searchId,
+      total: 0,
+      truncated: false,
+      hidden: [],
+      ms: 0,
+      error: errorMessage(error),
+    });
   }
 
   /** Relays a batch of the current search to the panel and remembers its items for F4. */

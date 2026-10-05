@@ -4,6 +4,11 @@ import { EventEmitter } from "node:events";
 import type { Readable, Writable } from "node:stream";
 import type { RpcNotifications, RpcRequests } from "./protocol.gen";
 
+/** The message of a thrown value, which may not be an Error. */
+export function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
 /** An error response from the peer. `code` is one of protocol.gen's ErrorCodes or a JSON-RPC code. */
 export class RpcError extends Error {
   /** `data` is the error's optional extra detail, as the peer sent it. */

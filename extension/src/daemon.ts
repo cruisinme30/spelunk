@@ -4,7 +4,7 @@
 import { spawn as nodeSpawn, type ChildProcess, type ChildProcessByStdio } from "node:child_process";
 import { EventEmitter } from "node:events";
 import type { Readable, Writable } from "node:stream";
-import { Connection, RpcError, type CancelSource } from "./jsonRpc";
+import { Connection, RpcError, errorMessage, type CancelSource } from "./jsonRpc";
 import {
   PROTOCOL_VERSION,
   type FileChange,
@@ -395,7 +395,3 @@ async function settlesWithin(promise: Promise<unknown>, ms: number): Promise<boo
 }
 
 const succeeded = () => true;
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
