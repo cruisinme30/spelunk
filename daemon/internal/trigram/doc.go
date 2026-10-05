@@ -14,6 +14,9 @@
 // ParseRef decodes it so that Preview can show the lines around the
 // result, and so the server can say where opening it goes.
 //
+// The history engine reuses TextIndex, LineFinder and PreviewLine, so a
+// term matches and is marked the same way in both engines.
+//
 // Invariants:
 //   - A Shard is immutable once built; the indexer publishes a new one
 //     rather than changing it, so searches need no locks.
