@@ -1176,9 +1176,8 @@ pre.body {
   }
 }
 
-/* Suggestions take the place of the chips and results while open. */
-
-/* The diagnostics go too: they are usually about the word being completed
+/* Suggestions take the place of the chips and results while open. The
+   diagnostics go too: they are usually about the word being completed
    ("since: needs a value"), and come back once a suggestion is picked. */
 .search-panel.completing #chips,
 .search-panel.completing #diagnostics,
