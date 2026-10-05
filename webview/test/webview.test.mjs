@@ -46,6 +46,8 @@ test("dragging the divider resizes the recent queries and the width survives a r
   await divider.focus();
   await page.keyboard.press("ArrowLeft");
   assert.equal(Math.round(await recentWidth()), Math.round(dragged) - 24);
+  assert.equal(await divider.getAttribute("aria-valuenow"), String(Math.round(dragged) - 24));
+  assert.equal(await divider.getAttribute("aria-valuemin"), "200");
   const moved = await divider.boundingBox();
   await page.mouse.move(moved.x + moved.width / 2, moved.y + moved.height / 2);
   await page.mouse.down();

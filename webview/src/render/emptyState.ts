@@ -47,10 +47,21 @@ function setRecentWidth(empty: HTMLElement, width: number | undefined): void {
   }
 }
 
+/** The widest the recent queries can be while the cheat sheet keeps its minimum. */
+function maxRecentWidth(empty: HTMLElement, divider: HTMLElement): number {
+  return empty.clientWidth - divider.offsetWidth - MIN_SHEET_WIDTH;
+}
+
 /** Keeps a width between the minimums of both sides, given the room the two share. */
 function clampWidth(width: number, empty: HTMLElement, divider: HTMLElement): number {
-  const room = empty.clientWidth - divider.offsetWidth;
-  return Math.round(Math.max(MIN_RECENT_WIDTH, Math.min(width, room - MIN_SHEET_WIDTH)));
+  return Math.round(Math.max(MIN_RECENT_WIDTH, Math.min(width, maxRecentWidth(empty, divider))));
+}
+
+/** Tells assistive technology where the divider is: the recent queries' width, and its range. */
+function announcePosition(divider: HTMLElement, empty: HTMLElement, recent: HTMLElement): void {
+  divider.setAttribute("aria-valuemin", String(MIN_RECENT_WIDTH));
+  divider.setAttribute("aria-valuemax", String(Math.max(MIN_RECENT_WIDTH, maxRecentWidth(empty, divider))));
+  divider.setAttribute("aria-valuenow", String(Math.round(recent.getBoundingClientRect().width)));
 }
 
 /**
@@ -75,8 +86,12 @@ function renderDivider(empty: HTMLElement, recent: HTMLElement, onResize: (width
   const resize = (width: number) => {
     const clamped = clampWidth(width, empty, divider);
     setRecentWidth(empty, clamped);
+    announcePosition(divider, empty, recent);
     return clamped;
   };
+  divider.addEventListener("focus", () => {
+    announcePosition(divider, empty, recent);
+  });
   divider.addEventListener("pointerdown", (event) => {
     event.preventDefault();
     divider.setPointerCapture(event.pointerId);
