@@ -61,12 +61,23 @@ func (s *source) slice(start, end int) string {
 	return string(s.runes[s.runeIndex(start):s.runeIndex(end)])
 }
 
-// runeIndex converts a UTF-16 offset to a rune index, clamped to the text.
-func (s *source) runeIndex(offset int) int {
-	for i, o := range s.offsets {
-		if o >= offset {
-			return i
-		}
+// excerpt returns the text of span, cut short with "…" to keep fix titles
+// short. It copies only what it keeps: nested groups share one span, so
+// copying the whole span for each would be quadratic.
+func (s *source) excerpt(span protocol.Span) string {
+	const limit = 24
+	start, end := s.runeIndex(span.Start), s.runeIndex(span.End)
+	if end-start <= limit {
+		return string(s.runes[start:end])
 	}
-	return len(s.runes)
+	return string(s.runes[start:start+limit-1]) + "…"
+}
+
+// runeIndex converts a UTF-16 offset to a rune index, clamped to the text.
+// An offset inside a surrogate pair rounds up to the next rune. It is a
+// binary search: diagnostics call it once or more per token, so a linear
+// scan made long queries quadratic.
+func (s *source) runeIndex(offset int) int {
+	i, _ := slices.BinarySearch(s.offsets, offset)
+	return min(i, len(s.runes))
 }

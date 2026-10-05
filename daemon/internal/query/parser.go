@@ -188,20 +188,9 @@ func (p *parser) reportUnclosedParen(open token, inner *protocol.Node) {
 				closeAfter = &lastBranch.Children[0]
 			}
 		}
-		word := p.src.slice(closeAfter.Span.Start, closeAfter.Span.End)
-		fixes = append(fixes, insertFix("Close it after "+shorten(word), closeAfter.Span.End, ")"))
+		fixes = append(fixes, insertFix("Close it after "+p.src.excerpt(closeAfter.Span), closeAfter.Span.End, ")"))
 	}
 	p.problems.errorf(DiagUnclosedParen, p.span(open), fixes, "Missing closing parenthesis")
-}
-
-// shorten keeps fix titles short.
-func shorten(text string) string {
-	const limit = 24
-	runes := []rune(text)
-	if len(runes) <= limit {
-		return text
-	}
-	return string(runes[:limit-1]) + "…"
 }
 
 func (p *parser) textNode(t token) *protocol.Node {
