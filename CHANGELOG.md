@@ -36,7 +36,6 @@ All notable changes to this project are documented here. The format follows
 - Pinned queries: the star on a recent query keeps it at the top of the empty box, with a name if you give it one.
   The pencil renames a pin, and the filled star or ⇧⌫ unpins it. Pins are saved in `spelunk.ui.pinnedQueries`, so
   they sync like other settings; set it in a workspace's settings to share pins, and pinning there saves there.
-
 - `content:retry` matches text inside files but never file names, and in a commit search only the changed lines, not
   the message. Its value is searched as written, so `content:"type:file"` finds that text.
 - `path:` is another spelling of `file:`, and `NOT x` of `-x`, as GitHub and Sourcegraph write them.
