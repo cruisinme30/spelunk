@@ -244,27 +244,38 @@ test("the first result is selected and previewed; ↓ moves the selection", asyn
   assert.equal(await page.locator('[data-testid="preview"] mark').count(), 1);
 });
 
-test("under type:added, commit rows count the hits in added lines", async (t) => {
+test("under type:added, chips, commit rows and the hidden note speak of added lines", async (t) => {
   const page = await openPanel(t);
   await restore(page);
   await fromHost(page, "index.status", {
     repos: [{ repoId: "r1", name: "payments-api", tree: "ready", history: "ready" }],
   });
   const query = "type:added retry";
-  const parsed = parsedQuery(query, textNode("retry", 11), {
-    mode: "history",
-    globals: { case: null, count: null, type: "added" },
-  });
+  const type = { kind: "op", op: "type", value: "added", match: "literal", span: { start: 0, end: 10 } };
+  const root = { kind: "and", children: [type, textNode("retry", 11)], span: { start: 0, end: 16 } };
+  const parsed = parsedQuery(query, root, { mode: "history", globals: { case: null, count: null, type: "added" } });
   const seq = await typeAndParse(page, query, parsed);
+  const chips = await page.locator('[data-testid="chips"]').innerText();
+  assert.match(chips, /added lines only/);
+  assert.match(chips, /added line contains\s*retry/);
   await fromHost(page, "search.batch", {
     seq,
     searchId: "s1",
     items: [commitResult("c1", "Add retry to charge", { diffHits: 3 })],
   });
-  await searchDone(page, seq, { total: 1, ms: 3 });
+  const undo = { title: "Search every changed line", edits: [{ span: { start: 0, end: 10 }, newText: "type:commit" }] };
+  await searchDone(page, seq, {
+    total: 1,
+    ms: 3,
+    hidden: [{ reason: "type", filter: "type:added", count: 1, unit: "commits", undo }],
+  });
   const meta = await page.locator(".row.commit .commit-meta").innerText();
   assert.match(meta, /3 hits in added lines/);
   assert.doesNotMatch(meta, /in diff/);
+  const note = page.locator('[data-testid="hidden-notes"] .note');
+  assert.equal(await note.locator("span").first().innerText(), "1 commit for retry hidden by type:added");
+  await note.locator('[data-testid="show-hidden"]').click();
+  assert.equal(await page.inputValue(QUERY), "type:commit retry");
 });
 
 /** A commit result for "retry" from Jane; `overrides` replaces any field. */

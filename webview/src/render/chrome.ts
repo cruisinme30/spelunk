@@ -172,7 +172,11 @@ export function renderChips(layout: Layout, state: ViewState, summary: HTMLEleme
   const modeLabel = query.mode === "history" ? "Commit history" : "Working tree";
   layout.chips.append(
     element("span", { class: "label" }, "Query"),
-    ...chipsFor(query.root, { mode: query.mode, fileNamesOnly: query.globals.type === "file" }),
+    ...chipsFor(query.root, {
+      mode: query.mode,
+      fileNamesOnly: query.globals.type === "file",
+      diffSide: query.globals.type === "added" || query.globals.type === "removed" ? query.globals.type : null,
+    }),
     element("span", { class: `mode ${query.mode}`, "data-testid": "mode" }, modeLabel),
     summary,
   );
@@ -186,10 +190,18 @@ interface ChipContext {
   mode: Mode;
   /** type:file: text terms match file names only. */
   fileNamesOnly: boolean;
+  /** type:added or type:removed: text terms match only that side of each diff. */
+  diffSide: "added" | "removed" | null;
 }
 
 /** How a type: value reads in its chip. */
-const TYPE_LABEL: Record<string, string> = { file: "file names only", code: "code lines only", commit: "commits only" };
+const TYPE_LABEL: Record<string, string> = {
+  file: "file names only",
+  code: "code lines only",
+  commit: "commits only",
+  added: "added lines only",
+  removed: "removed lines only",
+};
 
 /** Children's chips separated by AND or OR. */
 function joinChips(children: QueryNode[], word: "AND" | "OR", context: ChipContext): Node[] {
@@ -201,6 +213,7 @@ function joinChips(children: QueryNode[], word: "AND" | "OR", context: ChipConte
 /** The word on a text term's chip: how it matches in this query. */
 function textLabel(node: TextNode, context: ChipContext): string {
   if (node.match === "regex") return "regex";
+  if (context.diffSide) return `${context.diffSide} line contains`;
   if (context.mode === "history") return "diff contains";
   return context.fileNamesOnly ? "name" : "text";
 }

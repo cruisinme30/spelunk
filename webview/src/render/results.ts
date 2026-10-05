@@ -237,12 +237,15 @@ export class ResultsView {
   }
 
   /**
-   * "3 commits hidden by -f:vendor/ · Show them", or "38 code matches for
-   * retry hidden by type:file · Show code too".
+   * "3 commits hidden by -f:vendor/ · Show them", "38 code matches for
+   * retry hidden by type:file · Show code too", or "1 commit for retry
+   * hidden by type:added · Search every changed line".
    */
   private renderNote(note: HiddenNote): HTMLElement {
     if (note.reason === "symbol") return this.renderTextSearchNote(note);
-    const showThem = this.showHiddenButton(note, UNDO_LABEL[note.reason] ?? "Show them");
+    // type:added and type:removed hide commits; their undo says what it searches instead.
+    const label = note.reason === "type" && note.unit === "commits" ? note.undo.title : UNDO_LABEL[note.reason];
+    const showThem = this.showHiddenButton(note, label ?? "Show them");
     return element(
       "div",
       { class: "note", "data-reason": note.reason },
@@ -278,9 +281,11 @@ export class ResultsView {
     const one = SINGULAR_UNIT[note.unit];
     if (note.reason !== "type") return plural(note.count, one, note.unit);
     const terms = textTerms(this.state.parsed);
-    return (
-      plural(note.count, `code ${one}`, `code ${note.unit}`) + (terms.length > 0 ? ` for ${terms.join(" and ")}` : "")
-    );
+    const what =
+      note.unit === "commits"
+        ? plural(note.count, one, note.unit)
+        : plural(note.count, `code ${one}`, `code ${note.unit}`);
+    return what + (terms.length > 0 ? ` for ${terms.join(" and ")}` : "");
   }
 
   private updateSectionCounts(): void {
