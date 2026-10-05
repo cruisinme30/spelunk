@@ -3,6 +3,8 @@ package trigram
 import (
 	"regexp"
 	"strings"
+
+	"github.com/cruisinme30/spelunk/daemon/internal/glob"
 )
 
 // Glob matches slash-separated paths against an index.exclude pattern:
@@ -17,26 +19,8 @@ func CompileGlob(pattern string) (Glob, error) {
 	if !strings.Contains(pattern, "/") {
 		pattern = "**/" + pattern
 	}
-	var b strings.Builder
-	b.WriteString("^")
-	for i := 0; i < len(pattern); i++ {
-		switch c := pattern[i]; {
-		case strings.HasPrefix(pattern[i:], "**/"):
-			b.WriteString("(?:.*/)?")
-			i += 2
-		case strings.HasPrefix(pattern[i:], "**"):
-			b.WriteString(".*")
-			i++
-		case c == '*':
-			b.WriteString("[^/]*")
-		case c == '?':
-			b.WriteString("[^/]")
-		default:
-			b.WriteString(regexp.QuoteMeta(string(c)))
-		}
-	}
-	b.WriteString("(?:/.*)?$") // a matching folder takes its contents with it
-	re, err := regexp.Compile(b.String())
+	// A matching folder takes its contents with it.
+	re, err := regexp.Compile("^" + glob.Body(pattern, false) + "(?:/.*)?$")
 	return Glob{re: re}, err
 }
 

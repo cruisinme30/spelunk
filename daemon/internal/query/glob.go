@@ -1,9 +1,10 @@
 package query
 
 import (
-	"regexp"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/cruisinme30/spelunk/daemon/internal/glob"
 )
 
 // looksLikeGlob reports whether an f: or repo: value was meant as a glob
@@ -39,29 +40,7 @@ func looksLikeGlob(value string, invalidRegex bool) bool {
 // path, so a trailing $ written out of regex habit is dropped, as is a
 // leading ^. Invalid UTF-8, which RE2 refuses, becomes the replacement
 // character, as it does in parsed values.
-func globPattern(glob string) string {
-	glob = strings.TrimSuffix(strings.TrimPrefix(strings.ToValidUTF8(glob, string(utf8.RuneError)), "^"), "$")
-	var b strings.Builder
-	b.WriteString("(?:^|/)")
-	for i := 0; i < len(glob); i++ {
-		switch {
-		case strings.HasPrefix(glob[i:], "**/"):
-			b.WriteString("(?:.*/)?")
-			i += 2
-		case strings.HasPrefix(glob[i:], "**"):
-			b.WriteString(".*")
-			i++
-		case glob[i] == '*':
-			b.WriteString("[^/]*")
-		case glob[i] == '?':
-			b.WriteString("[^/]")
-		case glob[i] == '\\' && i+1 < len(glob):
-			i++
-			b.WriteString(regexp.QuoteMeta(glob[i : i+1]))
-		default:
-			b.WriteString(regexp.QuoteMeta(glob[i : i+1]))
-		}
-	}
-	b.WriteString("$")
-	return b.String()
+func globPattern(pattern string) string {
+	pattern = strings.TrimSuffix(strings.TrimPrefix(strings.ToValidUTF8(pattern, string(utf8.RuneError)), "^"), "$")
+	return "(?:^|/)" + glob.Body(pattern, true) + "$"
 }
