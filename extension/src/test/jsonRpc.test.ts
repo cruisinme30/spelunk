@@ -68,6 +68,20 @@ test("stray output without a header end is bounded, and a frame after it still d
   assert.deepEqual(decoder.push(encodeFrame("[3]")), ["[3]"]);
 });
 
+test("a big body arriving in many chunks is joined once, not once per chunk", (context) => {
+  // Joining on every chunk copies the buffered bytes each time: quadratic in the body's size.
+  const frame = encodeFrame(JSON.stringify({ text: "a".repeat(4 * 1024 * 1024) }));
+  const concat = context.mock.method(Buffer, "concat");
+  const decoder = new FrameDecoder();
+  const chunkSize = 64 * 1024;
+  const bodies: string[] = [];
+  for (let start = 0; start < frame.length; start += chunkSize) {
+    bodies.push(...decoder.push(frame.subarray(start, start + chunkSize)));
+  }
+  assert.equal(bodies.length, 1);
+  assert.ok(concat.mock.callCount() <= 2, `Buffer.concat ran ${concat.mock.callCount()} times`);
+});
+
 /** A Connection over in-memory pipes: `peer` writes what the connection reads; `sent` collects what it wrote. */
 function pipedConnection(listenForErrors = true) {
   const fromPeer = new PassThrough();

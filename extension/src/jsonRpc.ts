@@ -34,7 +34,11 @@ const KEPT_HEADER_TAIL_BYTES = 1024;
 
 /** Splits a byte stream into Content-Length framed message bodies. */
 export class FrameDecoder {
-  private buffered: Buffer = Buffer.alloc(0);
+  /** Received bytes not yet decoded, joined only when a whole frame may be there. */
+  private chunks: Buffer[] = [];
+  private bufferedLength = 0;
+  /** How many buffered bytes the frame being read needs in all; 0 while its header is incomplete. */
+  private needed = 0;
 
   /**
    * `onBadFrame` hears about each header it skips: one without a usable
@@ -44,8 +48,13 @@ export class FrameDecoder {
 
   /** Adds a chunk and returns every complete body it finished. */
   push(chunk: Buffer): string[] {
-    let buffered: Buffer = Buffer.concat([this.buffered, chunk]);
+    this.chunks.push(chunk);
+    this.bufferedLength += chunk.length;
+    // A big body arrives in many chunks: join them once, not once per chunk.
+    if (this.bufferedLength < this.needed) return [];
+    let buffered = this.chunks.length === 1 ? (this.chunks[0] ?? Buffer.alloc(0)) : Buffer.concat(this.chunks);
     const bodies: string[] = [];
+    this.needed = 0;
     for (;;) {
       const headerEnd = buffered.indexOf(HEADER_END);
       if (headerEnd === -1) {
@@ -60,11 +69,15 @@ export class FrameDecoder {
         this.onBadFrame(header);
         continue;
       }
-      if (buffered.length < bodyStart + bodyLength) break;
+      if (buffered.length < bodyStart + bodyLength) {
+        this.needed = bodyStart + bodyLength;
+        break;
+      }
       bodies.push(buffered.subarray(bodyStart, bodyStart + bodyLength).toString("utf8"));
       buffered = buffered.subarray(bodyStart + bodyLength);
     }
-    this.buffered = buffered;
+    this.chunks = buffered.length > 0 ? [buffered] : [];
+    this.bufferedLength = buffered.length;
     return bodies;
   }
 
