@@ -59,13 +59,7 @@ func topLevel(root *protocol.Node) []*protocol.Node {
 
 // walk visits every node depth-first.
 func walk(node *protocol.Node, visit func(*protocol.Node)) {
-	visit(node)
-	for i := range node.Children {
-		walk(&node.Children[i], visit)
-	}
-	if node.Child != nil {
-		walk(node.Child, visit)
-	}
+	walkWithParent(node, nil, func(node, _ *protocol.Node) { visit(node) })
 }
 
 // collectGlobals fills query.Globals from top-level case:, count: and
