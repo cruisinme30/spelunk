@@ -11,6 +11,11 @@ They're the source of truth; this file only adds what an agent needs on top.
 - Commits are small Conventional Commits with directory scopes. Each one must pass `scripts/test-all.sh` on its own.
   `git mv` stages immediately, so reset the index before staging a selective commit.
 - Name files and identifiers for what they do, never for a milestone (no `m0search.go`); see CONTRIBUTING.md.
+- Code, wiki and mocks change together, in either direction: a change to one updates the others in the same piece of
+  work (see "Keeping code, wiki and mocks in sync" in CONTRIBUTING.md). Never leave one describing what another
+  doesn't do; if you can't update one (the design canvas, say), stop and tell the user what's out of date.
+- Before calling work done, `npm run presubmit` must pass: it runs everything the GitHub workflows run, with CI's tool
+  versions, plus the wiki check. The pre-push hook runs it too; never push with `--no-verify`.
 - Never edit `*.gen.ts` or `*_gen.go`. Change `protocol/protocol.schema.json`, then run `node protocol/gen.mjs`.
 - Tag tests with `@covers <id>` for what they prove. Don't tag a test for something it doesn't actually assert.
 - Offline sandbox: no npm or Go module downloads. Tools that exist: Go stdlib, system SQLite (FTS5), tsc, esbuild,

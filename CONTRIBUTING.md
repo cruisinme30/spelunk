@@ -11,7 +11,12 @@ You need **Go 1.22+**, **Node 20+**, **Git** and [golangci-lint](https://golangc
 npm install                  # TypeScript, Prettier, Playwright and the Node linters
 npx playwright install chromium
 npm test                     # every linter and test layer: scripts/test-all.sh
+npm run presubmit            # everything CI runs, with CI's tool versions; the pre-push hook runs this
 ```
+
+`npm install` also points git at `.githooks/`, whose pre-push hook runs `npm run presubmit` on the commit being pushed
+(commit or stash other changes first). It installs CI's pinned golangci-lint into `.tools/`, builds with the Go version
+in `daemon/go.mod`, runs the CI and e2e jobs and, for a `v*` tag, the release checks. If it passes, CI passes.
 
 To try the extension, open the repo in VS Code and press **F5**. It builds the daemon and the extension, then opens
 a second window running the extension on the sample repos in `testdata/workspace/`. From a terminal, the same is:
@@ -35,7 +40,8 @@ package.
 
 | Command | Does |
 | --- | --- |
-| `npm test` | Everything CI runs: generator check, formatting, linters, Go, extension and webview tests |
+| `npm test` | Generator check, formatting, linters, Go, extension and webview tests |
+| `npm run presubmit` | Everything CI runs, with CI's tool versions, plus the e2e tests and the wiki check |
 | `npm run lint` | Every linter (below) |
 | `npm run package` | A `.vsix` for this platform in `out/` (`-- --target <platform>` for another) |
 | `node scripts/e2e.mjs` | The end-to-end tests in a real VS Code window, which it downloads once into `.vscode-test/` |
@@ -153,6 +159,24 @@ Never edit `*.gen.ts` or `*_gen.go`. Change `protocol/protocol.schema.json`, the
    `.vsix` per platform, and attaches them to a GitHub release.
 3. With the repository secrets `VSCE_PAT` (VS Code Marketplace) and `OVSX_PAT` (Open VSX) set, it also publishes
    them; without them, those steps are skipped. Nothing is published unless every check passed.
+
+## Keeping code, wiki and mocks in sync
+
+The code, the [wiki](https://github.com/cruisinme30/unified-search/wiki) and the
+[mocks](docs/dev/mocks.md) describe one product. A change to any of them updates the others in the same piece of
+work, whichever side it starts from:
+
+| When this changes | Also update |
+| --- | --- |
+| Behaviour, architecture, protocol, an invariant, an operator, a setting or a command | The wiki page that describes it, and the plan in `docs/dev/` if it changes what's planned |
+| A wiki page | The code (and its tests) to match, or mark the page's text as planned |
+| What a screen looks like | Its mock on the design canvas, the wiki's `images/mocks/` export and `docs/dev/proof/` screenshot |
+| A mock, or a screen added or removed | The code and its `@covers screen:` tests, the `docs/dev/mocks.md` row and the wiki's Screens pages |
+
+The wiki is its own repo (`unified-search.wiki.git`); commit and push its change alongside the code's. The presubmit
+runs `scripts/checkWikiSync.mjs`, which fails when a clone next to this one disagrees with `docs/dev/mocks.md` (screen
+numbers, ids, milestones, sections, images, canvas link) or has changes that aren't pushed. `specCoverage.mjs` reads
+the screen ids from `docs/dev/mocks.md`, so a new mock needs a test.
 
 ## Docs
 
