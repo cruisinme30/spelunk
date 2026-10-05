@@ -248,7 +248,7 @@ test("a type:file note counts the code matches for the query's words and offers 
 test("the help page lists every operator with an example, and Try runs it", async (t) => {
   // @covers screen:help-page
   const page = await openHelp(t);
-  assert.equal(await page.locator('[data-testid="operator-row"]').count(), 19);
+  assert.equal(await page.locator('[data-testid="operator-row"]').count(), 21);
   assert.equal(await page.locator('[data-testid="example"]').count(), 5);
   // Each operator reads by its full name, with its short name beside it.
   assert.deepEqual(await page.locator('[data-testid="short-name"]').allTextContents(), [
@@ -259,6 +259,8 @@ test("the help page lists every operator with an example, and Try runs it", asyn
     "l:",
     "t:",
     "s:",
+    "k:",
+    "x:",
     "i:",
     "a:",
     "m:",

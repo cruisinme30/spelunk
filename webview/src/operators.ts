@@ -30,7 +30,7 @@ export interface OperatorGroup {
   entries: OperatorEntry[];
 }
 
-/** Every operator and piece of syntax: 19 entries in five groups. */
+/** Every operator and piece of syntax: 21 entries in five groups. */
 export const OPERATOR_GROUPS: OperatorGroup[] = [
   {
     name: "Matching",
@@ -148,6 +148,24 @@ export const OPERATOR_GROUPS: OperatorGroup[] = [
         summary: "Class, function and method definitions.",
         description: "Where a class, function or method is defined. Current files only.",
         example: "symbol:RetryPolicy",
+      },
+      {
+        operator: "kind",
+        label: "kind:function|class",
+        insert: "kind:",
+        summary: "Only definitions of one kind, such as class.",
+        description:
+          "Only definitions of one kind: function, method, class, interface, type or other. Use it with symbol: to narrow a name, or alone with file: to list them: kind:class file:models/. Current files only.",
+        example: "kind:class symbol:Retry",
+      },
+      {
+        operator: "ref",
+        label: "ref:",
+        insert: "ref:",
+        summary: "Uses of a name, without its definitions.",
+        description:
+          "Lines that use a name as a whole word, leaving out the lines that define it. It matches by name, not by meaning, so a different RetryPolicy in another repo counts too. Current files only.",
+        example: "ref:RetryPolicy",
       },
       {
         operator: "is",
