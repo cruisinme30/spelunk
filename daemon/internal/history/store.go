@@ -14,7 +14,7 @@ import (
 
 // storeFormatVersion changes whenever the saved layout does; a store written
 // by another version is read again from Git rather than migrated.
-const storeFormatVersion = 2
+const storeFormatVersion = 3
 
 // Segment sizes: the first segment is small, so the newest commits are
 // searchable within seconds; later ones are larger, so there are few.

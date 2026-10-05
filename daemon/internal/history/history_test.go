@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/cruisinme30/spelunk/daemon/internal/protocol"
+	"github.com/cruisinme30/spelunk/daemon/internal/trigram"
 )
 
 // paymentsHistory builds a small repo whose history the tests search:
@@ -64,11 +65,18 @@ func TestIngestReadsCommitsNewestFirstWithTheirChangedLines(t *testing.T) {
 		t.Errorf("author and date = %s, %s; want Jane Doe, %s", raise.AuthorName, raise.At, day(3))
 	}
 	want := []FileChange{
-		{Path: "src/retry.py", Added: 1, Text: []byte("    timeout = 30\n")},
-		{Path: "vendor/lib/retry.js", Added: 1, Text: []byte("var timeout = 1;\n")},
+		{Path: "src/retry.py", Added: 1, Text: []byte("    timeout = 30\n"), Signs: []byte("+")},
+		{Path: "vendor/lib/retry.js", Added: 1, Text: []byte("var timeout = 1;\n"), Signs: []byte("+")},
 	}
 	if !reflect.DeepEqual(raise.Files, want) {
 		t.Errorf("files = %+v, want %+v", raise.Files, want)
+	}
+	vendor, _ := commitBySHA(store, shas["vendor"])
+	want = []FileChange{
+		{Path: "vendor/lib/retry.js", Added: 1, Removed: 1, Text: []byte("var timeout = 1;\nvar timeout = 2;\n"), Signs: []byte("-+")},
+	}
+	if !reflect.DeepEqual(vendor.Files, want) {
+		t.Errorf("files = %+v, want %+v: each line with its sign, in diff order", vendor.Files, want)
 	}
 	add, _ := commitBySHA(store, shas["add"])
 	if add.AuthorName != "Jane Doe" || add.AuthorEmail != "jane@payments.example" {
@@ -85,7 +93,7 @@ func TestSkippedFilesAreListedWithoutTheirLines(t *testing.T) {
 	}
 	raise, _ := commitBySHA(store, shas["raise"])
 	want := []FileChange{
-		{Path: "src/retry.py", Added: 1, Text: []byte("    timeout = 30\n")},
+		{Path: "src/retry.py", Added: 1, Text: []byte("    timeout = 30\n"), Signs: []byte("+")},
 		{Path: "vendor/lib/retry.js", Added: 1},
 	}
 	if !reflect.DeepEqual(raise.Files, want) {
@@ -353,6 +361,20 @@ func TestSaveAndLoadKeepTheCommits(t *testing.T) {
 	repo := Repo{ID: "r1", Name: "payments-api", Root: r.root, Store: loaded}
 	if got, _ := runSearch(t, "msg:flaky", repo); loaded.Head != shas["vendor"] || !reflect.DeepEqual(got, []string{"Fix flaky checkout test"}) {
 		t.Errorf("loaded store: head %s, msg:flaky = %q", loaded.Head, got)
+	}
+}
+
+func TestAStoreSavedInAnOlderFormatIsReadAgain(t *testing.T) {
+	// A store saved before lines kept their signs can't answer type:added,
+	// so Load refuses it and the indexer reads the history once more.
+	r, _ := paymentsHistory(t)
+	path := filepath.Join(t.TempDir(), "history")
+	old := savedStore{Version: storeFormatVersion - 1, Head: r.git("rev-parse", "HEAD")}
+	if err := trigram.SaveGob(path, ".history-*", "history", old); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Load(path); !errors.Is(err, errStaleFormat) {
+		t.Errorf("Load of an older format = %v, want errStaleFormat", err)
 	}
 }
 

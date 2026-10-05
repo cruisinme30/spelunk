@@ -40,7 +40,17 @@ type FileChange struct {
 	// maxFileTextBytes, so a huge generated diff stays countable but is only
 	// partly searchable, and it is empty for a file the Options skip.
 	Text []byte
+	// Signs holds the diff sign of each line of Text, in order: '+' for an
+	// added line, '-' for a removed one, so type:added and type:removed can
+	// tell them apart.
+	Signs []byte
 }
+
+// The signs of Signs.
+const (
+	signAdded   = '+'
+	signRemoved = '-'
+)
 
 // Limits on what one commit keeps, so a vendored import or a generated
 // file doesn't fill memory.
@@ -214,6 +224,7 @@ type logParser struct {
 	header *bytes.Buffer // a commit's header while it spans lines
 	file   *FileChange   // the file whose patch is being read
 	text   bytes.Buffer  // the file's changed lines so far
+	signs  []byte        // the sign of each line of text
 	inHunk bool          // between "@@" and the next file header
 	// skipFile is set at the file's first hunk, once its path is known.
 	skipFile bool
@@ -307,10 +318,10 @@ func (p *logParser) patchLine(line string) {
 		p.startHunk()
 	case p.inHunk && strings.HasPrefix(line, "+"):
 		p.file.Added++
-		p.keep(line[1:])
+		p.keep(line[1:], signAdded)
 	case p.inHunk && strings.HasPrefix(line, "-"):
 		p.file.Removed++
-		p.keep(line[1:])
+		p.keep(line[1:], signRemoved)
 	}
 }
 
@@ -341,12 +352,13 @@ func (p *logParser) startHunk() {
 	p.inHunk = true
 }
 
-// keep stores a changed line unless the file is skipped or already has
-// its fill.
-func (p *logParser) keep(line string) {
+// keep stores a changed line and its sign unless the file is skipped or
+// already has its fill.
+func (p *logParser) keep(line string, sign byte) {
 	if !p.skipFile && p.text.Len()+len(line) < maxFileTextBytes {
 		p.text.WriteString(line)
 		p.text.WriteByte('\n')
+		p.signs = append(p.signs, sign)
 	}
 }
 
@@ -358,13 +370,15 @@ func (p *logParser) startFile(path string) {
 	p.inHunk, p.skipFile = false, false
 }
 
-// endFile stores the changed lines of the file being read, in a slice of
-// their own size.
+// endFile stores the changed lines of the file being read and their signs,
+// in slices of their own size.
 func (p *logParser) endFile() {
 	if p.file != nil && p.text.Len() > 0 {
 		p.file.Text = bytes.Clone(p.text.Bytes())
+		p.file.Signs = bytes.Clone(p.signs)
 	}
 	p.text.Reset()
+	p.signs = p.signs[:0]
 }
 
 // finish hands over the commit read so far.
