@@ -149,6 +149,20 @@ func TestALongDiffLineIsClippedInThePreview(t *testing.T) {
 	}
 }
 
+func TestHeadOutsideAWorkTree(t *testing.T) {
+	// @covers failure:no-git
+	r := newTestRepo(t)
+	r.commit("Ada <ada@example.com>", "first", day(1), map[string]string{"a.txt": "a\n"})
+	// Inside .git, rev-parse succeeds but says "false".
+	if _, err := Head(context.Background(), filepath.Join(r.root, ".git")); !errors.Is(err, ErrNotGit) {
+		t.Errorf("Head(.git) error = %v, want ErrNotGit", err)
+	}
+	t.Setenv("PATH", t.TempDir())
+	if _, err := Head(context.Background(), r.root); err == nil || errors.Is(err, ErrNotGit) {
+		t.Errorf("Head without git installed = %v, want an error that isn't ErrNotGit (it may well be a repo)", err)
+	}
+}
+
 func TestSaveRemovesTempFilesACrashLeftBehind(t *testing.T) {
 	r, _ := paymentsHistory(t)
 	dir := t.TempDir()

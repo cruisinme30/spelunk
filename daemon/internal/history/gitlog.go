@@ -104,12 +104,16 @@ func git(ctx context.Context, root string, args ...string) ([]byte, error) {
 }
 
 // Head returns the commit HEAD points at, "" for a repo without commits,
-// or ErrNotGit.
+// or ErrNotGit. Without git installed it returns exec.ErrNotFound, wrapped:
+// the folder may well be a repo.
 func Head(ctx context.Context, root string) (string, error) {
-	if _, err := git(ctx, root, "rev-parse", "--is-inside-work-tree"); err != nil {
-		if ctx.Err() != nil {
-			return "", ctx.Err()
-		}
+	inside, err := git(ctx, root, "rev-parse", "--is-inside-work-tree")
+	switch {
+	case ctx.Err() != nil:
+		return "", ctx.Err()
+	case errors.Is(err, exec.ErrNotFound):
+		return "", err
+	case err != nil, strings.TrimSpace(string(inside)) != "true": // "false" inside .git itself
 		return "", ErrNotGit
 	}
 	out, err := git(ctx, root, "rev-parse", "--verify", "--quiet", "HEAD")
