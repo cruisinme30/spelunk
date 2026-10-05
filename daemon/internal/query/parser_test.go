@@ -182,3 +182,10 @@ func TestAStrayParenKeepsGlobalsAtTheTopLevel(t *testing.T) {
 		t.Errorf("Parse(%q) = case %v with %d top-level children, want case:yes and 3", q.Raw, q.Globals.Case, len(q.Root.Children))
 	}
 }
+
+func TestReplacingAValueKeepsItApartFromTheNextWord(t *testing.T) {
+	q := Parse("case:/ /y", testResolver)
+	if got := ApplyFix(q.Raw, q.Diagnostics[0].Fixes[0]); got != "case:yes y" {
+		t.Errorf("first fix of %q gives %q, want %q", q.Raw, got, "case:yes y")
+	}
+}

@@ -360,9 +360,15 @@ func (p *parser) reportBadValue(op operator, t token, valueSpan protocol.Span, p
 			examples = append(examples, "lang:"+name)
 		}
 	}
+	// A quoted or /regex/ value may touch the next word, as in case:/ /y;
+	// a bare value put in its place must not join it.
+	separator := ""
+	if end := p.src.runeIndex(t.end); t.form != formBare && end < len(p.src.runes) && !endsBareWord(p.src.runes[end]) {
+		separator = " "
+	}
 	for _, example := range examples {
 		value := strings.TrimPrefix(example, op.name+":")
-		fixes = append(fixes, replaceFix("Use "+example, valueSpan, value))
+		fixes = append(fixes, replaceFix("Use "+example, valueSpan, value+separator))
 	}
 	p.problems.errorf(DiagBadValue, protocol.Span{Start: t.start, End: t.end}, fixes, "%s", problem)
 }
