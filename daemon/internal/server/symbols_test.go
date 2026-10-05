@@ -113,6 +113,7 @@ func TestEverySuggestionForNoResultsCountsWhatItFinds(t *testing.T) {
 }
 
 func TestKindKeepsOneKindOfDefinitionAndCountsTheRest(t *testing.T) {
+	// @covers screen:symbol-kinds
 	client := newTestClient(t)
 	client.mustInitialize(t, symbolWorkspace(t)...)
 	const text = "sym:RetryPolicy kind:interface"
@@ -136,6 +137,7 @@ func TestKindKeepsOneKindOfDefinitionAndCountsTheRest(t *testing.T) {
 }
 
 func TestRefFindsUsesOfANameButNotItsDefinitions(t *testing.T) {
+	// @covers screen:symbol-kinds
 	client := newTestClient(t)
 	client.mustInitialize(t, symbolWorkspace(t)...)
 

@@ -37,6 +37,8 @@ one-letter short name that mean the same: `file:` and `f:`, `author:` and `a:`.
 | `repo:web`, `language:python` | Keep one repo or one language |
 | `type:file` | Show file names only |
 | `symbol:RetryPolicy` | Find where classes, functions and methods whose name contains RetryPolicy are defined |
+| `kind:class`, `kind:method` | Keep definitions of one kind: function, method, class, interface, type or other |
+| `ref:RetryPolicy` | Find the lines that use RetryPolicy as a whole word, without the lines that define it |
 | `author:jane timeout` | Search the commits Jane wrote: their added and removed lines and their messages |
 | `message:"fix flaky"`, `type:commit retry` | Search commit messages, or every commit's changes |
 | `type:added retry`, `type:removed retry` | Find the commits that added, or removed, a line with `retry` |

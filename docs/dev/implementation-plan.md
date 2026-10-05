@@ -128,6 +128,8 @@ bare     = 1*( any char except space, "(", ")", '"' ) ;
 | `repo:` | Regex | Repo display name | Both |
 | `lang:` | Name or alias (`python`, `py`) | Language detected from extension and shebang | Both |
 | `sym:` | Literal or `/regex/` | Symbol definition names | Working tree only |
+| `kind:` | `function`, `method`, `class`, `interface`, `type` or `other` | What a symbol definition is | Working tree only |
+| `ref:` | Name or quoted name | Whole-word uses of the name, minus the lines that define it | Working tree only |
 | `author:` | Substring, or quoted full name | Author name and email, after `.mailmap` | History only |
 | `msg:` | Literal, phrase or regex | Commit subject and body | History only |
 | (none) | Literal, phrase or regex | File names and lines; in history, changed lines or the commit subject and body | Both |
@@ -143,7 +145,7 @@ bare     = 1*( any char except space, "(", ")", '"' ) ;
 2. The query has one mode. `author:`, `msg:`, `type:commit`, `type:added` or `type:removed` anywhere makes it a
    history query. Otherwise it is a working-tree query.
 3. An OR whose branches would need different modes is an error, because one result list cannot mix commits and lines.
-4. `sym:` in a history query is an error. `since:` works in both modes with the meaning shown above.
+4. `sym:`, `kind:` and `ref:` in a history query are errors. `since:` works in both modes with the meaning shown above.
 5. A query with no positive terms, such as `-timeout` alone, is an error.
 
 ### Parsed query (the AST)

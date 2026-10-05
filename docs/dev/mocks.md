@@ -38,3 +38,4 @@ covered.
 | 28 | `word:yes` keeps whole words | `whole-words` | `WholeWords` | 1.1 |
 | 29 | `case:smart` matches case when the query has a capital | `smart-case` | `SmartCase` | 1.1 |
 | 34 | `type:added` finds the commits that added a line | `added-removed-lines` | `AddedLines` | 1.1 |
+| 35 | `kind:` keeps one kind of definition; `ref:` finds a name's uses | `symbol-kinds` | `SymbolKinds` | 1.1 |

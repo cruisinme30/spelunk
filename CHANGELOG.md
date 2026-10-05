@@ -23,6 +23,12 @@ All notable changes to this project are documented here. The format follows
   added lines", previews mark only that side, and a note counts the commits that matched only elsewhere, with
   **Search every changed line**. The history index now keeps each line's `+` or `-`, so it is read again once after
   upgrading.
+- `kind:` (short form `k:`) keeps definitions of one kind: `function`, `method`, `class`, `interface`, `type` or
+  `other`. `sym:Retry kind:class` narrows a name, `kind:class f:models/` lists one kind, and a note says how many
+  definitions it hid, with **Show every kind**.
+- `ref:` (short form `x:`) finds the lines that use a name as a whole word and leaves out the lines that define it:
+  `ref:RetryPolicy` finds the imports and calls, not `class RetryPolicy`. It matches by name, so a different
+  `RetryPolicy` in another repo counts too.
 
 ### Fixed
 
