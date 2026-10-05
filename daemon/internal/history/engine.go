@@ -338,11 +338,12 @@ func (s *searcher) matches(repo *Repo, c *Commit, views []*fileView) bool {
 }
 
 // result builds the result of a commit that matches: the files that
-// satisfy the plan, and what matched in their diffs and in the subject.
+// satisfy the plan, and what matched in their diffs and in the message.
 func (s *searcher) result(repo *Repo, c *Commit, views []*fileView) protocol.ResultItem {
 	var files []protocol.FileStat
 	diffHits := 0
 	terms := map[int]bool{}
+	var contributing []*query.Content
 	for _, view := range views {
 		leaf := leafFor(repo, c, view)
 		if !query.Eval(s.plan.Pred, leaf) {
@@ -354,6 +355,7 @@ func (s *searcher) result(repo *Repo, c *Commit, views []*fileView) protocol.Res
 		matched := map[int]bool{}
 		for _, term := range query.Contributing(s.plan.Pred, leaf) {
 			terms[term.TermIndex] = true
+			contributing = append(contributing, term)
 			for _, line := range view.lines(term) {
 				matched[line] = true
 			}
@@ -368,28 +370,55 @@ func (s *searcher) result(repo *Repo, c *Commit, views []*fileView) protocol.Res
 	if len(files) > maxResultFiles {
 		files = files[:maxResultFiles]
 	}
+	inMessage, bodyLine := messageMatch(views[0].message, contributing)
 	return protocol.ResultItem{
 		Kind: query.KindCommit, Ref: Ref{PlanID: s.planID, RepoID: repo.ID, SHA: c.SHA}.String(), RepoID: repo.ID,
 		SHA: c.SHA, Subject: c.Subject, Author: protocol.Person{Name: c.AuthorName, Email: c.AuthorEmail},
 		At: c.At.UTC().Format(time.RFC3339), Files: files, DiffHits: diffHits, MatchedTerms: matchedTerms,
-		SubjectHits: s.subjectHits(c.Subject),
+		SubjectHits: messageHits(s.plan, c.Subject), InMessage: inMessage, BodyLine: bodyLine,
 	}
 }
 
-// subjectHits marks what msg: terms, and the query's text terms, match in a subject.
-func (s *searcher) subjectHits(subject string) []protocol.Range {
-	ranges := []protocol.Range{}
-	mark := func(re interface{ FindAllStringIndex(string, int) [][]int }) {
-		for _, loc := range re.FindAllStringIndex(subject, -1) {
-			if loc[1] > loc[0] {
-				ranges = append(ranges, trigram.UTF16Range(subject, loc[0], loc[1]))
+// messageMatch reports whether terms match the commit's message, and when
+// none matches the subject, the first body line one matches, marked.
+func messageMatch(message *messageView, terms []*query.Content) (inMessage bool, bodyLine *protocol.MessageLine) {
+	first := 0 // the first matched message line; the subject is line 1
+	for _, term := range terms {
+		for _, line := range message.lines(term) {
+			if first == 0 || line < first {
+				first = line
 			}
 		}
 	}
-	for _, term := range s.plan.Terms {
+	if first <= 1 {
+		return first == 1, nil
+	}
+	text, hits := trigram.PreviewLine(strings.Split(string(message.text), "\n")[first-1], terms)
+	ranges := make([]protocol.Range, len(hits))
+	for i, hit := range hits {
+		ranges[i] = protocol.Range{Start: hit.Start, End: hit.End}
+	}
+	return true, &protocol.MessageLine{Text: text, Hits: ranges}
+}
+
+// messageHits marks what msg: terms, and the query's text terms, match in a
+// commit's subject or body. A nil plan marks nothing.
+func messageHits(plan *query.Plan, text string) []protocol.Range {
+	ranges := []protocol.Range{}
+	if plan == nil {
+		return ranges
+	}
+	mark := func(re interface{ FindAllStringIndex(string, int) [][]int }) {
+		for _, loc := range re.FindAllStringIndex(text, -1) {
+			if loc[1] > loc[0] {
+				ranges = append(ranges, trigram.UTF16Range(text, loc[0], loc[1]))
+			}
+		}
+	}
+	for _, term := range plan.Terms {
 		mark(term.Re)
 	}
-	walkMessages(s.plan.Pred, func(m *query.Message) { mark(m.Re) })
+	walkMessages(plan.Pred, func(m *query.Message) { mark(m.Re) })
 	slices.SortFunc(ranges, func(a, b protocol.Range) int { return a.Start - b.Start })
 	return ranges
 }

@@ -61,7 +61,7 @@ func Preview(ctx context.Context, repo *Repo, ref Ref, plan *query.Plan, context
 	return protocol.Preview{
 		Kind: protocol.PreviewKindCommit, SHA: commit.SHA, Subject: commit.Subject, Body: commit.Body,
 		Author: commit.AuthorName + " <" + commit.AuthorEmail + ">", At: commit.At.UTC().Format(time.RFC3339),
-		Files: files, Hunks: hunks,
+		Files: files, Hunks: hunks, SubjectHits: messageHits(plan, commit.Subject), BodyHits: messageHits(plan, commit.Body),
 	}, nil
 }
 

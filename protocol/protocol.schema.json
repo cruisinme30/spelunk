@@ -18,6 +18,22 @@
       },
       "required": ["start", "end"]
     },
+    "MessageLine": {
+      "description": "MessageLine is one line of a commit message, with what the query's text terms match in it.",
+      "type": "object",
+      "properties": {
+        "text": {
+          "type": "string"
+        },
+        "hits": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Range"
+          }
+        }
+      },
+      "required": ["text", "hits"]
+    },
     "Range": {
       "description": "Range is a range of UTF-16 offsets into the text shown on screen.",
       "type": "object",
@@ -542,6 +558,14 @@
               "items": {
                 "$ref": "#/$defs/Range"
               }
+            },
+            "inMessage": {
+              "description": "Whether a text term matched the commit's subject or body.",
+              "type": "boolean"
+            },
+            "bodyLine": {
+              "description": "The first body line a text term matched, sent when the subject has no match.",
+              "$ref": "#/$defs/MessageLine"
             }
           },
           "required": [
@@ -555,7 +579,8 @@
             "files",
             "diffHits",
             "matchedTerms",
-            "subjectHits"
+            "subjectHits",
+            "inMessage"
           ]
         }
       ]
@@ -710,9 +735,21 @@
               "items": {
                 "$ref": "#/$defs/Hunk"
               }
+            },
+            "subjectHits": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/Range"
+              }
+            },
+            "bodyHits": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/Range"
+              }
             }
           },
-          "required": ["kind", "sha", "subject", "body", "author", "at", "files", "hunks"]
+          "required": ["kind", "sha", "subject", "body", "author", "at", "files", "hunks", "subjectHits", "bodyHits"]
         }
       ]
     },

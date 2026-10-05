@@ -135,6 +135,45 @@ func TestTextTermsMatchTheMessageToo(t *testing.T) {
 	}
 }
 
+func TestCommitResultsSayWhetherTheMessageMatched(t *testing.T) {
+	r := newTestRepo(t)
+	shas := map[string]string{}
+	shas["cap"] = r.commit("Jane Doe <jane@payments.example>", "Cap total retry timeout", day(9), map[string]string{
+		"src/retry.py": "retry_timeout = 30\n",
+	})
+	shas["backoff"] = r.commit("Jane Doe <jane@payments.example>", "Back off between charge attempts\n\nWaits grow each time.\nSo a retry storm can't hammer the processor.", day(4), map[string]string{
+		"src/charge.py": "sleep(delay)\n",
+	})
+	shas["rename"] = r.commit("Jane Doe <jane@payments.example>", "Rename attempt counter", day(2), map[string]string{
+		"src/retry.py": "retry_timeout = 30\nretry_count = 0\n",
+	})
+	repo := Repo{ID: "r1", Name: "payments-api", Root: r.root, Store: r.ingest()}
+	_, items := runSearch(t, "author:jane retry", repo)
+	byShas := map[string]protocol.ResultItem{}
+	for _, item := range items {
+		byShas[item.SHA] = item
+	}
+	if capped := byShas[shas["cap"]]; !capped.InMessage || capped.BodyLine != nil || capped.DiffHits != 1 {
+		t.Errorf("Cap total retry timeout: in message %v, body line %+v, %d diff hits; want the subject and 1 diff hit", capped.InMessage, capped.BodyLine, capped.DiffHits)
+	}
+	backoff := byShas[shas["backoff"]]
+	want := &protocol.MessageLine{Text: "So a retry storm can't hammer the processor.", Hits: []protocol.Range{{Start: 5, End: 10}}}
+	if !backoff.InMessage || !reflect.DeepEqual(backoff.BodyLine, want) || backoff.DiffHits != 0 {
+		t.Errorf("Back off: in message %v, body line %+v, %d diff hits; want the body line %+v alone", backoff.InMessage, backoff.BodyLine, backoff.DiffHits, want)
+	}
+	if rename := byShas[shas["rename"]]; rename.InMessage || rename.DiffHits != 1 {
+		t.Errorf("Rename attempt counter: in message %v, %d diff hits; want the diff alone", rename.InMessage, rename.DiffHits)
+	}
+
+	preview, err := Preview(context.Background(), &repo, Ref{RepoID: "r1", SHA: shas["backoff"]}, plan(t, "author:jane retry"), 3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := []protocol.Range{{Start: 27, End: 32}}; !reflect.DeepEqual(preview.BodyHits, want) || len(preview.SubjectHits) != 0 {
+		t.Errorf("preview marks %v in the subject and %v in the body, want nothing and %v", preview.SubjectHits, preview.BodyHits, want)
+	}
+}
+
 func TestCommitResultsSayWhatMatched(t *testing.T) {
 	r, shas := paymentsHistory(t)
 	repo := Repo{ID: "r1", Name: "payments-api", Root: r.root, Store: r.ingest()}

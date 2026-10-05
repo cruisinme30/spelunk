@@ -45,6 +45,8 @@ test("a commit preview renders like git show", () => {
         ],
       },
     ],
+    subjectHits: [],
+    bodyHits: [],
   });
   assert.equal(
     text,

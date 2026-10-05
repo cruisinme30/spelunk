@@ -25,6 +25,12 @@ export interface Span {
   end: number;
 }
 
+/** MessageLine is one line of a commit message, with what the query's text terms match in it. */
+export interface MessageLine {
+  text: string;
+  hits: Range[];
+}
+
 /** Range is a range of UTF-16 offsets into the text shown on screen. */
 export interface Range {
   start: number;
@@ -206,6 +212,10 @@ export type ResultItem =
       diffHits: number;
       matchedTerms: number[];
       subjectHits: Range[];
+      /** Whether a text term matched the commit's subject or body. */
+      inMessage: boolean;
+      /** The first body line a text term matched, sent when the subject has no match. */
+      bodyLine?: MessageLine;
     };
 
 /** LineHits are the matches on one preview line. */
@@ -257,6 +267,8 @@ export type Preview =
       at: string;
       files: FileStat[];
       hunks: Hunk[];
+      subjectHits: Range[];
+      bodyHits: Range[];
     };
 
 /** HiddenNote counts results a filter removed, with a fix that removes the filter. */

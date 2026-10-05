@@ -29,6 +29,22 @@ type Span struct {
 	End   int `json:"end"`
 }
 
+// MessageLine is one line of a commit message, with what the query's text terms match in it.
+type MessageLine struct {
+	Text string  `json:"text"`
+	Hits []Range `json:"hits"`
+}
+
+// MarshalJSON emits [] rather than null for required arrays.
+func (v MessageLine) MarshalJSON() ([]byte, error) {
+	type plain MessageLine
+	p := plain(v)
+	if p.Hits == nil {
+		p.Hits = []Range{}
+	}
+	return json.Marshal(p)
+}
+
 // Range is a range of UTF-16 offsets into the text shown on screen.
 type Range struct {
 	Start int `json:"start"`
@@ -279,26 +295,28 @@ const (
 
 // ResultItem is one search result: a file name, a code line, a symbol or a commit.
 type ResultItem struct {
-	Kind         string      `json:"kind,omitempty"`
-	Ref          string      `json:"ref,omitempty"`
-	RepoID       string      `json:"repoId,omitempty"`
-	Path         string      `json:"path,omitempty"`
-	NameHits     []Range     `json:"nameHits,omitempty"`
-	LastCommit   *LastCommit `json:"lastCommit,omitempty"`
-	Dirty        bool        `json:"dirty,omitempty"`
-	Line         int         `json:"line,omitempty"`
-	Text         string      `json:"text,omitempty"`
-	Hits         []Hit       `json:"hits,omitempty"`
-	Name         string      `json:"name,omitempty"`
-	SymbolKind   SymbolKind  `json:"symbolKind,omitempty"`
-	SHA          string      `json:"sha,omitempty"`
-	Subject      string      `json:"subject,omitempty"`
-	Author       Person      `json:"author,omitempty"`
-	At           string      `json:"at,omitempty"`
-	Files        []FileStat  `json:"files,omitempty"`
-	DiffHits     int         `json:"diffHits,omitempty"`
-	MatchedTerms []int       `json:"matchedTerms,omitempty"`
-	SubjectHits  []Range     `json:"subjectHits,omitempty"`
+	Kind         string       `json:"kind,omitempty"`
+	Ref          string       `json:"ref,omitempty"`
+	RepoID       string       `json:"repoId,omitempty"`
+	Path         string       `json:"path,omitempty"`
+	NameHits     []Range      `json:"nameHits,omitempty"`
+	LastCommit   *LastCommit  `json:"lastCommit,omitempty"`
+	Dirty        bool         `json:"dirty,omitempty"`
+	Line         int          `json:"line,omitempty"`
+	Text         string       `json:"text,omitempty"`
+	Hits         []Hit        `json:"hits,omitempty"`
+	Name         string       `json:"name,omitempty"`
+	SymbolKind   SymbolKind   `json:"symbolKind,omitempty"`
+	SHA          string       `json:"sha,omitempty"`
+	Subject      string       `json:"subject,omitempty"`
+	Author       Person       `json:"author,omitempty"`
+	At           string       `json:"at,omitempty"`
+	Files        []FileStat   `json:"files,omitempty"`
+	DiffHits     int          `json:"diffHits,omitempty"`
+	MatchedTerms []int        `json:"matchedTerms,omitempty"`
+	SubjectHits  []Range      `json:"subjectHits,omitempty"`
+	InMessage    bool         `json:"inMessage,omitempty"`
+	BodyLine     *MessageLine `json:"bodyLine,omitempty"`
 }
 
 // ResultItem kinds: the values of ResultItem.Kind.
@@ -372,6 +390,10 @@ func (v ResultItem) MarshalJSON() ([]byte, error) {
 		} else {
 			fields["subjectHits"] = v.SubjectHits
 		}
+		fields["inMessage"] = v.InMessage
+		if v.BodyLine != nil {
+			fields["bodyLine"] = v.BodyLine
+		}
 	}
 	return json.Marshal(fields)
 }
@@ -436,21 +458,23 @@ func (v Hunk) MarshalJSON() ([]byte, error) {
 
 // Preview is the right-hand pane's content for a selected result.
 type Preview struct {
-	Kind       string          `json:"kind,omitempty"`
-	Path       string          `json:"path,omitempty"`
-	FirstLine  int             `json:"firstLine,omitempty"`
-	Lines      []string        `json:"lines,omitempty"`
-	FocusLine  int             `json:"focusLine,omitempty"`
-	Hits       []LineHits      `json:"hits,omitempty"`
-	DirtyLines []int           `json:"dirtyLines,omitempty"`
-	Symbols    []OutlineSymbol `json:"symbols,omitempty"`
-	SHA        string          `json:"sha,omitempty"`
-	Subject    string          `json:"subject,omitempty"`
-	Body       string          `json:"body,omitempty"`
-	Author     string          `json:"author,omitempty"`
-	At         string          `json:"at,omitempty"`
-	Files      []FileStat      `json:"files,omitempty"`
-	Hunks      []Hunk          `json:"hunks,omitempty"`
+	Kind        string          `json:"kind,omitempty"`
+	Path        string          `json:"path,omitempty"`
+	FirstLine   int             `json:"firstLine,omitempty"`
+	Lines       []string        `json:"lines,omitempty"`
+	FocusLine   int             `json:"focusLine,omitempty"`
+	Hits        []LineHits      `json:"hits,omitempty"`
+	DirtyLines  []int           `json:"dirtyLines,omitempty"`
+	Symbols     []OutlineSymbol `json:"symbols,omitempty"`
+	SHA         string          `json:"sha,omitempty"`
+	Subject     string          `json:"subject,omitempty"`
+	Body        string          `json:"body,omitempty"`
+	Author      string          `json:"author,omitempty"`
+	At          string          `json:"at,omitempty"`
+	Files       []FileStat      `json:"files,omitempty"`
+	Hunks       []Hunk          `json:"hunks,omitempty"`
+	SubjectHits []Range         `json:"subjectHits,omitempty"`
+	BodyHits    []Range         `json:"bodyHits,omitempty"`
 }
 
 // Preview kinds: the values of Preview.Kind.
@@ -500,6 +524,16 @@ func (v Preview) MarshalJSON() ([]byte, error) {
 			fields["hunks"] = []Hunk{}
 		} else {
 			fields["hunks"] = v.Hunks
+		}
+		if v.SubjectHits == nil {
+			fields["subjectHits"] = []Range{}
+		} else {
+			fields["subjectHits"] = v.SubjectHits
+		}
+		if v.BodyHits == nil {
+			fields["bodyHits"] = []Range{}
+		} else {
+			fields["bodyHits"] = v.BodyHits
 		}
 	}
 	return json.Marshal(fields)
