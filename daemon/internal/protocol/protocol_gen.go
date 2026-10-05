@@ -68,6 +68,7 @@ const (
 	OpNameLang   OpName = "lang"
 	OpNameType   OpName = "type"
 	OpNameSym    OpName = "sym"
+	OpNameKind   OpName = "kind"
 	OpNameIs     OpName = "is"
 	OpNameAuthor OpName = "author"
 	OpNameMsg    OpName = "msg"

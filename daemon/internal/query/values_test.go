@@ -149,6 +149,10 @@ func TestFixedValuesExplainThemselves(t *testing.T) {
 	if got, want := shown(completions[:1]), "file | File names only | Paths that match, no code lines | "; got != want {
 		t.Errorf("type:file = %q, want %q", got, want)
 	}
+	completions = Complete("kind:", len("kind:"), testResolver, fixedNow)
+	if got, want := shown(completions[:1]), "function | Functions | Top-level functions, and functions assigned to a name | "; got != want {
+		t.Errorf("kind:function = %q, want %q", got, want)
+	}
 	completions = Complete("order:", len("order:"), testResolver, fixedNow)
 	if got, want := shown(completions[:1]), "best | Best match first | Definitions and file-name matches first; tests, vendored and generated files last | "; got != want {
 		t.Errorf("order:best = %q, want %q", got, want)

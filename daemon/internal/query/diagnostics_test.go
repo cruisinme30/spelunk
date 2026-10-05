@@ -40,6 +40,8 @@ func TestDiagnostics(t *testing.T) {
 		{"case: twice", "case:yes a case:no", DiagDuplicateGlobal, "case:no", "case:yes a"},
 		{"OR mixing commits and lines", "author:jane OR f:x", DiagMixedModeOr, "author:jane OR f:x", ""},
 		{"sym: in a history query", "author:jane sym:Foo", DiagOpWrongMode, "sym:Foo", "author:jane"},
+		{"kind: in a history query", "author:jane kind:class", DiagOpWrongMode, "kind:class", "author:jane"},
+		{"kind: with a bad value", "sym:Retry kind:func", DiagBadValue, "kind:func", "sym:Retry kind:function"},
 		{"order: in a history query", "author:jane order:path", DiagOpWrongMode, "order:path", "author:jane"},
 		{"is:open in a history query", "author:jane is:open", DiagOpWrongMode, "is:open", "author:jane"},
 		{"is:changed in a history query", "msg:fix is:changed", DiagOpWrongMode, "is:changed", "msg:fix"},

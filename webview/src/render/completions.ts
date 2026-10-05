@@ -21,6 +21,7 @@ const VALUE_LISTS: Partial<Record<OpName, { heading: string; hint?: string }>> =
   repo: { heading: "Repos", hint: "repo: also takes a glob (web-*) or a regex (^pay)." },
   lang: { heading: "Languages" },
   type: { heading: "Result kinds" },
+  kind: { heading: "Definition kinds", hint: "Negate one to leave it out: -kind:method." },
   case: { heading: "Case" },
   word: { heading: "Whole words" },
   is: { heading: "File states", hint: "Negate one to leave those files out: -is:test." },

@@ -411,18 +411,23 @@ func (s *searcher) addCodeLines(repos []Repo) {
 	})
 }
 
-// addSymbols adds a result for each definition whose name sym: matches, in
-// a file that satisfies the rest of the query (the "Definitions" section),
-// and credits a definition that only one filter removed to that filter.
+// addSymbols adds a result for each definition whose name sym: matches and
+// whose kind kind: allows, in a file that satisfies the rest of the query
+// (the "Definitions" section), and credits a definition that only one
+// filter removed to that filter.
 func (s *searcher) addSymbols(repos []Repo) {
 	s.forEachCandidate(repos, func(c rankedCandidate, _ *lineMatcher, leaf func(query.Pred) bool) {
 		for j := range c.doc.Symbols {
 			symbol := &c.doc.Symbols[j]
 			symbolLeaf := func(p query.Pred) bool {
-				if sym, ok := p.(*query.Symbol); ok {
-					return sym.Re.MatchString(symbol.Name)
+				switch p := p.(type) {
+				case *query.Symbol:
+					return p.Re.MatchString(symbol.Name)
+				case *query.Kind:
+					return symbol.Kind == p.Name
+				default:
+					return leaf(p)
 				}
-				return leaf(p)
 			}
 			if query.Eval(s.plan.Pred, symbolLeaf) {
 				item := s.symbolResult(c.repo, c.doc, symbol)

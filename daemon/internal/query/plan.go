@@ -73,9 +73,10 @@ type Plan struct {
 // filter alone hid, and the panel shows the count with an undo.
 type Filter struct {
 	// Reason is the HiddenNote reason that names the kind of filter:
-	// "pathFilter" (-f:), "not" (any other negation), "since" (since:), and,
-	// for Plan.KindFilter, Plan.CaseFilter, Plan.WordFilter and
-	// Plan.SymbolFilter, "type", "case", "word" and "symbol".
+	// "pathFilter" (-f:), "not" (any other negation), "since" (since:),
+	// "kind" (kind:), and, for Plan.KindFilter, Plan.CaseFilter,
+	// Plan.WordFilter and Plan.SymbolFilter, "type", "case", "word" and
+	// "symbol".
 	Reason string
 	// Index is the position of the filter's conjunct in Plan.Pred.Kids, so
 	// an engine can tell which filter a result failed. It is -1 for
@@ -148,6 +149,8 @@ type (
 	Lang struct{ Name string }
 	// Symbol matches a symbol definition's name (sym:).
 	Symbol struct{ Re *regexp.Regexp }
+	// Kind matches what a symbol definition is (kind:): one of SymbolKinds.
+	Kind struct{ Name protocol.SymbolKind }
 	// Author matches a commit author's name or email, after .mailmap (author:).
 	Author struct {
 		Fragment string // lowercase; a substring of name or email
@@ -170,6 +173,7 @@ func (*Path) isPred()    {}
 func (*Repo) isPred()    {}
 func (*Lang) isPred()    {}
 func (*Symbol) isPred()  {}
+func (*Kind) isPred()    {}
 func (*Author) isPred()  {}
 func (*Message) isPred() {}
 func (*Since) isPred()   {}
@@ -196,6 +200,7 @@ func (p *Path) String() string    { return "path:/" + p.Re.String() + "/" }
 func (p *Repo) String() string    { return "repo:/" + p.Re.String() + "/" }
 func (p *Lang) String() string    { return "lang:" + p.Name }
 func (p *Symbol) String() string  { return "sym:/" + p.Re.String() + "/" }
+func (p *Kind) String() string    { return "kind:" + p.Name }
 func (p *Message) String() string { return "msg:/" + p.Re.String() + "/" }
 func (p *Is) String() string      { return "is:" + p.State }
 func (p *Since) String() string   { return "since:" + p.After.UTC().Format(time.RFC3339) }
@@ -385,7 +390,7 @@ func resultKinds(q protocol.ParsedQuery) map[ResultKind]bool {
 	}
 	wantsSymbols := false
 	walk(q.Root, func(n *protocol.Node) {
-		if n.Kind == protocol.NodeKindOp && n.Op == protocol.OpNameSym {
+		if n.Kind == protocol.NodeKindOp && (n.Op == protocol.OpNameSym || n.Op == protocol.OpNameKind) {
 			wantsSymbols = true
 		}
 	})
@@ -458,6 +463,8 @@ func (l *lowering) lowerOperator(node *protocol.Node) Pred {
 			pattern = regexp.QuoteMeta(node.Value) // like text, a literal matches anywhere in the name
 		}
 		return &Symbol{Re: l.compile(pattern)}
+	case protocol.OpNameKind:
+		return &Kind{Name: node.Value}
 	case protocol.OpNameAuthor:
 		return &Author{Fragment: strings.ToLower(node.Value), Exact: node.Match == protocol.MatchPhrase}
 	case protocol.OpNameMsg:
@@ -534,6 +541,8 @@ func filterReason(node *protocol.Node) string {
 		return "not"
 	case node.Kind == protocol.NodeKindOp && node.Op == protocol.OpNameSince:
 		return "since"
+	case node.Kind == protocol.NodeKindOp && node.Op == protocol.OpNameKind:
+		return "kind"
 	default:
 		return ""
 	}

@@ -40,6 +40,8 @@ func TestPlanLowersTheQuery(t *testing.T) {
 		{"case:yes /Retry(Policy|Config)/ lang:py", "and(content#0:/Retry(Policy|Config)/ lang:python)"},
 		{"sym:RetryPolicy", "and(sym:/(?i)RetryPolicy/)"},
 		{"sym:/Retry.*/", "and(sym:/(?i)Retry.*/)"},
+		{"sym:Retry kind:class", "and(sym:/(?i)Retry/ kind:class)"},
+		{"k:method -f:test", "and(kind:method not(path:/(?i)test/))"},
 		{`author:jane msg:"fix flaky" -f:vendor/`, `and(author:~"jane" msg:/(?i)fix flaky/ not(path:/(?i)vendor//))`},
 		{`author:"Jane Doe" x`, `and(author:="jane doe" content#0:/(?i)x/)`},
 		{"repo:web count:20 x", "and(repo:/(?i)web/ content#0:/(?i)x/)"},
@@ -48,6 +50,26 @@ func TestPlanLowersTheQuery(t *testing.T) {
 		if got := mustPlan(t, tt.query, defaultSettings).Pred.String(); got != tt.want {
 			t.Errorf("plan(%q) = %s, want %s", tt.query, got, tt.want)
 		}
+	}
+}
+
+func TestKindReturnsDefinitions(t *testing.T) {
+	// @covers op:kind
+	tests := map[string]string{
+		"kind:function":     "symbol",
+		"sym:Retry k:class": "symbol",
+	}
+	for query, want := range tests {
+		if got := kinds(mustPlan(t, query, defaultSettings)); got != want {
+			t.Errorf("plan(%q) returns %s, want %s", query, got, want)
+		}
+	}
+}
+
+func TestKindIsAFilterThatCountsWhatItHid(t *testing.T) {
+	plan := mustPlan(t, "sym:Retry kind:class", defaultSettings)
+	if len(plan.Filters) != 1 || plan.Filters[0].Reason != "kind" || plan.Filters[0].Index != 1 || plan.Filters[0].Undo.Title != "Remove kind:class" {
+		t.Errorf("filters = %+v, want kind:class, undone by removing it", plan.Filters)
 	}
 }
 

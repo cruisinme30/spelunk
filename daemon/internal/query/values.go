@@ -44,7 +44,7 @@ func valueCandidates(op operator, fragment string, resolver Resolver, now time.T
 		return symbolCandidates(resolver.Symbols(fragment, maxValueCompletions+1))
 	case protocol.OpNameIs:
 		return stateCandidates(fragment, resolver)
-	case protocol.OpNameType, protocol.OpNameCase, protocol.OpNameWord, protocol.OpNameCount, protocol.OpNameOrder:
+	case protocol.OpNameType, protocol.OpNameKind, protocol.OpNameCase, protocol.OpNameWord, protocol.OpNameCount, protocol.OpNameOrder:
 		return fixedCandidates(fixedValues[op.name], fragment)
 	default:
 		return nil
@@ -587,7 +587,7 @@ func fileNames(paths []string, none string) string {
 // fixedValue is one value of an operator whose values never change.
 type fixedValue struct{ value, detail, context string }
 
-// fixedValues describes the values of type:, case:, word:, count: and order:.
+// fixedValues describes the values of type:, kind:, case:, word:, count: and order:.
 var fixedValues = map[protocol.OpName][]fixedValue{
 	protocol.OpNameType: {
 		{"file", "File names only", "Paths that match, no code lines"},
@@ -595,6 +595,14 @@ var fixedValues = map[protocol.OpName][]fixedValue{
 		{"commit", "Commits only", "Searches history: messages and diffs"},
 		{TypeAdded, "Lines commits added", "Who introduced it: only the + lines of diffs"},
 		{TypeRemoved, "Lines commits removed", "When it went away: only the - lines of diffs"},
+	},
+	protocol.OpNameKind: {
+		{protocol.SymbolKindFunction, "Functions", "Top-level functions, and functions assigned to a name"},
+		{protocol.SymbolKindMethod, "Methods", "Functions inside a class, struct or interface"},
+		{protocol.SymbolKindClass, "Classes", "Classes, and structs, enums and objects in languages that call them classes"},
+		{protocol.SymbolKindInterface, "Interfaces", "Interfaces, traits and protocols"},
+		{protocol.SymbolKindType, "Types", "Type aliases, structs, enums and unions"},
+		{protocol.SymbolKindOther, "Other definitions", "Ruby modules"},
 	},
 	protocol.OpNameCase: {
 		{"yes", "Match case exactly", "RetryPolicy, not retrypolicy"},

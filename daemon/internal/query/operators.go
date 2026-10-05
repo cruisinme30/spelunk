@@ -46,6 +46,7 @@ var operators = []operator{
 	{name: protocol.OpNameAuthor, full: "author", short: "a", scope: scopeHistoryOnly, summary: "Commits by this person", interpret: asName},
 	{name: protocol.OpNameSince, full: "since", short: "d", summary: "Only changes inside a time window", examples: []string{"30d", "2w", "6m", "1y", "today", "yesterday", "2h"}, interpret: asDuration},
 	{name: protocol.OpNameSym, full: "symbol", short: "s", scope: scopeWorkingTreeOnly, summary: "Symbol definitions", interpret: asText},
+	{name: protocol.OpNameKind, full: "kind", short: "k", scope: scopeWorkingTreeOnly, summary: "Only definitions of one kind", examples: SymbolKinds, interpret: oneOf(SymbolKinds...)},
 	{name: protocol.OpNameIs, full: "is", short: "i", summary: "Open, changed or test files", examples: []string{StateOpen, StateChanged, StateTest}, interpret: oneOf(StateOpen, StateChanged, StateTest)},
 	{name: protocol.OpNameLang, full: "language", short: "l", summary: "Programming language", examples: []string{"python", "go", "typescript"}, interpret: asLanguage},
 	{name: protocol.OpNameRepo, full: "repo", short: "r", summary: "Repo name, as a regex or a glob", interpret: asPathRegex},
@@ -74,6 +75,13 @@ const (
 // historyType reports whether a type: value searches commits.
 func historyType(value string) bool {
 	return value == "commit" || value == TypeAdded || value == TypeRemoved
+}
+
+// SymbolKinds are the values of kind:, the kinds of definition that
+// internal/symbols tells apart.
+var SymbolKinds = []string{
+	protocol.SymbolKindFunction, protocol.SymbolKindMethod, protocol.SymbolKindClass,
+	protocol.SymbolKindInterface, protocol.SymbolKindType, protocol.SymbolKindOther,
 }
 
 // currentState reports whether an is: value describes files as they are

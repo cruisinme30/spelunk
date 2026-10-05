@@ -227,7 +227,7 @@
           "type": "boolean",
           "default": true,
           "scope": "resource",
-          "description": "Index symbol definitions for symbol: (s:)."
+          "description": "Index symbol definitions for symbol: (s:) and kind: (k:)."
         },
         "spelunk.index.exclude": {
           "type": "array",

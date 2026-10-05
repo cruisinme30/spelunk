@@ -47,6 +47,7 @@ const UNDO_LABEL: Partial<Record<HiddenNote["reason"], string>> = {
   case: "Ignore case",
   word: "Match parts of words",
   type: "Show code too",
+  kind: "Show every kind",
 };
 
 /** One section of the list (file names, definitions, code or commits). */

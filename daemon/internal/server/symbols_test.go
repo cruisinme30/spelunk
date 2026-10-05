@@ -109,3 +109,26 @@ func TestEverySuggestionForNoResultsCountsWhatItFinds(t *testing.T) {
 		t.Errorf("hidden = %+v, want Ignore case offering the 4 definitions", result.Hidden)
 	}
 }
+
+func TestKindKeepsOneKindOfDefinitionAndCountsTheRest(t *testing.T) {
+	client := newTestClient(t)
+	client.mustInitialize(t, symbolWorkspace(t)...)
+	const text = "sym:RetryPolicy kind:interface"
+
+	items, result := search(t, client, text)
+	if len(items) != 1 || items[0].Name != "RetryPolicy" || items[0].SymbolKind != protocol.SymbolKindInterface {
+		t.Fatalf("%s = %+v, want the RetryPolicy interface alone", text, items)
+	}
+	var note *protocol.HiddenNote
+	for i := range result.Hidden {
+		if result.Hidden[i].Reason == "kind" {
+			note = &result.Hidden[i]
+		}
+	}
+	if note == nil || note.Count != 3 || note.Unit != "definitions" || note.Filter != "kind:interface" {
+		t.Fatalf("hidden = %+v, want 3 definitions hidden by kind:interface", result.Hidden)
+	}
+	if _, all := search(t, client, query.ApplyFix(text, note.Undo)); all.Total != 4 {
+		t.Errorf("%q finds %d definitions, want 4", note.Undo.Title, all.Total)
+	}
+}
