@@ -46,7 +46,7 @@ export interface ViewState {
   /** The selected result's ref ("" when none). */
   selectedRef: string;
   preview: PreviewState | undefined;
-  /** Whether a commit preview also lists the files an f: filter hid. */
+  /** Whether a commit preview also lists the files its file filters (f:, lang:, is:test) hid. */
   showHiddenFiles: boolean;
   /** Recent queries, newest first. */
   recent: string[];

@@ -117,7 +117,7 @@ function renderFilePreview(
   }
 }
 
-/** Whether a commit preview lists the files an f: filter hid, and how to ask for them. */
+/** Whether a commit preview lists the files its file filters hid, and how to ask for them. */
 interface HiddenFilesToggle {
   showHiddenFiles: boolean;
   onShowHiddenFiles: () => void;

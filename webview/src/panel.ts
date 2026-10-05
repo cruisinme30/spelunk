@@ -1,8 +1,9 @@
 // SearchPanel ties the webview together: it owns the state, reacts to the
 // user and to host messages, and calls the render functions.
 //
-// The panel is a pure view: it never parses. Fix-its, completions and the Aa / .*
-// toggles all edit the query text, then send an ordinary query.changed.
+// The panel is a pure view: it never parses. Fix-its, completions, the Aa / ab / .*
+// toggles, the repo menu and the facet row all edit the query text, then send an
+// ordinary query.changed.
 import { clamp, element, plural, scrollIntoContainer, wrapIndex } from "./format";
 import { type HostMessage, loadDraft, loadRecentWidth, onHostMessage, saveDraft, send } from "./host";
 import { EmptyBox } from "./emptyBox";
