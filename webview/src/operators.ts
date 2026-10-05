@@ -30,7 +30,7 @@ export interface OperatorGroup {
   entries: OperatorEntry[];
 }
 
-/** Every operator and piece of syntax: 18 entries in five groups. */
+/** Every operator and piece of syntax: 19 entries in five groups. */
 export const OPERATOR_GROUPS: OperatorGroup[] = [
   {
     name: "Matching",
@@ -43,6 +43,15 @@ export const OPERATOR_GROUPS: OperatorGroup[] = [
         summary: "Case-sensitive or not. Insensitive by default.",
         description: "Match capital letters exactly, or not. Default is no.",
         example: "case:yes RetryPolicy",
+      },
+      {
+        operator: "word",
+        label: "word:yes|no",
+        insert: "word:yes ",
+        summary: "Whole words only, or parts of words too. Parts by default.",
+        description:
+          "Match only whole words, so retry finds retry() but not retryCount or autoretry. Letters, digits and _ make up words. Default is no, unless the Whole Word setting is on.",
+        example: "word:yes retry",
       },
       {
         label: '"exact phrase"',
