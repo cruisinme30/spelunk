@@ -201,6 +201,10 @@ mark.term-color-3 {
   font-family: var(--mono);
 }
 
+.toggle.settings svg {
+  display: block;
+}
+
 .toggle:focus-visible,
 .btn:focus-visible,
 .recent-row:focus-visible,

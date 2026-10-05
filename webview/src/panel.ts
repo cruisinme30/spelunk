@@ -132,7 +132,7 @@ export class SearchPanel {
   // ------------------------------------------------------------ user input
 
   private bindEvents(): void {
-    const { input, caseButton, regexButton, reposButton, body } = this.layout;
+    const { input, caseButton, regexButton, reposButton, settingsButton, body } = this.layout;
     input.addEventListener("input", () => {
       this.state.completionsOpen = true;
       this.state.completionIndex = 0;
@@ -163,6 +163,9 @@ export class SearchPanel {
     });
     reposButton.addEventListener("click", () => {
       this.toggleRepoMenu();
+    });
+    settingsButton.addEventListener("click", () => {
+      send("settings.open", {});
     });
     // A click anywhere else closes the repo menu.
     document.addEventListener("mousedown", (event) => {

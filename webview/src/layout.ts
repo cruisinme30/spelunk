@@ -9,6 +9,7 @@ export interface Layout {
   regexButton: HTMLButtonElement;
   reposButton: HTMLButtonElement;
   repoMenu: HTMLElement;
+  settingsButton: HTMLButtonElement;
   statusDot: HTMLElement;
   statusText: HTMLElement;
   completions: HTMLElement;
@@ -24,6 +25,9 @@ export const REPO_MENU_ANCHOR_CLASS = "repo-menu-anchor";
 
 const SEARCH_ICON =
   '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>';
+
+const GEAR_ICON =
+  '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>';
 
 function createQueryInput(): HTMLInputElement {
   return element("input", {
@@ -65,6 +69,19 @@ function createToggle({ text, label, title, testId, monospace }: ToggleLabels): 
   );
 }
 
+/** The gear at the end of the search bar, which opens Settings filtered to this extension. */
+function createSettingsButton(): HTMLButtonElement {
+  const button = element("button", {
+    type: "button",
+    class: "toggle settings",
+    "aria-label": "Search settings",
+    title: "Search settings",
+    "data-testid": "open-settings",
+  });
+  button.innerHTML = GEAR_ICON;
+  return button;
+}
+
 function createSearchIcon(): HTMLElement {
   const icon = element("span", { class: "icon", "aria-hidden": "true" });
   icon.innerHTML = SEARCH_ICON;
@@ -99,6 +116,7 @@ export function createLayout(root: HTMLElement): Layout {
     "All repos",
   );
   const repoMenu = element("div", { class: "menu", role: "menu", "data-testid": "repo-menu", hidden: true });
+  const settingsButton = createSettingsButton();
   const statusDot = element("span", { class: "status-dot", "aria-hidden": "true" });
   const statusText = element("span", { class: "status-text", "data-testid": "index-status" });
   // The regions under the search bar, in display order.
@@ -127,6 +145,7 @@ export function createLayout(root: HTMLElement): Layout {
       caseButton,
       regexButton,
       element("span", { class: REPO_MENU_ANCHOR_CLASS }, reposButton, repoMenu),
+      settingsButton,
     ),
   );
   const shell = element(
@@ -137,5 +156,16 @@ export function createLayout(root: HTMLElement): Layout {
     ...Object.values(regions),
   );
   root.append(shell);
-  return { shell, input, caseButton, regexButton, reposButton, repoMenu, statusDot, statusText, ...regions };
+  return {
+    shell,
+    input,
+    caseButton,
+    regexButton,
+    reposButton,
+    repoMenu,
+    settingsButton,
+    statusDot,
+    statusText,
+    ...regions,
+  };
 }

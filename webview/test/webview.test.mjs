@@ -94,6 +94,14 @@ test("Enter opens the selected result; ⌘Enter opens it to the side", async (t)
   assert.deepEqual(await lastSent(page, "result.open"), { ref: "f1", where: "side" });
 });
 
+test("the gear in the search bar asks the host to open settings", async (t) => {
+  // @covers msg:settings.open
+  const page = await openPanel(t);
+  await restore(page);
+  await page.click('[data-testid="open-settings"]');
+  assert.equal((await sentMessages(page, "settings.open")).length, 1);
+});
+
 test("a single click selects a result and a double-click opens it", async (t) => {
   // @covers setting:open.trigger
   const page = await panelWithResults(t);
