@@ -8,9 +8,11 @@
     "webview"
   ],
   "scripts": {
+    "prepare": "git config core.hooksPath .githooks || true",
     "build": "npm run build --workspace extension",
     "package": "node scripts/packageExtension.mjs",
     "test": "scripts/test-all.sh",
+    "presubmit": "scripts/presubmit.sh",
     "lint": "npm run lint:ts && npm run lint:css && npm run lint:md && npm run lint:spelling && npm run lint:unused && npm run lint:go",
     "lint:ts": "eslint --max-warnings 0 .",
     "lint:css": "stylelint \"webview/src/**/*.css\"",

@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+# Runs scripts/presubmit.sh before a push, so nothing reaches GitHub that its
+# workflows would fail. `npm install` points git at this folder (the prepare
+# script sets core.hooksPath). Skip it only in an emergency: git push --no-verify
+set -euo pipefail
+cd "$(git rev-parse --show-toplevel)"
+
+head=$(git rev-parse HEAD)
+zero=0000000000000000000000000000000000000000
+tag=""
+run=""
+# git passes one line per ref: <local ref> <local sha> <remote ref> <remote sha>
+while read -r local_ref local_sha _ _; do
+  [ "$local_sha" = "$zero" ] && continue # deleting a remote ref tests nothing
+  run=1
+  commit=$(git rev-parse "$local_sha^{commit}")
+  if [ "$commit" != "$head" ]; then
+    echo "pre-push: $local_ref isn't the checked-out commit; check it out so the presubmit tests what's pushed." >&2
+    exit 1
+  fi
+  case $local_ref in refs/tags/v*) tag=${local_ref#refs/tags/} ;; esac
+done
+
+[ -n "$run" ] || exit 0
+if [ -n "$tag" ]; then exec scripts/presubmit.sh --clean --tag "$tag"; fi
+exec scripts/presubmit.sh --clean
