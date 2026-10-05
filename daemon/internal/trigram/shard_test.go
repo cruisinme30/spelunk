@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/cruisinme30/spelunk/daemon/internal/protocol"
+	"github.com/cruisinme30/spelunk/daemon/internal/testutil"
 )
 
 func TestCandidates(t *testing.T) {
@@ -46,7 +47,7 @@ func TestCandidates(t *testing.T) {
 }
 
 func TestBuildReadsListedFiles(t *testing.T) {
-	root := writeTree(t, map[string]string{"a.go": "package a\n\nfunc A() {}\n", "b.py": "print(1)\n"})
+	root := testutil.WriteTree(t, map[string]string{"a.go": "package a\n\nfunc A() {}\n", "b.py": "print(1)\n"})
 	var reports []float64
 	files := []File{{Path: "a.go"}, {Path: "b.py"}, {Path: "deleted.txt"}}
 	shard, err := Build(context.Background(), root, files, BuildOptions{Symbols: true, Progress: func(done float64) {

@@ -7,6 +7,7 @@ import (
 
 	"github.com/cruisinme30/spelunk/daemon/internal/protocol"
 	"github.com/cruisinme30/spelunk/daemon/internal/query"
+	"github.com/cruisinme30/spelunk/daemon/internal/testutil"
 )
 
 // symbolWorkspace writes the repos of the symbols mock: RetryPolicy and
@@ -23,7 +24,7 @@ func symbolWorkspace(t *testing.T) []protocol.Root {
 		"web-checkout/src/api/types.ts":       "export interface RetryPolicy {\n  maxAttempts: number;\n}\n",
 		"web-checkout/src/api/checkout.ts":    "import type { RetryPolicy } from \"./types\";\n",
 	}
-	root := writeWorkspace(t, files)
+	root := testutil.WriteTree(t, files)
 	var roots []protocol.Root
 	for _, name := range []string{"payments-api", "web-checkout", "shared-libs"} {
 		roots = append(roots, protocol.Root{ID: name, Path: filepath.Join(root, name), Name: name})

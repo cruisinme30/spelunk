@@ -11,6 +11,7 @@ import (
 	"unicode/utf16"
 
 	"github.com/cruisinme30/spelunk/daemon/internal/protocol"
+	"github.com/cruisinme30/spelunk/daemon/internal/testutil"
 )
 
 // utf16File encodes text as UTF-16 with a byte order mark.
@@ -62,7 +63,7 @@ func TestAResultOpensWhereTheEditorShowsItAfterInvalidUTF8(t *testing.T) {
 	// VS Code shows each of the truncated characters "\xe2\x82" and
 	// "\xf0\x9f" as one U+FFFD, so "needle" is at column 4 there; one U+FFFD
 	// per byte put it at column 6.
-	root := writeTree(t, map[string]string{"broken.txt": "\xe2\x82\xf0\x9f  needle\n"})
+	root := testutil.WriteTree(t, map[string]string{"broken.txt": "\xe2\x82\xf0\x9f  needle\n"})
 	listed, err := ListFiles(context.Background(), root, WalkOptions{})
 	if err != nil {
 		t.Fatal(err)
@@ -102,8 +103,8 @@ func TestBinarySniffingKeepsUTF16Text(t *testing.T) {
 }
 
 func TestBuildReadsFilesAsTheyAreNow(t *testing.T) {
-	root := writeTree(t, map[string]string{"a.txt": "alpha\n", "grew.txt": "small\n", "now-binary.txt": "text\n"})
-	outside := writeTree(t, map[string]string{"secret.txt": "secret\n"})
+	root := testutil.WriteTree(t, map[string]string{"a.txt": "alpha\n", "grew.txt": "small\n", "now-binary.txt": "text\n"})
+	outside := testutil.WriteTree(t, map[string]string{"secret.txt": "secret\n"})
 	// Each listed as a small text file, then changed before Build reads it.
 	if err := os.WriteFile(filepath.Join(root, "grew.txt"), []byte(strings.Repeat("x", 4096)), 0o600); err != nil {
 		t.Fatal(err)
@@ -129,7 +130,7 @@ func TestBuildReadsFilesAsTheyAreNow(t *testing.T) {
 }
 
 func TestReadTextReportsWhyAFileIsNotRead(t *testing.T) {
-	root := writeTree(t, map[string]string{"big.txt": strings.Repeat("x", 100), "bin.dat": "\x00"})
+	root := testutil.WriteTree(t, map[string]string{"big.txt": strings.Repeat("x", 100), "bin.dat": "\x00"})
 	if err := os.Symlink("big.txt", filepath.Join(root, "link")); err != nil {
 		t.Fatal(err)
 	}
@@ -158,7 +159,7 @@ func TestEncodingsAndLineEndsMatchTheEditor(t *testing.T) {
 		"utf16.txt": utf16File("first\r\n😀  needle\r\n", false),
 		"mac.txt":   "first\r😀  needle\r",
 	}
-	root := writeTree(t, files)
+	root := testutil.WriteTree(t, files)
 	listed, err := ListFiles(context.Background(), root, WalkOptions{})
 	if err != nil {
 		t.Fatal(err)

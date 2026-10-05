@@ -9,25 +9,9 @@ import (
 	"time"
 
 	"github.com/cruisinme30/spelunk/daemon/internal/protocol"
+	"github.com/cruisinme30/spelunk/daemon/internal/testutil"
 	"github.com/cruisinme30/spelunk/daemon/internal/trigram"
 )
-
-// writeFiles creates files (path to content) under a new temp directory
-// and returns it.
-func writeFiles(t *testing.T, files map[string]string) string {
-	t.Helper()
-	root := t.TempDir()
-	for path, content := range files {
-		full := filepath.Join(root, filepath.FromSlash(path))
-		if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(full, []byte(content), 0o644); err != nil {
-			t.Fatal(err)
-		}
-	}
-	return root
-}
 
 // testSettings are default-like settings with the index in a temp directory.
 func testSettings(t *testing.T) protocol.Settings {
@@ -93,7 +77,7 @@ func docPaths(repo trigram.Repo) []string {
 
 func TestIndexesRootsAndReportsProgress(t *testing.T) {
 	// @covers rpc:index/progress
-	root := writeFiles(t, map[string]string{"main.go": "package main\n", "vendor/x/x.go": "package x\n"})
+	root := testutil.WriteTree(t, map[string]string{"main.go": "package main\n", "vendor/x/x.go": "package x\n"})
 	rec := &recorder{}
 	ix := New(testSettings(t), rec.notify)
 	defer ix.Close(time.Second)
@@ -113,7 +97,7 @@ func TestIndexesRootsAndReportsProgress(t *testing.T) {
 }
 
 func TestSavedShardsServeTheNextSessionAtOnce(t *testing.T) {
-	root := writeFiles(t, map[string]string{"a.txt": "alpha\n"})
+	root := testutil.WriteTree(t, map[string]string{"a.txt": "alpha\n"})
 	settings := testSettings(t)
 	first := New(settings, nil)
 	first.SetRoots([]protocol.Root{{ID: "r1", Path: root, Name: "app"}})
@@ -133,8 +117,8 @@ func TestSavedShardsServeTheNextSessionAtOnce(t *testing.T) {
 }
 
 func TestRemovedRootsAreDropped(t *testing.T) {
-	a := writeFiles(t, map[string]string{"a.txt": "a\n"})
-	b := writeFiles(t, map[string]string{"b.txt": "b\n"})
+	a := testutil.WriteTree(t, map[string]string{"a.txt": "a\n"})
+	b := testutil.WriteTree(t, map[string]string{"b.txt": "b\n"})
 	ix := New(testSettings(t), nil)
 	defer ix.Close(time.Second)
 	ix.SetRoots([]protocol.Root{{ID: "a", Path: a, Name: "a"}, {ID: "b", Path: b, Name: "b"}})
@@ -147,7 +131,7 @@ func TestRemovedRootsAreDropped(t *testing.T) {
 
 func TestChangingWhatIsIndexedRebuilds(t *testing.T) {
 	// @covers setting:index.exclude setting:index.maxFileSizeKB
-	root := writeFiles(t, map[string]string{
+	root := testutil.WriteTree(t, map[string]string{
 		"keep.go": "package k\n", "gen/out.go": "package g\n", "data.json": strings.Repeat("x", 2048),
 	})
 	settings := testSettings(t)
@@ -167,7 +151,7 @@ func TestChangingWhatIsIndexedRebuilds(t *testing.T) {
 
 func TestRebuildPicksUpNewFiles(t *testing.T) {
 	// @covers rpc:index/rebuild
-	root := writeFiles(t, map[string]string{"a.txt": "a\n"})
+	root := testutil.WriteTree(t, map[string]string{"a.txt": "a\n"})
 	ix := New(testSettings(t), nil)
 	defer ix.Close(time.Second)
 	ix.SetRoots([]protocol.Root{{ID: "r1", Path: root, Name: "app"}})

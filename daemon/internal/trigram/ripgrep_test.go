@@ -14,6 +14,7 @@ import (
 
 	"github.com/cruisinme30/spelunk/daemon/internal/protocol"
 	"github.com/cruisinme30/spelunk/daemon/internal/query"
+	"github.com/cruisinme30/spelunk/daemon/internal/testutil"
 )
 
 // TestMatchesRipgrep compares the lines this engine finds with ripgrep's
@@ -37,7 +38,7 @@ func TestMatchesRipgrep(t *testing.T) {
 		}
 		files[fmt.Sprintf("dir%d/file%02d.txt", f%4, f)] = b.String()
 	}
-	root := writeTree(t, files)
+	root := testutil.WriteTree(t, files)
 	repo := Repo{ID: "r", Name: "r", Root: root, Shard: shardOf(files)}
 
 	queries := []struct {

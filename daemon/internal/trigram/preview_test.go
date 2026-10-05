@@ -8,13 +8,14 @@ import (
 	"testing"
 
 	"github.com/cruisinme30/spelunk/daemon/internal/protocol"
+	"github.com/cruisinme30/spelunk/daemon/internal/testutil"
 )
 
 const previewFile = "package retry\n\n// RetryPolicy retries with a timeout.\ntype RetryPolicy struct {\n\tTimeout int\n}\n"
 
 func previewRepo(t *testing.T) *Repo {
 	t.Helper()
-	root := writeTree(t, map[string]string{"retry.go": previewFile})
+	root := testutil.WriteTree(t, map[string]string{"retry.go": previewFile})
 	return &Repo{ID: "r", Name: "r", Root: root}
 }
 
@@ -108,7 +109,7 @@ func TestOpenTargetIsTheMatch(t *testing.T) {
 
 func TestPreviewClipsALongLineAroundItsMatch(t *testing.T) {
 	long := strings.Repeat("x", 500_000) + "needle" + strings.Repeat("y", 500_000)
-	root := writeTree(t, map[string]string{"min.js": "first\n" + long + "\n" + strings.Repeat("z", 10_000) + "\n"})
+	root := testutil.WriteTree(t, map[string]string{"min.js": "first\n" + long + "\n" + strings.Repeat("z", 10_000) + "\n"})
 	repo := &Repo{ID: "r", Name: "r", Root: root}
 	plan := mustPlan(t, "needle", defaultSettings, "")
 	got, err := Preview(repo, Ref{RepoID: "r", Path: "min.js", Line: 2, Column: 500_000, Length: 6}, plan, 1)

@@ -1,34 +1,12 @@
 package server
 
 import (
-	"os"
-	"path/filepath"
 	"slices"
 	"testing"
 
 	"github.com/cruisinme30/spelunk/daemon/internal/protocol"
+	"github.com/cruisinme30/spelunk/daemon/internal/testutil"
 )
-
-// writeWorkspace writes files under a new folder and returns it.
-func writeWorkspace(t *testing.T, files map[string]string) string {
-	t.Helper()
-	root := t.TempDir()
-	writeFilesUnder(t, root, files)
-	return root
-}
-
-// writeFilesUnder writes files (slash-separated paths to contents) under
-// root, making their folders.
-func writeFilesUnder(t *testing.T, root string, files map[string]string) {
-	t.Helper()
-	for path, content := range files {
-		full := filepath.Join(root, filepath.FromSlash(path))
-		if err := os.MkdirAll(filepath.Dir(full), 0o750); err != nil {
-			t.Fatal(err)
-		}
-		mustWriteFile(t, full, content)
-	}
-}
 
 // paths runs text and returns the repo/path:line of each result.
 func paths(t *testing.T, client *testClient, text string) ([]string, protocol.SearchResult) {
@@ -50,7 +28,7 @@ func updateSettings(t *testing.T, client *testClient, change func(*protocol.Sett
 
 func TestChangedSettingsTakeEffectWithoutARestart(t *testing.T) {
 	// @covers rpc:settings/update screen:settings setting:caseSensitive setting:defaultCount
-	root := writeWorkspace(t, map[string]string{
+	root := testutil.WriteTree(t, map[string]string{
 		"src/a.py": "retry = 1\nRetry = 2\n",
 		"gen/b.py": "retry = 3\n",
 	})
@@ -82,8 +60,8 @@ func TestChangedSettingsTakeEffectWithoutARestart(t *testing.T) {
 
 func TestSetRootsAddsAndDropsRepos(t *testing.T) {
 	// @covers rpc:workspace/setRoots
-	first := writeWorkspace(t, map[string]string{"one.txt": "needle\n"})
-	second := writeWorkspace(t, map[string]string{"two.txt": "needle\n"})
+	first := testutil.WriteTree(t, map[string]string{"one.txt": "needle\n"})
+	second := testutil.WriteTree(t, map[string]string{"two.txt": "needle\n"})
 	client := newTestClient(t)
 	client.mustInitialize(t, protocol.Root{ID: "a", Path: first, Name: "first"})
 

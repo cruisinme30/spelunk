@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/cruisinme30/spelunk/daemon/internal/protocol"
+	"github.com/cruisinme30/spelunk/daemon/internal/testutil"
 )
 
 // gitInit makes root a Git repo with one commit of everything in it.
@@ -55,7 +56,7 @@ func overlayPaths(t *testing.T, ix *Indexer) (docs, masked []string) {
 }
 
 func TestHistoryIsReadForGitRepos(t *testing.T) {
-	root := writeFiles(t, map[string]string{"main.go": "package main\n"})
+	root := testutil.WriteTree(t, map[string]string{"main.go": "package main\n"})
 	gitInit(t, root)
 	ix := New(testSettings(t), nil)
 	defer ix.Close(time.Second)
@@ -76,7 +77,7 @@ func TestHistoryIsReadForGitRepos(t *testing.T) {
 }
 
 func TestSavedFilesGoIntoTheOverlayUntilTheNextBuild(t *testing.T) {
-	root := writeFiles(t, map[string]string{"a.txt": "alpha\n", "old/b.txt": "beta\n"})
+	root := testutil.WriteTree(t, map[string]string{"a.txt": "alpha\n", "old/b.txt": "beta\n"})
 	ix := New(testSettings(t), nil)
 	defer ix.Close(time.Second)
 	ix.SetRoots([]protocol.Root{{ID: "r1", Path: root, Name: "app"}})
@@ -121,7 +122,7 @@ func TestSavedFilesGoIntoTheOverlayUntilTheNextBuild(t *testing.T) {
 
 func TestACorruptSavedIndexIsRebuilt(t *testing.T) {
 	// @covers failure:index-corrupt
-	root := writeFiles(t, map[string]string{"a.txt": "alpha\n"})
+	root := testutil.WriteTree(t, map[string]string{"a.txt": "alpha\n"})
 	settings := testSettings(t)
 	path := shardPath(settings.Location, protocol.Root{Path: root})
 	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
@@ -153,7 +154,7 @@ func TestAnIndexThatCannotBeSavedStillServes(t *testing.T) {
 	// A file where the index folder should be makes every save fail, as a
 	// full disk does: the repo keeps serving this session and says so.
 	// @covers failure:disk-full
-	root := writeFiles(t, map[string]string{"a.txt": "alpha\n"})
+	root := testutil.WriteTree(t, map[string]string{"a.txt": "alpha\n"})
 	settings := testSettings(t)
 	blocked := filepath.Join(settings.Location, "blocked")
 	if err := os.WriteFile(blocked, nil, 0o600); err != nil {

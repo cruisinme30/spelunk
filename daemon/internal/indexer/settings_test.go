@@ -10,6 +10,7 @@ import (
 
 	"github.com/cruisinme30/spelunk/daemon/internal/protocol"
 	"github.com/cruisinme30/spelunk/daemon/internal/query"
+	"github.com/cruisinme30/spelunk/daemon/internal/testutil"
 	"github.com/cruisinme30/spelunk/daemon/internal/trigram"
 )
 
@@ -44,8 +45,8 @@ func searchPaths(t *testing.T, ix *Indexer, text string) []string {
 
 func TestReadyReposServeSearchesWhileAnotherIsIndexing(t *testing.T) {
 	// @covers failure:repo-indexing
-	ready := writeFiles(t, map[string]string{"a.txt": "needle\n"})
-	slow := writeFiles(t, map[string]string{"b.txt": "needle\n"})
+	ready := testutil.WriteTree(t, map[string]string{"a.txt": "needle\n"})
+	slow := testutil.WriteTree(t, map[string]string{"b.txt": "needle\n"})
 	release := make(chan struct{})
 	ix := New(testSettings(t), nil)
 	defer ix.Close(time.Second)
@@ -74,7 +75,7 @@ func TestReadyReposServeSearchesWhileAnotherIsIndexing(t *testing.T) {
 
 func TestSymbolsAreIndexedOnlyWhenTheSettingIsOn(t *testing.T) {
 	// @covers setting:index.symbols
-	root := writeFiles(t, map[string]string{"a.go": "package a\n\nfunc Retry() {}\n"})
+	root := testutil.WriteTree(t, map[string]string{"a.go": "package a\n\nfunc Retry() {}\n"})
 	settings := testSettings(t)
 	settings.Symbols = false
 	ix := New(settings, nil)
@@ -95,7 +96,7 @@ func TestSymbolsAreIndexedOnlyWhenTheSettingIsOn(t *testing.T) {
 
 func TestIndexesAreSavedUnderTheIndexLocation(t *testing.T) {
 	// @covers setting:index.location
-	root := writeFiles(t, map[string]string{"a.txt": "alpha\n"})
+	root := testutil.WriteTree(t, map[string]string{"a.txt": "alpha\n"})
 	settings := testSettings(t)
 	ix := New(settings, nil)
 	defer ix.Close(time.Second)
@@ -112,7 +113,7 @@ func TestHistoryDepthDecidesHowFarBackHistoryIsRead(t *testing.T) {
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("git is not installed")
 	}
-	root := writeFiles(t, map[string]string{"a.txt": "old\n"})
+	root := testutil.WriteTree(t, map[string]string{"a.txt": "old\n"})
 	git := func(at time.Time, args ...string) {
 		t.Helper()
 		cmd := exec.CommandContext(context.Background(), "git", append([]string{"-C", root}, args...)...)

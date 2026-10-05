@@ -66,6 +66,7 @@ words:
   - presubmit
   - Preds
   - retrypolicy
+  - testutil
   - trigram
   - trigrams
   - spelunk

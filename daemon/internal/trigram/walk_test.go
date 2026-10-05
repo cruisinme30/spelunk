@@ -8,6 +8,8 @@ import (
 	"reflect"
 	"slices"
 	"testing"
+
+	"github.com/cruisinme30/spelunk/daemon/internal/testutil"
 )
 
 // paths lists the paths of files, in order.
@@ -30,7 +32,7 @@ var treeFiles = map[string]string{
 }
 
 func TestListFilesOutsideGit(t *testing.T) {
-	root := writeTree(t, treeFiles)
+	root := testutil.WriteTree(t, treeFiles)
 	files, err := ListFiles(context.Background(), root, WalkOptions{
 		Exclude: NewExcluder([]string{"**/vendor/**"}), MaxFileBytes: 20,
 	})
@@ -50,7 +52,7 @@ func TestListFilesInGitRespectsGitignore(t *testing.T) {
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("git not installed")
 	}
-	root := writeTree(t, treeFiles)
+	root := testutil.WriteTree(t, treeFiles)
 	if out, err := exec.CommandContext(context.Background(), "git", "-C", root, "init", "-q").CombinedOutput(); err != nil {
 		t.Fatalf("git init: %v\n%s", err, out)
 	}
@@ -85,8 +87,8 @@ func gitIn(t *testing.T, dir string, args ...string) {
 }
 
 func TestListFilesSkipsWhatIsNotARegularFile(t *testing.T) {
-	root := writeTree(t, map[string]string{"a.txt": "alpha\n", "empty.txt": "", "locked/c.txt": "c\n", "unreadable.txt": "u\n"})
-	outside := writeTree(t, map[string]string{"secret.txt": "secret\n"})
+	root := testutil.WriteTree(t, map[string]string{"a.txt": "alpha\n", "empty.txt": "", "locked/c.txt": "c\n", "unreadable.txt": "u\n"})
+	outside := testutil.WriteTree(t, map[string]string{"secret.txt": "secret\n"})
 	for name, target := range map[string]string{"loop": root, "outside": outside, "outside.txt": filepath.Join(outside, "secret.txt"), "dangling": "missing"} {
 		if err := os.Symlink(target, filepath.Join(root, name)); err != nil {
 			t.Fatal(err)
@@ -112,7 +114,7 @@ func TestListFilesSkipsWhatIsNotARegularFile(t *testing.T) {
 
 func TestListFilesFollowsASymlinkedRoot(t *testing.T) {
 	// /tmp on macOS is a symlink: a root reached through one is still walked.
-	root := writeTree(t, map[string]string{"a.txt": "alpha\n", "src/b.txt": "beta\n"})
+	root := testutil.WriteTree(t, map[string]string{"a.txt": "alpha\n", "src/b.txt": "beta\n"})
 	link := filepath.Join(t.TempDir(), "link")
 	if err := os.Symlink(root, link); err != nil {
 		t.Fatal(err)
@@ -130,12 +132,12 @@ func TestListFilesIncludesNestedReposAndSubmodules(t *testing.T) {
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("git not installed")
 	}
-	library := writeTree(t, map[string]string{"lib.go": "package lib\n"})
+	library := testutil.WriteTree(t, map[string]string{"lib.go": "package lib\n"})
 	gitIn(t, library, "init", "-q")
 	gitIn(t, library, "add", "-A")
 	gitIn(t, library, "commit", "-q", "-m", "lib")
 
-	root := writeTree(t, map[string]string{
+	root := testutil.WriteTree(t, map[string]string{
 		"main.go": "package main\n", ".gitignore": "*.log\n",
 		"clone/.gitignore": "build/\n", "clone/x.go": "package x\n", "clone/build/out.go": "package out\n", "clone/notes.log": "log\n",
 	})

@@ -8,10 +8,12 @@ import (
 	"syscall"
 	"testing"
 	"time"
+
+	"github.com/cruisinme30/spelunk/daemon/internal/testutil"
 )
 
 func TestFIFOInTheTreeNeverBlocksIndexing(t *testing.T) {
-	root := writeTree(t, map[string]string{"a.txt": "alpha\n"})
+	root := testutil.WriteTree(t, map[string]string{"a.txt": "alpha\n"})
 	if err := syscall.Mkfifo(filepath.Join(root, "pipe"), 0o600); err != nil {
 		t.Skipf("mkfifo: %v", err)
 	}

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/cruisinme30/spelunk/daemon/internal/protocol"
+	"github.com/cruisinme30/spelunk/daemon/internal/testutil"
 )
 
 func TestAFloodOfChangesKeepsOnlyWhatIsInTheRoot(t *testing.T) {
@@ -17,7 +18,7 @@ func TestAFloodOfChangesKeepsOnlyWhatIsInTheRoot(t *testing.T) {
 	for i := range 200 {
 		files[fmt.Sprintf("d%d/f%d.txt", i%10, i)] = fmt.Sprintf("file %d\n", i)
 	}
-	root := writeFiles(t, files)
+	root := testutil.WriteTree(t, files)
 	ix := New(testSettings(t), nil)
 	defer ix.Close(time.Second)
 	ix.SetRoots([]protocol.Root{{ID: "r1", Path: root, Name: "app"}})
@@ -57,8 +58,8 @@ func TestAFloodOfChangesKeepsOnlyWhatIsInTheRoot(t *testing.T) {
 
 func TestRootsChangingWhileIndexingLeaveNoWorkBehind(t *testing.T) {
 	before := runtime.NumGoroutine()
-	a := writeFiles(t, map[string]string{"a.txt": "alpha\n"})
-	b := writeFiles(t, map[string]string{"b.txt": "beta\n"})
+	a := testutil.WriteTree(t, map[string]string{"a.txt": "alpha\n"})
+	b := testutil.WriteTree(t, map[string]string{"b.txt": "beta\n"})
 	gitInit(t, b)
 	ix := New(testSettings(t), nil)
 	for i := range 100 {

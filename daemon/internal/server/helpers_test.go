@@ -16,6 +16,7 @@ import (
 
 	"github.com/cruisinme30/spelunk/daemon/internal/protocol"
 	"github.com/cruisinme30/spelunk/daemon/internal/rpc"
+	"github.com/cruisinme30/spelunk/daemon/internal/testutil"
 )
 
 // testClient talks to a Server over in-process pipes.
@@ -190,7 +191,7 @@ func gitRepo(t *testing.T, commits ...gitCommit) string {
 	run(nil, "config", "user.email", "test@example.com")
 	run(nil, "config", "user.name", "Test")
 	for _, c := range commits {
-		writeFilesUnder(t, root, c.files)
+		testutil.WriteFiles(t, root, c.files)
 		run(nil, "add", "--all")
 		date := c.at.Format(time.RFC3339)
 		run([]string{"GIT_AUTHOR_NAME=" + c.author, "GIT_AUTHOR_EMAIL=" + strings.ToLower(strings.ReplaceAll(c.author, " ", ".")) + "@example.com",

@@ -4,8 +4,6 @@ package trigram
 
 import (
 	"context"
-	"os"
-	"path/filepath"
 	"sort"
 	"strconv"
 	"testing"
@@ -33,22 +31,6 @@ func shardOf(files map[string]string) *Shard {
 		s.add(Doc{Path: path, Lang: lang.Detect(path, content), ModTime: fixedNow, Content: content})
 	}
 	return s
-}
-
-// writeTree creates files under a new temp directory.
-func writeTree(t *testing.T, files map[string]string) string {
-	t.Helper()
-	root := t.TempDir()
-	for path, content := range files {
-		full := filepath.Join(root, filepath.FromSlash(path))
-		if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(full, []byte(content), 0o644); err != nil {
-			t.Fatal(err)
-		}
-	}
-	return root
 }
 
 // defaultSettings are the extension's default search settings.
