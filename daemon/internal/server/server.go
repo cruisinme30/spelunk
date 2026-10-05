@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -139,9 +140,13 @@ func (s *Server) initialize(_ context.Context, raw json.RawMessage) (any, error)
 	if err := decode(raw, &params); err != nil {
 		return nil, err
 	}
-	// Settings are required by the schema; DefaultCount is at least 1 in any
-	// real settings object, so 0 means a client sent none.
-	if params.Settings.DefaultCount != 0 {
+	// Settings are required by the schema, but a client that sends none
+	// keeps the defaults rather than an all-zero settings object.
+	var present struct {
+		Settings json.RawMessage `json:"settings"`
+	}
+	_ = decode(raw, &present) // raw already decoded above
+	if len(present.Settings) > 0 && string(present.Settings) != "null" {
 		s.applySettings(params.Settings)
 	}
 	s.applyRoots(params.Roots)
@@ -187,10 +192,36 @@ func (s *Server) updateSettings(raw json.RawMessage) {
 // applySettings stores new settings and passes them to the indexer, which
 // rebuilds if they change what is indexed.
 func (s *Server) applySettings(settings protocol.Settings) {
+	settings = withDefaults(settings)
 	s.mu.Lock()
 	s.settings = settings
 	s.mu.Unlock()
 	s.index.SetSettings(s.Settings())
+}
+
+// withDefaults replaces the settings values the daemon cannot use with
+// their defaults. VS Code does not enforce a setting's minimum, and a
+// client may omit fields: an empty location would put the index in the
+// daemon's working directory, and a size limit of 0 or less would index
+// files of any size.
+func withDefaults(settings protocol.Settings) protocol.Settings {
+	defaults := DefaultSettings()
+	if settings.DefaultCount < 1 {
+		settings.DefaultCount = defaults.DefaultCount
+	}
+	if settings.MaxFileSizeKB < 1 {
+		settings.MaxFileSizeKB = defaults.MaxFileSizeKB
+	}
+	if !slices.Contains([]string{"6m", "2y", "all"}, settings.HistoryDepth) {
+		settings.HistoryDepth = defaults.HistoryDepth
+	}
+	if strings.TrimSpace(settings.Location) == "" {
+		settings.Location = defaults.Location
+	}
+	if settings.Exclude == nil {
+		settings.Exclude = []string{}
+	}
+	return settings
 }
 
 // applyRoots stores the workspace roots and passes them to the indexer,
