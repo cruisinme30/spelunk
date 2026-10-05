@@ -39,6 +39,7 @@ words:
   # Tools, libraries and formats
   - chromium
   - codegen
+  - conftest
   - diataxis
   - Diátaxis
   - ebnf
