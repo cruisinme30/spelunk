@@ -445,8 +445,10 @@ export class SearchPanel {
         this.renderBanners();
         return;
       }
-      case "welcome.state": {
-        return; // for the welcome page
+      case "welcome.state": // for the welcome page
+      case "replace.plan": // until the panel has a Replace row
+      case "replace.done": {
+        return;
       }
     }
   }

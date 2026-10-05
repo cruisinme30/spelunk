@@ -1381,6 +1381,41 @@
       },
       "required": ["query"]
     },
+    "ReplacePreviewMessage": {
+      "description": "ReplacePreviewMessage asks what replacing the query's matches with replacement would change.",
+      "type": "object",
+      "properties": {
+        "seq": {
+          "type": "integer"
+        },
+        "text": {
+          "type": "string"
+        },
+        "replacement": {
+          "type": "string"
+        }
+      },
+      "required": ["seq", "text", "replacement"]
+    },
+    "ReplaceApplyMessage": {
+      "description": "ReplaceApplyMessage replaces the matches its preview showed; matches is how many that was, so a plan that changed since is not applied.",
+      "type": "object",
+      "properties": {
+        "seq": {
+          "type": "integer"
+        },
+        "text": {
+          "type": "string"
+        },
+        "replacement": {
+          "type": "string"
+        },
+        "matches": {
+          "type": "integer"
+        }
+      },
+      "required": ["seq", "text", "replacement", "matches"]
+    },
     "WelcomeStateMessage": {
       "description": "WelcomeStateMessage is what the welcome page shows: the shortcut preset and what is indexed.",
       "type": "object",
@@ -1581,6 +1616,50 @@
       },
       "required": ["typingDelayMs", "openTrigger", "preview", "showParsedQuery", "caseSensitive", "wholeWord", "order"]
     },
+    "ReplacePlanMessage": {
+      "description": "ReplacePlanMessage is the preview of a replace: the edits it would make, or why it can't.",
+      "type": "object",
+      "properties": {
+        "seq": {
+          "type": "integer"
+        },
+        "plan": {
+          "$ref": "#/$defs/ReplacePlan"
+        },
+        "error": {
+          "type": "string"
+        }
+      },
+      "required": ["seq"]
+    },
+    "ReplaceDoneMessage": {
+      "description": "ReplaceDoneMessage says what a replace changed. skipped lists the files left alone because their text no longer matched the index; changed means the matches differed from the preview, so nothing was replaced.",
+      "type": "object",
+      "properties": {
+        "seq": {
+          "type": "integer"
+        },
+        "replaced": {
+          "type": "integer"
+        },
+        "files": {
+          "type": "integer"
+        },
+        "skipped": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "changed": {
+          "type": "boolean"
+        },
+        "error": {
+          "type": "string"
+        }
+      },
+      "required": ["seq", "replaced", "files", "skipped"]
+    },
     "BannerMessage": {
       "description": "BannerMessage reports daemon health: restarting, stopped or cleared.",
       "type": "object",
@@ -1737,6 +1816,18 @@
       "direction": "webview->host",
       "payload": "PinnedRemoveMessage"
     },
+    "replace.preview": {
+      "direction": "webview->host",
+      "payload": "ReplacePreviewMessage"
+    },
+    "replace.apply": {
+      "direction": "webview->host",
+      "payload": "ReplaceApplyMessage"
+    },
+    "replace.save": {
+      "direction": "webview->host",
+      "payload": "Empty"
+    },
     "parse.result": {
       "direction": "host->webview",
       "payload": "ParseResultMessage"
@@ -1772,6 +1863,14 @@
     "welcome.state": {
       "direction": "host->webview",
       "payload": "WelcomeStateMessage"
+    },
+    "replace.plan": {
+      "direction": "host->webview",
+      "payload": "ReplacePlanMessage"
+    },
+    "replace.done": {
+      "direction": "host->webview",
+      "payload": "ReplaceDoneMessage"
     }
   },
   "x-error-codes": {

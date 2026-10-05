@@ -254,6 +254,8 @@ onHostMessage((message) => {
     case "focus":
     case "parse.result":
     case "preview.result":
+    case "replace.done":
+    case "replace.plan":
     case "search.batch":
     case "search.done":
     case "state.restore": {

@@ -23,6 +23,7 @@ import type {
   WelcomeChooseMessage as WelcomeChoice,
   WelcomeStateMessage as WelcomeState,
 } from "./protocol.gen";
+import type { DocumentLines, LineEdit } from "./replaceEdits";
 import { makeRoot } from "./roots";
 import {
   closeOnOpen,
@@ -337,7 +338,38 @@ function createUi({ panel, daemon, commitDocuments, openedStatus, globalState, l
       openedStatus.text = `$(search) Opened from search · result ${position} of ${total}`;
       openedStatus.show();
     },
+    readDocument,
+    applyEdits,
+    saveFiles: (files) => {
+      for (const file of files) {
+        const document = vscode.workspace.textDocuments.find((open) => open.uri.fsPath === file);
+        if (document?.isDirty) void document.save().then(undefined, logError("save after replace"));
+      }
+    },
   };
+}
+
+/** A file as the editor has it, unsaved changes included; undefined when it isn't a text file that opens. */
+async function readDocument(file: string): Promise<DocumentLines | undefined> {
+  try {
+    const document = await vscode.workspace.openTextDocument(vscode.Uri.file(file));
+    return { lineCount: document.lineCount, lineText: (index) => document.lineAt(index).text };
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Applies a replace's edits as one WorkspaceEdit: a single step that ⌘Z
+ * undoes in every file at once. The files stay unsaved, as after a rename.
+ */
+async function applyEdits(edits: LineEdit[], label: string): Promise<boolean> {
+  const edit = new vscode.WorkspaceEdit();
+  const metadata: vscode.WorkspaceEditEntryMetadata = { label, needsConfirmation: false };
+  for (const { file, line, start, end, newText } of edits) {
+    edit.replace(vscode.Uri.file(file), new vscode.Range(line, start, line, end), newText, metadata);
+  }
+  return vscode.workspace.applyEdit(edit);
 }
 
 /**

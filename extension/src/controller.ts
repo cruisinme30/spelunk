@@ -12,11 +12,15 @@ import {
   type ParsedQuery,
   type PinnedQuery,
   type QueryChangedMessage,
+  type ReplaceApplyMessage,
+  type ReplacePlan,
+  type ReplacePreviewMessage,
   type ResultItem,
   type RpcRequests,
   type SearchBatchParams,
   type UiSettings,
 } from "./protocol.gen";
+import { checkReplace, type DocumentLines, type LineEdit } from "./replaceEdits";
 import type { WebviewMessage } from "./webviewMessages";
 
 /** Lines of context above and below the match in a file preview. */
@@ -36,6 +40,11 @@ export function textWithoutCompletedWord(text: string, cursor: number, completio
   const after = text.slice(span.end).trimStart();
   const rest = before && after ? `${before} ${after}` : before || after;
   return rest || undefined;
+}
+
+/** "1 match" / "3 matches". */
+function plural(count: number, one: string, many: string): string {
+  return `${count} ${count === 1 ? one : many}`;
 }
 
 /** Whether a parsed query has errors; such a query is not searched. */
@@ -69,6 +78,12 @@ export interface Ui {
   savePinned(pinned: PinnedQuery[]): void;
   /** Says which result is open, `position` of `total` (1-based), once one was opened from search or F4. */
   showOpened(position: number, total: number): void;
+  /** Reads a file as the editor has it, unsaved changes included; undefined when it can't. */
+  readDocument(file: string): Promise<DocumentLines | undefined>;
+  /** Applies edits as one undoable edit, leaving the files unsaved; resolves to whether it was applied. */
+  applyEdits(edits: LineEdit[], label: string): Promise<boolean>;
+  /** Saves files the editor has open. */
+  saveFiles(files: string[]): void;
 }
 
 /** Survives window reloads (globalState): the last query and recent queries. */
@@ -118,6 +133,15 @@ type HelpOrWelcomeMessage = Extract<WebviewMessage, { type: (typeof HELP_AND_WEL
 const helpAndWelcomeTypes: ReadonlySet<string> = new Set(HELP_AND_WELCOME_TYPES);
 const fromHelpOrWelcome = (message: WebviewMessage): message is HelpOrWelcomeMessage =>
   helpAndWelcomeTypes.has(message.type);
+/** The types of the Replace row's messages, which handleReplace handles. */
+const REPLACE_TYPES = [
+  "replace.preview",
+  "replace.apply",
+  "replace.save",
+] as const satisfies readonly WebviewMessage["type"][];
+type ReplaceMessage = Extract<WebviewMessage, { type: (typeof REPLACE_TYPES)[number] }>;
+const replaceTypes: ReadonlySet<string> = new Set(REPLACE_TYPES);
+const fromReplaceRow = (message: WebviewMessage): message is ReplaceMessage => replaceTypes.has(message.type);
 
 /** Turns panel messages into daemon calls; one per window. */
 export class SearchController {
@@ -137,6 +161,8 @@ export class SearchController {
   private readyRepos = new Set<string>();
   /** The last index/progress, which a panel opened later needs: the daemon only reports changes. */
   private lastProgress: IndexStatusResult | undefined;
+  /** The files the last replace changed, which Save saves. */
+  private replacedFiles: string[] = [];
 
   /** Listens for the backend's batches and indexing progress; `initial` is the state saved last session. */
   constructor(
@@ -183,6 +209,11 @@ export class SearchController {
   /** Handles one message from the search panel. */
   async handle(message: WebviewMessage): Promise<void> {
     if (fromHelpOrWelcome(message)) return;
+    await (fromReplaceRow(message) ? this.handleReplace(message) : this.handleSearch(message));
+  }
+
+  /** Handles the search panel's messages other than the Replace row's. */
+  private async handleSearch(message: Exclude<WebviewMessage, HelpOrWelcomeMessage | ReplaceMessage>): Promise<void> {
     switch (message.type) {
       case "ready": {
         // A new webview counts seq from zero again, so a search still running
@@ -235,6 +266,24 @@ export class SearchController {
       }
       case "pinned.remove": {
         this.unpin(message.payload.query);
+        return;
+      }
+    }
+  }
+
+  /** Handles the Replace row's messages. */
+  private async handleReplace(message: ReplaceMessage): Promise<void> {
+    switch (message.type) {
+      case "replace.preview": {
+        await this.onReplacePreview(message.payload);
+        return;
+      }
+      case "replace.apply": {
+        await this.onReplaceApply(message.payload);
+        return;
+      }
+      case "replace.save": {
+        this.ui.saveFiles(this.replacedFiles);
         return;
       }
     }
@@ -430,6 +479,52 @@ export class SearchController {
     this.results = items;
     this.stepIndex = -1;
     this.ui.setContext("spelunk.hasResults", items.length > 0);
+  }
+
+  /** Every edit replacing the matches of `text` with `replacement` would make, from the daemon. */
+  private planReplace(text: string, replacement: string): Promise<ReplacePlan> {
+    return this.backend.request("replace/plan", { text, replacement, openFiles: this.options.openFiles() });
+  }
+
+  /** The Replace row's preview: what Replace all would change, or why it can't. */
+  private async onReplacePreview({ seq, text, replacement }: ReplacePreviewMessage): Promise<void> {
+    try {
+      this.ui.post("replace.plan", { seq, plan: await this.planReplace(text, replacement) });
+    } catch (error) {
+      this.ui.post("replace.plan", { seq, error: errorMessage(error) });
+    }
+  }
+
+  /**
+   * Replace all: plans the replace again and applies it only if it still
+   * has the matches the preview showed; otherwise the panel gets the new
+   * preview instead. Files edited since they were indexed are skipped.
+   */
+  private async onReplaceApply({ seq, text, replacement, matches }: ReplaceApplyMessage): Promise<void> {
+    const nothing = { seq, replaced: 0, files: 0, skipped: [] };
+    try {
+      const plan = await this.planReplace(text, replacement);
+      if (plan.truncated || plan.matches !== matches) {
+        this.ui.post("replace.plan", { seq, plan });
+        this.ui.post("replace.done", { ...nothing, changed: true });
+        return;
+      }
+      const checked = await checkReplace(plan, (file) => this.ui.readDocument(file));
+      const label = `Replace ${plural(checked.edits.length, "match", "matches")}`;
+      if (checked.edits.length > 0 && !(await this.ui.applyEdits(checked.edits, label))) {
+        throw new Error("VS Code didn't apply the replace; nothing changed.");
+      }
+      this.replacedFiles = checked.files;
+      this.rememberQuery();
+      this.ui.post("replace.done", {
+        seq,
+        replaced: checked.edits.length,
+        files: checked.files.length,
+        skipped: checked.skipped,
+      });
+    } catch (error) {
+      this.ui.post("replace.done", { ...nothing, error: errorMessage(error) });
+    }
   }
 
   /** Fetches a result's preview; a stale ref gets an empty preview marked stale. */

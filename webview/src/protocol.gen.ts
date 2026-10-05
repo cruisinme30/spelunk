@@ -535,6 +535,21 @@ export interface RecentRemoveMessage {
   query: string;
 }
 
+/** ReplacePreviewMessage asks what replacing the query's matches with replacement would change. */
+export interface ReplacePreviewMessage {
+  seq: number;
+  text: string;
+  replacement: string;
+}
+
+/** ReplaceApplyMessage replaces the matches its preview showed; matches is how many that was, so a plan that changed since is not applied. */
+export interface ReplaceApplyMessage {
+  seq: number;
+  text: string;
+  replacement: string;
+  matches: number;
+}
+
 /** WelcomeStateMessage is what the welcome page shows: the shortcut preset and what is indexed. */
 export interface WelcomeStateMessage {
   preset: "quickOpen" | "findInFiles" | "none";
@@ -610,6 +625,23 @@ export interface UiSettings {
   order: ResultOrder;
 }
 
+/** ReplacePlanMessage is the preview of a replace: the edits it would make, or why it can't. */
+export interface ReplacePlanMessage {
+  seq: number;
+  plan?: ReplacePlan;
+  error?: string;
+}
+
+/** ReplaceDoneMessage says what a replace changed. skipped lists the files left alone because their text no longer matched the index; changed means the matches differed from the preview, so nothing was replaced. */
+export interface ReplaceDoneMessage {
+  seq: number;
+  replaced: number;
+  files: number;
+  skipped: string[];
+  changed?: boolean;
+  error?: string;
+}
+
 /** BannerMessage reports daemon health: restarting, stopped or cleared. */
 export interface BannerMessage {
   state: "ok" | "restarting" | "stopped" | "protocolMismatch";
@@ -658,6 +690,9 @@ export interface WebviewToHost {
   "recent.remove": RecentRemoveMessage;
   "pinned.save": PinnedQuery;
   "pinned.remove": PinnedRemoveMessage;
+  "replace.preview": ReplacePreviewMessage;
+  "replace.apply": ReplaceApplyMessage;
+  "replace.save": Empty;
 }
 
 /** Search panel messages, host->webview: type -> payload. */
@@ -671,4 +706,6 @@ export interface HostToWebview {
   "banner": BannerMessage;
   "focus": Empty;
   "welcome.state": WelcomeStateMessage;
+  "replace.plan": ReplacePlanMessage;
+  "replace.done": ReplaceDoneMessage;
 }

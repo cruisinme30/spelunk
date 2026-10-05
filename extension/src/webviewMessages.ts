@@ -46,6 +46,12 @@ const PAYLOAD_CHECKS: { [K in keyof WebviewToHost]: PayloadCheck<K> } = {
     return name === undefined ? { query } : { query, name };
   },
   "pinned.remove": ({ query }) => (isString(query) ? { query } : undefined),
+  "replace.preview": ({ seq, text, replacement }) =>
+    isCount(seq) && isString(text) && isString(replacement) ? { seq, text, replacement } : undefined,
+  "replace.apply": ({ seq, text, replacement, matches }) =>
+    isCount(seq) && isString(text) && isString(replacement) && isCount(matches)
+      ? { seq, text, replacement, matches }
+      : undefined,
   "welcome.choose": ({ preset, historyDepth, symbols }) => {
     const choice: WebviewToHost["welcome.choose"] = {};
     const checkedPreset = member(preset, SHORTCUT_PRESETS);
@@ -62,6 +68,7 @@ const PAYLOAD_CHECKS: { [K in keyof WebviewToHost]: PayloadCheck<K> } = {
   "welcome.start": noPayload,
   ready: noPayload,
   "daemon.restart": noPayload,
+  "replace.save": noPayload,
 };
 
 /** The message, with a checked payload, or undefined when it isn't a well-formed message of a known type. */

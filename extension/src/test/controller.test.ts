@@ -31,6 +31,7 @@ import type {
 import { RpcError } from "../jsonRpc";
 import { ErrorCodes } from "../protocol.gen";
 import { makeRoot } from "../roots";
+import type { DocumentLines } from "../replaceEdits";
 import { MESSAGE_VERSION, parseWebviewMessage, type WebviewMessage } from "../webviewMessages";
 import { newTestDaemon, SKIP_WITHOUT_DAEMON as skip, untilIndexed } from "./realDaemon";
 
@@ -75,6 +76,9 @@ function recordingUi() {
     saveState: () => {},
     savePinned: () => {},
     showOpened: (position, total) => void shown.push(`${position} of ${total}`),
+    readDocument: () => Promise.resolve(undefined as DocumentLines | undefined),
+    applyEdits: () => Promise.resolve(true),
+    saveFiles: () => {},
   };
   /** The payloads of every posted message of `type`, oldest first. */
   const payloads = <T extends keyof HostToWebview>(type: T) =>

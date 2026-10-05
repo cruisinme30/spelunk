@@ -55,6 +55,15 @@ const HAS_REQUIRED_FIELDS: Record<keyof HostToWebview, (payload: Fields) => bool
   banner: ({ state }) => isString(state),
   focus: () => true,
   "welcome.state": ({ preset, historyDepth }) => isString(preset) && isString(historyDepth),
+  "replace.plan": ({ seq, plan }) =>
+    isNumber(seq) &&
+    (plan === undefined || (isObject(plan) && isNumber(plan["matches"]) && isObjectArray(plan["files"]))),
+  "replace.done": ({ seq, replaced, files, skipped }) =>
+    isNumber(seq) &&
+    isNumber(replaced) &&
+    isNumber(files) &&
+    Array.isArray(skipped) &&
+    skipped.every((path) => isString(path)),
 };
 
 /** Whether `data` is a host message this webview speaks: the right version, a known type and a well-formed payload. */

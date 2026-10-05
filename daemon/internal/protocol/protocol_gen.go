@@ -953,6 +953,21 @@ type RecentRemoveMessage struct {
 	Query string `json:"query"`
 }
 
+// ReplacePreviewMessage asks what replacing the query's matches with replacement would change.
+type ReplacePreviewMessage struct {
+	Seq         int    `json:"seq"`
+	Text        string `json:"text"`
+	Replacement string `json:"replacement"`
+}
+
+// ReplaceApplyMessage replaces the matches its preview showed; matches is how many that was, so a plan that changed since is not applied.
+type ReplaceApplyMessage struct {
+	Seq         int    `json:"seq"`
+	Text        string `json:"text"`
+	Replacement string `json:"replacement"`
+	Matches     int    `json:"matches"`
+}
+
 // WelcomeStateMessage is what the welcome page shows: the shortcut preset and what is indexed.
 type WelcomeStateMessage struct {
 	Preset       string `json:"preset"`
@@ -1081,6 +1096,33 @@ type UiSettings struct {
 	Order           ResultOrder `json:"order"`
 }
 
+// ReplacePlanMessage is the preview of a replace: the edits it would make, or why it can't.
+type ReplacePlanMessage struct {
+	Seq   int          `json:"seq"`
+	Plan  *ReplacePlan `json:"plan,omitempty"`
+	Error string       `json:"error,omitempty"`
+}
+
+// ReplaceDoneMessage says what a replace changed. skipped lists the files left alone because their text no longer matched the index; changed means the matches differed from the preview, so nothing was replaced.
+type ReplaceDoneMessage struct {
+	Seq      int      `json:"seq"`
+	Replaced int      `json:"replaced"`
+	Files    int      `json:"files"`
+	Skipped  []string `json:"skipped"`
+	Changed  bool     `json:"changed,omitempty"`
+	Error    string   `json:"error,omitempty"`
+}
+
+// MarshalJSON emits [] rather than null for required arrays.
+func (v ReplaceDoneMessage) MarshalJSON() ([]byte, error) {
+	type plain ReplaceDoneMessage
+	p := plain(v)
+	if p.Skipped == nil {
+		p.Skipped = []string{}
+	}
+	return json.Marshal(p)
+}
+
 // BannerMessage reports daemon health: restarting, stopped or cleared.
 type BannerMessage struct {
 	State   string `json:"state"`
@@ -1125,6 +1167,9 @@ const (
 	MsgRecentRemove    = "recent.remove"
 	MsgPinnedSave      = "pinned.save"
 	MsgPinnedRemove    = "pinned.remove"
+	MsgReplacePreview  = "replace.preview"
+	MsgReplaceApply    = "replace.apply"
+	MsgReplaceSave     = "replace.save"
 	MsgParseResult     = "parse.result"
 	MsgSearchBatch     = "search.batch"
 	MsgSearchDone      = "search.done"
@@ -1134,4 +1179,6 @@ const (
 	MsgBanner          = "banner"
 	MsgFocus           = "focus"
 	MsgWelcomeState    = "welcome.state"
+	MsgReplacePlan     = "replace.plan"
+	MsgReplaceDone     = "replace.done"
 )
