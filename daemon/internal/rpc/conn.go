@@ -79,10 +79,11 @@ type Conn struct {
 	// received ("recv"). Set it before calling Serve.
 	Trace func(direction string, body []byte)
 
-	reader   *bufio.Reader
-	writer   io.Writer
-	writeMu  sync.Mutex            // one message at a time on the wire
-	writeErr atomic.Pointer[error] // the first failed write; set under writeMu
+	reader      *bufio.Reader
+	writer      io.Writer
+	writeMu     sync.Mutex            // one message at a time on the wire
+	writeErr    atomic.Pointer[error] // the first failed write; set under writeMu
+	writeBroken chan struct{}         // closed when writeErr is set, so Serve stops without new input
 
 	mu                   sync.Mutex
 	requestHandlers      map[string]Handler
@@ -129,6 +130,7 @@ func NewConn(r io.Reader, w io.Writer) *Conn {
 		notificationHandlers: map[string]NotificationHandler{},
 		inflight:             map[string]context.CancelFunc{},
 		pending:              map[string]chan *message{},
+		writeBroken:          make(chan struct{}),
 	}
 }
 
@@ -252,6 +254,7 @@ func (c *Conn) send(v any) error {
 	if err := WriteMessage(c.writer, body); err != nil {
 		err = fmt.Errorf("rpc: write: %w", err)
 		c.writeErr.Store(&err)
+		close(c.writeBroken)
 		return err
 	}
 	return nil
@@ -340,20 +343,55 @@ func decodeResponse(response *message, ok bool, out any) error {
 func (c *Conn) Serve(ctx context.Context) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer c.shutdown(cancel)
+	// Reads happen on their own goroutine so that a failed write or a
+	// cancelled ctx stops Serve even while the peer sends nothing.
+	reads := make(chan readResult)
+	stopped := make(chan struct{})
+	defer close(stopped)
+	go c.readLoop(reads, stopped)
 	for {
-		body, err := ReadMessage(c.reader)
-		if errors.Is(err, io.EOF) {
+		var read readResult
+		select {
+		case read = <-reads:
+		case <-c.writeBroken:
+			return c.writeFailed()
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+		if errors.Is(read.err, io.EOF) {
 			return nil
 		}
-		if err != nil {
-			return err
+		if read.err != nil {
+			return read.err
 		}
 		if c.Trace != nil {
-			c.Trace("recv", body)
+			c.Trace("recv", read.body)
 		}
-		c.route(ctx, body)
+		c.route(ctx, read.body)
 		if err := c.writeFailed(); err != nil {
 			return err
+		}
+	}
+}
+
+// readResult is one ReadMessage result, handed from readLoop to Serve.
+type readResult struct {
+	body []byte
+	err  error
+}
+
+// readLoop reads messages for Serve until a read fails or Serve has
+// stopped. A read already blocked when Serve stops ends when the input does.
+func (c *Conn) readLoop(reads chan<- readResult, stopped <-chan struct{}) {
+	for {
+		body, err := ReadMessage(c.reader)
+		select {
+		case reads <- readResult{body, err}:
+		case <-stopped:
+			return
+		}
+		if err != nil {
+			return
 		}
 	}
 }

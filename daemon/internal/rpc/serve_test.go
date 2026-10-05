@@ -260,6 +260,44 @@ func TestWriteFailureStopsServeAndNothingIsWrittenAfterIt(t *testing.T) {
 	}
 }
 
+func TestServeStopsWhileTheInputIsIdle(t *testing.T) {
+	// One request, then nothing: Serve must not wait for more input to notice
+	// that its output broke, or that its context was cancelled.
+	for _, tc := range []struct {
+		name   string
+		out    io.Writer
+		cancel bool
+	}{
+		{name: "failed write", out: &failingWriter{left: 10}},
+		{name: "cancelled context", out: io.Discard, cancel: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			connIn, peerOut := io.Pipe()
+			defer func() { _ = peerOut.Close() }()
+			conn := NewConn(connIn, tc.out)
+			conn.Handle("echo", func(_ context.Context, params json.RawMessage) (any, error) { return params, nil })
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			served := make(chan error, 1)
+			go func() { served <- conn.Serve(ctx) }()
+			if err := WriteMessage(peerOut, []byte(`{"jsonrpc":"2.0","id":1,"method":"echo"}`)); err != nil {
+				t.Fatal(err)
+			}
+			if tc.cancel {
+				cancel()
+			}
+			select {
+			case err := <-served:
+				if err == nil {
+					t.Fatal("Serve = nil, want the error that stopped it")
+				}
+			case <-time.After(10 * time.Second):
+				t.Fatal("Serve still waiting for input after it should have stopped")
+			}
+		})
+	}
+}
+
 func TestConcurrentCallsAndCancelsLeaveNoGoroutinesBehind(t *testing.T) {
 	// @covers rpc:$/cancelRequest
 	before := runtime.NumGoroutine()
@@ -301,9 +339,9 @@ func TestConcurrentCallsAndCancelsLeaveNoGoroutinesBehind(t *testing.T) {
 		}
 		wg.Wait()
 	}()
-	// Every handler has answered; only the pair's two Serve loops remain
-	// until the test's cleanup closes the pipes.
-	waitForGoroutines(t, before+2)
+	// Every handler has answered; only the pair's two Serve loops and their
+	// read loops remain until the test's cleanup closes the pipes.
+	waitForGoroutines(t, before+4)
 }
 
 // waitForGoroutines fails unless the goroutine count drops to at most
