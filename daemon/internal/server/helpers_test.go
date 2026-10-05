@@ -143,10 +143,12 @@ func wantRPCCode(t *testing.T, call string, err error, want int) {
 	}
 }
 
-// waitUntil polls condition every few milliseconds, failing the test after 5s.
+// waitUntil polls condition every few milliseconds, failing the test after
+// 30s. The limit is generous because indexing spawns git, which is slow on
+// a loaded machine; a condition that holds returns at once.
 func waitUntil(t *testing.T, what string, condition func() bool) {
 	t.Helper()
-	deadline := time.Now().Add(5 * time.Second)
+	deadline := time.Now().Add(30 * time.Second)
 	for !condition() {
 		if time.Now().After(deadline) {
 			t.Fatalf("timed out waiting for %s", what)
