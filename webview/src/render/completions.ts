@@ -23,6 +23,7 @@ const VALUE_LISTS: Partial<Record<OpName, { heading: string; hint?: string }>> =
   type: { heading: "Result kinds" },
   case: { heading: "Case" },
   count: { heading: "Results per page" },
+  order: { heading: "Result order" },
   author: { heading: "Authors" },
 };
 
