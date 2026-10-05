@@ -2,6 +2,8 @@
    theme variables, with a dark palette as the fallback outside VS Code (the
    webview tests and screenshots). */
 
+/* ===== Theme and base ===== */
+
 /* The hidden attribute wins over any display rule below. */
 [hidden] {
   display: none !important;
@@ -141,6 +143,8 @@ mark.term-color-3 {
   background: var(--term-color-3);
 }
 
+/* ===== Search bar ===== */
+
 .search-bar {
   position: sticky;
   top: 0;
@@ -248,6 +252,8 @@ mark.term-color-3 {
   background: var(--err);
 }
 
+/* ===== Suggestions ===== */
+
 /* The suggestion list under the search bar. While open it takes the place
    of the chips and results (see .completing below). */
 #completions {
@@ -307,6 +313,64 @@ mark.term-color-3 {
   color: var(--muted);
   font-size: 12px;
 }
+
+/* Suggestions take the place of the chips and results while open. The
+   diagnostics go too: they are usually about the word being completed
+   ("since: needs a value"), and come back once a suggestion is picked. */
+.search-panel.completing #chips,
+.search-panel.completing #diagnostics,
+.search-panel.completing #body {
+  display: none;
+}
+
+.search-panel.completing #completions {
+  flex: 1 1 auto;
+  min-height: 120px;
+  overflow: auto;
+}
+
+#completions .completion-operator {
+  flex: 0 0 auto;
+  min-width: 88px;
+  padding: 2px 8px;
+  border: 1px solid currentcolor;
+  border-radius: 5px;
+  font-family: var(--mono);
+}
+
+.completion-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.completion-text .title {
+  color: var(--fg);
+}
+
+.completion-text .detail {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.completion.search-as-typed {
+  border-top: 1px solid var(--line);
+  margin-top: 4px;
+}
+
+.glimpse {
+  border-top: 1px solid var(--line);
+  margin-top: 4px;
+  padding-top: 4px;
+  opacity: 0.85;
+}
+
+.glimpse .completion-group code {
+  text-transform: none;
+}
+
+/* ===== Banners and diagnostics ===== */
 
 .banner {
   display: flex;
@@ -422,6 +486,8 @@ mark.term-color-3 {
   margin: 0 0 0 4px;
 }
 
+/* ===== Parsed-query chips ===== */
+
 #chips {
   display: flex;
   flex-wrap: wrap;
@@ -528,6 +594,8 @@ mark.term-color-3 {
 .tone-history {
   color: var(--tone-history);
 }
+
+/* ===== Results ===== */
 
 #body {
   flex: 1 1 auto;
@@ -817,6 +885,8 @@ mark.term-color-3 {
   color: var(--err);
 }
 
+/* ===== Preview ===== */
+
 .preview-header {
   display: flex;
   flex-wrap: wrap;
@@ -923,6 +993,8 @@ pre.body {
   font-size: 12px;
   border-top: 1px solid var(--line);
 }
+
+/* ===== Empty box: recent queries and the cheat sheet ===== */
 
 .empty {
   flex: 1;
@@ -1146,6 +1218,8 @@ pre.body {
   font-size: 12px;
 }
 
+/* ===== Key hints and narrow panels ===== */
+
 #key-hints {
   display: flex;
   flex-wrap: wrap;
@@ -1176,61 +1250,7 @@ pre.body {
   }
 }
 
-/* Suggestions take the place of the chips and results while open. The
-   diagnostics go too: they are usually about the word being completed
-   ("since: needs a value"), and come back once a suggestion is picked. */
-.search-panel.completing #chips,
-.search-panel.completing #diagnostics,
-.search-panel.completing #body {
-  display: none;
-}
-
-.search-panel.completing #completions {
-  flex: 1 1 auto;
-  min-height: 120px;
-  overflow: auto;
-}
-
-#completions .completion-operator {
-  flex: 0 0 auto;
-  min-width: 88px;
-  padding: 2px 8px;
-  border: 1px solid currentcolor;
-  border-radius: 5px;
-  font-family: var(--mono);
-}
-
-.completion-text {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  min-width: 0;
-}
-
-.completion-text .title {
-  color: var(--fg);
-}
-
-.completion-text .detail {
-  color: var(--muted);
-  font-size: 12px;
-}
-
-.completion.search-as-typed {
-  border-top: 1px solid var(--line);
-  margin-top: 4px;
-}
-
-.glimpse {
-  border-top: 1px solid var(--line);
-  margin-top: 4px;
-  padding-top: 4px;
-  opacity: 0.85;
-}
-
-.glimpse .completion-group code {
-  text-transform: none;
-}
+/* ===== Repo menu ===== */
 
 /* The repo menu under "All repos · 3". */
 .repo-menu-anchor {
@@ -1285,6 +1305,8 @@ pre.body {
 .menuitem .name {
   flex: 1;
 }
+
+/* ===== Help page ===== */
 
 /* The help page. */
 .help {
@@ -1389,6 +1411,8 @@ pre.body {
     grid-template-columns: 1fr;
   }
 }
+
+/* ===== Welcome page ===== */
 
 /* The welcome page. */
 
