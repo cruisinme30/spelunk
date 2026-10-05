@@ -151,6 +151,7 @@ test("⇧⌫ on an empty box removes the selected recent query and keeps the sel
 });
 
 test("an empty box lists pinned queries, named or not, above the recent ones", async (t) => {
+  // @covers screen:pinned-queries
   const page = await openPanel(t);
   await restore(page, ["since:2w timeout", "sym:RetryPolicy", "retry_policy"], {}, [
     { query: "author:jane timeout", name: "Flaky payment tests" },

@@ -54,7 +54,9 @@ When a query has a mistake, the panel says what is wrong and offers a one-key fi
 stay on screen. Likely slips get a warning: `daemon|search` matches the pipe itself, so the panel offers
 `daemon OR search` or `/daemon|search/`.
 
-In an empty box, the recent queries are on the left: remove one with its ×, or select it and press ⇧⌫.
+In an empty box, the recent queries are on the left: remove one with its ×, or select it and press ⇧⌫. Star one to
+pin it above them, and give it a name if you like; the pencil renames it and the filled star (or ⇧⌫) unpins it.
+Pins live in `spelunk.ui.pinnedQueries`, so they sync with your settings, and a workspace can share its own.
 
 ## Settings
 

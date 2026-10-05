@@ -33,6 +33,9 @@ All notable changes to this project are documented here. The format follows
   and `cfg` finds `config.py`. The match starts at a word of the name (a word with a `/` matches the whole path),
   the matched letters are highlighted, and such names come after the ones that contain the word. Code lines,
   phrases, regexes, `-` exclusions and `word:yes` stay exact.
+- Pinned queries: the star on a recent query keeps it at the top of the empty box, with a name if you give it one.
+  The pencil renames a pin, and the filled star or ⇧⌫ unpins it. Pins are saved in `spelunk.ui.pinnedQueries`, so
+  they sync like other settings; set it in a workspace's settings to share pins, and pinning there saves there.
 
 ### Fixed
 
