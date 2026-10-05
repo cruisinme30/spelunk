@@ -150,6 +150,18 @@ function createWelcomePanel(
   return welcome;
 }
 
+/** The messages the welcome page sends; the others are the search panel's and the help page's. */
+const WELCOME_TYPES = [
+  "welcome.choose",
+  "welcome.shortcut",
+  "welcome.start",
+  "help.open",
+  "settings.open",
+] as const satisfies readonly WebviewMessage["type"][];
+type WelcomeMessage = Extract<WebviewMessage, { type: (typeof WELCOME_TYPES)[number] }>;
+const welcomeTypes: ReadonlySet<string> = new Set(WELCOME_TYPES);
+const fromWelcome = (message: WebviewMessage): message is WelcomeMessage => welcomeTypes.has(message.type);
+
 /**
  * Acts on the welcome page: a choice is saved in the user's settings (the
  * page then shows it, through onDidChangeConfiguration), "Choose my own"
@@ -162,6 +174,7 @@ function handleWelcome(
   onError: (error: unknown) => void,
   openSettings: () => void,
 ): void {
+  if (!fromWelcome(message)) return;
   switch (message.type) {
     case "welcome.choose": {
       saveWelcomeChoice(message.payload).catch(onError);
@@ -183,18 +196,6 @@ function handleWelcome(
     }
     case "settings.open": {
       openSettings();
-      return;
-    }
-    case "daemon.restart":
-    case "help.try":
-    case "panel.close":
-    case "query.changed":
-    case "ready":
-    case "recent.remove":
-    case "result.open":
-    case "result.select":
-    case "results.more": {
-      // The search panel's messages; the page doesn't send them.
       return;
     }
   }
