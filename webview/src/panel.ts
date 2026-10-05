@@ -17,7 +17,15 @@ import type {
   SearchDoneMessage,
   StateRestoreMessage,
 } from "./protocol.gen";
-import { applyEdits, isCasePressed, isRegexPressed, scopeToRepo, toggleCase, toggleRegex } from "./queryEdit";
+import {
+  applyEdits,
+  type Edited,
+  isCasePressed,
+  isRegexPressed,
+  scopeToRepo,
+  toggleCase,
+  toggleRegex,
+} from "./queryEdit";
 import {
   type FooterMode,
   renderBanners,
@@ -139,12 +147,17 @@ export class SearchPanel {
     return false;
   }
 
+  /** Puts `edit` of the box's text in the box, if edits worked out for `basis` still fit it; says whether it did. */
+  private editQuery(edit: (text: string) => Edited, basis: string | undefined = this.parsedText): boolean {
+    if (!this.editsFit(basis)) return false;
+    const edited = edit(this.layout.input.value);
+    this.setQuery(edited.text, edited.cursor);
+    return true;
+  }
+
   /** Applies a fix-it, completion or note's undo, worked out for `basis` (by default, the parsed text). */
   private applyFix(fix: Fix, basis = this.state.parsed?.raw): void {
-    if (!this.editsFit(basis)) return;
-    const edited = applyEdits(this.layout.input.value, fix.edits);
-    this.setQuery(edited.text, edited.cursor);
-    this.layout.input.focus();
+    if (this.editQuery((text) => applyEdits(text, fix.edits), basis)) this.layout.input.focus();
   }
 
   private acceptCompletion(index: number): void {
@@ -194,14 +207,10 @@ export class SearchPanel {
     );
 
     caseButton.addEventListener("click", () => {
-      if (!this.editsFit(this.parsedText)) return;
-      const edited = toggleCase(input.value, this.state.parsed, this.state.ui.caseSensitive);
-      this.setQuery(edited.text, edited.cursor);
+      this.editQuery((text) => toggleCase(text, this.state.parsed, this.state.ui.caseSensitive));
     });
     regexButton.addEventListener("click", () => {
-      if (!this.editsFit(this.parsedText)) return;
-      const edited = toggleRegex(input.value, this.state.parsed);
-      this.setQuery(edited.text, edited.cursor);
+      this.editQuery((text) => toggleRegex(text, this.state.parsed));
     });
     reposButton.addEventListener("click", () => {
       this.toggleRepoMenu();
@@ -236,10 +245,7 @@ export class SearchPanel {
     renderRepoMenu(repoMenu, this.state.repos, scopedRepo(this.state.parsed), {
       onPick: (repoName) => {
         this.toggleRepoMenu(false);
-        if (!this.editsFit(this.parsedText)) return;
-        const edited = scopeToRepo(input.value, this.state.parsed, repoName);
-        this.setQuery(edited.text, edited.cursor);
-        input.focus();
+        if (this.editQuery((text) => scopeToRepo(text, this.state.parsed, repoName))) input.focus();
       },
     });
   }
