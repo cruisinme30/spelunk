@@ -149,6 +149,31 @@ test("a result of a kind the panel doesn't know is skipped, and the rest of its 
   assert.deepEqual(pageErrors(page), []);
 });
 
+/** The refs of the result rows on screen. */
+const shownReferences = (page) =>
+  page.locator('[data-testid="result"]').evaluateAll((rows) => rows.map((row) => row.dataset.ref));
+
+test("a late batch of the old search is dropped once a newer query replaces it", async (t) => {
+  const { page, seq } = await searchingPanel(t);
+  await fromHost(page, "search.batch", { seq, searchId: "s1", items: [codeLine("old-1", "retry", [])] });
+  await typeAndParse(page, "timeout", parsedQuery("timeout", textNode("timeout", 0)));
+  await fromHost(page, "search.batch", { seq, searchId: "s1", items: [codeLine("old-2", "retry", [])] });
+  await fromHost(page, "search.done", { seq, searchId: "s1", total: 2, truncated: true, hidden: [], ms: 1 });
+  assert.deepEqual(await shownReferences(page), ["old-1"]);
+  assert.equal(await page.locator('[data-testid="summary"]').textContent(), "1 code match");
+});
+
+test("while the box has errors, the last good search keeps streaming its results", async (t) => {
+  const { page, seq } = await searchingPanel(t);
+  await fromHost(page, "search.batch", { seq, searchId: "s1", items: [codeLine("old-1", "retry", [])] });
+  const diagnostics = [
+    { severity: "error", code: "unclosed_paren", message: "(", span: { start: 6, end: 7 }, fixes: [] },
+  ];
+  await typeAndParse(page, "retry (", parsedQuery("retry (", null, { diagnostics }));
+  await fromHost(page, "search.batch", { seq, searchId: "s1", items: [codeLine("old-2", "retry", [])] });
+  assert.deepEqual(await shownReferences(page), ["old-1", "old-2"]);
+});
+
 test("a corrupt or old saved state leaves the box empty", async (t) => {
   for (const saved of ["text", 42, [1, 2], { text: 5 }, { text: { nested: true } }, { version: 0, query: "x" }]) {
     const page = await openPanelWithSavedState(t, saved);

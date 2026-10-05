@@ -419,9 +419,13 @@ export class SearchPanel {
     input.focus();
   }
 
-  /** A batch or done message belongs to the newest query, or extends the search on screen (Load more). */
+  /**
+   * A batch or done message belongs to the newest query, or extends the
+   * search on screen (Load more, or results kept while the box has errors)
+   * until a newer query replaces it.
+   */
   private isCurrent(seq: number, searchId: string): boolean {
-    return seq === this.state.seq || searchId === this.state.searchId;
+    return seq === this.state.seq || (searchId === this.state.searchId && !this.state.searchReplaced);
   }
 
   /** The daemon's reading of the box: updates the toggles, suggestions, diagnostics and chips. */
@@ -433,6 +437,7 @@ export class SearchPanel {
     if (state.completionIndex >= completions.length) state.completionIndex = 0;
     const errors = hasErrors(state);
     if (!errors && query.root) state.lastGoodText = query.raw;
+    if (!errors) state.searchReplaced = true; // the host searches this query instead
 
     const { caseButton, regexButton, shell, input } = this.layout;
     caseButton.setAttribute("aria-pressed", String(isCasePressed(query, state.ui.caseSensitive)));
@@ -457,6 +462,7 @@ export class SearchPanel {
     if (this.results && searchId === this.state.searchId) return this.results;
     const state = this.state;
     state.searchId = searchId;
+    state.searchReplaced = false;
     state.done = undefined;
     state.selectedRef = "";
     state.preview = undefined;

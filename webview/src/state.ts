@@ -31,6 +31,13 @@ export interface ViewState {
   completionsOpen: boolean;
   /** The search whose results are on screen ("" when none). */
   searchId: string;
+  /**
+   * Whether a newer query without errors has replaced the search on screen.
+   * The host cancels that search then, so a message of it still in flight is
+   * dropped; until then its pages keep arriving (a query with errors keeps the
+   * last good results, Load more included).
+   */
+  searchReplaced: boolean;
   done: SearchDoneMessage | undefined;
   /** Raw text of the last query that parsed without errors; its results stay while the box has errors. */
   lastGoodText: string;
@@ -72,6 +79,7 @@ export function createViewState(): ViewState {
     completionIndex: 0,
     completionsOpen: false,
     searchId: "",
+    searchReplaced: false,
     done: undefined,
     lastGoodText: "",
     selectedRef: "",
