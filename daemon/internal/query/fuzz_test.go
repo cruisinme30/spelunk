@@ -150,6 +150,28 @@ func checkPlan(t *testing.T, q protocol.ParsedQuery) {
 	}
 }
 
+// FuzzComplete checks that completions never panic, whatever the cursor,
+// and that their edits lie inside the text.
+func FuzzComplete(f *testing.F) {
+	for _, seed := range querySeeds {
+		f.Add(seed, len(seed))
+		f.Add(seed, len(seed)/2)
+	}
+	f.Add("since:3", 7)
+	f.Add("since:99999mi", 13)
+	f.Add("f:*.p", 5)
+	f.Add("lang:", -1)
+	f.Fuzz(func(t *testing.T, text string, cursor int) {
+		src := newSource(text)
+		for _, completion := range Complete(text, cursor, testResolver, fixedNow) {
+			for _, edit := range completion.Insert.Edits {
+				checkSpan(t, src, edit.Span, "completion "+completion.Label)
+			}
+			Parse(ApplyFix(text, completion.Insert), testResolver)
+		}
+	})
+}
+
 // TestParseIsLinearOnLongQueries parses a megabyte of each construct that
 // once took quadratic time or overflowed the stack, and a query at the
 // length limit whose misplaced globals took factorial time.
