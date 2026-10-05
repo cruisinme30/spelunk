@@ -38,7 +38,15 @@ type parser struct {
 	problems diagnostics
 	// nextTermIndex numbers text terms in query order, for highlight colors.
 	nextTermIndex int
+	// depth is how many groups enclose the current position.
+	depth int
 }
+
+// maxGroupDepth is how deeply groups may nest before the parser skips
+// what's inside them. Each "(" is a character, so only a query already too
+// long to run nests deeper; without the cap, a pasted run of "(" recursed
+// until the stack overflowed and took the daemon down.
+const maxGroupDepth = maxQueryLength
 
 func (p *parser) peek() token { return p.tokens[p.pos] }
 
@@ -160,8 +168,14 @@ func (p *parser) parsePrimary() *protocol.Node {
 }
 
 func (p *parser) parseGroup() *protocol.Node {
+	if p.depth >= maxGroupDepth {
+		p.skipGroup()
+		return nil
+	}
 	open := p.advance()
+	p.depth++
 	inner := p.parseOr()
+	p.depth--
 	if !p.at(tokenCloseParen) {
 		p.reportUnclosedParen(open, inner)
 		return inner
@@ -172,6 +186,22 @@ func (p *parser) parseGroup() *protocol.Node {
 		p.problems.errorf(DiagEmptyGroup, group, []protocol.Fix{removeFix("Remove ()", p.src, group)}, "Empty parentheses")
 	}
 	return inner
+}
+
+// skipGroup consumes a group, up to its ")" or the end, without parsing it.
+func (p *parser) skipGroup() {
+	for open := 0; !p.at(tokenEnd); {
+		switch p.advance().kind {
+		case tokenOpenParen:
+			open++
+		case tokenCloseParen:
+			open--
+		default:
+		}
+		if open == 0 {
+			return
+		}
+	}
 }
 
 // reportUnclosedParen offers to close the group where it most likely ends.
