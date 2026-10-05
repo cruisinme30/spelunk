@@ -88,8 +88,12 @@ function sheetCard(group: OperatorGroup, onInsert: (snippet: string) => void): H
     const button = element(
       "button",
       { type: "button", class: "sheet-entry", "data-testid": "sheet-op" },
-      element("code", { class: tone }, entry.label),
-      shortName(entry) ? element("code", { class: "muted" }, shortName(entry)) : null,
+      element(
+        "span",
+        { class: "sheet-names" },
+        element("code", { class: tone }, entry.label),
+        shortName(entry) ? element("code", { class: "muted" }, shortName(entry)) : null,
+      ),
       element("span", { class: "muted" }, entry.summary),
     );
     button.addEventListener("click", () => {

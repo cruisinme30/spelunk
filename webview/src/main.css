@@ -1065,6 +1065,14 @@ pre.body {
   background: var(--hover);
 }
 
+/* An operator's full and short names, side by side above its summary. */
+.sheet-names {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
 .sheet-entry code {
   font-size: 12px;
   padding: 1px 6px;

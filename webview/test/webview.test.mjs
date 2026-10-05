@@ -32,6 +32,10 @@ test("an empty box shows recent queries and all 16 operators", async (t) => {
   await restore(page, ["sym:RetryPolicy", "since:2w timeout"]);
   assert.equal(await page.locator('[data-testid="recent"]').count(), 2);
   assert.equal(await page.locator('[data-testid="sheet-op"]').count(), 16);
+  // An operator's full and short names share one line.
+  const [full, short] = await page.locator('[data-testid="sheet-op"]').first().locator("code").all();
+  assert.equal(await short.textContent(), "c:");
+  assert.equal((await full.boundingBox()).y, (await short.boundingBox()).y);
 });
 
 test("the × on a recent query removes it without running it", async (t) => {
