@@ -178,6 +178,32 @@ func commitSearch(t *testing.T, client *testClient, text string) ([]string, prot
 	return subjects, result
 }
 
+func TestPlainWordsMatchCommitMessages(t *testing.T) {
+	// @covers screen:words-in-messages
+	root := checkoutRepo(t)
+	client := newTestClient(t)
+	client.mustInitialize(t, protocol.Root{ID: "r1", Path: root, Name: "payments-api"})
+	client.waitForHistory(t)
+	batches := collectBatches(client)
+
+	// Only Jason's message says flaky; his diff doesn't.
+	var result protocol.SearchResult
+	if err := client.call(protocol.MethodSearchStart, protocol.SearchStartParams{SearchID: "s1", Text: "author:jason flaky"}, &result); err != nil {
+		t.Fatal(err)
+	}
+	items := batches.of("s1")
+	if len(items) != 1 || items[0].Subject != "Fix flaky checkout test" || !items[0].InMessage || items[0].DiffHits != 0 {
+		t.Fatalf("author:jason flaky = %+v, want Fix flaky checkout test, matched in its message alone", items)
+	}
+	var preview protocol.Preview
+	if err := client.call(protocol.MethodPreviewGet, protocol.PreviewParams{Ref: items[0].Ref, ContextLines: 3}, &preview); err != nil {
+		t.Fatal(err)
+	}
+	if want := []protocol.Range{{Start: 4, End: 9}}; !reflect.DeepEqual(preview.SubjectHits, want) {
+		t.Errorf("preview marks %v in the subject, want %v (flaky)", preview.SubjectHits, want)
+	}
+}
+
 func TestBooleanHistoryQueriesCountWhatTheyHide(t *testing.T) {
 	// @covers screen:boolean-history
 	root := checkoutRepo(t)
