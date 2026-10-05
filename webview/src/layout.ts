@@ -136,6 +136,33 @@ function createReplaceToggle(): HTMLButtonElement {
   );
 }
 
+/** The regions under the search bar, in display order. */
+function createRegions(): Pick<
+  Layout,
+  "completions" | "banner" | "diagnostics" | "chips" | "facets" | "body" | "footer"
+> {
+  return {
+    completions: element("div", {
+      id: "completions",
+      role: "listbox",
+      "aria-label": "Suggestions",
+      "data-testid": "completions",
+      hidden: true,
+    }),
+    banner: element("div", { id: "banner", "data-testid": "banner" }),
+    diagnostics: element("div", { id: "diagnostics", "data-testid": "diagnostics" }),
+    chips: element("div", { id: "chips", "data-testid": "chips" }),
+    facets: element("div", {
+      id: "facets",
+      role: "toolbar",
+      "aria-label": "Narrow the results",
+      "data-testid": "facets",
+    }),
+    body: element("div", { id: "body" }),
+    footer: element("div", { id: "key-hints", "data-testid": "keys" }),
+  };
+}
+
 /** Builds the skeleton into `root` and returns its parts. */
 export function createLayout(root: HTMLElement): Layout {
   const input = createQueryInput();
@@ -157,27 +184,7 @@ export function createLayout(root: HTMLElement): Layout {
   const settingsButton = createSettingsButton();
   const statusDot = element("span", { class: "status-dot", "aria-hidden": "true" });
   const statusText = element("span", { class: "status-text", "data-testid": "index-status" });
-  // The regions under the search bar, in display order.
-  const regions = {
-    completions: element("div", {
-      id: "completions",
-      role: "listbox",
-      "aria-label": "Suggestions",
-      "data-testid": "completions",
-      hidden: true,
-    }),
-    banner: element("div", { id: "banner", "data-testid": "banner" }),
-    diagnostics: element("div", { id: "diagnostics", "data-testid": "diagnostics" }),
-    chips: element("div", { id: "chips", "data-testid": "chips" }),
-    facets: element("div", {
-      id: "facets",
-      role: "toolbar",
-      "aria-label": "Narrow the results",
-      "data-testid": "facets",
-    }),
-    body: element("div", { id: "body" }),
-    footer: element("div", { id: "key-hints", "data-testid": "keys" }),
-  };
+  const regions = createRegions();
   const searchBar = element(
     "div",
     { class: "search-bar" },
