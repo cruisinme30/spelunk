@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -30,8 +31,9 @@ func Preview(ctx context.Context, repo *Repo, ref Ref, plan *query.Plan, context
 	if err != nil {
 		return protocol.Preview{}, err
 	}
-	out, err := git(ctx, repo.Root, "show", "--format=", "--no-color", "--no-ext-diff", "--no-renames",
-		"--relative", "-m", "--first-parent", "-U"+strconv.Itoa(max(contextLines, 0)), ref.SHA, "--")
+	args := slices.Concat([]string{"show", "--format=", "--relative", "-m", "--first-parent"}, diffOptions,
+		[]string{"-U" + strconv.Itoa(max(contextLines, 0)), ref.SHA, "--"})
+	out, err := git(ctx, repo.Root, args...)
 	if err != nil {
 		return protocol.Preview{}, ErrStale
 	}

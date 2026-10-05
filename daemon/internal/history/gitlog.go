@@ -60,17 +60,35 @@ type Options struct {
 var ErrNotGit = errors.New("not a Git repository")
 
 // logFormat starts each commit with a record separator (0x1e) and ends each
-// field with a unit separator (0x1f): sha, author name, author email,
-// author date, subject, body.
-const logFormat = "%x1e%H%x1f%aN%x1f%aE%x1f%aI%x1f%s%x1f%b%x1f"
+// field with a NUL: sha, author name, author email, author date (ISO 8601,
+// and as a Unix time for dates ISO 8601 can't write), subject, body. Names
+// and messages can hold any other control character, but Git can't store
+// a NUL in them. No line of a patch starts with 0x1e.
+const logFormat = "%x1e%H%x00%aN%x00%aE%x00%aI%x00%at%x00%s%x00%b%x00"
+
+// fieldEnd ends each field of logFormat.
+const fieldEnd = 0x00
 
 // headerFields is how many fields logFormat writes.
-const headerFields = 6
+const headerFields = 7
 
-// gitOptions come before every git command: plain path names, and no
-// optional locks, so the daemon never makes the user's own git commands
-// wait or fail on a lock.
-var gitOptions = []string{"--no-optional-locks", "-c", "core.quotepath=off"}
+// gitOptions come before every git command: plain path names; no optional
+// locks, so the daemon never makes the user's own git commands wait or fail
+// on a lock; and output in the shape the parsers read, whatever the user's
+// Git configuration says (signatures shown, another log encoding, root
+// commits without a diff).
+var gitOptions = []string{
+	"--no-optional-locks", "-c", "core.quotepath=off", "-c", "log.showSignature=false",
+	"-c", "i18n.logOutputEncoding=UTF-8", "-c", "log.showRoot=true",
+}
+
+// diffOptions fix how patches look, whatever the user's diff.* settings
+// say: "a/" and "b/" before paths (diff.noPrefix, diff.mnemonicPrefix and
+// diff.srcPrefix change them), no color, no external diff tool, renames
+// as a deletion and an addition, and a submodule as one line.
+var diffOptions = []string{
+	"--src-prefix=a/", "--dst-prefix=b/", "--no-color", "--no-ext-diff", "--no-renames", "--submodule=short",
+}
 
 // git runs git in root and returns its standard output.
 func git(ctx context.Context, root string, args ...string) ([]byte, error) {
@@ -128,11 +146,8 @@ func countCommits(ctx context.Context, root, revisions string, opts Options) int
 // opts sets, calling each for every commit read.
 func readLog(ctx context.Context, root, revisions string, opts Options, each func(Commit) error) error {
 	args := slices.Concat(gitOptions, []string{
-		"-C", root, "log",
-		"--first-parent", "-m", "--relative", "-p", "-U0",
-		"--no-color", "--no-ext-diff", "--no-renames", "--use-mailmap",
-		"--format=" + logFormat,
-	})
+		"-C", root, "log", "--first-parent", "-m", "--relative", "-p", "-U0", "--use-mailmap", "--format=" + logFormat,
+	}, diffOptions)
 	if !opts.Since.IsZero() {
 		args = append(args, "--since="+opts.Since.Format(time.RFC3339))
 	}
@@ -198,13 +213,23 @@ type logParser struct {
 }
 
 // readLine returns the next line without its newline, cut at
-// maxLineBytes; the rest of a longer line is skipped.
+// maxLineBytes; the rest of a longer line is skipped. In a commit's header
+// the field separators of the rest are kept, so a long subject or body
+// line is cut short but doesn't run into the next field (or commit).
 func (p *logParser) readLine() ([]byte, error) {
 	var line []byte
+	inHeader := p.header != nil
 	for {
 		chunk, err := p.lines.ReadSlice('\n')
-		if len(line) < maxLineBytes {
-			line = append(line, chunk[:min(len(chunk), maxLineBytes-len(line))]...)
+		if len(line) == 0 && len(chunk) > 0 && chunk[0] == 0x1e {
+			inHeader = true
+		}
+		kept := chunk[:min(len(chunk), max(maxLineBytes-len(line), 0))]
+		line = append(line, kept...)
+		if inHeader {
+			for range bytes.Count(chunk[len(kept):], []byte{fieldEnd}) {
+				line = append(line, fieldEnd)
+			}
 		}
 		if errors.Is(err, bufio.ErrBufferFull) {
 			continue
@@ -236,20 +261,30 @@ func (p *logParser) feed(line []byte, each func(Commit) error) error {
 // finishHeader starts the commit once its header has every field.
 func (p *logParser) finishHeader() error {
 	text := p.header.String()
-	if strings.Count(text, "\x1f") < headerFields {
+	if strings.Count(text, string(rune(fieldEnd))) < headerFields {
 		return nil // the body continues on the next line
 	}
 	p.header = nil
-	fields := strings.SplitN(text, "\x1f", headerFields+1)
-	at, err := time.Parse(time.RFC3339, fields[3])
-	if err != nil {
-		return fmt.Errorf("commit %s: bad date %q", fields[0], fields[3])
-	}
+	fields := strings.SplitN(text, string(rune(fieldEnd)), headerFields+1)
 	p.commit = &Commit{
-		SHA: fields[0], AuthorName: fields[1], AuthorEmail: fields[2], At: at,
-		Subject: fields[4], Body: strings.TrimSpace(fields[5]),
+		SHA: fields[0], AuthorName: fields[1], AuthorEmail: fields[2], At: commitDate(fields[3], fields[4]),
+		Subject: fields[5], Body: strings.TrimSpace(fields[6]),
 	}
 	return nil
+}
+
+// commitDate reads a commit's author date from its ISO 8601 form, or from
+// its Unix time when that is out of range: Git writes whatever a commit
+// holds, such as the time zone +9999 or the year 10000. A date Git can't
+// read either is the zero time; it never stops the history being read.
+func commitDate(iso, unix string) time.Time {
+	if at, err := time.Parse(time.RFC3339, iso); err == nil {
+		return at
+	}
+	if seconds, err := strconv.ParseInt(unix, 10, 64); err == nil {
+		return time.Unix(seconds, 0).UTC()
+	}
+	return time.Time{}
 }
 
 // patchLine reads one line of a commit's patch.
@@ -336,10 +371,17 @@ func (p *logParser) finish(each func(Commit) error) error {
 	return each(commit)
 }
 
-// diffGitPath takes the path from "diff --git a/x b/x"; the --- and +++
-// lines that follow correct it when the name holds " b/".
+// diffGitPath takes the path from "diff --git a/x b/x", or from
+// "diff --git "a/x\ty" "b/x\ty"" when Git quoted an unusual name; the ---
+// and +++ lines that follow correct it when the name holds " b/". A binary
+// or mode-only change has no such lines, so this is its path.
 func diffGitPath(line string) string {
 	rest := strings.TrimPrefix(line, "diff --git ")
+	if strings.HasSuffix(rest, `"`) {
+		if i := strings.LastIndex(rest, ` "b/`); i >= 0 {
+			return strings.TrimPrefix(unquote(rest[i+1:]), "b/")
+		}
+	}
 	if i := strings.LastIndex(rest, " b/"); i >= 0 {
 		return unquote(rest[i+3:])
 	}
