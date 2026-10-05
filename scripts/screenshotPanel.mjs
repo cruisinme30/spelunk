@@ -195,12 +195,14 @@ async function loadHost() {
   return import(pathToFileURL(outfile).href);
 }
 
+/** Whether an index has nothing left to read: it's ready, or off (a folder outside Git has no history). */
+const finished = (state) => state === "ready" || state === "off";
+
 /** Waits until the daemon has indexed every root's files and history, so the results are complete. */
 async function untilIndexed(daemon) {
-  const done = (state) => state === "ready" || state === "off";
   await until("every root indexed", async () => {
     const { repos } = await daemon.request("index/status", {});
-    return repos.every((repo) => repo.tree === "ready" && done(repo.history));
+    return repos.every((repo) => repo.tree === "ready" && finished(repo.history));
   });
 }
 
