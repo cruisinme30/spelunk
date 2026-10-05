@@ -45,7 +45,7 @@ export interface Hit {
 }
 
 /** OpName is an operator's name, the part before the colon. */
-export type OpName = "f" | "repo" | "lang" | "type" | "sym" | "kind" | "is" | "author" | "msg" | "since" | "case" | "word" | "count" | "order";
+export type OpName = "f" | "repo" | "lang" | "type" | "sym" | "kind" | "ref" | "is" | "author" | "msg" | "since" | "case" | "word" | "count" | "order";
 
 /** CaseSetting is how capital letters match when the query has no case: ignored (off), matched (on), or matched only when the query has a capital letter (smart). */
 export type CaseSetting = "off" | "on" | "smart";

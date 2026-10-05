@@ -45,7 +45,7 @@ func Preview(repo *Repo, ref Ref, plan *query.Plan, contextLines int) (protocol.
 	// text has nothing to mark.
 	if plan != nil && (!ref.IsFile() || plan.Kinds[query.KindLine]) {
 		doc := &Doc{Path: ref.Path, Lang: language, ModTime: info.ModTime(), Content: content}
-		terms = query.Contributing(plan.Pred, contentLeaf(repo, doc, newLineMatcher(content, termCache{})))
+		terms = query.Contributing(plan.Pred, contentLeaf(repo, doc, newFileMatcher(doc, termCache{})))
 	}
 	hits := []protocol.LineHits{}
 	shown := make([]string, 0, last-first+1)

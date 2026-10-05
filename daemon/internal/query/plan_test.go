@@ -42,6 +42,7 @@ func TestPlanLowersTheQuery(t *testing.T) {
 		{"sym:/Retry.*/", "and(sym:/(?i)Retry.*/)"},
 		{"sym:Retry kind:class", "and(sym:/(?i)Retry/ kind:class)"},
 		{"k:method -f:test", "and(kind:method not(path:/(?i)test/))"},
+		{"timeout ref:RetryPolicy", "and(content#0:/(?i)timeout/ ref#1:/(?i)RetryPolicy/)"},
 		{`author:jane msg:"fix flaky" -f:vendor/`, `and(author:~"jane" msg:/(?i)fix flaky/ not(path:/(?i)vendor//))`},
 		{`author:"Jane Doe" x`, `and(author:="jane doe" content#0:/(?i)x/)`},
 		{"repo:web count:20 x", "and(repo:/(?i)web/ content#0:/(?i)x/)"},
@@ -53,11 +54,14 @@ func TestPlanLowersTheQuery(t *testing.T) {
 	}
 }
 
-func TestKindReturnsDefinitions(t *testing.T) {
-	// @covers op:kind
+func TestKindReturnsDefinitionsAndRefReturnsCodeLines(t *testing.T) {
+	// @covers op:kind op:ref
 	tests := map[string]string{
-		"kind:function":     "symbol",
-		"sym:Retry k:class": "symbol",
+		"kind:function":            "symbol",
+		"sym:Retry k:class":        "symbol",
+		"ref:RetryPolicy":          "line",
+		"x:RetryPolicy f:payments": "line",
+		"ref:RetryPolicy timeout":  "line",
 	}
 	for query, want := range tests {
 		if got := kinds(mustPlan(t, query, defaultSettings)); got != want {
@@ -70,6 +74,32 @@ func TestKindIsAFilterThatCountsWhatItHid(t *testing.T) {
 	plan := mustPlan(t, "sym:Retry kind:class", defaultSettings)
 	if len(plan.Filters) != 1 || plan.Filters[0].Reason != "kind" || plan.Filters[0].Index != 1 || plan.Filters[0].Undo.Title != "Remove kind:class" {
 		t.Errorf("filters = %+v, want kind:class, undone by removing it", plan.Filters)
+	}
+}
+
+func TestRefMatchesWholeWordsWithoutWord(t *testing.T) {
+	plan := mustPlan(t, "retry ref:RetryPolicy", defaultSettings)
+	ref := plan.Terms[1]
+	if !ref.Reference || !ref.WholeWord || plan.Terms[0].WholeWord {
+		t.Fatalf("terms = %s, want only the ref: term whole-word", plan.Pred)
+	}
+	if got := ref.FindStringIndex("p = RetryPolicyConfig(RetryPolicy())"); len(got) != 2 || got[0] != len("p = RetryPolicyConfig(") {
+		t.Errorf("ref:RetryPolicy matched %v, want only the whole word", got)
+	}
+	if !ref.IsDefinitionOf("retrypolicy") || ref.IsDefinitionOf("RetryPolicyConfig") {
+		t.Error("IsDefinitionOf should match the whole name, ignoring case like the term")
+	}
+	// Counting what word:yes hid relaxes text terms, but ref: stays whole words.
+	if partial := mustPlan(t, "word:yes retry ref:RetryPolicy", defaultSettings).MatchingPartialWords(); partial.Terms[0].WholeWord || !partial.Terms[1].WholeWord {
+		t.Errorf("relaxed terms = %s, want retry relaxed and ref: still whole words", partial.Pred)
+	}
+}
+
+func TestRefWithACapitalTurnsOnSmartCase(t *testing.T) {
+	smart := defaultSettings
+	smart.CaseSensitive = protocol.CaseSettingSmart
+	if !mustPlan(t, "ref:RetryPolicy", smart).CaseSensitive || mustPlan(t, "ref:retry", smart).CaseSensitive {
+		t.Error("smart case should match case for ref:RetryPolicy and ignore it for ref:retry")
 	}
 }
 

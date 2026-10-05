@@ -190,6 +190,18 @@ func TestWordYesMatchesWholeWordsAndReportsTheRest(t *testing.T) {
 	}
 }
 
+func TestRefSkipsDefinitionsEvenWithoutASymbolIndex(t *testing.T) {
+	// shardOf indexes no symbols, so the matcher finds the definitions itself.
+	repo := repoOf("r", map[string]string{
+		"retry.go": "package r\n\nfunc Retry() {}\n\nfunc run() { Retry(); retryCount := Retry }\n",
+	})
+	got, _ := run(t, "ref:Retry", repo)
+	want := []string{"retry.go:5 func run() { Retry(); retryCount := Retry }"}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("results = %q, want %q (not the func Retry line)", got, want)
+	}
+}
+
 func TestResultsFailingTwoFiltersAreNotCreditedToEither(t *testing.T) {
 	_, stats := run(t, "timeout -f:vendor/ -f:lib/", webRepo)
 	if len(stats.Hidden) != 0 {

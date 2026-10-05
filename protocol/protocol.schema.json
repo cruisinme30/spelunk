@@ -73,6 +73,7 @@
         "type",
         "sym",
         "kind",
+        "ref",
         "is",
         "author",
         "msg",

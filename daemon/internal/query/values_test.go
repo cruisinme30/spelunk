@@ -180,4 +180,7 @@ func TestSymbolSuggestionsNameTheDefinitions(t *testing.T) {
 	if got := shown(Complete("sym:retry", len("sym:retry"), testResolver, fixedNow)); got != want {
 		t.Errorf("Complete(sym:retry) =\n%s\nwant\n%s", got, want)
 	}
+	if got := shown(Complete("ref:retry", len("ref:retry"), testResolver, fixedNow)); got != want {
+		t.Errorf("Complete(ref:retry) =\n%s\nwant the same names as sym:\n%s", got, want)
+	}
 }

@@ -47,6 +47,7 @@ var operators = []operator{
 	{name: protocol.OpNameSince, full: "since", short: "d", summary: "Only changes inside a time window", examples: []string{"30d", "2w", "6m", "1y", "today", "yesterday", "2h"}, interpret: asDuration},
 	{name: protocol.OpNameSym, full: "symbol", short: "s", scope: scopeWorkingTreeOnly, summary: "Symbol definitions", interpret: asText},
 	{name: protocol.OpNameKind, full: "kind", short: "k", scope: scopeWorkingTreeOnly, summary: "Only definitions of one kind", examples: SymbolKinds, interpret: oneOf(SymbolKinds...)},
+	{name: protocol.OpNameRef, full: "ref", short: "x", scope: scopeWorkingTreeOnly, summary: "Whole-word uses of a name, without its definitions", interpret: asReference},
 	{name: protocol.OpNameIs, full: "is", short: "i", summary: "Open, changed or test files", examples: []string{StateOpen, StateChanged, StateTest}, interpret: oneOf(StateOpen, StateChanged, StateTest)},
 	{name: protocol.OpNameLang, full: "language", short: "l", summary: "Programming language", examples: []string{"python", "go", "typescript"}, interpret: asLanguage},
 	{name: protocol.OpNameRepo, full: "repo", short: "r", summary: "Repo name, as a regex or a glob", interpret: asPathRegex},
@@ -147,6 +148,19 @@ func asText(value string, form valueForm) (protocol.Match, string) {
 		return protocol.MatchPhrase, ""
 	case formRegex:
 		return protocol.MatchRegex, regexProblem(value)
+	default:
+		return protocol.MatchLiteral, ""
+	}
+}
+
+// asReference: ref: takes a name, or a "quoted name"; uses are found as
+// whole words, so a regex would have nothing to anchor.
+func asReference(_ string, form valueForm) (protocol.Match, string) {
+	switch form {
+	case formQuoted:
+		return protocol.MatchPhrase, ""
+	case formRegex:
+		return protocol.MatchLiteral, "ref: takes a name, not a regex"
 	default:
 		return protocol.MatchLiteral, ""
 	}

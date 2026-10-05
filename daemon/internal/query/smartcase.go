@@ -9,14 +9,14 @@ import (
 )
 
 // hasCapital reports whether the text the query searches for (text terms,
-// sym: and msg: values) has a capital letter, which makes smart case match
-// case. Filters such as f: and repo: don't count, as ripgrep's --smart-case
-// ignores its globs.
+// sym:, ref: and msg: values) has a capital letter, which makes smart case
+// match case. Filters such as f: and repo: don't count, as ripgrep's
+// --smart-case ignores its globs.
 func hasCapital(root *protocol.Node) bool {
 	found := false
 	walk(root, func(n *protocol.Node) {
 		searched := n.Kind == protocol.NodeKindText ||
-			n.Kind == protocol.NodeKindOp && (n.Op == protocol.OpNameSym || n.Op == protocol.OpNameMsg)
+			n.Kind == protocol.NodeKindOp && (n.Op == protocol.OpNameSym || n.Op == protocol.OpNameRef || n.Op == protocol.OpNameMsg)
 		if !found && searched {
 			found = valueHasCapital(n.Value, n.Match)
 		}

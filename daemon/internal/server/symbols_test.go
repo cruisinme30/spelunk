@@ -3,6 +3,8 @@ package server
 import (
 	"path/filepath"
 	"reflect"
+	"slices"
+	"strconv"
 	"testing"
 
 	"github.com/cruisinme30/spelunk/daemon/internal/protocol"
@@ -130,5 +132,27 @@ func TestKindKeepsOneKindOfDefinitionAndCountsTheRest(t *testing.T) {
 	}
 	if _, all := search(t, client, query.ApplyFix(text, note.Undo)); all.Total != 4 {
 		t.Errorf("%q finds %d definitions, want 4", note.Undo.Title, all.Total)
+	}
+}
+
+func TestRefFindsUsesOfANameButNotItsDefinitions(t *testing.T) {
+	client := newTestClient(t)
+	client.mustInitialize(t, symbolWorkspace(t)...)
+
+	items, _ := search(t, client, "ref:RetryPolicy")
+	var got []string
+	for _, item := range items {
+		got = append(got, item.RepoID+"/"+item.Path+":"+strconv.Itoa(item.Line))
+	}
+	slices.Sort(got)
+	// The class and interface lines define it, and RetryPolicyError,
+	// RetryPolicyConfig and retry_policy are other names.
+	want := []string{
+		"payments-api/src/payments/client.py:1",
+		"payments-api/src/payments/client.py:3",
+		"web-checkout/src/api/checkout.ts:1",
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("ref:RetryPolicy =\n%q\nwant\n%q", got, want)
 	}
 }

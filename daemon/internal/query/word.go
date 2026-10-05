@@ -142,3 +142,10 @@ func canResume(re *regexp.Regexp) bool {
 	}
 	return visit(parsed)
 }
+
+// IsDefinitionOf reports whether name, a definition's name, is the name a
+// ref: term looks for: the term matches all of it, not just a part.
+func (c *Content) IsDefinitionOf(name string) bool {
+	loc := c.Re.FindStringIndex(name)
+	return len(loc) == 2 && loc[0] == 0 && loc[1] == len(name)
+}

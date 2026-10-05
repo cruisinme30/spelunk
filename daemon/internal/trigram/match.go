@@ -7,6 +7,7 @@ import (
 	"slices"
 
 	"github.com/cruisinme30/spelunk/daemon/internal/query"
+	"github.com/cruisinme30/spelunk/daemon/internal/symbols"
 )
 
 type byteHit struct {
@@ -26,10 +27,28 @@ type lineMatcher struct {
 	content []byte
 	terms   termCache
 	cache   map[*query.Content][]matchedLine
+	// definitions returns the file's definitions, which ref: terms skip.
+	// It is nil for texts that aren't files, such as commits.
+	definitions func() []symbols.Symbol
 }
 
 func newLineMatcher(content []byte, terms termCache) *lineMatcher {
 	return &lineMatcher{content: content, terms: terms, cache: map[*query.Content][]matchedLine{}}
+}
+
+// newFileMatcher returns a lineMatcher for doc's text that knows its
+// definitions: the symbol index's, or, when it has none for the file (or
+// symbols aren't indexed), the ones found the first time a ref: term asks.
+func newFileMatcher(doc *Doc, terms termCache) *lineMatcher {
+	m := newLineMatcher(doc.Content, terms)
+	found, done := doc.Symbols, doc.Symbols != nil
+	m.definitions = func() []symbols.Symbol {
+		if !done {
+			found, done = symbols.Extract(doc.Lang, doc.Content), true
+		}
+		return found
+	}
+	return m
 }
 
 // termCache holds what matching needs to know about each term, worked out
@@ -92,8 +111,26 @@ func (m *lineMatcher) matches(term *query.Content) []matchedLine {
 	} else {
 		found = m.everyLine(term)
 	}
+	if term.Reference && m.definitions != nil {
+		found = withoutDefinitions(found, term, m.definitions())
+	}
 	m.cache[term] = found
 	return found
+}
+
+// withoutDefinitions drops the lines that define the name a ref: term
+// looks for, leaving its uses.
+func withoutDefinitions(found []matchedLine, term *query.Content, definitions []symbols.Symbol) []matchedLine {
+	defining := map[int]bool{}
+	for _, symbol := range definitions {
+		if term.IsDefinitionOf(symbol.Name) {
+			defining[symbol.Line] = true
+		}
+	}
+	if len(defining) == 0 {
+		return found
+	}
+	return slices.DeleteFunc(found, func(line matchedLine) bool { return defining[line.number] })
 }
 
 // scanForLines finds candidate lines by matching the whole file, then

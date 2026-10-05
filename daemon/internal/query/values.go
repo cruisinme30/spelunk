@@ -40,7 +40,7 @@ func valueCandidates(op operator, fragment string, resolver Resolver, now time.T
 		return sinceCandidates(fragment, resolver.Files(), now)
 	case protocol.OpNameMsg:
 		return messageCandidates(resolver.MessageWords(fragment, maxValueCompletions+1), now)
-	case protocol.OpNameSym:
+	case protocol.OpNameSym, protocol.OpNameRef:
 		return symbolCandidates(resolver.Symbols(fragment, maxValueCompletions+1))
 	case protocol.OpNameIs:
 		return stateCandidates(fragment, resolver)
@@ -51,7 +51,7 @@ func valueCandidates(op operator, fragment string, resolver Resolver, now time.T
 	}
 }
 
-// ------------------------------------------------------------ sym:
+// ------------------------------------------------------------ sym: and ref:
 
 // symbolCandidates offers definition names: "class · 2 definitions ·
 // payments-api, web-checkout".

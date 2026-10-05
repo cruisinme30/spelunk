@@ -506,7 +506,7 @@ func (s *searcher) forEachCandidate(repos []Repo, visit func(c rankedCandidate, 
 		if s.stopped() {
 			return
 		}
-		matcher := newLineMatcher(c.doc.Content, s.terms)
+		matcher := newFileMatcher(c.doc, s.terms)
 		visit(c, matcher, contentLeaf(c.repo, c.doc, matcher))
 	}
 }

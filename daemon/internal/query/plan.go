@@ -137,6 +137,10 @@ type (
 		// applies.
 		WholeWord bool
 		TermIndex int
+		// Reference marks a ref: term: a whole-word use of a name, never on
+		// a line that defines that name. The working-tree engine finds the
+		// file's definitions and drops those lines (see IsDefinitionOf).
+		Reference bool
 		// resumable means Re can be matched from inside a text (canResume),
 		// so a match that isn't a whole word can be retried a rune later.
 		resumable bool
@@ -191,6 +195,9 @@ func (p *And) String() string { return joinPreds("and", p.Kids) }
 func (p *Or) String() string  { return joinPreds("or", p.Kids) }
 func (p *Not) String() string { return "not(" + p.Kid.String() + ")" }
 func (p *Content) String() string {
+	if p.Reference {
+		return fmt.Sprintf("ref#%d:/%s/", p.TermIndex, p.Re)
+	}
 	if p.WholeWord {
 		return fmt.Sprintf("content#%d:word/%s/", p.TermIndex, p.Re)
 	}
@@ -245,7 +252,7 @@ func NewPlan(q protocol.ParsedQuery, settings protocol.Settings, now time.Time, 
 	}
 	plan.Order = resultOrder(q.Globals.Order, settings.Order)
 
-	l := lowering{caseSensitive: plan.CaseSensitive, wholeWord: plan.WholeWord, now: now, plan: plan}
+	l := lowering{caseSensitive: plan.CaseSensitive, wholeWord: plan.WholeWord, now: now, plan: plan, nextRefIndex: textTermCount(q.Root)}
 	src := newSource(q.Raw)
 	for _, node := range topLevel(q.Root) {
 		pred := l.lower(node)
@@ -268,6 +275,18 @@ func NewPlan(q protocol.ParsedQuery, settings protocol.Settings, now time.Time, 
 	}
 	plan.SymbolFilter = symbolFilter(q.Root, src)
 	return plan, historyScanWarnings(plan), nil
+}
+
+// textTermCount counts the query's text terms. ref: terms are numbered
+// after them, so each has a highlight color of its own.
+func textTermCount(root *protocol.Node) int {
+	count := 0
+	walk(root, func(n *protocol.Node) {
+		if n.Kind == protocol.NodeKindText {
+			count++
+		}
+	})
+	return count
 }
 
 // symbolFilter turns every sym: of the query into its value as text, or
@@ -388,10 +407,13 @@ func resultKinds(q protocol.ParsedQuery) map[ResultKind]bool {
 	if q.Mode == protocol.ModeHistory {
 		return map[ResultKind]bool{KindCommit: true}
 	}
-	wantsSymbols := false
+	wantsSymbols, wantsReferences := false, false
 	walk(q.Root, func(n *protocol.Node) {
 		if n.Kind == protocol.NodeKindOp && (n.Op == protocol.OpNameSym || n.Op == protocol.OpNameKind) {
 			wantsSymbols = true
+		}
+		if n.Kind == protocol.NodeKindOp && n.Op == protocol.OpNameRef {
+			wantsReferences = true
 		}
 	})
 	kinds := map[ResultKind]bool{}
@@ -400,7 +422,8 @@ func resultKinds(q protocol.ParsedQuery) map[ResultKind]bool {
 		kinds[KindFile] = true
 	case wantsSymbols:
 		kinds[KindSymbol] = true
-	case q.Globals.Type != nil && *q.Globals.Type == "code":
+	case q.Globals.Type != nil && *q.Globals.Type == "code", wantsReferences:
+		// A use of a name is a line of code; a file named after it is not.
 		kinds[KindLine] = true
 	default:
 		kinds[KindFile] = true
@@ -415,6 +438,8 @@ type lowering struct {
 	wholeWord     bool
 	now           time.Time
 	plan          *Plan
+	// nextRefIndex is the term index the next ref: term gets.
+	nextRefIndex int
 }
 
 func (l *lowering) lower(node *protocol.Node) Pred {
@@ -436,16 +461,27 @@ func (l *lowering) lower(node *protocol.Node) Pred {
 		}
 		return nil
 	case protocol.NodeKindText:
-		content := &Content{Re: l.regex(node.Value, node.Match), IgnoreCase: !l.caseSensitive, WholeWord: l.wholeWord, TermIndex: node.TermIndex}
-		content.resumable = content.WholeWord && canResume(content.Re)
-		if node.Match != protocol.MatchRegex {
-			content.Literal = node.Value
-		}
-		l.plan.Terms = append(l.plan.Terms, content)
-		return content
+		return l.term(node, l.wholeWord, node.TermIndex)
 	default:
+		if node.Op == protocol.OpNameRef {
+			content := l.term(node, true, l.nextRefIndex)
+			content.Reference = true
+			l.nextRefIndex++
+			return content
+		}
 		return l.lowerOperator(node)
 	}
+}
+
+// term lowers a text term, or the name of a ref:, into a content term.
+func (l *lowering) term(node *protocol.Node, wholeWord bool, termIndex int) *Content {
+	content := &Content{Re: l.regex(node.Value, node.Match), IgnoreCase: !l.caseSensitive, WholeWord: wholeWord, TermIndex: termIndex}
+	content.resumable = content.WholeWord && canResume(content.Re)
+	if node.Match != protocol.MatchRegex {
+		content.Literal = node.Value
+	}
+	l.plan.Terms = append(l.plan.Terms, content)
+	return content
 }
 
 func (l *lowering) lowerOperator(node *protocol.Node) Pred {
@@ -704,7 +740,7 @@ func (p *Plan) IgnoringCase() *Plan {
 // parts of words too, to count what word:yes hid. The copy has no filters
 // of its own.
 func (p *Plan) MatchingPartialWords() *Plan {
-	partial := p.relaxed(func(c *Content) { c.WholeWord = false }, nil)
+	partial := p.relaxed(func(c *Content) { c.WholeWord = c.Reference }, nil) // ref: is always whole words
 	partial.WholeWord = false
 	return partial
 }
