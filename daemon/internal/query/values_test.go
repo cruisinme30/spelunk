@@ -45,6 +45,10 @@ func TestSinceOffersEveryUnitForATypedNumber(t *testing.T) {
 		"since:45mi": "45min",
 		"since:2":    "2min 2h 2d 2w 2m 2y",
 		"since:y":    "yesterday",
+		// A date being typed isn't a number and a unit, so nothing fits it.
+		"since:2026-0":    "",
+		"since:2026-09-3": "",
+		"since:2026-":     "",
 	}
 	for text, want := range tests {
 		if got := strings.Join(labels(text, len(text)), " "); got != want {

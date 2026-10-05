@@ -127,6 +127,48 @@ func TestSinceWindowsCountBackFromNow(t *testing.T) {
 	}
 }
 
+// pacific is a time zone west of UTC, so a local midnight differs from UTC's.
+var pacific = time.FixedZone("PDT", -7*60*60)
+
+// windowBound plans text with now in pacific and returns the time its
+// first conjunct's since: (or the since: inside until:'s not) compares with.
+func windowBound(t *testing.T, text string) time.Time {
+	t.Helper()
+	plan, _, err := NewPlan(mustParseCleanly(t, text), defaultSettings, fixedNow.In(pacific), "")
+	if err != nil {
+		t.Fatalf("NewPlan(%q): %v", text, err)
+	}
+	pred := plan.Pred.Kids[0]
+	if not, ok := pred.(*Not); ok {
+		pred = not.Kid
+	}
+	since, ok := pred.(*Since)
+	if !ok {
+		t.Fatalf("plan(%q) first conjunct = %s, want since: or until:", text, plan.Pred.Kids[0])
+	}
+	return since.After
+}
+
+func TestSinceDatesStartAtLocalMidnight(t *testing.T) {
+	// @covers op:since
+	// Now is 2026-10-03 03:00 in pacific (10:00 UTC).
+	tests := []struct{ query, want string }{
+		{"since:2026-09-30 x", "2026-09-30T00:00:00-07:00"},
+		{"since:2026-09 x", "2026-09-01T00:00:00-07:00"},
+		{"since:2024-02-29 x", "2024-02-29T00:00:00-07:00"},
+		{"since:2026-10-03 x", "2026-10-03T00:00:00-07:00"},
+		{"since:2027-01 x", "2027-01-01T00:00:00-07:00"},
+		{"since:today x", "2026-10-03T00:00:00-07:00"},
+		{"since:yesterday x", "2026-10-02T00:00:00-07:00"},
+		{"since:2h x", "2026-10-03T01:00:00-07:00"},
+	}
+	for _, tt := range tests {
+		if got := windowBound(t, tt.query).In(pacific).Format(time.RFC3339); got != tt.want {
+			t.Errorf("plan(%q) since = %s, want %s", tt.query, got, tt.want)
+		}
+	}
+}
+
 func TestCaseSensitivityComesFromCaseOrTheSetting(t *testing.T) {
 	sensitive, smart := defaultSettings, defaultSettings
 	sensitive.CaseSensitive = protocol.CaseSettingOn

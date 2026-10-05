@@ -557,8 +557,9 @@ func (l *lowering) compile(pattern string) *regexp.Regexp {
 // back from now: <n>min and <n>h are minutes and hours, <n>d days, <n>w
 // weeks, <n>m calendar months and <n>y calendar years, so since:6m on
 // October 3 starts on April 3. today starts at midnight in now's time zone,
-// and yesterday at the midnight before. value must be one the parser
-// accepted (see asDuration).
+// and yesterday at the midnight before. A date starts at its midnight, and
+// a month (2026-09) at the midnight its first day starts, in now's time
+// zone. value must be one the parser accepted (see asWindow).
 func since(now time.Time, value string) time.Time {
 	midnight := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
 	switch strings.ToLower(value) {
@@ -566,6 +567,10 @@ func since(now time.Time, value string) time.Time {
 		return midnight
 	case sinceYesterday:
 		return midnight.AddDate(0, 0, -1)
+	}
+	if datePattern.MatchString(value) {
+		year, month, day, _ := dateParts(value)
+		return time.Date(year, time.Month(month), day, 0, 0, 0, 0, now.Location())
 	}
 	parts := durationPattern.FindStringSubmatch(value)
 	n, _ := strconv.Atoi(parts[1])

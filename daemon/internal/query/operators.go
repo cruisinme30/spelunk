@@ -1,10 +1,12 @@
 package query
 
 import (
+	"fmt"
 	"regexp"
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/cruisinme30/spelunk/daemon/internal/lang"
 	"github.com/cruisinme30/spelunk/daemon/internal/protocol"
@@ -48,7 +50,7 @@ type operator struct {
 var operators = []operator{
 	{name: protocol.OpNameF, full: "file", short: "f", aliases: []string{"path"}, summary: "File path, as a regex or a glob", examples: []string{"*.py", `\.py$`, "src/", "test"}, interpret: asPathRegex},
 	{name: protocol.OpNameAuthor, full: "author", short: "a", scope: scopeHistoryOnly, summary: "Commits by this person", interpret: asName},
-	{name: protocol.OpNameSince, full: "since", short: "d", summary: "Only changes inside a time window", examples: []string{"30d", "2w", "6m", "1y", "today", "yesterday", "2h"}, interpret: asDuration},
+	{name: protocol.OpNameSince, full: "since", short: "d", summary: "Only changes inside a time window, or from a date on", examples: windowExamples, interpret: asWindow("since")},
 	{name: protocol.OpNameSym, full: "symbol", short: "s", scope: scopeWorkingTreeOnly, summary: "Symbol definitions", interpret: asText},
 	{name: protocol.OpNameKind, full: "kind", short: "k", scope: scopeWorkingTreeOnly, summary: "Only definitions of one kind", examples: SymbolKinds, interpret: oneOf(SymbolKinds...)},
 	{name: protocol.OpNameRef, full: "ref", short: "x", scope: scopeWorkingTreeOnly, summary: "Whole-word uses of a name, without its definitions", interpret: asReference},
@@ -187,26 +189,88 @@ func asName(_ string, form valueForm) (protocol.Match, string) {
 	}
 }
 
-// durationPattern is a since: window: a count and a unit, which is min
-// (minutes), h (hours), d (days), w (weeks), m (months) or y (years).
+// durationPattern is a since: or until: window: a count and a unit, which
+// is min (minutes), h (hours), d (days), w (weeks), m (months) or y (years).
 var durationPattern = regexp.MustCompile(`^([1-9]\d{0,4})(min|h|d|w|m|y)$`)
 
-// The since: values that name a day rather than a length of time.
+// datePattern is a since: or until: date: a day (2026-09-30) or a month
+// (2026-09). asWindow checks that it names a real one.
+var datePattern = regexp.MustCompile(`^(\d{4})-(\d{2})(?:-(\d{2}))?$`)
+
+// The since: and until: values that name a day rather than a length of time.
 const (
 	sinceToday     = "today"
 	sinceYesterday = "yesterday"
 )
 
-// asDuration: since: takes today, yesterday, or <n> and a unit (see durationPattern).
-func asDuration(value string, form valueForm) (protocol.Match, string) {
-	day := strings.ToLower(value)
-	if form != formBare || (day != sinceToday && day != sinceYesterday && !durationPattern.MatchString(value)) {
-		return protocol.MatchLiteral, "since: takes today, yesterday, or a number and a unit: min, h, d, w, m (months) or y"
+// windowExamples are the valid since: and until: values offered as fixes
+// for a bad one, the first one first.
+var windowExamples = []string{"30d", "2w", "6m", "1y", "today", "yesterday", "2h"}
+
+// asWindow: since: and until: (named name) take today, yesterday, a date
+// (see datePattern), or <n> and a unit (see durationPattern).
+func asWindow(name string) func(string, valueForm) (protocol.Match, string) {
+	return func(value string, form valueForm) (protocol.Match, string) {
+		day := strings.ToLower(value)
+		switch {
+		case form != formBare:
+		case day == sinceToday || day == sinceYesterday || durationPattern.MatchString(value):
+			return protocol.MatchLiteral, ""
+		case datePattern.MatchString(value):
+			return protocol.MatchLiteral, dateProblem(value)
+		}
+		return protocol.MatchLiteral, name + ": takes today, yesterday, a date (2026-09-30 or 2026-09), or a number and a unit: min, h, d, w, m (months) or y"
 	}
-	return protocol.MatchLiteral, ""
 }
 
-// monthsMeantAsMinutes returns the minutes reading of a since: value such
+// dateProblem says why a value of datePattern's shape isn't a real day or
+// month ("" when it is one): 2026-13, 2026-02-30.
+func dateProblem(value string) string {
+	year, month, day, hasDay := dateParts(value)
+	switch {
+	case month < 1 || month > monthsInYear:
+		return value + " isn't a date: months go from 01 to 12"
+	case hasDay && (day < 1 || day > daysIn(year, time.Month(month))):
+		return fmt.Sprintf("%s isn't a date: %s %d has %d days", value, time.Month(month), year, daysIn(year, time.Month(month)))
+	default:
+		return ""
+	}
+}
+
+// nearestDate turns a value of datePattern's shape into the nearest real
+// date, keeping its form: 2026-02-30 → 2026-02-28, 2026-13 → 2026-12.
+// It returns "" for any other value.
+func nearestDate(value string) string {
+	if !datePattern.MatchString(value) {
+		return ""
+	}
+	year, month, day, hasDay := dateParts(value)
+	month = min(max(month, 1), monthsInYear)
+	if !hasDay {
+		return fmt.Sprintf("%04d-%02d", year, month)
+	}
+	return fmt.Sprintf("%04d-%02d-%02d", year, month, min(max(day, 1), daysIn(year, time.Month(month))))
+}
+
+// dateParts splits a value of datePattern's shape into numbers, with
+// hasDay false for a month (2026-09).
+func dateParts(value string) (year, month, day int, hasDay bool) {
+	parts := datePattern.FindStringSubmatch(value)
+	year, _ = strconv.Atoi(parts[1])
+	month, _ = strconv.Atoi(parts[2])
+	if parts[3] == "" {
+		return year, month, 1, false
+	}
+	day, _ = strconv.Atoi(parts[3])
+	return year, month, day, true
+}
+
+// daysIn is the number of days in a month: 28 for February 2026.
+func daysIn(year int, month time.Month) int {
+	return time.Date(year, month+1, 0, 0, 0, 0, 0, time.UTC).Day()
+}
+
+// monthsMeantAsMinutes returns the minutes reading of a since: or until: value such
 // as 30m, which means 30 months but was likely typed for 30 minutes: more
 // than a year's worth of months. It returns "" for every other value.
 func monthsMeantAsMinutes(value string) string {

@@ -452,8 +452,11 @@ func (p *parser) reportUnknownOperator(t token) {
 func (p *parser) reportBadValue(op operator, t token, valueSpan protocol.Span, problem string) {
 	var fixes []protocol.Fix
 	examples := op.examples
-	if op.name == protocol.OpNameLang {
+	switch {
+	case op.name == protocol.OpNameLang:
 		examples = nearestLanguages(t.value)
+	case op.name == protocol.OpNameSince && nearestDate(t.value) != "": // a date that doesn't exist
+		examples = []string{nearestDate(t.value)}
 	}
 	// A quoted or /regex/ value may touch the next word, as in case:/ /y;
 	// a bare value put in its place must not join it.
