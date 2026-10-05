@@ -90,12 +90,18 @@ interface PendingRequest {
   reject(error: unknown): void;
 }
 
-interface WireMessage {
-  id?: number;
-  method?: string;
-  params?: unknown;
-  result?: unknown;
-  error?: { code: number; message: string; data?: unknown };
+/** JSON-RPC's code for an internal error, used when a peer's error has no usable code. */
+const INTERNAL_ERROR = -32_603;
+
+/** The RpcError for a response's `error` member, whatever shape the peer gave it. */
+function errorFromWire(error: unknown): RpcError {
+  if (typeof error !== "object" || error === null) return new RpcError(INTERNAL_ERROR, String(error));
+  const { code, message, data } = error as Record<string, unknown>;
+  return new RpcError(
+    typeof code === "number" && Number.isInteger(code) ? code : INTERNAL_ERROR,
+    typeof message === "string" ? message : "request failed",
+    data,
+  );
 }
 
 /** A client connection. Requests and notifications are typed by the generated protocol tables. */
@@ -105,14 +111,18 @@ export class Connection extends EventEmitter {
   private readonly decoder: FrameDecoder;
   private closed = false;
 
-  /** Listen for "error" before any data arrives: EventEmitter throws an error nobody listens to. */
+  /**
+   * Emits "error" for each problem with what the peer sent (it is skipped)
+   * and "close" once. Problems with no "error" listener are dropped rather
+   * than thrown, since they surface inside a stream event.
+   */
   constructor(
     input: Readable,
     private readonly output: Writable,
   ) {
     super();
     this.decoder = new FrameDecoder((header) => {
-      this.reportBadFrame(header);
+      this.report(new Error(`jsonrpc: skipped a frame without a usable Content-Length: ${JSON.stringify(header)}`));
     });
     input.on("data", (chunk: Buffer) => {
       this.onData(chunk);
@@ -120,10 +130,14 @@ export class Connection extends EventEmitter {
     input.on("close", () => {
       this.dispose(new Error("connection closed"));
     });
+    input.on("error", (error) => {
+      this.dispose(error);
+      this.report(error);
+    });
     // Writing to a process that just exited fails asynchronously (EPIPE).
     output.on("error", (error) => {
-      this.emit("error", error);
       this.dispose(error);
+      this.report(error);
     });
   }
 
@@ -159,18 +173,27 @@ export class Connection extends EventEmitter {
   dispose(reason = new Error("connection disposed")): void {
     if (this.closed) return;
     this.closed = true;
-    for (const request of this.pending.values()) request.reject(reason);
+    const requests = [...this.pending.values()];
     this.pending.clear();
+    for (const request of requests) request.reject(reason);
     this.emit("close");
   }
 
-  private reportBadFrame(header: string): void {
-    this.emit("error", new Error(`jsonrpc: skipped a frame without Content-Length: ${JSON.stringify(header)}`));
+  /** Tells "error" listeners about a problem, if there are any. */
+  private report(error: unknown): void {
+    if (this.listenerCount("error") > 0) this.emit("error", error);
   }
 
   private onData(chunk: Buffer): void {
     if (this.closed) return; // a replaced daemon's last words: its searches are no longer wanted
-    for (const body of this.decoder.push(chunk)) this.receive(body);
+    for (const body of this.decoder.push(chunk)) {
+      // One bad message (or a listener that throws on it) must not lose the ones after it.
+      try {
+        this.receive(body);
+      } catch (error) {
+        this.report(error);
+      }
+    }
   }
 
   private write(message: object): void {
@@ -178,22 +201,19 @@ export class Connection extends EventEmitter {
   }
 
   private receive(body: string): void {
-    let message: WireMessage;
-    try {
-      message = JSON.parse(body) as WireMessage;
-    } catch (error) {
-      this.emit("error", error);
+    const message: unknown = JSON.parse(body);
+    if (typeof message !== "object" || message === null || Array.isArray(message)) {
+      throw new Error(`jsonrpc: not a message: ${body.slice(0, 80)}`);
+    }
+    const { id, method, params, result, error } = message as Record<string, unknown>;
+    if (typeof method === "string") {
+      this.emit(`notify:${method}`, params);
       return;
     }
-    if (message.method) {
-      this.emit(`notify:${message.method}`, message.params);
-      return;
-    }
-    if (typeof message.id !== "number") return;
-    const request = this.pending.get(message.id);
-    if (!request) return;
-    this.pending.delete(message.id);
-    if (message.error) request.reject(new RpcError(message.error.code, message.error.message, message.error.data));
-    else request.resolve(message.result);
+    const request = typeof id === "number" ? this.pending.get(id) : undefined;
+    if (!request) return; // an answer to a request this side no longer waits for
+    this.pending.delete(id as number);
+    if (error !== undefined && error !== null) request.reject(errorFromWire(error));
+    else request.resolve(result);
   }
 }
