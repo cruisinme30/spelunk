@@ -9,6 +9,10 @@ All notable changes to this project are documented here. The format follows
 
 - A plain word with a pipe, like `daemon|search`, now warns that it matches the pipe too, and offers
   `daemon OR search` or `/daemon|search/` instead.
+- A plain word in a history query matches a commit's subject and body as well as its changed lines, so
+  `author:jane retry` finds a commit that only says "retry" in its message. `msg:` still searches the message alone.
+- Commit rows say whether a commit matched in its message, its diff or both, and the commit preview marks the
+  matched words in the message.
 
 ### Changed
 
@@ -21,6 +25,8 @@ All notable changes to this project are documented here. The format follows
 - A recent-queries width saved in a wide panel no longer squeezes the operator cheat sheet when the panel narrows,
   and the divider between them shows from the first width where both fit.
 - Screen readers announce where the divider between recent queries and the operators is.
+- `?` in an empty query box brings the operator cheat sheet into view when a narrow panel stacks it below the
+  recent queries.
 
 ## [0.2.0] - 2026-10-05
 
