@@ -26,8 +26,12 @@ export type DaemonState = "starting" | "ok" | "restarting" | "stopped" | "protoc
 const CRASH_WINDOW_MS = 60_000;
 /** A crashed daemon is restarted at most this many times a minute; after that it stays stopped. */
 const DEFAULT_MAX_RESTARTS_PER_MINUTE = 3;
-/** The pause before restarting a crashed daemon. */
+/** The pause before restarting a crashed daemon; it doubles with each crash in a row. */
 const DEFAULT_RESTART_DELAY_MS = 200;
+/** The longest pause between restarts, however many crashes in a row. */
+const DEFAULT_MAX_RESTART_DELAY_MS = 30_000;
+/** A daemon that stayed ready this long has recovered: the next crash restarts after the shortest pause again. */
+const STABLE_RUN_MS = 5 * 60_000;
 /** How long stop() waits for the shutdown reply, and then for the process to exit, before killing it. */
 const DEFAULT_SHUTDOWN_GRACE_MS = 2000;
 /** How long the initialize handshake may take; a daemon that doesn't answer by then counts as crashed. */
@@ -52,6 +56,7 @@ export interface DaemonOptions {
   log?(line: string): void;
   maxRestartsPerMinute?: number;
   restartDelayMs?: number;
+  maxRestartDelayMs?: number;
   initializeTimeoutMs?: number;
   shutdownGraceMs?: number;
   /** For tests: replaces child_process.spawn. */
@@ -76,6 +81,10 @@ export class Daemon extends EventEmitter {
   private connection: Connection | undefined;
   private stopping = false;
   private crashTimes: number[] = [];
+  /** Crashes since the daemon last stayed ready for STABLE_RUN_MS; each doubles the pause before restarting. */
+  private crashStreak = 0;
+  /** When the running daemon became ready, while it is. */
+  private readySince: number | undefined;
   /** The restart scheduled after a crash, until it runs. */
   private restartTimer: NodeJS.Timeout | undefined;
 
@@ -102,6 +111,7 @@ export class Daemon extends EventEmitter {
    */
   restart(): Promise<void> {
     this.crashTimes = [];
+    this.crashStreak = 0;
     this.cancelScheduledRestart();
     this.killChild();
     return this.start();
@@ -210,6 +220,7 @@ export class Daemon extends EventEmitter {
       if (this.stopping || this.child !== child) throw new Error("daemon start was superseded");
       if (result.protocol !== PROTOCOL_VERSION) this.refuseProtocol(result.protocol);
       this.daemonVersion = result.daemonVersion;
+      this.readySince = this.now();
       this.setState("ok");
     } catch (error) {
       if (!this.stopping && this.child === child) this.abandonStart(child, error);
@@ -307,6 +318,9 @@ export class Daemon extends EventEmitter {
       return;
     }
     const now = this.now();
+    if (this.readySince !== undefined && now - this.readySince >= STABLE_RUN_MS) this.crashStreak = 0;
+    this.readySince = undefined;
+    this.crashStreak++;
     this.crashTimes = this.crashTimes.filter((time) => now - time < CRASH_WINDOW_MS);
     this.crashTimes.push(now);
     const crashes = this.crashTimes.length;
@@ -316,11 +330,20 @@ export class Daemon extends EventEmitter {
       this.setState("stopped", `The search daemon crashed ${crashes} times in a minute.`);
       return;
     }
+    const delayMs = this.restartDelay();
+    this.log(`[daemon] restarting in ${delayMs} ms`);
     this.setState("restarting");
     this.restartTimer = setTimeout(() => {
       this.restartTimer = undefined;
       if (!this.stopping) this.start().catch(() => {});
-    }, this.options.restartDelayMs ?? DEFAULT_RESTART_DELAY_MS);
+    }, delayMs);
+  }
+
+  /** The pause before the next restart: the base delay, doubled for each earlier crash in the streak, up to the cap. */
+  private restartDelay(): number {
+    const base = this.options.restartDelayMs ?? DEFAULT_RESTART_DELAY_MS;
+    const cap = this.options.maxRestartDelayMs ?? DEFAULT_MAX_RESTART_DELAY_MS;
+    return Math.min(base * 2 ** Math.min(this.crashStreak - 1, 30), cap);
   }
 
   private cancelScheduledRestart(): void {

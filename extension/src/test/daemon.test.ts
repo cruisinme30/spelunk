@@ -120,6 +120,24 @@ test("a daemon that exits at once is restarted within the budget, then stays sto
   assert.equal(counter.spawns, 3, "the first start plus two restarts, and no more");
 });
 
+test("restarts back off, doubling the pause after each crash in a row up to a cap", async () => {
+  // Crashes 25 s apart never spend the per-minute budget; without a backoff
+  // such a daemon was restarted every 200 ms forever.
+  let clock = 0;
+  const lines: string[] = [];
+  const { daemon } = newFakeDaemon("exitAtOnce", {
+    restartDelayMs: 5,
+    maxRestartDelayMs: 40,
+    now: () => (clock += 25_000),
+    log: (line) => lines.push(line),
+  });
+  await assert.rejects(daemon.start(), /exited|closed/);
+  const delays = () => lines.flatMap((line) => /restarting in (\d+) ms/.exec(line)?.[1] ?? []).map(Number);
+  await waitFor("six restarts", () => delays().length >= 6);
+  await daemon.stop();
+  assert.deepEqual(delays().slice(0, 6), [5, 10, 20, 40, 40, 40]);
+});
+
 test("a daemon that never answers initialize is killed and restarted, not waited on forever", async () => {
   const counter = countingSpawn();
   const { daemon } = newFakeDaemon("silent", {
