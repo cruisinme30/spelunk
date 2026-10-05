@@ -11,10 +11,12 @@ import {
   openPanel,
   parsedQuery,
   restore,
+  sentMessages,
   textNode,
   typeAndParse,
   UI_SETTINGS,
   useBrowser,
+  waitForSent,
 } from "./harness.mjs";
 
 useBrowser();
@@ -85,4 +87,22 @@ test("Show them on a note only edits the query the results are for", async (t) =
   await typeAndParse(page, "( x -f:vendor/", parsedQuery("( x -f:vendor/", null, { diagnostics }));
   await page.click('[data-testid="show-hidden"]');
   assert.equal(await page.inputValue(QUERY), "( x -f:vendor/");
+});
+
+test("Enter, Esc and ↓ during input method composition are left to the input method", async (t) => {
+  const page = await openPanel(t);
+  await restore(page, ["recent query"]);
+  const seq = await typeAndParse(page, "nihon", parsedQuery("nihon", textNode("nihon", 0)));
+  await fromHost(page, "search.batch", { seq, searchId: "s1", items: [CODE_LINE_RESULT] });
+  await waitForSent(page, "result.select", { ref: "l1" });
+  const prevented = await page.evaluate(() =>
+    ["Enter", "Escape", "ArrowDown", "Tab"].map((key) => {
+      const event = new KeyboardEvent("keydown", { key, isComposing: true, bubbles: true, cancelable: true });
+      document.querySelector('[data-testid="query"]').dispatchEvent(event);
+      return event.defaultPrevented;
+    }),
+  );
+  assert.deepEqual(prevented, [false, false, false, false]);
+  assert.equal((await sentMessages(page, "result.open")).length, 0);
+  assert.equal((await sentMessages(page, "panel.close")).length, 0);
 });

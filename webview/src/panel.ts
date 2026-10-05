@@ -243,6 +243,8 @@ export class SearchPanel {
   }
 
   private onKeyDown(event: KeyboardEvent): void {
+    // While an input method composes (Japanese, Chinese, Korean…), Enter, Esc and the arrows are its keys.
+    if (event.isComposing) return;
     const handled = this.handleKey(event);
     if (handled) event.preventDefault();
   }
