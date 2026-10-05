@@ -11,6 +11,7 @@ import {
   fromHost,
   openPanel,
   openPanelWithSavedState,
+  openWelcome,
   pageErrors,
   parsedQuery,
   restore,
@@ -21,6 +22,9 @@ import {
 } from "./harness.mjs";
 
 useBrowser();
+
+/** Markup that would run script, close the bundle's <script>, or decode as an entity if any of it reached innerHTML. */
+const MARKUP = `<img src=x onerror="globalThis.__ran=1"></script>&amp;"'<b>`;
 
 /** A code-line result with `text` and `hits`. */
 const codeLine = (ref, text, hits, extra = {}) => ({
@@ -41,6 +45,10 @@ async function searchingPanel(t) {
   const seq = await typeAndParse(page, "retry", parsedQuery("retry", textNode("retry", 0)));
   return { page, seq };
 }
+
+/** Whether any element that markup would have created exists, or its script ran. */
+const markupTookEffect = (page) =>
+  page.evaluate(() => globalThis.__ran !== undefined || document.querySelector("#app img, #app b") !== null);
 
 test("a diagnostic span before or past the text marks its end instead of throwing", async (t) => {
   const page = await openPanel(t);
@@ -183,4 +191,17 @@ test("a corrupt or old saved state leaves the box empty", async (t) => {
   }
   const page = await openPanelWithSavedState(t, { text: "since:2w" });
   assert.equal(await page.inputValue('[data-testid="query"]'), "since:2w", "a good draft is restored");
+});
+
+test("the welcome page keeps progress within 0-100% and ignores malformed repo lists", async (t) => {
+  const page = await openWelcome(t);
+  await fromHost(page, "welcome.state", { preset: "quickOpen", historyDepth: "2y", symbols: true, mac: true });
+  await fromHost(page, "index.status", {
+    repos: [{ repoId: "a", name: MARKUP, tree: "indexing", history: "ready", progress: 5 }],
+  });
+  await fromHost(page, "index.status", {});
+  assert.equal(await page.getAttribute('[role="progressbar"]', "aria-valuenow"), "100");
+  assert.equal(await page.locator(".repo-name").textContent(), MARKUP);
+  assert.equal(await markupTookEffect(page), false);
+  assert.deepEqual(pageErrors(page), []);
 });

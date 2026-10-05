@@ -1,7 +1,7 @@
 // The panel chrome around the results: index status, health and indexing
 // banners, completions, query diagnostics, parsed-query chips and the key
 // hints footer.
-import { clamp, element, plural, termClass } from "../format";
+import { clamp, element, percent, plural, termClass } from "../format";
 import type { Layout } from "../layout";
 import { OPERATOR_CHIP_LABEL, OPERATOR_TONE } from "../operators";
 import { scopedRepo } from "../parsedQuery";
@@ -95,24 +95,24 @@ function renderHealthBanner(banner: BannerMessage, onRestart: () => void): HTMLE
 function renderIndexingBanner(repo: RepoStatus): HTMLElement | null {
   const phase = repo.tree === "indexing" ? "files" : repo.history === "indexing" ? "history" : "";
   if (!phase) return null;
-  const percent = Math.round((repo.progress ?? 0) * 100);
+  const percentDone = percent(repo.progress);
   const bar = element(
     "span",
     {
       class: "progress",
       role: "progressbar",
-      "aria-valuenow": percent,
+      "aria-valuenow": percentDone,
       "aria-valuemin": 0,
       "aria-valuemax": 100,
       "aria-label": `${repo.name} ${phase} indexing`,
     },
-    element("span", { style: `width:${percent}%` }),
+    element("span", { style: `width:${percentDone}%` }),
   );
   const note = repo.message ?? "Results from this repo may be incomplete. Search keeps working while it finishes.";
   return element(
     "div",
     { class: "banner index", "data-testid": "indexing-banner" },
-    element("span", { class: "strong" }, `Indexing ${repo.name} · ${percent}%`),
+    element("span", { class: "strong" }, `Indexing ${repo.name} · ${percentDone}%`),
     bar,
     element("span", {}, note),
   );

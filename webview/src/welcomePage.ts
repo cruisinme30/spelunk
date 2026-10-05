@@ -2,7 +2,7 @@
 // shown once after installing and by Unified Search: Show Welcome. It asks
 // for the search shortcut and how much to index, and shows each repo's
 // indexing while it runs.
-import { element } from "./format";
+import { element, percent } from "./format";
 import { onHostMessage, send } from "./host";
 import type { IndexState, RepoStatus, WelcomeStateMsg as WelcomeState } from "./protocol.gen";
 
@@ -86,7 +86,7 @@ function repoRow(repo: RepoStatus, index: number): HTMLElement {
     detail = repo.message ?? "Indexing failed";
   } else if (repo.tree === "indexing" || repo.history === "indexing") {
     word = "Indexing";
-    const percent = Math.round((repo.progress ?? 0) * 100);
+    const percentDone = percent(repo.progress);
     const phase = repo.tree === "indexing" ? "Files" : "History";
     detail = element(
       "span",
@@ -96,13 +96,13 @@ function repoRow(repo: RepoStatus, index: number): HTMLElement {
         {
           class: "progress",
           role: "progressbar",
-          "aria-valuenow": percent,
+          "aria-valuenow": percentDone,
           "aria-valuemin": 0,
           "aria-valuemax": 100,
         },
-        element("span", { style: `width:${percent}%` }),
+        element("span", { style: `width:${percentDone}%` }),
       ),
-      element("span", { class: "muted" }, `${phase} ${percent}%`),
+      element("span", { class: "muted" }, `${phase} ${percentDone}%`),
     );
   } else if (isBusy(repo.tree) || isBusy(repo.history)) {
     word = "Queued";

@@ -139,6 +139,11 @@ export function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
 
+/** An indexing progress fraction (0..1) as a whole percentage, kept within 0..100. */
+export function percent(progress: number | undefined): number {
+  return Number.isFinite(progress) ? Math.round(clamp(progress ?? 0, 0, 1) * 100) : 0;
+}
+
 /** "path/to/file.py +9 −1" for a changed file. */
 export function fileStat(path: string, added: number, removed: number): HTMLElement {
   return element(
