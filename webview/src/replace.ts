@@ -2,7 +2,7 @@
 // would change (the result rows show each match struck out and replaced),
 // and what it did. The host plans and applies a replace; the row only asks
 // and shows, so nothing here writes a file.
-import { button, element, plural } from "./format";
+import { button, element, icon, plural } from "./format";
 import { send } from "./host";
 import type { Layout } from "./layout";
 import type { ReplaceDoneMessage, ReplacePlan, ReplacePlanMessage } from "./protocol.gen";
@@ -44,8 +44,7 @@ export function createReplaceRow(): ReplaceRow {
     element("kbd", {}, "⌘↵"),
   );
   const note = element("div", { class: "replace-note", "data-testid": "replace-note" }, BEFORE_NOTE);
-  const iconLabel = element("label", { for: "replacement", class: "query-icon" });
-  iconLabel.innerHTML = REPLACE_ICON;
+  const iconLabel = element("label", { for: "replacement", class: "query-icon" }, icon(REPLACE_ICON));
   const root = element(
     "div",
     { class: "replace-row", "data-testid": "replace-row", hidden: true },

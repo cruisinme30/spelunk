@@ -79,15 +79,17 @@ function createToggle({ text, label, title, testId, monospace, modifier }: Toggl
 
 /** The gear at the end of the search bar, which opens Settings filtered to this extension. */
 function createSettingsButton(): HTMLButtonElement {
-  const button = element("button", {
-    type: "button",
-    class: "toggle settings",
-    "aria-label": "Search settings",
-    title: "Search settings",
-    "data-testid": "open-settings",
-  });
-  button.innerHTML = GEAR_ICON;
-  return button;
+  return element(
+    "button",
+    {
+      type: "button",
+      class: "toggle settings",
+      "aria-label": "Search settings",
+      title: "Search settings",
+      "data-testid": "open-settings",
+    },
+    icon(GEAR_ICON),
+  );
 }
 
 function createSearchIcon(): HTMLElement {
