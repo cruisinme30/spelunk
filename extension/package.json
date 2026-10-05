@@ -2,7 +2,7 @@
   "name": "unified-search",
   "displayName": "Unified Search",
   "description": "One search box for file names, code and Git history across every repo in the workspace.",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "publisher": "unified-search",
   "license": "MIT",
   "repository": {
