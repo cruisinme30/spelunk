@@ -213,20 +213,8 @@ func (s *searcher) add(repo *Repo, doc *Doc, item protocol.ResultItem, score, qu
 func (s *searcher) stats(unit string) engine.Stats {
 	stats := engine.NewStats(s.plan, s.counted, s.truncated)
 	stats.Facets = s.facets.List()
-	for i := range s.plan.Filters {
-		if f := &s.plan.Filters[i]; s.hidden[f.Index] > 0 {
-			stats.Hidden = append(stats.Hidden, f.Note(s.hidden[f.Index], unit))
-		}
-	}
-	if s.hiddenByCase > 0 {
-		stats.Hidden = append(stats.Hidden, s.plan.CaseFilter.Note(s.hiddenByCase, unit))
-	}
-	if s.hiddenByWord > 0 {
-		stats.Hidden = append(stats.Hidden, s.plan.WordFilter.Note(s.hiddenByWord, unit))
-	}
-	if s.hiddenByType > 0 && s.plan.TypeFilter != nil {
-		stats.Hidden = append(stats.Hidden, s.plan.TypeFilter.Note(s.hiddenByType, "matches"))
-	}
+	hidden := engine.Hidden{ByFilter: s.hidden, ByCase: s.hiddenByCase, ByWord: s.hiddenByWord, ByType: s.hiddenByType}
+	stats.AddHidden(s.plan, hidden, unit, "matches")
 	return stats
 }
 

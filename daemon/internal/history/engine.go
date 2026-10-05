@@ -84,20 +84,8 @@ type searcher struct {
 func (s *searcher) stats() engine.Stats {
 	stats := engine.NewStats(s.plan, s.counted, s.truncated)
 	stats.Facets = s.facets.List()
-	for i := range s.plan.Filters {
-		if f := &s.plan.Filters[i]; s.hidden[f.Index] > 0 {
-			stats.Hidden = append(stats.Hidden, f.Note(s.hidden[f.Index], "commits"))
-		}
-	}
-	if c := s.plan.CaseFilter; c != nil && s.hiddenByCase > 0 {
-		stats.Hidden = append(stats.Hidden, c.Note(s.hiddenByCase, "commits"))
-	}
-	if w := s.plan.WordFilter; w != nil && s.hiddenByWord > 0 {
-		stats.Hidden = append(stats.Hidden, w.Note(s.hiddenByWord, "commits"))
-	}
-	if k := s.plan.TypeFilter; k != nil && s.hiddenBySide > 0 {
-		stats.Hidden = append(stats.Hidden, k.Note(s.hiddenBySide, "commits"))
-	}
+	hidden := engine.Hidden{ByFilter: s.hidden, ByCase: s.hiddenByCase, ByWord: s.hiddenByWord, ByType: s.hiddenBySide}
+	stats.AddHidden(s.plan, hidden, "commits", "commits")
 	return stats
 }
 

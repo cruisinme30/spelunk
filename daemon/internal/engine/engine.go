@@ -31,6 +31,36 @@ func NewStats(plan *query.Plan, counted int, truncated bool) Stats {
 	return stats
 }
 
+// Hidden is what a search's filters hid: per filter index, results that
+// only that filter removed, and what case:yes, word:yes and type: hid.
+type Hidden struct {
+	ByFilter               map[int]int
+	ByCase, ByWord, ByType int
+}
+
+// AddHidden adds one hidden-results note per filter of plan that hid
+// something, counting unit; typeUnit counts what type: hid.
+func (s *Stats) AddHidden(plan *query.Plan, hidden Hidden, unit, typeUnit string) {
+	for i := range plan.Filters {
+		if f := &plan.Filters[i]; hidden.ByFilter[f.Index] > 0 {
+			s.Hidden = append(s.Hidden, f.Note(hidden.ByFilter[f.Index], unit))
+		}
+	}
+	for _, by := range []struct {
+		filter      *query.Filter
+		count       int
+		countedUnit string
+	}{
+		{plan.CaseFilter, hidden.ByCase, unit},
+		{plan.WordFilter, hidden.ByWord, unit},
+		{plan.TypeFilter, hidden.ByType, typeUnit},
+	} {
+		if by.filter != nil && by.count > 0 {
+			s.Hidden = append(s.Hidden, by.filter.Note(by.count, by.countedUnit))
+		}
+	}
+}
+
 // SearchFunc is an engine's Search.
 type SearchFunc[R any] func(ctx context.Context, plan *query.Plan, repos []R, planID int, emit func(protocol.ResultItem)) (Stats, error)
 
