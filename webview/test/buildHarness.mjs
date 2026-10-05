@@ -36,6 +36,8 @@ window.__fromHost = (type, payload) =>
   window.dispatchEvent(new MessageEvent("message", { data: { v: 1, type, payload } }));
 `;
 
+const css = readFileSync(join(here, "../src/main.css"), "utf8");
+
 /** Bundles one webview entry into out/<name>.html with the fake VS Code API. */
 async function buildPage(entry, name) {
   const result = await build({
@@ -57,7 +59,6 @@ async function buildPage(entry, name) {
   );
 }
 
-const css = readFileSync(join(here, "../src/main.css"), "utf8");
 await buildPage("main.ts", "searchPanel");
 await buildPage("helpPage.ts", "help");
 await buildPage("welcomePage.ts", "welcome");

@@ -122,7 +122,7 @@ test("⇧⌫ on an empty box removes the selected recent query and keeps the sel
   assert.equal(await page.locator(".recent-row.selected").getAttribute("data-recent"), "third");
   await page.keyboard.press("Shift+Backspace");
   await page.keyboard.press("Shift+Backspace");
-  assert.deepEqual(await page.locator('[data-testid="recent"]').count(), 0);
+  assert.equal(await page.locator('[data-testid="recent"]').count(), 0);
   assert.deepEqual(
     (await sentMessages(page, "recent.remove")).map((message) => message.payload.query),
     ["second", "third", "first"],
