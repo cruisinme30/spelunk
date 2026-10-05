@@ -13,7 +13,7 @@ import {
   timeAgo,
 } from "../format";
 import { operatorNodes, textNodes, textTerms } from "../parsedQuery";
-import type { Fix, HiddenNote, ResultItem, SearchDoneMessage } from "../protocol.gen";
+import type { Fix, HiddenNote, RankReason, ResultItem, ResultOrder, SearchDoneMessage } from "../protocol.gen";
 import { repoName, type ViewState } from "../state";
 
 type ResultKind = ResultItem["kind"];
@@ -27,6 +27,17 @@ const SINGULAR_UNIT: Record<HiddenNote["unit"], string> = {
   files: "file",
   commits: "commit",
   definitions: "definition",
+};
+
+/** How a section title says the order of current files. */
+const ORDER_LABEL: Record<ResultOrder, string> = { best: "best match first", path: "path order" };
+
+/** The badge a result's file shows for why best-match order put it where it is. */
+const RANK_BADGE: Record<RankReason, string> = {
+  definition: "definition",
+  test: "test",
+  vendored: "vendored",
+  generated: "generated",
 };
 
 /** What undoing a filter does, where "Show them" would mislead. */
@@ -106,10 +117,11 @@ export class ResultsView {
     private readonly handlers: ResultsHandlers,
     scope: string[] = [],
   ) {
+    const order = ORDER_LABEL[state.parsed?.globals.order ?? state.ui.order];
     this.sections = {
-      file: makeSection("File names", "section-files"),
-      symbol: makeSection("Definitions", "section-symbols"),
-      line: makeSection(scope.length > 0 ? "Code in matching paths" : "Code", "section-code"),
+      file: makeSection(`File names · ${order}`, "section-files"),
+      symbol: makeSection(`Definitions · ${order}`, "section-symbols"),
+      line: makeSection(`${scope.length > 0 ? "Code in matching paths" : "Code"} · ${order}`, "section-code"),
       commit: makeSection("Commits · newest first", "section-commits"),
     };
     if (scope.length > 0) this.sections.line.list.before(pathScopeNote(scope));
@@ -307,8 +319,9 @@ export class ResultsView {
   private renderFileRow(item: ItemOf<"file">): HTMLElement {
     return element(
       "div",
-      { ...this.rowAttributes(item), class: "row file", title: item.path },
+      { ...this.rowAttributes(item), class: `row file${demoted(item.rankReason)}`, title: item.path },
       element("span", { class: "path" }, highlight(item.path, item.nameHits)),
+      rankBadge(item.rankReason),
       item.dirty ? element("span", { class: "badge warn" }, "Uncommitted changes") : null,
       item.lastCommit
         ? element("span", { class: "meta" }, `${item.lastCommit.author} · ${timeAgo(item.lastCommit.at)}`)
@@ -326,8 +339,9 @@ export class ResultsView {
       group.append(
         element(
           "div",
-          { class: "group", "data-testid": "code-group" },
+          { class: `group${demoted(item.rankReason)}`, "data-testid": "code-group" },
           element("span", { class: "path" }, item.path),
+          rankBadge(item.rankReason),
           element("span", { class: "repo" }, repoName(this.state, item.repoId)),
           countLabel,
         ),
@@ -343,7 +357,7 @@ export class ResultsView {
   private renderSymbolRow(item: ItemOf<"symbol">): HTMLElement {
     return element(
       "div",
-      { ...this.rowAttributes(item), class: "row symbol" },
+      { ...this.rowAttributes(item), class: `row symbol${demoted(item.rankReason)}` },
       element("span", { class: `badge kind-${item.symbolKind}` }, item.symbolKind),
       element("code", { class: "name" }, highlight(item.name, item.hits)),
       element("span", { class: "path muted" }, `${item.path}:${item.line}`),
@@ -406,6 +420,18 @@ function pathScopeNote(scope: string[]): HTMLElement {
     ...patterns,
     " are searched.",
   );
+}
+
+/** The badge for why best-match order put a result's file where it is, if it says. */
+function rankBadge(reason: RankReason | undefined): HTMLElement | null {
+  return reason
+    ? element("span", { class: `badge rank-${reason}`, "data-testid": "rank-reason" }, RANK_BADGE[reason])
+    : null;
+}
+
+/** " demoted" for a test, vendored or generated file, which reads dimmer; "" otherwise. */
+function demoted(reason: RankReason | undefined): string {
+  return reason && reason !== "definition" ? " demoted" : "";
 }
 
 function makeSection(title: string, testId: string): Section {

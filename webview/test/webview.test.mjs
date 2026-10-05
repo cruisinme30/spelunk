@@ -102,7 +102,7 @@ test("? in an empty box scrolls the cheat sheet into view when it sits below the
   assert.equal(await page.inputValue(QUERY), "", "the ? isn't typed into the box");
 });
 
-test("an empty box shows recent queries and all 16 operators", async (t) => {
+test("an empty box shows recent queries and all 17 operators", async (t) => {
   // @covers screen:empty-box
   const page = await openPanel(t);
   assert.equal((await sentMessages(page, "ready")).length, 1);
@@ -179,6 +179,46 @@ test("streamed results render in sections with a summary", async (t) => {
   const page = await panelWithResults(t);
   assert.equal(await page.locator('[data-testid="result"]').count(), 2);
   assert.match(await page.locator('[data-testid="summary"]').innerText(), /1 file name · 1 code match/);
+});
+
+test("section titles say results are best match first, and each file says why it ranks where it does", async (t) => {
+  // @covers screen:ranked-results
+  const page = await openPanel(t);
+  await restore(page);
+  const seq = await typeAndParse(page, "retry", parsedQuery("retry", textNode("retry", 0)));
+  const line = (path, rankReason) => ({ ...CODE_LINE_RESULT, ref: path, path, ...(rankReason && { rankReason }) });
+  await fromHost(page, "search.batch", {
+    seq,
+    searchId: "s1",
+    items: [
+      { ...FILE_NAME_RESULT, path: "http/retry.py", rankReason: "definition" },
+      line("http/retry.py", "definition"),
+      line("src/client.py"),
+      line("tests/retry_test.py", "test"),
+    ],
+  });
+  assert.match(await page.locator('[data-testid="section-files"] .section-title').innerText(), /best match first/i);
+  assert.match(await page.locator('[data-testid="section-code"] .section-title').innerText(), /best match first/i);
+  const groups = page.locator('[data-testid="code-group"]');
+  assert.equal(await groups.nth(0).locator('[data-testid="rank-reason"]').innerText(), "definition");
+  assert.equal(await groups.nth(1).locator('[data-testid="rank-reason"]').count(), 0);
+  assert.equal(await groups.nth(2).locator('[data-testid="rank-reason"]').innerText(), "test");
+  assert.match((await groups.nth(2).getAttribute("class")) ?? "", /demoted/);
+});
+
+test("order:path, or the order setting, makes the titles say path order", async (t) => {
+  // @covers screen:path-order
+  const page = await openPanel(t);
+  await restore(page, [], { order: "path" });
+  const seq = await typeAndParse(page, "retry", parsedQuery("retry", textNode("retry", 0)));
+  await fromHost(page, "search.batch", { seq, searchId: "s1", items: [CODE_LINE_RESULT] });
+  assert.match(await page.locator('[data-testid="section-code"] .section-title').innerText(), /path order/i);
+  const best = parsedQuery("order:best retry", textNode("retry", 11), {
+    globals: { case: null, count: null, type: null, order: "best" },
+  });
+  const next = await typeAndParse(page, "order:best retry", best);
+  await fromHost(page, "search.batch", { seq: next, searchId: "s2", items: [CODE_LINE_RESULT] });
+  assert.match(await page.locator('[data-testid="section-code"] .section-title').innerText(), /best match first/i);
 });
 
 test("the first result is selected and previewed; ↓ moves the selection", async (t) => {

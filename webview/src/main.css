@@ -724,6 +724,15 @@ mark {
   border-color: var(--warn);
 }
 
+.badge.rank-definition {
+  color: var(--tone-match);
+  border-color: var(--tone-match);
+}
+
+.demoted .path {
+  opacity: 0.75;
+}
+
 .row.symbol .name {
   font-size: 12.5px;
 }
