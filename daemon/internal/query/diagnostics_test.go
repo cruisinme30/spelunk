@@ -130,3 +130,19 @@ func TestALongQueryReportsACappedNumberOfProblems(t *testing.T) {
 		t.Errorf("Parse(10000 × \")\") has %d diagnostics with %d %s, want %d with 1", len(q.Diagnostics), count(q.Diagnostics, DiagQueryTooLong), DiagQueryTooLong, maxDiagnostics)
 	}
 }
+
+func TestClosingFixesSurviveATrailingBackslash(t *testing.T) {
+	tests := []struct{ query, fixed string }{
+		{`"abc\`, `"abc\\"`},
+		{`/abc\`, `/abc\\/`},
+		{`msg:"abc\`, `msg:"abc\\"`},
+		{"\"\xee\\", "\"�\\\\\""},
+	}
+	for _, tt := range tests {
+		q := Parse(tt.query, testResolver)
+		fixed := ApplyFix(tt.query, q.Diagnostics[0].Fixes[0])
+		if fixed != tt.fixed || len(Parse(fixed, testResolver).Diagnostics) > 0 {
+			t.Errorf("first fix of %q gives %q with %v, want %q without problems", tt.query, fixed, codes(Parse(fixed, testResolver).Diagnostics), tt.fixed)
+		}
+	}
+}

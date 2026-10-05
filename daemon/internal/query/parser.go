@@ -258,10 +258,24 @@ func (p *parser) textNode(t token) *protocol.Node {
 func (p *parser) reportUnclosed(t token) {
 	switch t.unclosed {
 	case '"':
-		p.problems.errorf(DiagUnclosedQuote, p.span(t), []protocol.Fix{insertFix(`Close the quote`, t.end, `"`)}, "Missing closing quote")
+		p.problems.errorf(DiagUnclosedQuote, p.span(t), []protocol.Fix{insertFix(`Close the quote`, t.end, p.closing(t))}, "Missing closing quote")
 	case '/':
-		p.problems.errorf(DiagUnclosedRegex, p.span(t), []protocol.Fix{insertFix("Close the regex", t.end, "/")}, "Missing closing / of the regex")
+		p.problems.errorf(DiagUnclosedRegex, p.span(t), []protocol.Fix{insertFix("Close the regex", t.end, p.closing(t))}, "Missing closing / of the regex")
 	}
+}
+
+// closing is what closes an unclosed quote or regex. After a lone trailing
+// backslash, the delimiter alone would be escaped and leave it open, so
+// "abc\ closes as "abc\\": the backslash, escaped, then the quote.
+func (p *parser) closing(t token) string {
+	backslashes := 0
+	for i := p.src.runeIndex(t.end) - 1; i > p.src.runeIndex(t.start) && p.src.runes[i] == '\\'; i-- {
+		backslashes++
+	}
+	if backslashes%2 == 1 {
+		return `\` + string(t.unclosed)
+	}
+	return string(t.unclosed)
 }
 
 // operatorNode builds an op node, or reports an unknown operator or bad value.
