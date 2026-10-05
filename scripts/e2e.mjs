@@ -71,7 +71,9 @@ execFileSync(process.execPath, [join(repoRoot, "extension/build.mjs"), "--e2e"],
 
 const scratch = mkdtempSync(join(tmpdir(), "us-e2e-"));
 // VS Code must start as itself, not as Node, even when this runs under Electron.
-const environment = { ...process.env, SPELUNK_TEST: "1" };
+// SPELUNK_DAEMON pins the daemon npm test just built, so a copy npm run package left in extension/bin can't stand in.
+const daemon = join(repoRoot, "daemon/bin", process.platform === "win32" ? "spelunk-daemon.exe" : "spelunk-daemon");
+const environment = { ...process.env, SPELUNK_TEST: "1", SPELUNK_DAEMON: daemon };
 delete environment.ELECTRON_RUN_AS_NODE;
 const child = spawn(
   executable,

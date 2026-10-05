@@ -59,6 +59,11 @@ copyFileSync(join(repoRoot, "LICENSE"), join(extensionRoot, "LICENSE"));
 
 const packagePath = join(repoRoot, "out", `spelunk-${version}-${target}.vsix`);
 mkdirSync(dirname(packagePath), { recursive: true });
-// dependencies: false because esbuild already bundled everything the extension imports.
-await createVSIX({ cwd: extensionRoot, packagePath, target, dependencies: false });
+try {
+  // dependencies: false because esbuild already bundled everything the extension imports.
+  await createVSIX({ cwd: extensionRoot, packagePath, target, dependencies: false });
+} finally {
+  // Left behind, this daemon would shadow daemon/bin's fresh builds in every later dev or e2e run.
+  rmSync(binDirectory, { recursive: true, force: true });
+}
 console.log(`Install it with: code --install-extension ${packagePath}`);
