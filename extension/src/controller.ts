@@ -244,7 +244,7 @@ export class SearchController {
   }
 
   /** Takes a query off the recent list. */
-  forgetQuery(query: string): void {
+  private forgetQuery(query: string): void {
     const recent = this.state.recent.filter((kept) => kept !== query);
     if (recent.length === this.state.recent.length) return;
     this.state.recent = recent;
