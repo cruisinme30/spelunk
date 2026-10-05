@@ -33,8 +33,13 @@ func shardOf(files map[string]string) *Shard {
 	return s
 }
 
-// defaultSettings are the extension's default search settings.
-var defaultSettings = protocol.Settings{DefaultCount: 500, HistoryDepth: "2y"}
+// defaultSettings are the extension's default search settings, except that
+// they sort results by path, so most tests' expectations read in path
+// order. rank_test.go tests best-match order with bestMatchSettings.
+var (
+	defaultSettings   = protocol.Settings{DefaultCount: 500, HistoryDepth: "2y", Order: protocol.ResultOrderPath}
+	bestMatchSettings = protocol.Settings{DefaultCount: 500, HistoryDepth: "2y"}
+)
 
 // repoOf is a repo named name whose shard holds files (path to content).
 func repoOf(name string, files map[string]string) Repo {

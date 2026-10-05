@@ -77,7 +77,7 @@ func (r *Repo) changedSince(doc *Doc, after time.Time) bool {
 func Search(ctx context.Context, plan *query.Plan, repos []Repo, planID int, emit func(protocol.ResultItem)) (engine.Stats, error) {
 	ctx, cancel := context.WithTimeout(ctx, engine.Budget)
 	defer cancel()
-	s := &searcher{ctx: ctx, plan: plan, planID: planID, emit: emit, hidden: map[int]int{}, terms: termCache{}}
+	s := newSearcher(ctx, plan, planID, emit)
 	onlyFiles := plan.Kinds[query.KindFile] && !plan.Kinds[query.KindLine]
 
 	if plan.Kinds[query.KindSymbol] {
@@ -93,6 +93,9 @@ func Search(ctx context.Context, plan *query.Plan, repos []Repo, planID int, emi
 		case onlyFiles && plan.KindFilter != nil:
 			s.countCodeLinesHiddenByType(repos)
 		}
+	}
+	if s.holding {
+		s.sendHeld()
 	}
 	if plan.CaseFilter != nil {
 		s.hiddenByCase = engine.CountIgnoringCase(ctx, plan, repos, Search) - s.counted
@@ -132,6 +135,28 @@ type searcher struct {
 	// hiddenByCase counts results that differ only in case from case:yes.
 	hiddenByCase int
 	terms        termCache
+
+	// Best-match order (see rank.go): started is when the search began,
+	// rankTerms the text terms outside a NOT, literals each term's text by
+	// term index, and held the page's results while holding.
+	started   time.Time
+	rankTerms []*query.Content
+	literals  map[int]string
+	holding   bool
+	held      []*pageGroup
+}
+
+func newSearcher(ctx context.Context, plan *query.Plan, planID int, emit func(protocol.ResultItem)) *searcher {
+	s := &searcher{
+		ctx: ctx, plan: plan, planID: planID, emit: emit, hidden: map[int]int{}, terms: termCache{},
+		started: time.Now(), literals: map[int]string{},
+	}
+	s.holding = s.ranking()
+	query.VisitPositive(plan.Pred, func(term *query.Content) {
+		s.rankTerms = append(s.rankTerms, term)
+		s.literals[term.TermIndex] = term.Literal
+	})
+	return s
 }
 
 // stopped reports whether the search should stop adding results: it ran
@@ -145,15 +170,27 @@ func (s *searcher) stopped() bool {
 }
 
 // add counts a result and emits it if it falls on the requested page.
-func (s *searcher) add(item protocol.ResultItem) {
+// In best-match order the page is held and sent sorted once it is full,
+// or once rankWindow has passed; score and quality rank the result's file.
+func (s *searcher) add(item protocol.ResultItem, score, quality int) {
 	if s.counted >= query.MaxResults {
 		s.truncated = true
 		return
 	}
+	if s.holding && time.Since(s.started) > rankWindow {
+		s.sendHeld()
+	}
 	if s.plan.OnPage(s.counted) {
-		s.emit(item)
+		if s.holding {
+			s.hold(item, score, quality)
+		} else {
+			s.emit(item)
+		}
 	}
 	s.counted++
+	if s.holding && s.counted == s.plan.Offset+s.plan.Limit {
+		s.sendHeld()
+	}
 }
 
 // stats summarizes the search, with one hidden-results note per filter
@@ -199,46 +236,76 @@ func docLeaf(p query.Pred, repo *Repo, doc *Doc) bool {
 // countHidden credits each file that only one filter removed to that
 // filter. It is set only when file names are the only results: otherwise
 // the hidden-results note counts code matches, which addCodeLines credits.
+//
+// Matching a path is cheap, so in best-match order every matching file is
+// found first and then added best first.
 func (s *searcher) addFileNames(repos []Repo, countHidden bool) {
-	for i := range repos {
-		s.addRepoFileNames(&repos[i], countHidden)
+	if !s.ranking() {
+		s.forEachFileName(repos, countHidden, func(repo *Repo, doc *Doc) { s.addFileName(repo, doc, docRank{}) })
+		return
+	}
+	var matched []rankedCandidate
+	s.forEachFileName(repos, countHidden, func(repo *Repo, doc *Doc) {
+		matched = append(matched, rankedCandidate{repo: repo, doc: doc, rank: s.rankDoc(repo, doc)})
+	})
+	sortByRank(matched)
+	for _, c := range matched {
+		s.addFileName(c.repo, c.doc, c.rank)
 	}
 }
 
-// addRepoFileNames does addFileNames for one repo.
-func (s *searcher) addRepoFileNames(repo *Repo, countHidden bool) {
-	if s.plan.ExcludesRepo(repo.Name) {
-		return
-	}
-	for _, shard := range repo.shards() {
-		for i := range shard.Docs {
-			if s.stopped() {
-				return
-			}
-			if doc := &shard.Docs[i]; repo.current(shard, doc) {
-				s.addFileName(repo, doc, countHidden)
+// forEachFileName calls visit for each current file of repos whose path
+// satisfies the query, in path order. It stops when the search does.
+func (s *searcher) forEachFileName(repos []Repo, countHidden bool, visit func(repo *Repo, doc *Doc)) {
+	for i := range repos {
+		repo := &repos[i]
+		if s.plan.ExcludesRepo(repo.Name) {
+			continue
+		}
+		for _, shard := range repo.shards() {
+			for j := range shard.Docs {
+				if s.stopped() {
+					return
+				}
+				if doc := &shard.Docs[j]; repo.current(shard, doc) && s.fileNameMatches(repo, doc, countHidden) {
+					visit(repo, doc)
+				}
 			}
 		}
 	}
 }
 
-// addFileName adds a file-name result for doc if its path satisfies the query.
-func (s *searcher) addFileName(repo *Repo, doc *Doc, countHidden bool) {
-	leaf := func(p query.Pred) bool {
+// fileNameMatches reports whether doc's path satisfies the query, and
+// credits a file that one filter alone hid to that filter.
+func (s *searcher) fileNameMatches(repo *Repo, doc *Doc, countHidden bool) bool {
+	leaf := fileNameLeaf(repo, doc)
+	if query.Eval(s.plan.Pred, leaf) {
+		return true
+	}
+	if countHidden {
+		s.countHidden(leaf, func([]*query.Content) int { return 1 })
+	}
+	return false
+}
+
+// fileNameLeaf evaluates a leaf against a file's path: text terms match
+// the path instead of the file's text.
+func fileNameLeaf(repo *Repo, doc *Doc) func(query.Pred) bool {
+	return func(p query.Pred) bool {
 		if c, ok := p.(*query.Content); ok {
 			return c.Re.MatchString(doc.Path)
 		}
 		return docLeaf(p, repo, doc)
 	}
-	if !query.Eval(s.plan.Pred, leaf) {
-		if countHidden {
-			s.countHidden(leaf, func([]*query.Content) int { return 1 })
-		}
-		return
-	}
+}
+
+// addFileName adds the file-name result for doc, whose path satisfies the query.
+func (s *searcher) addFileName(repo *Repo, doc *Doc, rank docRank) {
+	leaf := fileNameLeaf(repo, doc)
 	item := protocol.ResultItem{
 		Kind: query.KindFile, Ref: Ref{PlanID: s.planID, RepoID: repo.ID, Path: doc.Path}.String(),
 		RepoID: repo.ID, Path: doc.Path, NameHits: s.nameHits(doc.Path, query.Contributing(s.plan.Pred, leaf)),
+		RankReason: rank.reason,
 	}
 	if repo.History != nil {
 		item.Dirty = repo.History.Dirty(doc.Path)
@@ -246,7 +313,7 @@ func (s *searcher) addFileName(repo *Repo, doc *Doc, countHidden bool) {
 			item.LastCommit = &commit
 		}
 	}
-	s.add(item)
+	s.add(item, rank.score, 0)
 }
 
 // nameHits highlights the matching text terms in a path; with no text
@@ -314,43 +381,45 @@ func (s *searcher) countHidden(leaf func(query.Pred) bool, size func([]*query.Co
 // satisfies the query (the "Code" section), and credits the lines of a
 // file that only one filter removed to that filter.
 func (s *searcher) addCodeLines(repos []Repo) {
-	for i := range repos {
-		repo := &repos[i]
-		s.forEachCandidate(repo, func(doc *Doc, matcher *lineMatcher, leaf func(query.Pred) bool) {
-			if !query.Eval(s.plan.Pred, leaf) {
-				s.countHidden(leaf, func(terms []*query.Content) int { return len(matcher.lines(terms)) })
-				return
+	s.forEachCandidate(repos, func(c rankedCandidate, matcher *lineMatcher, leaf func(query.Pred) bool) {
+		if !query.Eval(s.plan.Pred, leaf) {
+			s.countHidden(leaf, func(terms []*query.Content) int { return len(matcher.lines(terms)) })
+			return
+		}
+		for _, line := range matcher.lines(query.Contributing(s.plan.Pred, leaf)) {
+			item := s.lineResult(c.repo, c.doc, line)
+			item.RankReason = c.rank.reason
+			quality := 0
+			if s.holding {
+				quality = s.lineQuality(line)
 			}
-			for _, line := range matcher.lines(query.Contributing(s.plan.Pred, leaf)) {
-				s.add(s.lineResult(repo, doc, line))
-			}
-		})
-	}
+			s.add(item, c.rank.score, quality)
+		}
+	})
 }
 
 // addSymbols adds a result for each definition whose name sym: matches, in
 // a file that satisfies the rest of the query (the "Definitions" section),
 // and credits a definition that only one filter removed to that filter.
 func (s *searcher) addSymbols(repos []Repo) {
-	for i := range repos {
-		repo := &repos[i]
-		s.forEachCandidate(repo, func(doc *Doc, _ *lineMatcher, leaf func(query.Pred) bool) {
-			for j := range doc.Symbols {
-				symbol := &doc.Symbols[j]
-				symbolLeaf := func(p query.Pred) bool {
-					if sym, ok := p.(*query.Symbol); ok {
-						return sym.Re.MatchString(symbol.Name)
-					}
-					return leaf(p)
+	s.forEachCandidate(repos, func(c rankedCandidate, _ *lineMatcher, leaf func(query.Pred) bool) {
+		for j := range c.doc.Symbols {
+			symbol := &c.doc.Symbols[j]
+			symbolLeaf := func(p query.Pred) bool {
+				if sym, ok := p.(*query.Symbol); ok {
+					return sym.Re.MatchString(symbol.Name)
 				}
-				if query.Eval(s.plan.Pred, symbolLeaf) {
-					s.add(s.symbolResult(repo, doc, symbol))
-				} else {
-					s.countHidden(symbolLeaf, func([]*query.Content) int { return 1 })
-				}
+				return leaf(p)
 			}
-		})
-	}
+			if query.Eval(s.plan.Pred, symbolLeaf) {
+				item := s.symbolResult(c.repo, c.doc, symbol)
+				item.RankReason = c.rank.reason
+				s.add(item, c.rank.score, 0)
+			} else {
+				s.countHidden(symbolLeaf, func([]*query.Content) int { return 1 })
+			}
+		}
+	})
 }
 
 // symbolResult builds a definition result. Its ref points at the name in
@@ -401,36 +470,53 @@ func lineOf(content []byte, number int) (string, bool) {
 // leaves out, for its "N code matches hidden by type:file" note. It adds
 // no results.
 func (s *searcher) countCodeLinesHiddenByType(repos []Repo) {
-	for i := range repos {
-		s.forEachCandidate(&repos[i], func(_ *Doc, matcher *lineMatcher, leaf func(query.Pred) bool) {
-			if query.Eval(s.plan.Pred, leaf) {
-				s.hiddenByKind += len(matcher.lines(query.Contributing(s.plan.Pred, leaf)))
-			}
-		})
+	s.forEachCandidate(repos, func(_ rankedCandidate, matcher *lineMatcher, leaf func(query.Pred) bool) {
+		if query.Eval(s.plan.Pred, leaf) {
+			s.hiddenByKind += len(matcher.lines(query.Contributing(s.plan.Pred, leaf)))
+		}
+	})
+}
+
+// forEachCandidate calls visit for each file of repos that the trigram
+// index says may match, with a matcher for the file's lines and leaf,
+// which evaluates the query's leaves against the file. Files come in path
+// order, repo by repo, or best first in best-match order. It stops when
+// the search does.
+func (s *searcher) forEachCandidate(repos []Repo, visit func(c rankedCandidate, matcher *lineMatcher, leaf func(query.Pred) bool)) {
+	candidates := s.candidates(repos)
+	for _, c := range candidates {
+		if s.stopped() {
+			return
+		}
+		matcher := newLineMatcher(c.doc.Content, s.terms)
+		visit(c, matcher, contentLeaf(c.repo, c.doc, matcher))
 	}
 }
 
-// forEachCandidate calls visit for each file of repo that the trigram index
-// says may match, in path order, with a matcher for the file's lines and
-// leaf, which evaluates the query's leaves against the file. It stops when
-// the search does.
-func (s *searcher) forEachCandidate(repo *Repo, visit func(doc *Doc, matcher *lineMatcher, leaf func(query.Pred) bool)) {
-	if s.plan.ExcludesRepo(repo.Name) {
-		return
-	}
-	for _, shard := range repo.shards() {
-		for _, id := range s.candidateDocs(shard) {
-			if s.stopped() {
-				return
+// candidates lists the current files of repos that the trigram index says
+// may match, in path order, or ranked best first in best-match order.
+func (s *searcher) candidates(repos []Repo) []rankedCandidate {
+	var candidates []rankedCandidate
+	for i := range repos {
+		repo := &repos[i]
+		if s.plan.ExcludesRepo(repo.Name) {
+			continue
+		}
+		for _, shard := range repo.shards() {
+			for _, id := range s.candidateDocs(shard) {
+				if doc := &shard.Docs[id]; repo.current(shard, doc) {
+					candidates = append(candidates, rankedCandidate{repo: repo, doc: doc})
+				}
 			}
-			doc := &shard.Docs[id]
-			if !repo.current(shard, doc) {
-				continue
-			}
-			matcher := newLineMatcher(doc.Content, s.terms)
-			visit(doc, matcher, contentLeaf(repo, doc, matcher))
 		}
 	}
+	if s.ranking() {
+		for i := range candidates {
+			candidates[i].rank = s.rankDoc(candidates[i].repo, candidates[i].doc)
+		}
+		sortByRank(candidates)
+	}
+	return candidates
 }
 
 // contentLeaf evaluates leaves against a file's text: a content term is

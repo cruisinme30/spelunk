@@ -50,8 +50,8 @@ func TestDesignQueriesFindWhatTheDesignsShow(t *testing.T) {
 			screen: "plain-text-search", query: "retry_policy",
 			want: []string{
 				"file payments-api/src/payments/retry_policy.py",
-				"file payments-api/tests/payments/retry_policy_test.py",
 				"file shared-libs/docs/retry_policy.md",
+				"file payments-api/tests/payments/retry_policy_test.py", // tests come last
 				"payments-api/src/payments/client.py:42",
 				"payments-api/src/payments/client.py:46",
 				"payments-api/src/payments/client.py:50",
@@ -79,13 +79,13 @@ func TestDesignQueriesFindWhatTheDesignsShow(t *testing.T) {
 			// @covers screen:case-regex-language
 			screen: "case-regex-language", query: "case:yes /Retry(Policy|Config)/ lang:python",
 			want: []string{
-				"payments-api/src/payments/client.py:2",
-				"payments-api/src/payments/client.py:42",
-				"payments-api/src/payments/retry_policy.py:5",
+				"payments-api/src/payments/retry_policy.py:5", // defines RetryPolicy
 				"payments-api/src/payments/retry_policy.py:12",
 				"payments-api/src/payments/retry_policy.py:40",
+				"shared-libs/http/config.py:21", // defines RetryConfig
+				"payments-api/src/payments/client.py:2",
+				"payments-api/src/payments/client.py:42",
 				"payments-api/tests/payments/retry_policy_test.py:12",
-				"shared-libs/http/config.py:21",
 			},
 			hidden: []string{"case:case:yes:1"},
 		},
@@ -93,10 +93,10 @@ func TestDesignQueriesFindWhatTheDesignsShow(t *testing.T) {
 			// @covers screen:file-names-only
 			screen: "file-names-only", query: "type:file lang:python retry",
 			want: []string{
+				"file shared-libs/http/retry.py", // defines retry and is named after it
 				"file payments-api/scripts/retry_failed_webhooks.py",
 				"file payments-api/src/payments/retry_policy.py",
 				"file payments-api/tests/payments/retry_policy_test.py",
-				"file shared-libs/http/retry.py",
 				"file shared-libs/http/tests/retry_test.py",
 			},
 			hidden: []string{"type:type:file:17"},
