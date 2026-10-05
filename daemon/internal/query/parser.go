@@ -155,11 +155,16 @@ func (p *parser) parseUnary() *protocol.Node {
 		return p.parsePrimary()
 	}
 	minus := p.advance()
+	before := p.pos
 	operand := p.parsePrimary()
-	if operand == nil {
+	// An operand that was there but invalid, like -sinse:6m, has already
+	// been reported; only a minus followed by nothing is missing one.
+	if operand == nil && p.pos == before {
 		p.problems.errorf(DiagMissingOperand, p.span(minus),
 			[]protocol.Fix{removeFix("Remove -", p.src, p.span(minus))},
 			"Nothing after - to exclude")
+	}
+	if operand == nil {
 		return nil
 	}
 	return &protocol.Node{Kind: protocol.NodeKindNot, Child: operand, Span: protocol.Span{Start: minus.start, End: operand.Span.End}}

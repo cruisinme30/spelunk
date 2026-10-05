@@ -147,3 +147,10 @@ func TestClosingFixesSurviveATrailingBackslash(t *testing.T) {
 		}
 	}
 }
+
+func TestAnInvalidOperandAfterMinusIsNotAlsoMissing(t *testing.T) {
+	q := Parse("timeout -sinse:6m", testResolver)
+	if got := codes(q.Diagnostics); len(got) != 1 || got[0] != DiagUnknownOperator {
+		t.Errorf("Parse(%q) diagnostics = %v, want only %s", q.Raw, got, DiagUnknownOperator)
+	}
+}
