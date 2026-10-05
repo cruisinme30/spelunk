@@ -195,11 +195,12 @@ async function loadHost() {
   return import(pathToFileURL(outfile).href);
 }
 
-/** Waits until the daemon has indexed every root, so the results are complete. */
+/** Waits until the daemon has indexed every root's files and history, so the results are complete. */
 async function untilIndexed(daemon) {
+  const done = (state) => state === "ready" || state === "off";
   await until("every root indexed", async () => {
     const { repos } = await daemon.request("index/status", {});
-    return repos.every((repo) => repo.tree === "ready");
+    return repos.every((repo) => repo.tree === "ready" && done(repo.history));
   });
 }
 
