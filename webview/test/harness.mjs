@@ -15,6 +15,7 @@ export const UI_SETTINGS = {
   preview: true,
   showParsedQuery: true,
   caseSensitive: false,
+  wholeWord: false,
   order: "best",
 };
 

@@ -233,6 +233,34 @@ func TestFiltersReportTheCommitsTheyHid(t *testing.T) {
 	}
 }
 
+func TestWordYesMatchesWholeWordsInDiffs(t *testing.T) {
+	// @covers op:word
+	r, _ := paymentsHistory(t)
+	repo := Repo{ID: "r1", Name: "payments-api", Root: r.root, Store: r.ingest()}
+	all, err := Search(context.Background(), plan(t, "type:commit time"), []Repo{repo}, 1, func(protocol.ResultItem) {})
+	if err != nil {
+		t.Fatal(err)
+	}
+	stats, err := Search(context.Background(), plan(t, "type:commit word:yes time"), []Repo{repo}, 1, func(protocol.ResultItem) {})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if all.Total == 0 || stats.Total != 0 || len(stats.Hidden) != 1 || stats.Hidden[0].Reason != "word" || stats.Hidden[0].Count != all.Total {
+		t.Errorf("word:yes time: %d results, hidden %+v; want none, and all %d commits hidden by word:yes", stats.Total, stats.Hidden, all.Total)
+	}
+	timeout, err := Search(context.Background(), plan(t, "type:commit timeout"), []Repo{repo}, 1, func(protocol.ResultItem) {})
+	if err != nil {
+		t.Fatal(err)
+	}
+	stats, err = Search(context.Background(), plan(t, "type:commit w:yes timeout"), []Repo{repo}, 1, func(protocol.ResultItem) {})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if timeout.Total == 0 || stats.Total != timeout.Total {
+		t.Errorf("w:yes timeout found %d commits, want the %d that timeout finds", stats.Total, timeout.Total)
+	}
+}
+
 func TestPreviewShowsTheDiffWithContextAndMarksTheTerms(t *testing.T) {
 	r, shas := paymentsHistory(t)
 	repo := Repo{ID: "r1", Name: "payments-api", Root: r.root, Store: r.ingest()}

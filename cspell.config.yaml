@@ -62,6 +62,7 @@ words:
   - typealias
   - Zoekt
   # Words of this code base
+  - autoretry
   - goldens
   - prefilter
   - presubmit

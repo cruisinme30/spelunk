@@ -137,7 +137,7 @@ func PreviewLine(line string, terms []*query.Content) (string, []protocol.Hit) {
 func markLine(line string, terms []*query.Content, own *Ref) (string, []protocol.Hit) {
 	var hits []byteHit
 	for _, term := range terms {
-		hits = append(hits, lineHits(term, func(n int) [][]int { return term.Re.FindAllStringIndex(line, n) })...)
+		hits = append(hits, lineHits(term, func(n int) [][]int { return term.FindAllStringIndex(line, n) })...)
 	}
 	sortHits(hits)
 	if len(hits) == 0 && own != nil {

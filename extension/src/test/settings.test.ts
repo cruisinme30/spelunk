@@ -52,9 +52,10 @@ test("the welcome page shows the saved preset and index choices, and an unknown 
 });
 
 test("settings of the wrong type or out of range fall back to defaults the daemon accepts", () => {
-  // @covers setting:defaultCount setting:index.maxFileSizeKB setting:index.exclude setting:caseSensitive
+  // @covers setting:defaultCount setting:index.maxFileSizeKB setting:index.exclude setting:caseSensitive setting:wholeWord
   const wrong = configWith({
     caseSensitive: "yes",
+    wholeWord: 1,
     defaultCount: "lots",
     "index.symbols": 1,
     "index.exclude": "**/dist/**",
@@ -66,6 +67,7 @@ test("settings of the wrong type or out of range fall back to defaults the daemo
   });
   assert.deepEqual(daemonSettings(wrong, "/home/u"), {
     caseSensitive: false,
+    wholeWord: false,
     defaultCount: 500,
     historyDepth: "2y",
     symbols: true,
@@ -99,6 +101,7 @@ test("panel settings of the wrong type fall back to their defaults", () => {
     "open.preview": "no",
     "ui.showParsedQuery": 0,
     caseSensitive: "true",
+    wholeWord: "true",
     "ui.recentQueries": "many",
     "open.closeOnOpen": "false",
     order: 1,
@@ -109,6 +112,7 @@ test("panel settings of the wrong type fall back to their defaults", () => {
     preview: true,
     showParsedQuery: true,
     caseSensitive: false,
+    wholeWord: false,
     order: "best",
   });
   assert.equal(recentQueriesLimit(wrong), 20, "not NaN, which would empty the recent list");

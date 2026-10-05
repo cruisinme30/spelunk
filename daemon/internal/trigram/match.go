@@ -168,7 +168,7 @@ func (m *lineMatcher) everyLine(term *query.Content) []matchedLine {
 // without its trailing "\r" (see lineHits).
 func matchLine(term *query.Content, line []byte, number int) (matchedLine, bool) {
 	line = bytes.TrimSuffix(line, []byte("\r"))
-	hits := lineHits(term, func(n int) [][]int { return term.Re.FindAllIndex(line, n) })
+	hits := lineHits(term, func(n int) [][]int { return term.FindAllIndex(line, n) })
 	if len(hits) == 0 {
 		return matchedLine{}, false
 	}

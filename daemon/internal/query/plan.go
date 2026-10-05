@@ -32,9 +32,12 @@ type Plan struct {
 	Mode  protocol.Mode
 	Kinds map[ResultKind]bool
 	// Pred is always an *And whose Kids are the top-level conjuncts
-	// (case:, count:, type: and order: shape the plan and have no predicate).
+	// (case:, word:, count:, type: and order: shape the plan and have no predicate).
 	Pred          *And
 	CaseSensitive bool
+	// WholeWord means text terms match only whole words: word:, or the
+	// wholeWord setting.
+	WholeWord bool
 	// Order is how current files are sorted: order:, or the order setting.
 	Order protocol.ResultOrder
 	// Limit is how many results one page returns (count:, or the default).
@@ -50,6 +53,9 @@ type Plan struct {
 	// CaseFilter is set when the query says case:yes, so engines can count
 	// the matches that differ only in case ("1 match hidden by case:yes").
 	CaseFilter *Filter
+	// WordFilter is set when the query says word:yes, so engines can count
+	// the matches that are only parts of words ("4 matches hidden by word:yes").
+	WordFilter *Filter
 	// SymbolFilter is set when the query has sym:. Its undo searches the
 	// symbol names as text, and the server counts what that finds ("Search
 	// RetryPolicy as text · 23").
@@ -63,12 +69,12 @@ type Plan struct {
 type Filter struct {
 	// Reason is the HiddenNote reason that names the kind of filter:
 	// "pathFilter" (-f:), "not" (any other negation), "since" (since:), and,
-	// for Plan.KindFilter, Plan.CaseFilter and Plan.SymbolFilter, "type",
-	// "case" and "symbol".
+	// for Plan.KindFilter, Plan.CaseFilter, Plan.WordFilter and
+	// Plan.SymbolFilter, "type", "case", "word" and "symbol".
 	Reason string
 	// Index is the position of the filter's conjunct in Plan.Pred.Kids, so
 	// an engine can tell which filter a result failed. It is -1 for
-	// KindFilter, CaseFilter and SymbolFilter, which have no conjunct.
+	// KindFilter, CaseFilter, WordFilter and SymbolFilter, which have no conjunct.
 	Index int
 	// Text is the filter as typed, e.g. -f:vendor/.
 	Text string
@@ -120,7 +126,14 @@ type (
 		Literal string
 		// IgnoreCase is true when Re ignores case.
 		IgnoreCase bool
-		TermIndex  int
+		// WholeWord keeps only the matches of Re that are whole words
+		// (word:yes). Match with the term's Find methods, not Re's, so it
+		// applies.
+		WholeWord bool
+		TermIndex int
+		// resumable means Re can be matched from inside a text (canResume),
+		// so a match that isn't a whole word can be retried a rune later.
+		resumable bool
 	}
 	// Path matches the repo-relative path (f:).
 	Path struct{ Re *regexp.Regexp }
@@ -165,10 +178,15 @@ func joinPreds(kind string, kids []Pred) string {
 	return kind + "(" + strings.Join(parts, " ") + ")"
 }
 
-func (p *And) String() string     { return joinPreds("and", p.Kids) }
-func (p *Or) String() string      { return joinPreds("or", p.Kids) }
-func (p *Not) String() string     { return "not(" + p.Kid.String() + ")" }
-func (p *Content) String() string { return fmt.Sprintf("content#%d:/%s/", p.TermIndex, p.Re) }
+func (p *And) String() string { return joinPreds("and", p.Kids) }
+func (p *Or) String() string  { return joinPreds("or", p.Kids) }
+func (p *Not) String() string { return "not(" + p.Kid.String() + ")" }
+func (p *Content) String() string {
+	if p.WholeWord {
+		return fmt.Sprintf("content#%d:word/%s/", p.TermIndex, p.Re)
+	}
+	return fmt.Sprintf("content#%d:/%s/", p.TermIndex, p.Re)
+}
 func (p *Path) String() string    { return "path:/" + p.Re.String() + "/" }
 func (p *Repo) String() string    { return "repo:/" + p.Re.String() + "/" }
 func (p *Lang) String() string    { return "lang:" + p.Name }
@@ -204,6 +222,7 @@ func NewPlan(q protocol.ParsedQuery, settings protocol.Settings, now time.Time, 
 		Mode:          q.Mode,
 		Kinds:         resultKinds(q),
 		CaseSensitive: settings.CaseSensitive,
+		WholeWord:     settings.WholeWord,
 		Limit:         pageSize(q.Globals.Count, settings.DefaultCount),
 		Offset:        offset,
 		Pred:          &And{},
@@ -211,13 +230,16 @@ func NewPlan(q protocol.ParsedQuery, settings protocol.Settings, now time.Time, 
 	if q.Globals.Case != nil {
 		plan.CaseSensitive = *q.Globals.Case == "yes"
 	}
+	if q.Globals.Word != "" {
+		plan.WholeWord = q.Globals.Word == "yes"
+	}
 	plan.Order = resultOrder(q.Globals.Order, settings.Order)
 
-	l := lowering{caseSensitive: plan.CaseSensitive, now: now, plan: plan}
+	l := lowering{caseSensitive: plan.CaseSensitive, wholeWord: plan.WholeWord, now: now, plan: plan}
 	src := newSource(q.Raw)
 	for _, node := range topLevel(q.Root) {
 		pred := l.lower(node)
-		if pred == nil { // a global: case:, count:, type: or order:
+		if pred == nil { // a global: case:, word:, count:, type: or order:
 			plan.addGlobalFilter(node, src)
 			continue
 		}
@@ -296,8 +318,9 @@ func pageOffset(cursor string) (int, error) {
 	return offset, nil
 }
 
-// addGlobalFilter records a type: or case:yes global as a filter whose
-// hidden results the engine counts (the type:file and case:yes notes).
+// addGlobalFilter records a type:, case:yes or word:yes global as a filter
+// whose hidden results the engine counts (the type:file, case:yes and
+// word:yes notes).
 func (p *Plan) addGlobalFilter(node *protocol.Node, src *source) {
 	if node.Kind != protocol.NodeKindOp {
 		return
@@ -308,6 +331,8 @@ func (p *Plan) addGlobalFilter(node *protocol.Node, src *source) {
 		p.KindFilter = &Filter{Reason: "type", Index: -1, Text: text, Undo: removeFix("Remove "+text, src, node.Span)}
 	case node.Op == protocol.OpNameCase && p.CaseSensitive:
 		p.CaseFilter = &Filter{Reason: "case", Index: -1, Text: text, Undo: removeFix("Ignore case", src, node.Span)}
+	case node.Op == protocol.OpNameWord && p.WholeWord:
+		p.WordFilter = &Filter{Reason: "word", Index: -1, Text: text, Undo: removeFix("Match parts of words", src, node.Span)}
 	}
 }
 
@@ -340,6 +365,7 @@ func resultKinds(q protocol.ParsedQuery) map[ResultKind]bool {
 // lowering turns AST nodes into predicates.
 type lowering struct {
 	caseSensitive bool
+	wholeWord     bool
 	now           time.Time
 	plan          *Plan
 }
@@ -363,7 +389,8 @@ func (l *lowering) lower(node *protocol.Node) Pred {
 		}
 		return nil
 	case protocol.NodeKindText:
-		content := &Content{Re: l.regex(node.Value, node.Match), IgnoreCase: !l.caseSensitive, TermIndex: node.TermIndex}
+		content := &Content{Re: l.regex(node.Value, node.Match), IgnoreCase: !l.caseSensitive, WholeWord: l.wholeWord, TermIndex: node.TermIndex}
+		content.resumable = content.WholeWord && canResume(content.Re)
 		if node.Match != protocol.MatchRegex {
 			content.Literal = node.Value
 		}
@@ -397,7 +424,7 @@ func (l *lowering) lowerOperator(node *protocol.Node) Pred {
 		return &Is{State: node.Value}
 	case protocol.OpNameSince:
 		return &Since{After: since(l.now, node.Value)}
-	default: // case:, count:, type:, order: shape the plan, not the predicate
+	default: // case:, word:, count:, type:, order: shape the plan, not the predicate
 		return nil
 	}
 }
@@ -616,54 +643,80 @@ func longestLiteral(re *syntax.Regexp) string {
 // IgnoringCase returns a copy of the plan whose regexes ignore case, to
 // count what case:yes hid. The copy has no filters of its own.
 func (p *Plan) IgnoringCase() *Plan {
-	folded := *p
+	fold := func(re *regexp.Regexp) *regexp.Regexp { return regexp.MustCompile("(?i)" + re.String()) }
+	folded := p.relaxed(func(c *Content) { c.Re, c.IgnoreCase = fold(c.Re), true }, fold)
 	folded.CaseSensitive = false
-	folded.Filters, folded.KindFilter, folded.CaseFilter = nil, nil, nil
-	terms := map[*Content]*Content{}
-	folded.Pred = foldAnd(p.Pred, terms)
-	folded.Terms = make([]*Content, len(p.Terms))
-	for i, term := range p.Terms {
-		folded.Terms[i] = terms[term]
-	}
-	return &folded
+	return folded
 }
 
-// foldPred copies p with every regex made case-insensitive, recording
-// which copy replaced which content term.
-func foldPred(p Pred, terms map[*Content]*Content) Pred {
-	fold := func(re *regexp.Regexp) *regexp.Regexp { return regexp.MustCompile("(?i)" + re.String()) }
+// MatchingPartialWords returns a copy of the plan whose text terms match
+// parts of words too, to count what word:yes hid. The copy has no filters
+// of its own.
+func (p *Plan) MatchingPartialWords() *Plan {
+	partial := p.relaxed(func(c *Content) { c.WholeWord = false }, nil)
+	partial.WholeWord = false
+	return partial
+}
+
+// relaxed copies the plan without its filters, changing each content term
+// with term and every other regex with re (left alone when re is nil).
+func (p *Plan) relaxed(term func(*Content), re func(*regexp.Regexp) *regexp.Regexp) *Plan {
+	copied := *p
+	copied.Filters, copied.KindFilter, copied.CaseFilter, copied.WordFilter = nil, nil, nil, nil
+	r := relaxer{term: term, re: re, terms: map[*Content]*Content{}}
+	if r.re == nil {
+		r.re = func(re *regexp.Regexp) *regexp.Regexp { return re }
+	}
+	copied.Pred = r.and(p.Pred)
+	copied.Terms = make([]*Content, len(p.Terms))
+	for i, term := range p.Terms {
+		copied.Terms[i] = r.terms[term]
+	}
+	return &copied
+}
+
+// relaxer copies a predicate tree for Plan.relaxed, recording which copy
+// replaced which content term.
+type relaxer struct {
+	term  func(*Content)
+	re    func(*regexp.Regexp) *regexp.Regexp
+	terms map[*Content]*Content
+}
+
+func (r relaxer) pred(p Pred) Pred {
 	switch p := p.(type) {
 	case *And:
-		return foldAnd(p, terms)
+		return r.and(p)
 	case *Or:
-		return &Or{Kids: foldKids(p.Kids, terms)}
+		return &Or{Kids: r.kids(p.Kids)}
 	case *Not:
-		return &Not{Kid: foldPred(p.Kid, terms)}
+		return &Not{Kid: r.pred(p.Kid)}
 	case *Content:
-		folded := &Content{Re: fold(p.Re), Literal: p.Literal, IgnoreCase: true, TermIndex: p.TermIndex}
-		terms[p] = folded
-		return folded
+		copied := *p
+		r.term(&copied)
+		r.terms[p] = &copied
+		return &copied
 	case *Path:
-		return &Path{Re: fold(p.Re)}
+		return &Path{Re: r.re(p.Re)}
 	case *Repo:
-		return &Repo{Re: fold(p.Re)}
+		return &Repo{Re: r.re(p.Re)}
 	case *Symbol:
-		return &Symbol{Re: fold(p.Re)}
+		return &Symbol{Re: r.re(p.Re)}
 	case *Message:
-		return &Message{Re: fold(p.Re)}
+		return &Message{Re: r.re(p.Re)}
 	default: // no regex: languages, authors, dates
 		return p
 	}
 }
 
-func foldAnd(p *And, terms map[*Content]*Content) *And {
-	return &And{Kids: foldKids(p.Kids, terms)}
+func (r relaxer) and(p *And) *And {
+	return &And{Kids: r.kids(p.Kids)}
 }
 
-func foldKids(kids []Pred, terms map[*Content]*Content) []Pred {
-	folded := make([]Pred, len(kids))
+func (r relaxer) kids(kids []Pred) []Pred {
+	copied := make([]Pred, len(kids))
 	for i, kid := range kids {
-		folded[i] = foldPred(kid, terms)
+		copied[i] = r.pred(kid)
 	}
-	return folded
+	return copied
 }

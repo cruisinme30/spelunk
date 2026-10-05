@@ -95,6 +95,28 @@ func TestCaseSensitivityComesFromCaseOrTheSetting(t *testing.T) {
 	}
 }
 
+func TestWholeWordComesFromWordOrTheSetting(t *testing.T) {
+	// @covers setting:wholeWord
+	wholeWords := defaultSettings
+	wholeWords.WholeWord = true
+	tests := []struct {
+		query    string
+		settings protocol.Settings
+		want     bool
+	}{
+		{"x", defaultSettings, false},
+		{"x", wholeWords, true},
+		{"word:yes x", defaultSettings, true},
+		{"w:no x", wholeWords, false},
+	}
+	for _, tt := range tests {
+		plan := mustPlan(t, tt.query, tt.settings)
+		if plan.WholeWord != tt.want || plan.Terms[0].WholeWord != tt.want {
+			t.Errorf("plan(%q, setting %v): WholeWord %v, term %v; want %v", tt.query, tt.settings.WholeWord, plan.WholeWord, plan.Terms[0].WholeWord, tt.want)
+		}
+	}
+}
+
 func TestOrderComesFromOrderOrTheSetting(t *testing.T) {
 	byPath := defaultSettings
 	byPath.Order = protocol.ResultOrderPath
@@ -196,6 +218,42 @@ func TestCaseYesIsACaseFilterThatCanBeIgnored(t *testing.T) {
 	sensitive.CaseSensitive = true
 	if mustPlan(t, "Retry", sensitive).CaseFilter != nil {
 		t.Error("CaseFilter from the caseSensitive setting = non-nil, want nil (nothing in the query to undo)")
+	}
+}
+
+func TestWordYesIsAWordFilterThatCanBeUndone(t *testing.T) {
+	text := "retry word:yes lang:python"
+	f := mustPlan(t, text, defaultSettings).WordFilter
+	if f == nil || f.Reason != "word" || f.Undo.Title != "Match parts of words" || ApplyFix(text, f.Undo) != "retry lang:python" {
+		t.Errorf("WordFilter = %+v, want word:yes with a Match parts of words undo", f)
+	}
+	if mustPlan(t, "word:no retry", defaultSettings).WordFilter != nil {
+		t.Error("WordFilter of word:no = non-nil, want nil")
+	}
+	wholeWords := defaultSettings
+	wholeWords.WholeWord = true
+	if mustPlan(t, "retry", wholeWords).WordFilter != nil {
+		t.Error("WordFilter from the wholeWord setting = non-nil, want nil (nothing in the query to undo)")
+	}
+}
+
+func TestMatchingPartialWordsDropsWholeWordOnly(t *testing.T) {
+	plan := mustPlan(t, "w:yes case:yes Retry f:Src/ -Draft", defaultSettings)
+	partial := plan.MatchingPartialWords()
+	if got, want := partial.Pred.String(), "and(content#0:/Retry/ path:/Src// not(content#1:/Draft/))"; got != want {
+		t.Errorf("MatchingPartialWords().Pred = %s, want %s", got, want)
+	}
+	if partial.WholeWord || partial.WordFilter != nil || partial.CaseFilter != nil || !partial.CaseSensitive {
+		t.Errorf("partial plan = %+v, want parts of words, case still matched, and no filters", partial)
+	}
+	if len(partial.Terms) != 2 || partial.Terms[0] != partial.Pred.Kids[0] {
+		t.Errorf("partial Terms = %v, want the copied content predicates", partial.Terms)
+	}
+	if got, want := plan.Pred.String(), "and(content#0:word/Retry/ path:/Src// not(content#1:word/Draft/))"; got != want {
+		t.Errorf("original Pred after MatchingPartialWords = %s, want it unchanged: %s", got, want)
+	}
+	if got, want := plan.IgnoringCase().Pred.String(), "and(content#0:word/(?i)Retry/ path:/(?i)Src// not(content#1:word/(?i)Draft/))"; got != want {
+		t.Errorf("IgnoringCase().Pred = %s, want whole words kept: %s", got, want)
 	}
 }
 

@@ -44,7 +44,7 @@ func valueCandidates(op operator, fragment string, resolver Resolver, now time.T
 		return symbolCandidates(resolver.Symbols(fragment, maxValueCompletions+1))
 	case protocol.OpNameIs:
 		return stateCandidates(fragment, resolver)
-	case protocol.OpNameType, protocol.OpNameCase, protocol.OpNameCount, protocol.OpNameOrder:
+	case protocol.OpNameType, protocol.OpNameCase, protocol.OpNameWord, protocol.OpNameCount, protocol.OpNameOrder:
 		return fixedCandidates(fixedValues[op.name], fragment)
 	default:
 		return nil
@@ -582,12 +582,12 @@ func fileNames(paths []string, none string) string {
 	return shown
 }
 
-// ------------------------------------------------------------ type:, case:, count:, order:
+// ------------------------------------------------------------ type:, case:, word:, count:, order:
 
 // fixedValue is one value of an operator whose values never change.
 type fixedValue struct{ value, detail, context string }
 
-// fixedValues describes the values of type:, case:, count: and order:.
+// fixedValues describes the values of type:, case:, word:, count: and order:.
 var fixedValues = map[protocol.OpName][]fixedValue{
 	protocol.OpNameType: {
 		{"file", "File names only", "Paths that match, no code lines"},
@@ -597,6 +597,10 @@ var fixedValues = map[protocol.OpName][]fixedValue{
 	protocol.OpNameCase: {
 		{"yes", "Match case exactly", "RetryPolicy, not retrypolicy"},
 		{"no", "Ignore case", "RetryPolicy, retrypolicy and RETRYPOLICY"},
+	},
+	protocol.OpNameWord: {
+		{"yes", "Whole words only", "retry, not retryCount or autoretry"},
+		{"no", "Parts of words too", "retry, retryCount and autoretry"},
 	},
 	protocol.OpNameCount: {
 		{"50", "50 results per page", "The quickest first page"},

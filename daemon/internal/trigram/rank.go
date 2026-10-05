@@ -137,7 +137,7 @@ func (s *searcher) nameScore(filePath string) int {
 	best := 0
 	for _, term := range s.rankTerms {
 		score := 0
-		if loc := term.Re.FindStringIndex(stem); len(loc) == 2 {
+		if loc := term.FindStringIndex(stem); len(loc) == 2 {
 			switch {
 			case loc[0] == 0 && loc[1] == len(stem):
 				score = scoreNameIsTerm
@@ -146,7 +146,7 @@ func (s *searcher) nameScore(filePath string) int {
 			default:
 				score = scorePathHasTerm
 			}
-		} else if term.Re.MatchString(filePath) {
+		} else if term.MatchString(filePath) {
 			score = scorePathHasTerm
 		}
 		best = max(best, score)

@@ -216,6 +216,7 @@ function chipsFor(node: QueryNode, context: ChipContext): Node[] {
 /** How an operator's value reads on its chip: case:yes reads "sensitive", type:file "file names only". */
 function operatorChipValue(node: OperatorNode): string {
   if (node.op === "case") return node.value === "yes" ? "sensitive" : "insensitive";
+  if (node.op === "word") return node.value === "yes" ? "whole words" : "parts of words";
   if (node.op === "type") return TYPE_LABEL[node.value] ?? node.value;
   return node.value;
 }

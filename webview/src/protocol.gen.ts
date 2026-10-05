@@ -45,7 +45,7 @@ export interface Hit {
 }
 
 /** OpName is an operator's name, the part before the colon. */
-export type OpName = "f" | "repo" | "lang" | "type" | "sym" | "is" | "author" | "msg" | "since" | "case" | "count" | "order";
+export type OpName = "f" | "repo" | "lang" | "type" | "sym" | "is" | "author" | "msg" | "since" | "case" | "word" | "count" | "order";
 
 /** ResultOrder is how current files are sorted: best match first, or by repo, path and line. */
 export type ResultOrder = "best" | "path";
@@ -116,11 +116,13 @@ export type Node =
       resolved?: Resolved;
     };
 
-/** Globals are the query-wide operators case:, count:, type: and order:, or null when absent. */
+/** Globals are the query-wide operators case:, word:, count:, type: and order:, or null when absent. */
 export interface Globals {
   case: "yes" | "no" | null;
   count: number | "all" | null;
   type: "file" | "code" | "commit" | null;
+  /** the query's word: value, yes or no; absent when the query doesn't say. */
+  word?: "yes" | "no";
   /** the query's order: value, best or path; absent when the query doesn't say. */
   order?: ResultOrder;
 }
@@ -145,6 +147,8 @@ export interface Root {
 /** Settings are the spelunk.* settings the daemon needs. */
 export interface Settings {
   caseSensitive: boolean;
+  /** the spelunk.wholeWord setting: match text terms only as whole words unless the query says word:no. */
+  wholeWord: boolean;
   defaultCount: number;
   historyDepth: "6m" | "2y" | "all";
   symbols: boolean;
@@ -286,7 +290,7 @@ export type Preview =
 
 /** HiddenNote counts results a filter removed, with a fix that removes the filter. */
 export interface HiddenNote {
-  reason: "not" | "since" | "case" | "type" | "pathFilter" | "symbol";
+  reason: "not" | "since" | "case" | "word" | "type" | "pathFilter" | "symbol";
   /** The filter as typed, e.g. -f:vendor/ */
   filter: string;
   count: number;
@@ -545,6 +549,7 @@ export interface UiSettings {
   preview: boolean;
   showParsedQuery: boolean;
   caseSensitive: boolean;
+  wholeWord: boolean;
   order: ResultOrder;
 }
 

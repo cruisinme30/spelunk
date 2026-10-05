@@ -9,6 +9,7 @@ export interface ConfigReader {
 /** Defaults, matching the "default" values declared in package.json. */
 const DEFAULTS = {
   caseSensitive: false,
+  wholeWord: false,
   defaultCount: 500,
   typingDelayMs: 120,
   openTrigger: "doubleClick",
@@ -80,6 +81,7 @@ export function daemonSettings(config: ConfigReader, home: string): Settings {
   const read = (key: string, fallback: unknown) => config.get<unknown>(key, fallback);
   return {
     caseSensitive: boolean(read("caseSensitive", DEFAULTS.caseSensitive), DEFAULTS.caseSensitive),
+    wholeWord: boolean(read("wholeWord", DEFAULTS.wholeWord), DEFAULTS.wholeWord),
     defaultCount: clamp(read("defaultCount", DEFAULTS.defaultCount), 1, MAX_DEFAULT_COUNT, DEFAULTS.defaultCount),
     historyDepth: oneOf(read("index.historyDepth", DEFAULTS.historyDepth), HISTORY_DEPTHS, DEFAULTS.historyDepth),
     symbols: boolean(read("index.symbols", DEFAULTS.symbols), DEFAULTS.symbols),
@@ -108,6 +110,7 @@ export function uiSettings(config: ConfigReader): UiSettings {
     preview: boolean(read("open.preview", DEFAULTS.openPreview), DEFAULTS.openPreview),
     showParsedQuery: boolean(read("ui.showParsedQuery", DEFAULTS.showParsedQuery), DEFAULTS.showParsedQuery),
     caseSensitive: boolean(read("caseSensitive", DEFAULTS.caseSensitive), DEFAULTS.caseSensitive),
+    wholeWord: boolean(read("wholeWord", DEFAULTS.wholeWord), DEFAULTS.wholeWord),
     order: oneOf(read("order", DEFAULTS.order), ORDERS, DEFAULTS.order),
   };
 }

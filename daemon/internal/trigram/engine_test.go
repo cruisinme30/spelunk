@@ -173,6 +173,23 @@ func TestCaseYesReportsMatchesThatDifferOnlyInCase(t *testing.T) {
 	}
 }
 
+func TestWordYesMatchesWholeWordsAndReportsTheRest(t *testing.T) {
+	// @covers op:word
+	repo := repoOf("r", map[string]string{
+		"retry.py":       "def retry(): pass\nretry_count = 0\nx = autoretry or retry()\n",
+		"retry_count.py": "x = 1\n",
+	})
+	got, stats := run(t, "word:yes retry", repo)
+	want := []string{"file retry.py", "retry.py:1 def retry(): pass", "retry.py:3 x = autoretry or retry()"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("results = %q, want %q (not retry_count.py, nor line 2)", got, want)
+	}
+	if len(stats.Hidden) != 1 || stats.Hidden[0].Reason != "word" || stats.Hidden[0].Filter != "word:yes" ||
+		stats.Hidden[0].Count != 2 || stats.Hidden[0].Undo.Title != "Match parts of words" {
+		t.Errorf("hidden = %+v, want 2 matches hidden by word:yes with a Match parts of words undo", stats.Hidden)
+	}
+}
+
 func TestResultsFailingTwoFiltersAreNotCreditedToEither(t *testing.T) {
 	_, stats := run(t, "timeout -f:vendor/ -f:lib/", webRepo)
 	if len(stats.Hidden) != 0 {

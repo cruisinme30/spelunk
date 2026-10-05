@@ -66,7 +66,7 @@
     "OpName": {
       "description": "OpName is an operator's name, the part before the colon.",
       "type": "string",
-      "enum": ["f", "repo", "lang", "type", "sym", "is", "author", "msg", "since", "case", "count", "order"]
+      "enum": ["f", "repo", "lang", "type", "sym", "is", "author", "msg", "since", "case", "word", "count", "order"]
     },
     "ResultOrder": {
       "description": "ResultOrder is how current files are sorted: best match first, or by repo, path and line.",
@@ -241,7 +241,7 @@
       ]
     },
     "Globals": {
-      "description": "Globals are the query-wide operators case:, count:, type: and order:, or null when absent.",
+      "description": "Globals are the query-wide operators case:, word:, count:, type: and order:, or null when absent.",
       "type": "object",
       "properties": {
         "case": {
@@ -277,6 +277,10 @@
               "type": "null"
             }
           ]
+        },
+        "word": {
+          "description": "the query's word: value, yes or no; absent when the query doesn't say.",
+          "enum": ["yes", "no"]
         },
         "order": {
           "description": "the query's order: value, best or path; absent when the query doesn't say.",
@@ -343,6 +347,10 @@
         "caseSensitive": {
           "type": "boolean"
         },
+        "wholeWord": {
+          "description": "the spelunk.wholeWord setting: match text terms only as whole words unless the query says word:no.",
+          "type": "boolean"
+        },
         "defaultCount": {
           "type": "integer"
         },
@@ -374,6 +382,7 @@
       },
       "required": [
         "caseSensitive",
+        "wholeWord",
         "defaultCount",
         "historyDepth",
         "symbols",
@@ -785,7 +794,7 @@
       "type": "object",
       "properties": {
         "reason": {
-          "enum": ["not", "since", "case", "type", "pathFilter", "symbol"]
+          "enum": ["not", "since", "case", "word", "type", "pathFilter", "symbol"]
         },
         "filter": {
           "type": "string",
@@ -1410,11 +1419,14 @@
         "caseSensitive": {
           "type": "boolean"
         },
+        "wholeWord": {
+          "type": "boolean"
+        },
         "order": {
           "$ref": "#/$defs/ResultOrder"
         }
       },
-      "required": ["typingDelayMs", "openTrigger", "preview", "showParsedQuery", "caseSensitive", "order"]
+      "required": ["typingDelayMs", "openTrigger", "preview", "showParsedQuery", "caseSensitive", "wholeWord", "order"]
     },
     "BannerMessage": {
       "description": "BannerMessage reports daemon health: restarting, stopped or cleared.",

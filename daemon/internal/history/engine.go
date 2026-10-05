@@ -43,6 +43,9 @@ func Search(ctx context.Context, plan *query.Plan, repos []Repo, planID int, emi
 	if plan.CaseFilter != nil {
 		s.hiddenByCase = engine.CountIgnoringCase(ctx, plan, repos, Search) - s.counted
 	}
+	if plan.WordFilter != nil {
+		s.hiddenByWord = engine.CountPartialWords(ctx, plan, repos, Search) - s.counted
+	}
 	if errors.Is(ctx.Err(), context.Canceled) {
 		return engine.Stats{}, context.Cause(ctx)
 	}
@@ -63,6 +66,8 @@ type searcher struct {
 	hidden map[int]int
 	// hiddenByCase counts commits that differ only in case from case:yes.
 	hiddenByCase int
+	// hiddenByWord counts commits that match only parts of words under word:yes.
+	hiddenByWord int
 }
 
 // stats summarizes the search.
@@ -75,6 +80,9 @@ func (s *searcher) stats() engine.Stats {
 	}
 	if c := s.plan.CaseFilter; c != nil && s.hiddenByCase > 0 {
 		stats.Hidden = append(stats.Hidden, c.Note(s.hiddenByCase, "commits"))
+	}
+	if w := s.plan.WordFilter; w != nil && s.hiddenByWord > 0 {
+		stats.Hidden = append(stats.Hidden, w.Note(s.hiddenByWord, "commits"))
 	}
 	return stats
 }
@@ -390,7 +398,7 @@ func messageHits(plan *query.Plan, text string) []protocol.Range {
 		}
 	}
 	for _, term := range plan.Terms {
-		mark(term.Re)
+		mark(term)
 	}
 	query.VisitPositive(plan.Pred, func(m *query.Message) { mark(m.Re) })
 	slices.SortFunc(ranges, func(a, b protocol.Range) int { return a.Start - b.Start })

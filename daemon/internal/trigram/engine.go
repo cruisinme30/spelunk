@@ -103,6 +103,9 @@ func Search(ctx context.Context, plan *query.Plan, repos []Repo, planID int, emi
 	if plan.CaseFilter != nil {
 		s.hiddenByCase = engine.CountIgnoringCase(ctx, plan, repos, Search) - s.counted
 	}
+	if plan.WordFilter != nil {
+		s.hiddenByWord = engine.CountPartialWords(ctx, plan, repos, Search) - s.counted
+	}
 	if errors.Is(ctx.Err(), context.Canceled) {
 		return engine.Stats{}, context.Cause(ctx)
 	}
@@ -137,6 +140,8 @@ type searcher struct {
 	hiddenByKind int
 	// hiddenByCase counts results that differ only in case from case:yes.
 	hiddenByCase int
+	// hiddenByWord counts results that are only parts of words under word:yes.
+	hiddenByWord int
 	terms        termCache
 
 	// Best-match order (see rank.go): started is when the search began,
@@ -207,6 +212,9 @@ func (s *searcher) stats(unit string) engine.Stats {
 	}
 	if s.hiddenByCase > 0 {
 		stats.Hidden = append(stats.Hidden, s.plan.CaseFilter.Note(s.hiddenByCase, unit))
+	}
+	if s.hiddenByWord > 0 {
+		stats.Hidden = append(stats.Hidden, s.plan.WordFilter.Note(s.hiddenByWord, unit))
 	}
 	if s.hiddenByKind > 0 && s.plan.KindFilter != nil {
 		stats.Hidden = append(stats.Hidden, s.plan.KindFilter.Note(s.hiddenByKind, "matches"))
@@ -298,7 +306,7 @@ func (s *searcher) fileNameMatches(repo *Repo, doc *Doc, countHidden bool) bool 
 func fileNameLeaf(repo *Repo, doc *Doc) func(query.Pred) bool {
 	return func(p query.Pred) bool {
 		if c, ok := p.(*query.Content); ok {
-			return c.Re.MatchString(doc.Path)
+			return c.MatchString(doc.Path)
 		}
 		return docLeaf(p, repo, doc)
 	}
@@ -326,7 +334,7 @@ func (s *searcher) addFileName(repo *Repo, doc *Doc, rank docRank) {
 func (s *searcher) nameHits(path string, terms []*query.Content) []protocol.Range {
 	var ranges []protocol.Range
 	for _, term := range terms {
-		for _, loc := range term.Re.FindAllStringIndex(path, -1) {
+		for _, loc := range term.FindAllStringIndex(path, -1) {
 			ranges = append(ranges, UTF16Range(path, loc[0], loc[1]))
 		}
 	}

@@ -62,8 +62,8 @@ func walk(node *protocol.Node, visit func(*protocol.Node)) {
 	walkWithParent(node, nil, func(node, _ *protocol.Node) { visit(node) })
 }
 
-// collectGlobals fills query.Globals from top-level case:, count:, type:
-// and order:, and reports globals that are nested or repeated.
+// collectGlobals fills query.Globals from top-level case:, word:, count:,
+// type: and order:, and reports globals that are nested or repeated.
 func collectGlobals(src *source, query *protocol.ParsedQuery, problems *diagnostics) {
 	atTop := map[*protocol.Node]bool{}
 	for _, node := range topLevel(query.Root) {
@@ -129,12 +129,14 @@ func walkWithParent(node, parent *protocol.Node, visit func(node, parent *protoc
 	}
 }
 
-// setGlobal records a top-level case:, type:, count: or order: in globals.
+// setGlobal records a top-level case:, word:, type:, count: or order: in globals.
 func setGlobal(globals *protocol.Globals, node *protocol.Node) {
 	value := node.Value
 	switch node.Op {
 	case protocol.OpNameCase:
 		globals.Case = &value
+	case protocol.OpNameWord:
+		globals.Word = value
 	case protocol.OpNameType:
 		globals.Type = &value
 	case protocol.OpNameOrder:

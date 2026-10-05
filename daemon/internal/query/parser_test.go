@@ -63,7 +63,7 @@ func TestSyntax(t *testing.T) {
 }
 
 func TestOperators(t *testing.T) {
-	// @covers op:f op:repo op:lang op:type op:sym op:author op:msg op:since op:case op:count
+	// @covers op:f op:repo op:lang op:type op:sym op:author op:msg op:since op:case op:word op:count
 	tests := []struct {
 		name, query, want string
 	}{
@@ -98,6 +98,7 @@ func TestOperators(t *testing.T) {
 		{"m", "message", "fix", "msg=fix/literal"},
 		{"d", "since", "2w", "since=2w/literal"},
 		{"c", "case", "yes", "case=yes/literal"},
+		{"w", "word", "yes", "word=yes/literal"},
 		{"n", "count", "all", "count=all/literal"},
 	}
 	for _, a := range aliases {
@@ -123,6 +124,10 @@ func TestGlobalsAreCollected(t *testing.T) {
 	}
 	if want := `{"case":"yes","count":"all","type":"code"}`; string(got) != want {
 		t.Errorf("globals = %s, want %s", got, want)
+	}
+	q = mustParseCleanly(t, "word:yes retry")
+	if q.Globals.Word != "yes" || q.Globals.Case != nil {
+		t.Errorf("globals of word:yes = %+v, want word yes and no case", q.Globals)
 	}
 	q = mustParseCleanly(t, "count:20 retry")
 	if q.Globals.Count != 20 || q.Globals.Case != nil {

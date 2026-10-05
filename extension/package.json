@@ -139,6 +139,12 @@
           "scope": "resource",
           "description": "Match case by default. A case: operator in the query always wins."
         },
+        "spelunk.wholeWord": {
+          "type": "boolean",
+          "default": false,
+          "scope": "resource",
+          "description": "Match whole words by default, so retry doesn't match retryCount. A word: operator in the query always wins."
+        },
         "spelunk.defaultCount": {
           "type": "integer",
           "default": 500,

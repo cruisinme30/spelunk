@@ -22,6 +22,7 @@ const VALUE_LISTS: Partial<Record<OpName, { heading: string; hint?: string }>> =
   lang: { heading: "Languages" },
   type: { heading: "Result kinds" },
   case: { heading: "Case" },
+  word: { heading: "Whole words" },
   is: { heading: "File states", hint: "Negate one to leave those files out: -is:test." },
   count: { heading: "Results per page" },
   order: { heading: "Result order" },

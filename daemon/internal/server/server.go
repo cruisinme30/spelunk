@@ -103,6 +103,7 @@ func (s *Server) Close() {
 func DefaultSettings() protocol.Settings {
 	return protocol.Settings{
 		CaseSensitive:  false,
+		WholeWord:      false,
 		DefaultCount:   500,
 		HistoryDepth:   "2y",
 		Symbols:        true,

@@ -73,6 +73,7 @@ const (
 	OpNameMsg    OpName = "msg"
 	OpNameSince  OpName = "since"
 	OpNameCase   OpName = "case"
+	OpNameWord   OpName = "word"
 	OpNameCount  OpName = "count"
 	OpNameOrder  OpName = "order"
 )
@@ -226,11 +227,13 @@ func (v Node) MarshalJSON() ([]byte, error) {
 	return json.Marshal(fields)
 }
 
-// Globals are the query-wide operators case:, count:, type: and order:, or null when absent.
+// Globals are the query-wide operators case:, word:, count:, type: and order:, or null when absent.
 type Globals struct {
 	Case  *string `json:"case"`
 	Count any     `json:"count"`
 	Type  *string `json:"type"`
+	// Word is the query's word: value, yes or no; absent when the query doesn't say.
+	Word string `json:"word,omitempty"`
 	// Order is the query's order: value, best or path; absent when the query doesn't say.
 	Order ResultOrder `json:"order,omitempty"`
 }
@@ -264,7 +267,9 @@ type Root struct {
 
 // Settings are the spelunk.* settings the daemon needs.
 type Settings struct {
-	CaseSensitive  bool     `json:"caseSensitive"`
+	CaseSensitive bool `json:"caseSensitive"`
+	// WholeWord is the spelunk.wholeWord setting: match text terms only as whole words unless the query says word:no.
+	WholeWord      bool     `json:"wholeWord"`
 	DefaultCount   int      `json:"defaultCount"`
 	HistoryDepth   string   `json:"historyDepth"`
 	Symbols        bool     `json:"symbols"`
@@ -973,6 +978,7 @@ type UiSettings struct {
 	Preview         bool        `json:"preview"`
 	ShowParsedQuery bool        `json:"showParsedQuery"`
 	CaseSensitive   bool        `json:"caseSensitive"`
+	WholeWord       bool        `json:"wholeWord"`
 	Order           ResultOrder `json:"order"`
 }
 

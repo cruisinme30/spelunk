@@ -36,9 +36,20 @@ type SearchFunc[R any] func(ctx context.Context, plan *query.Plan, repos []R, pl
 // CountIgnoringCase counts the results search finds for plan without its
 // case:yes, or 0 if that search fails.
 func CountIgnoringCase[R any](ctx context.Context, plan *query.Plan, repos []R, search SearchFunc[R]) int {
-	folded := plan.IgnoringCase()
-	folded.Offset, folded.Limit = 0, 0 // count only
-	stats, err := search(ctx, folded, repos, 0, func(protocol.ResultItem) {})
+	return countAll(ctx, plan.IgnoringCase(), repos, search)
+}
+
+// CountPartialWords counts the results search finds for plan without its
+// word:yes, or 0 if that search fails.
+func CountPartialWords[R any](ctx context.Context, plan *query.Plan, repos []R, search SearchFunc[R]) int {
+	return countAll(ctx, plan.MatchingPartialWords(), repos, search)
+}
+
+// countAll counts every result search finds for a relaxed copy of a plan,
+// or 0 if that search fails.
+func countAll[R any](ctx context.Context, relaxed *query.Plan, repos []R, search SearchFunc[R]) int {
+	relaxed.Offset, relaxed.Limit = 0, 0 // count only
+	stats, err := search(ctx, relaxed, repos, 0, func(protocol.ResultItem) {})
 	if err != nil {
 		return 0
 	}

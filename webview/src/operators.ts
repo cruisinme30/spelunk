@@ -209,6 +209,7 @@ export const OPERATOR_GROUPS: OperatorGroup[] = [
 /** Typed by OpName, so adding an operator to the schema fails to compile until it has a tone. */
 export const OPERATOR_TONE: Record<OpName, Tone> = {
   case: "match",
+  word: "match",
   f: "scope",
   repo: "scope",
   lang: "scope",
@@ -234,6 +235,7 @@ const OPERATOR_NAMES: Record<OpName, { full: string; short: string }> = {
   msg: { full: "message", short: "m" },
   since: { full: "since", short: "d" },
   case: { full: "case", short: "c" },
+  word: { full: "word", short: "w" },
   count: { full: "count", short: "n" },
   order: { full: "order", short: "o" },
 };
