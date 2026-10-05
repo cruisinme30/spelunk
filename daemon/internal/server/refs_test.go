@@ -1,12 +1,19 @@
 package server
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
+	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/cruisinme30/unified-search/daemon/internal/protocol"
+	"github.com/cruisinme30/unified-search/daemon/internal/rpc"
 )
 
 func TestForgedRefsCannotReachOutsideTheirFolder(t *testing.T) {
@@ -63,5 +70,93 @@ func TestPreviewClampsContextLines(t *testing.T) {
 		if err != nil || len(preview.Lines) != tt.wantLines {
 			t.Fatalf("preview/get %q with contextLines %d = %d lines, %v; want %d lines", tt.ref, tt.contextLines, len(preview.Lines), err, tt.wantLines)
 		}
+	}
+}
+
+func TestConcurrentSearchesWithCancelsLeaveNoGoroutinesBehind(t *testing.T) {
+	// @covers rpc:search/start rpc:$/cancelRequest
+	dir := t.TempDir()
+	for i := range 200 {
+		mustWriteFile(t, filepath.Join(dir, fmt.Sprintf("f%03d.txt", i)), strings.Repeat("hello world foo bar\n", 100))
+	}
+	client := newTestClient(t)
+	batches := collectBatches(client)
+	client.mustInitialize(t, protocol.Root{ID: "r1", Path: dir, Name: "r"})
+	baseline := runtime.NumGoroutine()
+
+	var mu sync.Mutex
+	totals := map[string]int{} // the Total of each search that succeeded
+	var wg sync.WaitGroup
+	for i := range 300 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			switch i % 3 {
+			case 0:
+				cancel() // cancelled before it is sent
+			case 1:
+				time.AfterFunc(time.Duration(i%5)*time.Millisecond, cancel)
+			}
+			var result protocol.SearchResult
+			err := client.conn.Call(ctx, protocol.MethodSearchStart, protocol.SearchStartParams{SearchID: fmt.Sprint(i), Text: "hello count:all"}, &result)
+			var rpcErr *rpc.Error
+			switch {
+			case err == nil:
+				// Under this load a search may run past its time budget and
+				// return what it has, marked truncated.
+				if result.Total != 20_000 && !result.Truncated {
+					t.Errorf("search %d: total %d and not truncated, want 20000", i, result.Total)
+				}
+				mu.Lock()
+				totals[fmt.Sprint(i)] = result.Total
+				mu.Unlock()
+			case ctx.Err() == nil:
+				t.Errorf("search %d failed without a cancel: %v", i, err)
+			case errors.As(err, &rpcErr) && rpcErr.Code != rpc.CodeRequestCancelled:
+				t.Errorf("cancelled search %d error = %v, want RequestCancelled", i, err)
+			}
+			_ = client.conn.Notify("$/cancelRequest", map[string]any{"id": 1_000_000 + i}) // unknown id
+		}()
+	}
+	wg.Wait()
+	waitUntil(t, "search goroutines to finish", func() bool { return runtime.NumGoroutine() <= baseline+2 })
+	// Every batch of a search that succeeded arrived before its response.
+	for id, total := range totals {
+		if n := len(batches.of(id)); n != total {
+			t.Fatalf("search %s answered total %d after %d batched items, want them equal", id, total, n)
+		}
+	}
+}
+
+func TestSearchesKeepWorkingWhileTheFolderIsDeleted(t *testing.T) {
+	// @covers rpc:search/start failure:ref-stale
+	dir := t.TempDir()
+	for i := range 50 {
+		mustWriteFile(t, filepath.Join(dir, fmt.Sprintf("f%02d.txt", i)), "needle\n")
+	}
+	client := newTestClient(t)
+	batches := collectBatches(client)
+	client.mustInitialize(t, protocol.Root{ID: "r1", Path: dir, Name: "r"})
+	var wg sync.WaitGroup
+	for i := range 20 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_ = client.call(protocol.MethodSearchStart, protocol.SearchStartParams{SearchID: fmt.Sprint(i), Text: "needle"}, nil)
+		}()
+	}
+	if err := os.RemoveAll(dir); err != nil {
+		t.Fatal(err)
+	}
+	wg.Wait()
+	for _, item := range batches.all() {
+		err := client.call(protocol.MethodPreviewGet, protocol.PreviewParams{Ref: item.Ref, ContextLines: 1}, nil)
+		wantRPCCode(t, "preview/get after the folder was deleted", err, protocol.CodeRefStale)
+		break
+	}
+	if err := client.call(protocol.MethodIndexStatus, nil, nil); err != nil {
+		t.Fatalf("index/status after the folder was deleted: %v", err)
 	}
 }
