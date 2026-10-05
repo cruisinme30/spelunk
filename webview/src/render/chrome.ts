@@ -4,7 +4,7 @@
 import { clamp, element, isIndexing, percent, plural, progressBar, termClass } from "../format";
 import type { Layout } from "../layout";
 import { fullName, OPERATOR_TONE } from "../operators";
-import { scopedRepo } from "../parsedQuery";
+import { scopedRepo, type OperatorNode, type TextNode } from "../parsedQuery";
 import type { BannerMessage, Diagnostic, Fix, Mode, Node as QueryNode, RepoStatus } from "../protocol.gen";
 import { hasErrors, type ViewState } from "../state";
 
@@ -171,7 +171,7 @@ function joinChips(children: QueryNode[], word: "AND" | "OR", context: ChipConte
 }
 
 /** The word on a text term's chip: how it matches in this query. */
-function textLabel(node: Extract<QueryNode, { kind: "text" }>, context: ChipContext): string {
+function textLabel(node: TextNode, context: ChipContext): string {
   if (node.match === "regex") return "regex";
   if (context.mode === "history") return "diff contains";
   return context.fileNamesOnly ? "name" : "text";
@@ -214,7 +214,7 @@ function chipsFor(node: QueryNode, context: ChipContext): Node[] {
 }
 
 /** How an operator's value reads on its chip: case:yes reads "sensitive", type:file "file names only". */
-function operatorChipValue(node: Extract<QueryNode, { kind: "op" }>): string {
+function operatorChipValue(node: OperatorNode): string {
   if (node.op === "case") return node.value === "yes" ? "sensitive" : "insensitive";
   if (node.op === "type") return TYPE_LABEL[node.value] ?? node.value;
   return node.value;

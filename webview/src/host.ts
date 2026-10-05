@@ -100,5 +100,5 @@ export function saveRecentWidth(width: number | undefined): void {
 /** The width saveRecentWidth kept, if any. */
 export function loadRecentWidth(): number | undefined {
   const width = savedState()["recentWidth"];
-  return typeof width === "number" && Number.isFinite(width) && width > 0 ? width : undefined;
+  return isNumber(width) && width > 0 ? width : undefined;
 }
