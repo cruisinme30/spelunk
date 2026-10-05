@@ -16,6 +16,9 @@
 //     to choose the code the caller sees; any other error, or a panic,
 //     becomes CodeInternalError. A request the peer cancelled is answered
 //     with CodeRequestCancelled even if its handler ignores the cancel.
+//   - A message that is not a JSON-RPC message (invalid JSON, a batch, a
+//     bare value, an id that is not a string, number or null) is answered
+//     with an error whose id is null, and the connection carries on.
 //   - Framing errors end the connection, because the stream cannot be
 //     resynchronised: a header without a valid Content-Length, input that
 //     ends inside a message, or a header or body over the size limits. A

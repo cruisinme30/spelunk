@@ -18,6 +18,7 @@ import (
 // (QueryInvalid, RefStale, ...) are generated into package protocol.
 const (
 	CodeParseError       = -32700
+	CodeInvalidRequest   = -32600
 	CodeMethodNotFound   = -32601
 	CodeInvalidParams    = -32602
 	CodeInternalError    = -32603
@@ -93,14 +94,16 @@ type Conn struct {
 	handlersRunning sync.WaitGroup
 }
 
-// message is any JSON-RPC message as read from the wire.
+// message is any JSON-RPC message as read from the wire. ID is nil when
+// the member is absent (a notification) and "null" when it is null (a
+// request the peer could not number, which still gets a response).
 type message struct {
-	JSONRPC string           `json:"jsonrpc"`
-	ID      *json.RawMessage `json:"id,omitempty"`
-	Method  string           `json:"method,omitempty"`
-	Params  json.RawMessage  `json:"params,omitempty"`
-	Result  json.RawMessage  `json:"result,omitempty"`
-	Error   *Error           `json:"error,omitempty"`
+	JSONRPC string          `json:"jsonrpc"`
+	ID      json.RawMessage `json:"id,omitempty"`
+	Method  string          `json:"method,omitempty"`
+	Params  json.RawMessage `json:"params,omitempty"`
+	Result  json.RawMessage `json:"result,omitempty"`
+	Error   *Error          `json:"error,omitempty"`
 }
 
 // successResponse always carries "result", even when it is null.
@@ -264,7 +267,7 @@ func (c *Conn) Call(ctx context.Context, method string, params, out any) error {
 	if err != nil {
 		return err
 	}
-	if err := c.send(&message{JSONRPC: "2.0", ID: &id, Method: method, Params: encoded}); err != nil {
+	if err := c.send(&message{JSONRPC: "2.0", ID: id, Method: method, Params: encoded}); err != nil {
 		return err
 	}
 
@@ -315,22 +318,62 @@ func (c *Conn) Serve(ctx context.Context) error {
 		if c.Trace != nil {
 			c.Trace("recv", body)
 		}
-		var m message
-		if err := json.Unmarshal(body, &m); err != nil {
-			_ = c.send(&errorResponse{JSONRPC: "2.0", ID: json.RawMessage("null"), Error: Errorf(CodeParseError, "%v", err)})
-			continue
-		}
-		switch {
-		case m.Method == "" && m.ID != nil:
-			c.deliverResponse(&m)
-		case m.Method == "$/cancelRequest":
-			c.cancelInflight(m.Params)
-		case m.Method != "" && m.ID == nil:
-			c.handleNotification(m.Method, m.Params)
-		case m.Method != "":
-			c.dispatch(ctx, m)
-		}
+		c.route(ctx, body)
 	}
+}
+
+// nullID is the id of a response to a message whose own id is unknown.
+var nullID = json.RawMessage("null")
+
+// route decodes one message body and hands it to whatever handles it.
+// Anything that is not a JSON-RPC message (invalid JSON, a batch array, a
+// bare value, an id that is neither a string nor a number) is answered
+// with an error carrying a null id, as JSON-RPC 2.0 requires.
+func (c *Conn) route(ctx context.Context, body []byte) {
+	var m message
+	if err := json.Unmarshal(body, &m); err != nil {
+		code := CodeInvalidRequest // valid JSON, but not a message object
+		if !json.Valid(body) {
+			code = CodeParseError
+		}
+		c.sendError(nullID, Errorf(code, "%v", err))
+		return
+	}
+	if m.ID != nil && !validID(m.ID) {
+		c.sendError(nullID, Errorf(CodeInvalidRequest, "id must be a string, a number or null, not %s", m.ID))
+		return
+	}
+	switch {
+	case m.Method == "" && m.ID != nil && (m.Result != nil || m.Error != nil):
+		c.deliverResponse(&m)
+	case m.Method == "":
+		c.sendError(nullID, Errorf(CodeInvalidRequest, "message has no method and is not a response"))
+	case m.ID == nil && m.Method == "$/cancelRequest":
+		c.cancelInflight(m.Params)
+	case m.ID == nil:
+		c.handleNotification(m.Method, m.Params)
+	default:
+		c.dispatch(ctx, m)
+	}
+}
+
+// validID reports whether id is a JSON string, number or null.
+func validID(id json.RawMessage) bool {
+	switch {
+	case string(id) == "null":
+		return true
+	case id[0] == '"':
+		return true
+	case id[0] == '-' || id[0] >= '0' && id[0] <= '9':
+		return true
+	}
+	return false
+}
+
+// sendError answers the request with id with err. A failed write is
+// remembered by send and stops Serve, so the error is not returned.
+func (c *Conn) sendError(id json.RawMessage, err *Error) {
+	_ = c.send(&errorResponse{JSONRPC: "2.0", ID: id, Error: err})
 }
 
 func (c *Conn) shutdown(cancel context.CancelFunc) {
@@ -348,7 +391,7 @@ func (c *Conn) shutdown(cancel context.CancelFunc) {
 // deliverResponse hands a response to the Call waiting for it.
 func (c *Conn) deliverResponse(m *message) {
 	c.mu.Lock()
-	responses := c.pending[string(*m.ID)]
+	responses := c.pending[string(m.ID)]
 	c.mu.Unlock()
 	if responses == nil {
 		return
@@ -386,7 +429,7 @@ func (c *Conn) handleNotification(method string, params json.RawMessage) {
 
 // dispatch runs a request's handler on its own goroutine and sends the answer.
 func (c *Conn) dispatch(connCtx context.Context, m message) {
-	id := *m.ID
+	id := m.ID
 	requestCtx, cancel := context.WithCancel(connCtx)
 	c.mu.Lock()
 	handler := c.requestHandlers[m.Method]
