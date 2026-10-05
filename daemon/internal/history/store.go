@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"maps"
 	"slices"
 	"strings"
 	"time"
@@ -45,6 +46,9 @@ type Touch struct {
 	At     time.Time
 }
 
+// touchOf is the Touch of each file c changed.
+func touchOf(c *Commit) Touch { return Touch{SHA: c.SHA, Author: c.AuthorName, At: c.At} }
+
 // segment is a run of consecutive commits with their trigram indexes.
 type segment struct {
 	commits  []Commit
@@ -58,7 +62,7 @@ func newSegment(commits []Commit) *segment {
 	messages := make([][]byte, len(commits))
 	for i := range commits {
 		diffs[i] = changedText(&commits[i])
-		messages[i] = []byte(commits[i].Subject + "\n" + commits[i].Body)
+		messages[i] = []byte(commits[i].message())
 	}
 	return &segment{commits: commits, diffs: trigram.NewTextIndex(diffs), messages: trigram.NewTextIndex(messages)}
 }
@@ -141,7 +145,7 @@ func (b *builder) add(c Commit) bool {
 	for _, file := range c.Files {
 		// Commits arrive newest first, so the first touch of a path is its newest.
 		if _, newer := b.store.touches[file.Path]; !newer {
-			b.store.touches[file.Path] = Touch{SHA: c.SHA, Author: c.AuthorName, At: c.At}
+			b.store.touches[file.Path] = touchOf(&c)
 		}
 	}
 	size := segmentCommits
@@ -167,10 +171,7 @@ func (b *builder) flush() {
 func (b *builder) snapshot() *Store {
 	next := *b.store
 	next.segments = slices.Clone(b.store.segments)
-	next.touches = make(map[string]Touch, len(b.store.touches))
-	for path, touch := range b.store.touches {
-		next.touches[path] = touch
-	}
+	next.touches = maps.Clone(b.store.touches)
 	return &next
 }
 
@@ -234,13 +235,10 @@ func Update(ctx context.Context, root string, store *Store, opts Options) (*Stor
 	}); err != nil {
 		return nil, err
 	}
-	next := &Store{Head: head, Since: store.Since, touches: make(map[string]Touch, len(store.touches))}
-	for path, touch := range store.touches {
-		next.touches[path] = touch
-	}
+	next := &Store{Head: head, Since: store.Since, touches: maps.Clone(store.touches)}
 	for i := len(newer) - 1; i >= 0; i-- { // oldest first, so the newest touch wins
 		for _, file := range newer[i].Files {
-			next.touches[file.Path] = Touch{SHA: newer[i].SHA, Author: newer[i].AuthorName, At: newer[i].At}
+			next.touches[file.Path] = touchOf(&newer[i])
 		}
 	}
 	next.segments = append([]*segment{newSegment(newer)}, store.segments...)

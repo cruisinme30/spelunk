@@ -27,6 +27,9 @@ type Commit struct {
 	Files       []FileChange
 }
 
+// message is the commit's whole message: its subject, a newline, its body.
+func (c *Commit) message() string { return c.Subject + "\n" + c.Body }
+
 // FileChange is what one commit changed in one file.
 type FileChange struct {
 	Path    string // slash-separated, relative to the repo root

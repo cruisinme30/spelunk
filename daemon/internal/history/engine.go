@@ -233,7 +233,7 @@ func newFileView(file *FileChange, finder *trigram.LineFinder, message *messageV
 }
 
 func newMessageView(c *Commit, finder *trigram.LineFinder) *messageView {
-	return &messageView{text: []byte(c.Subject + "\n" + c.Body), finder: finder, matches: map[*query.Content][]int{}}
+	return &messageView{text: []byte(c.message()), finder: finder, matches: map[*query.Content][]int{}}
 }
 
 // leafFor evaluates predicate leaves against one commit and one of its files.
@@ -260,7 +260,7 @@ func commitLeaf(repo *Repo, c *Commit, p query.Pred) (matched, ok bool) {
 	case *query.Author:
 		return authorMatches(p, c), true
 	case *query.Message:
-		return p.Re.MatchString(c.Subject + "\n" + c.Body), true
+		return p.Re.MatchString(c.message()), true
 	case *query.Since:
 		return !c.At.Before(p.After), true
 	case *query.Repo:
