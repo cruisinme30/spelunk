@@ -31,6 +31,9 @@ const (
 const (
 	// maxQueryLength is in UTF-16 units.
 	maxQueryLength = 1000
+	// maxDiagnostics caps the problems one query reports. A pasted megabyte
+	// of ")" has a million, and nobody reads past the first few anyway.
+	maxDiagnostics = 100
 	// maxEditDistanceToFix is how far a typo may be from a name for us to offer that name.
 	maxEditDistanceToFix = 2
 )
@@ -41,6 +44,9 @@ type diagnostics struct {
 }
 
 func (d *diagnostics) add(severity protocol.Severity, code string, span protocol.Span, message string, fixes ...protocol.Fix) {
+	if len(d.list) >= maxDiagnostics {
+		return
+	}
 	if fixes == nil {
 		fixes = []protocol.Fix{}
 	}
@@ -48,6 +54,9 @@ func (d *diagnostics) add(severity protocol.Severity, code string, span protocol
 }
 
 func (d *diagnostics) errorf(code string, span protocol.Span, fixes []protocol.Fix, format string, args ...any) {
+	if len(d.list) >= maxDiagnostics {
+		return // skip formatting the message too
+	}
 	d.add(protocol.SeverityError, code, span, fmt.Sprintf(format, args...), fixes...)
 }
 

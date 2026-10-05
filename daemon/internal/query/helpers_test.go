@@ -113,6 +113,17 @@ func codes(diagnostics []protocol.Diagnostic) []string {
 	return list
 }
 
+// count is how many diagnostics have code.
+func count(diagnostics []protocol.Diagnostic, code string) int {
+	n := 0
+	for _, d := range diagnostics {
+		if d.Code == code {
+			n++
+		}
+	}
+	return n
+}
+
 // mustParseCleanly parses text, failing the test if it has any diagnostic.
 func mustParseCleanly(t *testing.T, text string) protocol.ParsedQuery {
 	t.Helper()

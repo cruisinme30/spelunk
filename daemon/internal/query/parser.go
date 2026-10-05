@@ -17,6 +17,7 @@ func Parse(text string, resolver Resolver) protocol.ParsedQuery {
 	}
 	src := newSource(text)
 	p := &parser{src: src, tokens: lex(src), resolver: resolver}
+	checkLength(src, &p.problems)
 	root := p.parseQuery()
 	query := protocol.ParsedQuery{
 		Version: 1,

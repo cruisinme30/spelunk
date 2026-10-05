@@ -123,3 +123,10 @@ func TestSinceInMonthsThatLooksLikeMinutesWarns(t *testing.T) {
 		t.Errorf("Parse(since:6m) diagnostics = %+v, want none: six months is plausible", q.Diagnostics)
 	}
 }
+
+func TestALongQueryReportsACappedNumberOfProblems(t *testing.T) {
+	q := Parse(strings.Repeat(")", 10*maxQueryLength), testResolver)
+	if len(q.Diagnostics) != maxDiagnostics || count(q.Diagnostics, DiagQueryTooLong) != 1 {
+		t.Errorf("Parse(10000 × \")\") has %d diagnostics with %d %s, want %d with 1", len(q.Diagnostics), count(q.Diagnostics, DiagQueryTooLong), DiagQueryTooLong, maxDiagnostics)
+	}
+}

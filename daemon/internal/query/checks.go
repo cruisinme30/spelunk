@@ -13,10 +13,6 @@ import (
 // may appear, which operators each mode allows, that something is searched
 // for), sets the query's globals and mode, and reports what breaks them.
 func check(src *source, query *protocol.ParsedQuery, problems *diagnostics) {
-	if src.length() > maxQueryLength {
-		problems.errorf(DiagQueryTooLong, protocol.Span{Start: maxQueryLength, End: src.length()}, nil,
-			"Queries can be at most %d characters", maxQueryLength)
-	}
 	if query.Root == nil {
 		return
 	}
@@ -31,6 +27,15 @@ func check(src *source, query *protocol.ParsedQuery, problems *diagnostics) {
 	if !hasPositiveTerm(query.Root) {
 		problems.errorf(DiagNoPositiveTerm, query.Root.Span, nil,
 			"Add something to search for: every term is excluded with -")
+	}
+}
+
+// checkLength reports a query longer than maxQueryLength. Parse calls it
+// first, so the report is never dropped by the cap on diagnostics.
+func checkLength(src *source, problems *diagnostics) {
+	if src.length() > maxQueryLength {
+		problems.errorf(DiagQueryTooLong, protocol.Span{Start: maxQueryLength, End: src.length()}, nil,
+			"Queries can be at most %d characters", maxQueryLength)
 	}
 }
 
