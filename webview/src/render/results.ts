@@ -258,11 +258,12 @@ export class ResultsView {
 
   /** "3 commits", or for type:file "38 code matches for retry": what the filter hid. */
   private hiddenWhat(note: HiddenNote): string {
-    const count = note.count.toLocaleString("en-US");
-    const unit = note.count === 1 ? SINGULAR_UNIT[note.unit] : note.unit;
-    if (note.reason !== "type") return `${count} ${unit}`;
+    const one = SINGULAR_UNIT[note.unit];
+    if (note.reason !== "type") return plural(note.count, one, note.unit);
     const terms = textTerms(this.state.parsed);
-    return `${count} code ${unit}` + (terms.length > 0 ? ` for ${terms.join(" and ")}` : "");
+    return (
+      plural(note.count, `code ${one}`, `code ${note.unit}`) + (terms.length > 0 ? ` for ${terms.join(" and ")}` : "")
+    );
   }
 
   private updateSectionCounts(): void {
