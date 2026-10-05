@@ -45,7 +45,13 @@ export interface Hit {
 }
 
 /** OpName is an operator's name, the part before the colon. */
-export type OpName = "f" | "repo" | "lang" | "type" | "sym" | "author" | "msg" | "since" | "case" | "count";
+export type OpName = "f" | "repo" | "lang" | "type" | "sym" | "author" | "msg" | "since" | "case" | "count" | "order";
+
+/** ResultOrder is how current files are sorted: best match first, or by repo, path and line. */
+export type ResultOrder = "best" | "path";
+
+/** RankReason is why best-match order put a file where it is: it defines a searched name, or it was moved down as a test, vendored or generated file. Absent when nothing stands out or the order is path. */
+export type RankReason = "definition" | "test" | "vendored" | "generated";
 
 /** Match says how a value was written: bare (literal), quoted (phrase), /regex/, or a path glob such as *.go (f: and repo: only). */
 export type Match = "literal" | "phrase" | "regex" | "glob";
@@ -110,11 +116,13 @@ export type Node =
       resolved?: Resolved;
     };
 
-/** Globals are the query-wide operators case:, count: and type:, or null when absent. */
+/** Globals are the query-wide operators case:, count:, type: and order:, or null when absent. */
 export interface Globals {
   case: "yes" | "no" | null;
   count: number | "all" | null;
   type: "file" | "code" | "commit" | null;
+  /** the query's order: value, best or path; absent when the query doesn't say. */
+  order?: ResultOrder;
 }
 
 /** ParsedQuery is the parser's output: the query tree, its global operators and its diagnostics. */
@@ -144,6 +152,8 @@ export interface Settings {
   includeIgnored: boolean;
   maxFileSizeKB: number;
   location: string;
+  /** the spelunk.order setting: how a query without order: sorts current files. Absent means best. */
+  order?: ResultOrder;
 }
 
 /** LastCommit is the newest commit that touched a file. */
@@ -180,6 +190,7 @@ export type ResultItem =
       nameHits: Range[];
       lastCommit?: LastCommit;
       dirty: boolean;
+      rankReason?: RankReason;
     }
   | {
       kind: "line";
@@ -189,6 +200,7 @@ export type ResultItem =
       line: number;
       text: string;
       hits: Hit[];
+      rankReason?: RankReason;
     }
   | {
       kind: "symbol";
@@ -199,6 +211,7 @@ export type ResultItem =
       name: string;
       symbolKind: SymbolKind;
       hits: Hit[];
+      rankReason?: RankReason;
     }
   | {
       kind: "commit";
@@ -528,6 +541,7 @@ export interface UiSettings {
   preview: boolean;
   showParsedQuery: boolean;
   caseSensitive: boolean;
+  order: ResultOrder;
 }
 
 /** BannerMessage reports daemon health: restarting, stopped or cleared. */

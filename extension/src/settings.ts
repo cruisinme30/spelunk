@@ -23,6 +23,7 @@ const DEFAULTS = {
   showParsedQuery: true,
   recentQueries: 20,
   shortcutPreset: "quickOpen",
+  order: "best",
 } as const;
 
 /** The hard cap on results per page; the daemon enforces the same limit. */
@@ -34,6 +35,7 @@ const MAX_RECENT_QUERIES = 100;
 /** The index.historyDepth values. */
 export const HISTORY_DEPTHS: readonly Settings["historyDepth"][] = ["6m", "2y", "all"];
 const OPEN_TRIGGERS: readonly UiSettings["openTrigger"][] = ["doubleClick", "singleClick"];
+const ORDERS: readonly UiSettings["order"][] = ["best", "path"];
 /** The shortcut.preset values. */
 export const SHORTCUT_PRESETS: readonly WelcomeState["preset"][] = ["quickOpen", "findInFiles", "none"];
 
@@ -93,6 +95,7 @@ export function daemonSettings(config: ConfigReader, home: string): Settings {
       string(read("index.location", DEFAULTS.location), DEFAULTS.location) || DEFAULTS.location,
       home,
     ),
+    order: oneOf(read("order", DEFAULTS.order), ORDERS, DEFAULTS.order),
   };
 }
 
@@ -105,6 +108,7 @@ export function uiSettings(config: ConfigReader): UiSettings {
     preview: boolean(read("open.preview", DEFAULTS.openPreview), DEFAULTS.openPreview),
     showParsedQuery: boolean(read("ui.showParsedQuery", DEFAULTS.showParsedQuery), DEFAULTS.showParsedQuery),
     caseSensitive: boolean(read("caseSensitive", DEFAULTS.caseSensitive), DEFAULTS.caseSensitive),
+    order: oneOf(read("order", DEFAULTS.order), ORDERS, DEFAULTS.order),
   };
 }
 

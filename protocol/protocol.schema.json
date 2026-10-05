@@ -66,7 +66,17 @@
     "OpName": {
       "description": "OpName is an operator's name, the part before the colon.",
       "type": "string",
-      "enum": ["f", "repo", "lang", "type", "sym", "author", "msg", "since", "case", "count"]
+      "enum": ["f", "repo", "lang", "type", "sym", "author", "msg", "since", "case", "count", "order"]
+    },
+    "ResultOrder": {
+      "description": "ResultOrder is how current files are sorted: best match first, or by repo, path and line.",
+      "type": "string",
+      "enum": ["best", "path"]
+    },
+    "RankReason": {
+      "description": "RankReason is why best-match order put a file where it is: it defines a searched name, or it was moved down as a test, vendored or generated file. Absent when nothing stands out or the order is path.",
+      "type": "string",
+      "enum": ["definition", "test", "vendored", "generated"]
     },
     "Match": {
       "description": "Match says how a value was written: bare (literal), quoted (phrase), /regex/, or a path glob such as *.go (f: and repo: only).",
@@ -231,7 +241,7 @@
       ]
     },
     "Globals": {
-      "description": "Globals are the query-wide operators case:, count: and type:, or null when absent.",
+      "description": "Globals are the query-wide operators case:, count:, type: and order:, or null when absent.",
       "type": "object",
       "properties": {
         "case": {
@@ -267,6 +277,10 @@
               "type": "null"
             }
           ]
+        },
+        "order": {
+          "description": "the query's order: value, best or path; absent when the query doesn't say.",
+          "$ref": "#/$defs/ResultOrder"
         }
       },
       "required": ["case", "count", "type"]
@@ -352,6 +366,10 @@
         },
         "location": {
           "type": "string"
+        },
+        "order": {
+          "description": "the spelunk.order setting: how a query without order: sorts current files. Absent means best.",
+          "$ref": "#/$defs/ResultOrder"
         }
       },
       "required": [
@@ -447,6 +465,9 @@
             },
             "dirty": {
               "type": "boolean"
+            },
+            "rankReason": {
+              "$ref": "#/$defs/RankReason"
             }
           },
           "required": ["kind", "ref", "repoId", "path", "nameHits", "dirty"]
@@ -477,6 +498,9 @@
               "items": {
                 "$ref": "#/$defs/Hit"
               }
+            },
+            "rankReason": {
+              "$ref": "#/$defs/RankReason"
             }
           },
           "required": ["kind", "ref", "repoId", "path", "line", "text", "hits"]
@@ -510,6 +534,9 @@
               "items": {
                 "$ref": "#/$defs/Hit"
               }
+            },
+            "rankReason": {
+              "$ref": "#/$defs/RankReason"
             }
           },
           "required": ["kind", "ref", "repoId", "path", "line", "name", "symbolKind", "hits"]
@@ -1368,9 +1395,12 @@
         },
         "caseSensitive": {
           "type": "boolean"
+        },
+        "order": {
+          "$ref": "#/$defs/ResultOrder"
         }
       },
-      "required": ["typingDelayMs", "openTrigger", "preview", "showParsedQuery", "caseSensitive"]
+      "required": ["typingDelayMs", "openTrigger", "preview", "showParsedQuery", "caseSensitive", "order"]
     },
     "BannerMessage": {
       "description": "BannerMessage reports daemon health: restarting, stopped or cleared.",

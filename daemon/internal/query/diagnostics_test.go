@@ -40,6 +40,8 @@ func TestDiagnostics(t *testing.T) {
 		{"case: twice", "case:yes a case:no", DiagDuplicateGlobal, "case:no", "case:yes a"},
 		{"OR mixing commits and lines", "author:jane OR f:x", DiagMixedModeOr, "author:jane OR f:x", ""},
 		{"sym: in a history query", "author:jane sym:Foo", DiagOpWrongMode, "sym:Foo", "author:jane"},
+		{"order: in a history query", "author:jane order:path", DiagOpWrongMode, "order:path", "author:jane"},
+		{"order: with a bad value", "a order:random", DiagBadValue, "order:random", "a order:best"},
 		{"invalid regex term", "/Retry(/", DiagInvalidRegex, "/Retry(/", ""},
 		{"invalid f: regex", "f:a[b x", DiagInvalidRegex, "a[b", ""},
 		{"only excluded terms", "-timeout", DiagNoPositiveTerm, "-timeout", ""},

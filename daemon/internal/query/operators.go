@@ -52,6 +52,7 @@ var operators = []operator{
 	{name: protocol.OpNameType, full: "type", short: "t", global: true, summary: "Only file names, code, or commits", examples: []string{"file", "code", "commit"}, interpret: oneOf("file", "code", "commit")},
 	{name: protocol.OpNameCase, full: "case", short: "c", global: true, summary: "Match case (yes) or ignore it (no)", examples: []string{"yes", "no"}, interpret: oneOf("yes", "no")},
 	{name: protocol.OpNameCount, full: "count", short: "n", global: true, summary: "How many results", examples: []string{"50", "200", "all"}, interpret: asCount},
+	{name: protocol.OpNameOrder, full: "order", short: "o", global: true, scope: scopeWorkingTreeOnly, summary: "Best match first, or by path", examples: []string{"best", "path"}, interpret: oneOf("best", "path")},
 }
 
 // lookupOperator finds an operator by any of its spellings: f, file.

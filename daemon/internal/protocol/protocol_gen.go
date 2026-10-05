@@ -73,6 +73,27 @@ const (
 	OpNameSince  OpName = "since"
 	OpNameCase   OpName = "case"
 	OpNameCount  OpName = "count"
+	OpNameOrder  OpName = "order"
+)
+
+// ResultOrder is how current files are sorted: best match first, or by repo, path and line.
+type ResultOrder = string
+
+// ResultOrder values.
+const (
+	ResultOrderBest ResultOrder = "best"
+	ResultOrderPath ResultOrder = "path"
+)
+
+// RankReason is why best-match order put a file where it is: it defines a searched name, or it was moved down as a test, vendored or generated file. Absent when nothing stands out or the order is path.
+type RankReason = string
+
+// RankReason values.
+const (
+	RankReasonDefinition RankReason = "definition"
+	RankReasonTest       RankReason = "test"
+	RankReasonVendored   RankReason = "vendored"
+	RankReasonGenerated  RankReason = "generated"
 )
 
 // Match says how a value was written: bare (literal), quoted (phrase), /regex/, or a path glob such as *.go (f: and repo: only).
@@ -203,11 +224,13 @@ func (v Node) MarshalJSON() ([]byte, error) {
 	return json.Marshal(fields)
 }
 
-// Globals are the query-wide operators case:, count: and type:, or null when absent.
+// Globals are the query-wide operators case:, count:, type: and order:, or null when absent.
 type Globals struct {
 	Case  *string `json:"case"`
 	Count any     `json:"count"`
 	Type  *string `json:"type"`
+	// Order is the query's order: value, best or path; absent when the query doesn't say.
+	Order ResultOrder `json:"order,omitempty"`
 }
 
 // ParsedQuery is the parser's output: the query tree, its global operators and its diagnostics.
@@ -247,6 +270,8 @@ type Settings struct {
 	IncludeIgnored bool     `json:"includeIgnored"`
 	MaxFileSizeKB  int      `json:"maxFileSizeKB"`
 	Location       string   `json:"location"`
+	// Order is the spelunk.order setting: how a query without order: sorts current files. Absent means best.
+	Order ResultOrder `json:"order,omitempty"`
 }
 
 // MarshalJSON emits [] rather than null for required arrays.
@@ -302,6 +327,7 @@ type ResultItem struct {
 	NameHits     []Range      `json:"nameHits,omitempty"`
 	LastCommit   *LastCommit  `json:"lastCommit,omitempty"`
 	Dirty        bool         `json:"dirty,omitempty"`
+	RankReason   RankReason   `json:"rankReason,omitempty"`
 	Line         int          `json:"line,omitempty"`
 	Text         string       `json:"text,omitempty"`
 	Hits         []Hit        `json:"hits,omitempty"`
@@ -344,6 +370,9 @@ func (v ResultItem) MarshalJSON() ([]byte, error) {
 			fields["lastCommit"] = v.LastCommit
 		}
 		fields["dirty"] = v.Dirty
+		if v.RankReason != "" {
+			fields["rankReason"] = v.RankReason
+		}
 	case "line":
 		fields["ref"] = v.Ref
 		fields["repoId"] = v.RepoID
@@ -354,6 +383,9 @@ func (v ResultItem) MarshalJSON() ([]byte, error) {
 			fields["hits"] = []Hit{}
 		} else {
 			fields["hits"] = v.Hits
+		}
+		if v.RankReason != "" {
+			fields["rankReason"] = v.RankReason
 		}
 	case "symbol":
 		fields["ref"] = v.Ref
@@ -366,6 +398,9 @@ func (v ResultItem) MarshalJSON() ([]byte, error) {
 			fields["hits"] = []Hit{}
 		} else {
 			fields["hits"] = v.Hits
+		}
+		if v.RankReason != "" {
+			fields["rankReason"] = v.RankReason
 		}
 	case "commit":
 		fields["ref"] = v.Ref
@@ -927,11 +962,12 @@ func (v StateRestoreMessage) MarshalJSON() ([]byte, error) {
 
 // UiSettings are the UI-facing settings the host forwards to the webview.
 type UiSettings struct {
-	TypingDelayMs   int    `json:"typingDelayMs"`
-	OpenTrigger     string `json:"openTrigger"`
-	Preview         bool   `json:"preview"`
-	ShowParsedQuery bool   `json:"showParsedQuery"`
-	CaseSensitive   bool   `json:"caseSensitive"`
+	TypingDelayMs   int         `json:"typingDelayMs"`
+	OpenTrigger     string      `json:"openTrigger"`
+	Preview         bool        `json:"preview"`
+	ShowParsedQuery bool        `json:"showParsedQuery"`
+	CaseSensitive   bool        `json:"caseSensitive"`
+	Order           ResultOrder `json:"order"`
 }
 
 // BannerMessage reports daemon health: restarting, stopped or cleared.

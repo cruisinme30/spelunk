@@ -32,9 +32,11 @@ type Plan struct {
 	Mode  protocol.Mode
 	Kinds map[ResultKind]bool
 	// Pred is always an *And whose Kids are the top-level conjuncts
-	// (case:, count: and type: shape the plan and have no predicate).
+	// (case:, count:, type: and order: shape the plan and have no predicate).
 	Pred          *And
 	CaseSensitive bool
+	// Order is how current files are sorted: order:, or the order setting.
+	Order protocol.ResultOrder
 	// Limit is how many results one page returns (count:, or the default).
 	Limit int
 	// Offset is where this page starts (from the Load more cursor).
@@ -204,12 +206,13 @@ func NewPlan(q protocol.ParsedQuery, settings protocol.Settings, now time.Time, 
 	if q.Globals.Case != nil {
 		plan.CaseSensitive = *q.Globals.Case == "yes"
 	}
+	plan.Order = resultOrder(q.Globals.Order, settings.Order)
 
 	l := lowering{caseSensitive: plan.CaseSensitive, now: now, plan: plan}
 	src := newSource(q.Raw)
 	for _, node := range topLevel(q.Root) {
 		pred := l.lower(node)
-		if pred == nil { // a global: case:, count: or type:
+		if pred == nil { // a global: case:, count:, type: or order:
 			plan.addGlobalFilter(node, src)
 			continue
 		}
@@ -261,6 +264,19 @@ func pageSize(count any, defaultCount int) int {
 		size = MaxResults
 	}
 	return min(max(size, 1), MaxResults)
+}
+
+// resultOrder is order: if given, otherwise the order setting, and best
+// match first when neither says.
+func resultOrder(order, setting protocol.ResultOrder) protocol.ResultOrder {
+	switch {
+	case order != "":
+		return order
+	case setting == protocol.ResultOrderPath:
+		return setting
+	default:
+		return protocol.ResultOrderBest
+	}
 }
 
 // pageOffset reads a Load more cursor: the index of the page's first result.
@@ -374,7 +390,7 @@ func (l *lowering) lowerOperator(node *protocol.Node) Pred {
 		return &Message{Re: l.regex(node.Value, node.Match)}
 	case protocol.OpNameSince:
 		return &Since{After: since(l.now, node.Value)}
-	default: // case:, count:, type: shape the plan, not the predicate
+	default: // case:, count:, type:, order: shape the plan, not the predicate
 		return nil
 	}
 }

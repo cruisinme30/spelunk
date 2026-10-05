@@ -25,6 +25,12 @@ test("daemon settings clamp counts and reject unknown history depths", () => {
   assert.equal(settings.historyDepth, "2y");
 });
 
+test("the order setting reaches both the daemon and the panel", () => {
+  const config = configWith({ order: "path" });
+  assert.equal(daemonSettings(config, "/home/u").order, "path");
+  assert.equal(uiSettings(config).order, "path");
+});
+
 /** The index location the daemon gets for an index.location setting, with /home/u as home. */
 const location = (value: string) => daemonSettings(configWith({ "index.location": value }), "/home/u").location;
 
@@ -56,6 +62,7 @@ test("settings of the wrong type or out of range fall back to defaults the daemo
     "index.maxFileSizeKB": 1.5,
     "index.location": 42,
     "index.historyDepth": ["all"],
+    order: "random",
   });
   assert.deepEqual(daemonSettings(wrong, "/home/u"), {
     caseSensitive: false,
@@ -66,6 +73,7 @@ test("settings of the wrong type or out of range fall back to defaults the daemo
     includeIgnored: false,
     maxFileSizeKB: 2,
     location: "/home/u/.spelunk/index",
+    order: "best",
   });
   const extremes = daemonSettings(
     configWith({
@@ -93,6 +101,7 @@ test("panel settings of the wrong type fall back to their defaults", () => {
     caseSensitive: "true",
     "ui.recentQueries": "many",
     "open.closeOnOpen": "false",
+    order: 1,
   });
   assert.deepEqual(uiSettings(wrong), {
     typingDelayMs: 120,
@@ -100,6 +109,7 @@ test("panel settings of the wrong type fall back to their defaults", () => {
     preview: true,
     showParsedQuery: true,
     caseSensitive: false,
+    order: "best",
   });
   assert.equal(recentQueriesLimit(wrong), 20, "not NaN, which would empty the recent list");
   assert.equal(closeOnOpen(wrong), true);

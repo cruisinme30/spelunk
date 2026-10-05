@@ -67,6 +67,7 @@ const DEFAULT_UI_SETTINGS: UiSettings = {
   preview: true,
   showParsedQuery: true,
   caseSensitive: false,
+  order: "best",
 };
 
 /** The state of a panel that has just opened: an empty box and no results. */

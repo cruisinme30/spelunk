@@ -62,8 +62,8 @@ func walk(node *protocol.Node, visit func(*protocol.Node)) {
 	walkWithParent(node, nil, func(node, _ *protocol.Node) { visit(node) })
 }
 
-// collectGlobals fills query.Globals from top-level case:, count: and
-// type:, and reports globals that are nested or repeated.
+// collectGlobals fills query.Globals from top-level case:, count:, type:
+// and order:, and reports globals that are nested or repeated.
 func collectGlobals(src *source, query *protocol.ParsedQuery, problems *diagnostics) {
 	atTop := map[*protocol.Node]bool{}
 	for _, node := range topLevel(query.Root) {
@@ -129,7 +129,7 @@ func walkWithParent(node, parent *protocol.Node, visit func(node, parent *protoc
 	}
 }
 
-// setGlobal records a top-level case:, type: or count: in globals.
+// setGlobal records a top-level case:, type:, count: or order: in globals.
 func setGlobal(globals *protocol.Globals, node *protocol.Node) {
 	value := node.Value
 	switch node.Op {
@@ -137,6 +137,8 @@ func setGlobal(globals *protocol.Globals, node *protocol.Node) {
 		globals.Case = &value
 	case protocol.OpNameType:
 		globals.Type = &value
+	case protocol.OpNameOrder:
+		globals.Order = value
 	case protocol.OpNameCount:
 		if value == "all" {
 			globals.Count = "all"
@@ -180,7 +182,7 @@ func checkOrModes(root *protocol.Node, problems *diagnostics) {
 	})
 }
 
-// reportWorkingTreeOperators reports sym: in a history query.
+// reportWorkingTreeOperators reports sym: or order: in a history query.
 func reportWorkingTreeOperators(src *source, root *protocol.Node, problems *diagnostics) {
 	walk(root, func(node *protocol.Node) {
 		if node.Kind != protocol.NodeKindOp {
@@ -188,8 +190,12 @@ func reportWorkingTreeOperators(src *source, root *protocol.Node, problems *diag
 		}
 		if op, _ := lookupOperator(node.Op); op.scope == scopeWorkingTreeOnly {
 			written := src.slice(node.Span.Start, node.Span.End)
+			does := "searches current files"
+			if node.Op == protocol.OpNameOrder {
+				does = "sorts current files; commits are always newest first"
+			}
 			problems.errorf(DiagOpWrongMode, node.Span, []protocol.Fix{removeFix("Remove "+written, src, node.Span)},
-				"%s: searches current files, but this query searches commits (author:, msg: or type:commit)", node.Op)
+				"%s: %s, but this query searches commits (author:, msg: or type:commit)", node.Op, does)
 		}
 	})
 }

@@ -147,6 +147,20 @@
           "scope": "resource",
           "description": "Results per page when the query has no count: operator."
         },
+        "spelunk.order": {
+          "type": "string",
+          "enum": [
+            "best",
+            "path"
+          ],
+          "enumDescriptions": [
+            "Best match first: definitions and file-name matches first; tests, vendored and generated files last.",
+            "Repo by repo, then by path, then by line."
+          ],
+          "default": "best",
+          "scope": "resource",
+          "description": "How results from current files are sorted when the query has no order: operator. Commits are always newest first."
+        },
         "spelunk.typingDelayMs": {
           "type": "integer",
           "default": 120,

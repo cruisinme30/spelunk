@@ -39,6 +39,7 @@ const TEST_UI_SETTINGS: UiSettings = {
   preview: true,
   showParsedQuery: true,
   caseSensitive: false,
+  order: "best",
 };
 
 /** What search/start answers in the scripted backends: no results. */

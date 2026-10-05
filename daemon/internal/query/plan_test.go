@@ -95,6 +95,26 @@ func TestCaseSensitivityComesFromCaseOrTheSetting(t *testing.T) {
 	}
 }
 
+func TestOrderComesFromOrderOrTheSetting(t *testing.T) {
+	byPath := defaultSettings
+	byPath.Order = protocol.ResultOrderPath
+	tests := []struct {
+		query    string
+		settings protocol.Settings
+		want     protocol.ResultOrder
+	}{
+		{"x", defaultSettings, protocol.ResultOrderBest},
+		{"x", byPath, protocol.ResultOrderPath},
+		{"order:path x", defaultSettings, protocol.ResultOrderPath},
+		{"o:best x", byPath, protocol.ResultOrderBest},
+	}
+	for _, tt := range tests {
+		if got := mustPlan(t, tt.query, tt.settings).Order; got != tt.want {
+			t.Errorf("plan(%q, setting %q).Order = %q, want %q", tt.query, tt.settings.Order, got, tt.want)
+		}
+	}
+}
+
 func TestResultKinds(t *testing.T) {
 	tests := map[string]string{
 		"retry":                       "file,line",

@@ -30,7 +30,7 @@ export interface OperatorGroup {
   entries: OperatorEntry[];
 }
 
-/** Every operator and piece of syntax: 16 entries in five groups. */
+/** Every operator and piece of syntax: 17 entries in five groups. */
 export const OPERATOR_GROUPS: OperatorGroup[] = [
   {
     name: "Matching",
@@ -184,6 +184,15 @@ export const OPERATOR_GROUPS: OperatorGroup[] = [
           "How many results to show per page, or all. Without it, the Default Count setting applies (500 unless you change it), and Load more fetches the next page.",
         example: "count:all retry",
       },
+      {
+        operator: "order",
+        label: "order:best|path",
+        insert: "order:",
+        summary: "Best match first, or by path. Best by default.",
+        description:
+          "How results from current files are sorted. best puts definitions and file-name matches first and tests, vendored and generated files last; path sorts by repo, then path, then line. Without it, the Order setting applies (best unless you change it). Commits are always newest first.",
+        example: "order:path retry",
+      },
     ],
   },
 ];
@@ -200,6 +209,7 @@ export const OPERATOR_TONE: Record<OpName, Tone> = {
   msg: "history",
   since: "history",
   count: "output",
+  order: "output",
 };
 
 /** The two spellings of each operator: file: and f:. The daemon also accepts the OpName itself (lang:, sym:, msg:). */
@@ -214,6 +224,7 @@ const OPERATOR_NAMES: Record<OpName, { full: string; short: string }> = {
   since: { full: "since", short: "d" },
   case: { full: "case", short: "c" },
   count: { full: "count", short: "n" },
+  order: { full: "order", short: "o" },
 };
 
 /** The operator a typed name stands for, in any spelling: "f", "file" → "f". */
