@@ -155,6 +155,17 @@ test("settings that can't be read stop the start before any process is spawned",
   assert.equal(counter.spawns, 0);
 });
 
+test("stop called twice at once stops the daemon once, and both calls resolve", async () => {
+  const { daemon, states } = newFakeDaemon("ok");
+  await daemon.start();
+  const pid = runningPid(daemon);
+  await Promise.all([daemon.stop(), daemon.stop()]);
+  assert.equal(daemon.state, "stopped");
+  assert.equal(isRunning(pid), false);
+  await daemon.stop();
+  assert.deepEqual(states, ["starting", "ok", "stopped"]);
+});
+
 test("stop during the handshake never reports the daemon as ready", async () => {
   const { daemon, states } = newFakeDaemon("slowInitialize");
   const starting = assert.rejects(daemon.start());
@@ -163,6 +174,27 @@ test("stop during the handshake never reports the daemon as ready", async () => 
   await starting;
   assert.deepEqual(states, ["starting", "stopped"]);
   await assert.rejects(daemon.request("index/status", {}), /stopped/);
+});
+
+test("stop while a crash restart is scheduled cancels it", async () => {
+  const counter = countingSpawn();
+  const { daemon } = newFakeDaemon("ok", { restartDelayMs: 200, spawn: counter.spawn });
+  await daemon.start();
+  process.kill(runningPid(daemon), "SIGKILL");
+  await waitFor("the crash is noticed", () => daemon.state === "restarting");
+  await daemon.stop();
+  await pause(300);
+  assert.equal(daemon.state, "stopped");
+  assert.equal(counter.spawns, 1);
+});
+
+test("stop kills a daemon that ignores shutdown, and resolves only once it has exited", async () => {
+  const { daemon } = newFakeDaemon("ignoreShutdown", { shutdownGraceMs: 50 });
+  await daemon.start();
+  const pid = runningPid(daemon);
+  await daemon.stop();
+  assert.equal(daemon.state, "stopped");
+  assert.equal(isRunning(pid), false);
 });
 
 test("restart during the handshake replaces the starting daemon", async () => {

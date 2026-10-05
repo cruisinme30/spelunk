@@ -29,7 +29,7 @@ const DEFAULT_MAX_RESTARTS_PER_MINUTE = 3;
 /** The pause before restarting a crashed daemon. */
 const DEFAULT_RESTART_DELAY_MS = 200;
 /** How long stop() waits for the shutdown reply, and then for the process to exit, before killing it. */
-const SHUTDOWN_GRACE_MS = 2000;
+const DEFAULT_SHUTDOWN_GRACE_MS = 2000;
 /** How long the initialize handshake may take; a daemon that doesn't answer by then counts as crashed. */
 const DEFAULT_INITIALIZE_TIMEOUT_MS = 20_000;
 /** How long a request waits for a starting or restarting daemon before failing. */
@@ -53,6 +53,7 @@ export interface DaemonOptions {
   maxRestartsPerMinute?: number;
   restartDelayMs?: number;
   initializeTimeoutMs?: number;
+  shutdownGraceMs?: number;
   /** For tests: replaces child_process.spawn. */
   spawn?: typeof nodeSpawn;
   /** For tests: replaces Date.now. */
@@ -106,28 +107,30 @@ export class Daemon extends EventEmitter {
     return this.start();
   }
 
-  /** Graceful stop: shutdown, exit, then SIGKILL if the process lingers. */
+  /** Graceful stop: shutdown, exit, then SIGKILL if the process lingers. Resolves once it has exited. */
   async stop(): Promise<void> {
     this.stopping = true;
     this.cancelScheduledRestart();
     const child = this.child;
     const connection = this.connection;
     if (!child || !connection) {
-      this.setState("stopped");
+      if (this.state !== "stopped" && this.state !== "protocolMismatch") this.setState("stopped");
       return;
     }
-    const exited = new Promise<void>((resolve) =>
-      child.once("exit", () => {
-        resolve();
-      }),
-    );
-    try {
-      await Promise.race([connection.request("shutdown", {}), delay(SHUTDOWN_GRACE_MS)]);
-      connection.notify("exit", {});
-    } catch {
-      // Already gone: nothing to shut down.
+    const exited = new Promise<void>((resolve) => {
+      if (child.exitCode !== null || child.signalCode !== null) resolve();
+      else
+        child.once("exit", () => {
+          resolve();
+        });
+    });
+    const grace = this.options.shutdownGraceMs ?? DEFAULT_SHUTDOWN_GRACE_MS;
+    await settlesWithin(connection.request("shutdown", {}), grace); // fails at once if it is already gone
+    connection.notify("exit", {});
+    if (!(await settlesWithin(exited, grace))) {
+      child.kill("SIGKILL");
+      await exited;
     }
-    await Promise.race([exited, delay(SHUTDOWN_GRACE_MS).then(() => child.kill("SIGKILL"))]);
   }
 
   /** Sends a request, waiting first for a starting or restarting daemon to be ready. */
@@ -349,6 +352,23 @@ export class Daemon extends EventEmitter {
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
+
+/** Whether `promise` settles (either way) within `ms`; the timer is cleared as soon as it does. */
+async function settlesWithin(promise: Promise<unknown>, ms: number): Promise<boolean> {
+  let timer: NodeJS.Timeout | undefined;
+  const timedOut = new Promise<false>((resolve) => {
+    timer = setTimeout(() => {
+      resolve(false);
+    }, ms);
+  });
+  try {
+    return await Promise.race([promise.then(succeeded, succeeded), timedOut]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+const succeeded = () => true;
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
