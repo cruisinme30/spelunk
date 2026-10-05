@@ -1,5 +1,5 @@
 // The panel chrome around the results: index status, health and indexing
-// banners, completions, query diagnostics, parsed-query chips and the key
+// banners, query diagnostics, parsed-query chips and the key
 // hints footer.
 import { clamp, element, percent, plural, termClass } from "../format";
 import type { Layout } from "../layout";
