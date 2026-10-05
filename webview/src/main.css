@@ -258,13 +258,19 @@ mark.term-color-3 {
   padding-bottom: 4px;
 }
 
-.completion-group {
-  padding: 6px 12px 2px;
+/* The small uppercase headings: suggestion groups, value-list sections and result sections. */
+.completion-group,
+.completion-section,
+.section-title {
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--muted);
+}
+
+.completion-group {
+  padding: 6px 12px 2px;
 }
 
 .completion {
@@ -284,11 +290,6 @@ mark.term-color-3 {
 /* A heading inside a value list: "Calendar days", "File types". */
 .completion-section {
   padding: 10px 14px 2px;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--muted);
 }
 
 .completion-note {
@@ -563,11 +564,6 @@ mark.term-color-3 {
 
 .section-title {
   padding: 8px 14px 6px;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--muted);
 }
 
 .section-title.spread,
