@@ -69,7 +69,11 @@ export class WelcomePanel implements vscode.Disposable {
 
   private async sendState(): Promise<void> {
     this.refresh();
-    this.indexStatus(await this.sources.indexStatus());
+    try {
+      this.indexStatus(await this.sources.indexStatus());
+    } catch {
+      // The daemon isn't ready (or is stopped); its index/progress brings the status once it is.
+    }
   }
 
   private post<K extends keyof HostToWebview>(type: K, payload: HostToWebview[K]): void {
