@@ -63,12 +63,14 @@ words:
   # Words of this code base
   - goldens
   - prefilter
+  - presubmit
   - Preds
   - retrypolicy
   - trigram
   - trigrams
   - unifiedsearch
   - unmarshals
+  - unpushed
   - webview
   - webviews
 ignoreWords:
