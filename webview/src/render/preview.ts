@@ -153,7 +153,7 @@ function renderCommitPreview(
     );
   }
 
-  // Files outside an f: filter stay hidden until "Show all".
+  // Files the query's file filters (f:, lang:, is:test) leave out stay hidden until "Show all".
   const hiddenFiles = preview.files.filter((file) => file.hiddenByFilter);
   const shownFiles = preview.files.filter((file) => !file.hiddenByFilter || showHiddenFiles);
   const files = element(
@@ -164,7 +164,7 @@ function renderCommitPreview(
   if (hiddenFiles.length > 0 && !showHiddenFiles) {
     const showAll = button({ class: "btn link", "data-testid": "show-all-files" }, onShowHiddenFiles, "Show all");
     files.append(
-      element("span", { class: "muted" }, `${plural(hiddenFiles.length, "other changed file")} hidden by f:`),
+      element("span", { class: "muted" }, `${plural(hiddenFiles.length, "other changed file")} hidden by filters`),
       showAll,
     );
   }

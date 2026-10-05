@@ -303,12 +303,20 @@ test("commit rows say whether the message or the diff matched, and a preview say
       body: "So a retry storm can't hammer the processor.",
       author: "Jane Doe <jane@payments.example>",
       at: "2026-10-01T00:00:00Z",
-      files: [{ path: "payments/charge.py", added: 5, removed: 1, hiddenByFilter: false }],
+      files: [
+        { path: "payments/charge.py", added: 5, removed: 1, hiddenByFilter: false },
+        { path: "vendor/backoff.py", added: 2, removed: 0, hiddenByFilter: true },
+      ],
       hunks: [
         {
           path: "payments/charge.py",
           header: "@@ -41 +41 @@",
           lines: [{ kind: "add", text: "sleep(delay)", hits: [] }],
+        },
+        {
+          path: "vendor/backoff.py",
+          header: "@@ -0,0 +1,2 @@",
+          lines: [{ kind: "add", text: "def backoff(): ...", hits: [] }],
         },
       ],
       subjectHits: [],
@@ -317,6 +325,14 @@ test("commit rows say whether the message or the diff matched, and a preview say
   });
   assert.equal(await page.locator('[data-testid="preview"] pre.body mark').innerText(), "retry");
   assert.equal(await page.locator('[data-testid="matched-in-message"]').count(), 1);
+  // A file the query's filters left out (f:, lang: or is:test) stays hidden until Show all.
+  assert.match(
+    await page.locator('[data-testid="preview"] .files').innerText(),
+    /1 other changed file hidden by filters/,
+  );
+  assert.equal(await page.locator('[data-testid="preview"] .hunk').count(), 1);
+  await page.click('[data-testid="show-all-files"]');
+  assert.equal(await page.locator('[data-testid="preview"] .hunk').count(), 2);
 });
 
 test("Enter opens the selected result; ⌘Enter opens it to the side", async (t) => {
