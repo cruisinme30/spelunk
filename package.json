@@ -34,7 +34,7 @@
     "eslint-plugin-unicorn": "^60.0.0",
     "globals": "^16.0.0",
     "knip": "^6.39.0",
-    "markdownlint-cli2": "^0.18.0",
+    "markdownlint-cli2": "^0.23.3",
     "prettier": "^3.5.0",
     "stylelint": "^16.20.0",
     "stylelint-config-standard": "^38.0.0",
