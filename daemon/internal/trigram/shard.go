@@ -83,9 +83,14 @@ type BuildOptions struct {
 	// Progress, if not nil, is called now and then with the fraction of
 	// files read so far.
 	Progress func(float64)
+	// MaxFileBytes, when positive, leaves out a file that grew past it
+	// since it was listed (see WalkOptions.MaxFileBytes).
+	MaxFileBytes int64
 }
 
-// Build reads files from root and indexes them.
+// Build reads files from root and indexes them. A file that changed since
+// it was listed is read as it is now; one that is gone, or is now a
+// symlink, a FIFO or another special file, binary or too big, is left out.
 func Build(ctx context.Context, root string, files []File, opts BuildOptions) (*Shard, error) {
 	if int64(len(files)) >= maxDocs {
 		return nil, fmt.Errorf("%d files is more than one index can hold (%d)", len(files), maxDocs)
@@ -98,14 +103,9 @@ func Build(ctx context.Context, root string, files []File, opts BuildOptions) (*
 		if opts.Progress != nil && i%progressEvery == 0 {
 			opts.Progress(float64(i) / float64(len(files)))
 		}
-		full := filepath.Join(root, filepath.FromSlash(file.Path))
-		content, err := os.ReadFile(full) //nolint:gosec // G304: reading the indexed repo's files is the point
+		content, info, err := readText(filepath.Join(root, filepath.FromSlash(file.Path)), opts.MaxFileBytes)
 		if err != nil {
-			continue // deleted since it was listed
-		}
-		info, err := os.Stat(full)
-		if err != nil {
-			continue
+			continue // deleted or replaced since it was listed
 		}
 		doc := Doc{Path: file.Path, Lang: lang.Detect(file.Path, content), ModTime: info.ModTime(), Content: content}
 		if opts.Symbols {

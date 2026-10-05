@@ -18,14 +18,10 @@ var ErrStale = errors.New("result no longer exists")
 // Preview returns the lines around a result, read from disk so they match
 // what opening the file shows. With the plan that produced the result, it
 // highlights every term that made the file match, in the term's color;
-// without it (the plan was forgotten), only the result's own match.
+// without it (the plan was forgotten), only the result's own match. A file
+// that is gone, or is no longer a regular text file, is ErrStale.
 func Preview(repo *Repo, ref Ref, plan *query.Plan, contextLines int) (protocol.Preview, error) {
-	full := filepath.Join(repo.Root, filepath.FromSlash(ref.Path))
-	content, err := os.ReadFile(full) //nolint:gosec // G304: ref paths are inside an open workspace root
-	if err != nil {
-		return protocol.Preview{}, ErrStale
-	}
-	info, err := os.Stat(full)
+	content, info, err := readText(filepath.Join(repo.Root, filepath.FromSlash(ref.Path)), 0)
 	if err != nil {
 		return protocol.Preview{}, ErrStale
 	}

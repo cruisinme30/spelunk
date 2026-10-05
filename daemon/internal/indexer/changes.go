@@ -125,8 +125,9 @@ func (ix *Indexer) reread(id string, paths []string) {
 	ix.mu.Unlock()
 
 	ctx := context.Background()
-	files := trigram.SelectFiles(ctx, root.Path, masked, walkOptions(settings))
-	read, err := trigram.Build(ctx, root.Path, files, trigram.BuildOptions{Symbols: settings.Symbols})
+	walk := walkOptions(settings)
+	files := trigram.SelectFiles(ctx, root.Path, masked, walk)
+	read, err := trigram.Build(ctx, root.Path, files, trigram.BuildOptions{Symbols: settings.Symbols, MaxFileBytes: walk.MaxFileBytes})
 	if err != nil {
 		return
 	}

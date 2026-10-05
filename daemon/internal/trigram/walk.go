@@ -3,6 +3,7 @@ package trigram
 import (
 	"bytes"
 	"context"
+	"io"
 	"io/fs"
 	"os"
 	"os/exec"
@@ -157,15 +158,16 @@ func walkAllFiles(ctx context.Context, root string) ([]string, error) {
 }
 
 // isBinaryFile reports whether the file at path looks binary; unreadable
-// files count as binary, so they are skipped.
+// files, and anything that is no longer a regular file, count as binary,
+// so they are skipped.
 func isBinaryFile(path string) bool {
-	f, err := os.Open(path) //nolint:gosec // G304: path comes from listing the indexed repo
+	f, _, err := openRegular(path)
 	if err != nil {
 		return true
 	}
 	defer closeReadOnly(f)
 	head := make([]byte, binarySniffBytes)
-	n, _ := f.Read(head)
+	n, _ := io.ReadFull(f, head)
 	return isBinary(head[:n])
 }
 

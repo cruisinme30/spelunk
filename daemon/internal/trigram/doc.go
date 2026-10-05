@@ -20,5 +20,8 @@
 //   - The trigram prefilter may let through files that don't match, but
 //     never drops one that does: results equal a plain regex scan, line by
 //     line, as ripgrep would report them.
+//   - Only regular files are read, without following symlinks or blocking
+//     on a FIFO, and never past the size limit, even when a file changed
+//     after it was listed (see readText).
 //   - Every offset in a result (hits, ref columns) is in UTF-16 code units.
 package trigram

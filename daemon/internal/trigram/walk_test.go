@@ -2,8 +2,11 @@ package trigram
 
 import (
 	"context"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"reflect"
+	"slices"
 	"testing"
 )
 
@@ -69,5 +72,31 @@ func TestListFilesInGitRespectsGitignore(t *testing.T) {
 	want = []string{".gitignore", "big.txt", "build/out.txt", "main.go", "src/lib/util.go"}
 	if got := paths(files); !reflect.DeepEqual(got, want) {
 		t.Errorf("ListFiles with IncludeIgnored = %q, want %q", got, want)
+	}
+}
+
+func TestListFilesSkipsWhatIsNotARegularFile(t *testing.T) {
+	root := writeTree(t, map[string]string{"a.txt": "alpha\n", "empty.txt": "", "locked/c.txt": "c\n", "unreadable.txt": "u\n"})
+	outside := writeTree(t, map[string]string{"secret.txt": "secret\n"})
+	for name, target := range map[string]string{"loop": root, "outside": outside, "outside.txt": filepath.Join(outside, "secret.txt"), "dangling": "missing"} {
+		if err := os.Symlink(target, filepath.Join(root, name)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, path := range []string{"locked", "unreadable.txt"} {
+		full := filepath.Join(root, path)
+		if err := os.Chmod(full, 0); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = os.Chmod(full, 0o700) }) // so the temp dir can be removed
+	}
+	files, err := ListFiles(context.Background(), root, WalkOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Unreadable entries are skipped (as root they are readable, so allow them).
+	got := slices.DeleteFunc(paths(files), func(p string) bool { return p == "locked/c.txt" || p == "unreadable.txt" })
+	if want := []string{"a.txt", "empty.txt"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("ListFiles = %q, want %q: symlinks (to folders, files, loops or nothing) are never followed", got, want)
 	}
 }

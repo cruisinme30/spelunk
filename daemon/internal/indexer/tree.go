@@ -149,11 +149,14 @@ func buildShard(job buildJob, progress func(float64)) (*trigram.Shard, error) {
 	if err != nil || !info.IsDir() {
 		return nil, fmt.Errorf("folder not found: %s", job.root.Path)
 	}
-	files, err := trigram.ListFiles(job.ctx, job.root.Path, walkOptions(job.settings))
+	walk := walkOptions(job.settings)
+	files, err := trigram.ListFiles(job.ctx, job.root.Path, walk)
 	if err != nil {
 		return nil, fmt.Errorf("list files: %w", err)
 	}
-	return trigram.Build(job.ctx, job.root.Path, files, trigram.BuildOptions{Symbols: job.settings.Symbols, Progress: progress})
+	return trigram.Build(job.ctx, job.root.Path, files, trigram.BuildOptions{
+		Symbols: job.settings.Symbols, Progress: progress, MaxFileBytes: walk.MaxFileBytes,
+	})
 }
 
 // walkOptions are the index.* settings that decide which files are indexed.
