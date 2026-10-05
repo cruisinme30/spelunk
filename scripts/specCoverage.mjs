@@ -5,8 +5,8 @@
 // from the sources of truth where possible: protocol/protocol.schema.json
 // (op: operators, rpc: methods, msg: webview messages), extension/package.json
 // (setting: and command:), and the daemon's diagnostic codes (diag:). The
-// query syntax (syntax:), the panel's screens (screen:) and the failure modes
-// (failure:) are listed below.
+// panel's screens (screen:) come from the mock table in docs/dev/mocks.md. The
+// query syntax (syntax:) and the failure modes (failure:) are listed below.
 //
 // It always fails on an @covers id that names no spec item (a typo or a
 // removed item); gaps are only reported.
@@ -17,32 +17,9 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { screenIds } from "./mockTable.mjs";
+
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
-/** The panel's screens, by name: each state of the panel a user can see. */
-const SCREENS = [
-  "plain-text-search",
-  "path-scoped-search",
-  "author-history",
-  "empty-box",
-  "operator-suggestions",
-  "value-suggestions",
-  "boolean-history",
-  "case-regex-language",
-  "symbol-definitions",
-  "since-on-files",
-  "message-repo-count",
-  "file-names-only",
-  "query-errors",
-  "no-results-while-indexing",
-  "first-run",
-  "opened-file",
-  "help-page",
-  "settings",
-  "author-values",
-  "since-values",
-  "path-values",
-  "other-values",
-];
 /** What can go wrong, and must be handled visibly: each needs a test tagged failure:<name>. */
 const FAILURE_MODES = ["daemon-crash", "index-corrupt", "repo-indexing", "no-git", "ref-stale", "disk-full"];
 /** The query syntax that isn't an operator. */
@@ -71,7 +48,7 @@ add(
   "command",
   manifest.contributes.commands.map((command) => withoutPrefix(command.command)),
 );
-add("screen", SCREENS);
+add("screen", screenIds(root));
 add("failure", FAILURE_MODES);
 
 // Diagnostic codes are declared as `Diag… = "code"` constants in the query package.
