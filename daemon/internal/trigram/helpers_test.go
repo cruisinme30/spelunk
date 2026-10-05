@@ -11,9 +11,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cruisinme30/unified-search/daemon/internal/lang"
-	"github.com/cruisinme30/unified-search/daemon/internal/protocol"
-	"github.com/cruisinme30/unified-search/daemon/internal/query"
+	"github.com/cruisinme30/spelunk/daemon/internal/lang"
+	"github.com/cruisinme30/spelunk/daemon/internal/protocol"
+	"github.com/cruisinme30/spelunk/daemon/internal/query"
 )
 
 // fixedNow stamps test docs, so results don't depend on the clock.

@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cruisinme30/unified-search/daemon/internal/protocol"
-	"github.com/cruisinme30/unified-search/daemon/internal/query"
+	"github.com/cruisinme30/spelunk/daemon/internal/protocol"
+	"github.com/cruisinme30/spelunk/daemon/internal/query"
 )
 
 // fixedNow is the clock for plans, so since: windows are stable.

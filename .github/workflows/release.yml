@@ -72,8 +72,8 @@ jobs:
       - name: Run the benchmarks
         working-directory: daemon
         env:
-          UNIFIED_SEARCH_BENCH_ROOT: ${{ runner.temp }}/bench
-          UNIFIED_SEARCH_BENCH_REPO: ${{ runner.temp }}/bench
+          SPELUNK_BENCH_ROOT: ${{ runner.temp }}/bench
+          SPELUNK_BENCH_REPO: ${{ runner.temp }}/bench
         run: |
           go test -run '^$' -bench 'LargeRepo|LargeHistory' -benchtime 10x -timeout 40m -v \
             ./internal/trigram ./internal/history | tee "$RUNNER_TEMP/bench.txt"

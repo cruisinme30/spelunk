@@ -6,8 +6,8 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/cruisinme30/unified-search/daemon/internal/protocol"
-	"github.com/cruisinme30/unified-search/daemon/internal/query"
+	"github.com/cruisinme30/spelunk/daemon/internal/protocol"
+	"github.com/cruisinme30/spelunk/daemon/internal/query"
 )
 
 // symbolWorkspace writes the repos of the symbols mock: RetryPolicy and

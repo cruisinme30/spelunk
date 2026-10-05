@@ -25,12 +25,12 @@ body:
     attributes:
       label: Versions
       description: Extension version, VS Code or code-server version, OS.
-      placeholder: Unified Search 0.1.0, VS Code 1.95, macOS 15
+      placeholder: Spelunk 0.1.0, VS Code 1.95, macOS 15
     validations:
       required: true
   - type: textarea
     id: log
     attributes:
       label: Log
-      description: From the "Unified Search" output channel (View → Output).
+      description: From the "Spelunk" output channel (View → Output).
       render: text

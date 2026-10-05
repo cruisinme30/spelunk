@@ -1,12 +1,12 @@
 // Packages the extension as a .vsix for one platform: builds the daemon for
 // that platform (Go cross-compiles, so any platform can be built anywhere),
-// bundles the extension and webview, and writes out/unified-search-<version>-<target>.vsix.
+// bundles the extension and webview, and writes out/spelunk-<version>-<target>.vsix.
 //
 // Usage:
 //   npm run package                          (this machine's platform)
 //   npm run package -- --target linux-x64    (another one)
 //
-// Install the result with: code --install-extension out/unified-search-<version>-<target>.vsix
+// Install the result with: code --install-extension out/spelunk-<version>-<target>.vsix
 import { createVSIX } from "@vscode/vsce";
 import { execFileSync } from "node:child_process";
 import { copyFileSync, mkdirSync, readFileSync, rmSync } from "node:fs";
@@ -34,7 +34,7 @@ if (platform === undefined) {
 }
 
 const { version } = JSON.parse(readFileSync(join(extensionRoot, "package.json"), "utf8"));
-const executable = platform.goos === "windows" ? "unified-search-daemon.exe" : "unified-search-daemon";
+const executable = platform.goos === "windows" ? "spelunk-daemon.exe" : "spelunk-daemon";
 
 // The extension looks for its daemon in bin/<target>/ first (see daemonBinary in extension.ts).
 const binDirectory = join(extensionRoot, "bin");
@@ -43,7 +43,7 @@ mkdirSync(join(binDirectory, target), { recursive: true });
 console.log(`Building the daemon for ${target}`);
 execFileSync(
   "go",
-  ["build", "-trimpath", "-ldflags=-s -w", "-o", join(binDirectory, target, executable), "./cmd/unified-search-daemon"],
+  ["build", "-trimpath", "-ldflags=-s -w", "-o", join(binDirectory, target, executable), "./cmd/spelunk-daemon"],
   {
     cwd: join(repoRoot, "daemon"),
     stdio: "inherit",
@@ -57,7 +57,7 @@ execFileSync(process.execPath, [join(extensionRoot, "build.mjs")], { stdio: "inh
 // The package carries the repo's license; the copy is git-ignored.
 copyFileSync(join(repoRoot, "LICENSE"), join(extensionRoot, "LICENSE"));
 
-const packagePath = join(repoRoot, "out", `unified-search-${version}-${target}.vsix`);
+const packagePath = join(repoRoot, "out", `spelunk-${version}-${target}.vsix`);
 mkdirSync(dirname(packagePath), { recursive: true });
 // dependencies: false because esbuild already bundled everything the extension imports.
 await createVSIX({ cwd: extensionRoot, packagePath, target, dependencies: false });

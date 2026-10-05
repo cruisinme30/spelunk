@@ -5,9 +5,9 @@ import (
 	"errors"
 	"time"
 
-	"github.com/cruisinme30/unified-search/daemon/internal/history"
-	"github.com/cruisinme30/unified-search/daemon/internal/protocol"
-	"github.com/cruisinme30/unified-search/daemon/internal/trigram"
+	"github.com/cruisinme30/spelunk/daemon/internal/history"
+	"github.com/cruisinme30/spelunk/daemon/internal/protocol"
+	"github.com/cruisinme30/spelunk/daemon/internal/trigram"
 )
 
 // headPollInterval is how often the indexer asks Git whether HEAD moved

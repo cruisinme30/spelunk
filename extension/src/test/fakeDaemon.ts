@@ -85,7 +85,7 @@ function fakeDaemonScript(): string {
 
 /** A file that exists but can't be executed. */
 export function nonExecutableFile(): string {
-  const path = join(mkdtempSync(join(tmpdir(), "us-not-exec-")), "unified-search-daemon");
+  const path = join(mkdtempSync(join(tmpdir(), "us-not-exec-")), "spelunk-daemon");
   writeFileSync(path, "#!/bin/sh\nexit 0\n");
   chmodSync(path, 0o644);
   return path;

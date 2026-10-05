@@ -28,8 +28,8 @@ import type { WebviewMessage } from "./webviewMessages";
 import { WELCOMED_KEY, WelcomePanel } from "./welcomePanel";
 
 /** The globalState key that keeps the query and recent queries across sessions. */
-const STATE_KEY = "unifiedSearch.state";
-const READY_STATUS = "$(search) Unified Search";
+const STATE_KEY = "spelunk.state";
+const READY_STATUS = "$(search) Spelunk";
 /** Where the status bar item sits among the other right-aligned items; higher is further left. */
 const STATUS_BAR_PRIORITY = 100;
 /** File events are forwarded to the daemon in batches this far apart. */
@@ -46,7 +46,7 @@ export interface ExtensionApi {
 
 /** Starts the daemon and registers the panel, commands and listeners. */
 export function activate(context: vscode.ExtensionContext): ExtensionApi {
-  const log = vscode.window.createOutputChannel("Unified Search");
+  const log = vscode.window.createOutputChannel("Spelunk");
   const logError = (source: string) => (error: unknown) => {
     log.appendLine(`[${source}] ${String(error)}`);
   };
@@ -66,7 +66,7 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi {
     context.extensionUri,
     (message) => void controller.handle(message).catch(logError("panel")),
     (open) => {
-      setContext("unifiedSearch.panelOpen", open);
+      setContext("spelunk.panelOpen", open);
       if (open) openedStatus.hide();
     },
   );
@@ -79,7 +79,7 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi {
   );
   // The help page's Try runs its example in the search panel; its settings button opens Settings.
   const help = new HelpPanel(context.extensionUri, (message) => {
-    if (message.type === "help.try") void vscode.commands.executeCommand("unifiedSearch.open", message.payload);
+    if (message.type === "help.try") void vscode.commands.executeCommand("spelunk.open", message.payload);
     else if (message.type === "settings.open") ui.openSettings();
   });
   const welcome = createWelcomePanel(context.extensionUri, daemon, ui, logError("welcome"));
@@ -94,7 +94,7 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi {
     vscode.workspace.registerTextDocumentContentProvider(CommitDocuments.scheme, commitDocuments),
     createStatusBar(daemon),
     ...registerCommands(daemon, controller, panel, help),
-    vscode.commands.registerCommand("unifiedSearch.showWelcome", () => {
+    vscode.commands.registerCommand("spelunk.showWelcome", () => {
       welcome.show();
     }),
     forwardFileChanges(daemon),
@@ -102,7 +102,7 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi {
       daemon.setRoots(workspaceRoots());
     }),
     vscode.workspace.onDidChangeConfiguration((event) => {
-      if (!event.affectsConfiguration("unifiedSearch")) return;
+      if (!event.affectsConfiguration("spelunk")) return;
       daemon.updateSettings(daemonSettings(configuration(), homedir()));
       if (panel.isOpen) controller.restore(); // sends the new settings to the panel
       welcome.refresh();
@@ -161,16 +161,16 @@ function handleWelcome(
     }
     case "welcome.shortcut": {
       configuration().update("shortcut.preset", "none", vscode.ConfigurationTarget.Global).then(undefined, onError);
-      void vscode.commands.executeCommand("workbench.action.openGlobalKeybindings", "unifiedSearch");
+      void vscode.commands.executeCommand("workbench.action.openGlobalKeybindings", "spelunk");
       return;
     }
     case "welcome.start": {
       welcome.dispose();
-      void vscode.commands.executeCommand("unifiedSearch.open");
+      void vscode.commands.executeCommand("spelunk.open");
       return;
     }
     case "help.open": {
-      void vscode.commands.executeCommand("unifiedSearch.openHelp");
+      void vscode.commands.executeCommand("spelunk.openHelp");
       return;
     }
     case "settings.open": {
@@ -208,10 +208,10 @@ export async function deactivate(): Promise<void> {
 
 /** Where the daemon binary is: bundled per platform, or the development build. */
 function daemonBinary(extensionPath: string): string {
-  const executable = process.platform === "win32" ? "unified-search-daemon.exe" : "unified-search-daemon";
+  const executable = process.platform === "win32" ? "spelunk-daemon.exe" : "spelunk-daemon";
   const developmentCheckout = join(extensionPath, "..", "daemon", "bin", executable);
   const candidates = [
-    process.env["UNIFIED_SEARCH_DAEMON"],
+    process.env["SPELUNK_DAEMON"],
     join(extensionPath, "bin", `${process.platform}-${process.arch}`, executable),
     join(extensionPath, "bin", executable),
     developmentCheckout,
@@ -220,7 +220,7 @@ function daemonBinary(extensionPath: string): string {
 }
 
 function configuration(): vscode.WorkspaceConfiguration {
-  return vscode.workspace.getConfiguration("unifiedSearch");
+  return vscode.workspace.getConfiguration("spelunk");
 }
 
 /** The workspace folders on disk, as protocol roots. */
@@ -262,9 +262,8 @@ function createUi({ panel, daemon, commitDocuments, openedStatus, globalState, l
     hidePanel: () => {
       panel.close();
     },
-    openHelp: () => void vscode.commands.executeCommand("unifiedSearch.openHelp"),
-    openSettings: () =>
-      void vscode.commands.executeCommand("workbench.action.openSettings", "@ext:unified-search.unified-search"),
+    openHelp: () => void vscode.commands.executeCommand("spelunk.openHelp"),
+    openSettings: () => void vscode.commands.executeCommand("workbench.action.openSettings", "@ext:spelunk.spelunk"),
     restartDaemon: () => void daemon.restart().catch(logError("daemon restart")),
     setContext,
     saveState: (state) => void globalState.update(STATE_KEY, state),
@@ -281,7 +280,7 @@ function createUi({ panel, daemon, commitDocuments, openedStatus, globalState, l
  */
 function createOpenedStatus(): vscode.StatusBarItem {
   const item = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, STATUS_BAR_PRIORITY);
-  item.command = "unifiedSearch.open";
+  item.command = "spelunk.open";
   item.tooltip = "F4: next result · ⇧F4: previous result · Click to go back to the results";
   return item;
 }
@@ -321,7 +320,7 @@ function indexingStatusText(progress: IndexStatusResult): string {
  */
 function createStatusBar(daemon: Daemon): vscode.Disposable {
   const status = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, STATUS_BAR_PRIORITY);
-  status.command = "unifiedSearch.open";
+  status.command = "spelunk.open";
   daemon.on("state", (state, message) => {
     status.text = statusText(state);
     status.tooltip = message;
@@ -354,26 +353,26 @@ function registerCommands(
   help: HelpPanel,
 ): vscode.Disposable[] {
   const commands: Record<string, (argument?: unknown) => unknown> = {
-    "unifiedSearch.open": (argument) => {
+    "spelunk.open": (argument) => {
       panel.show();
       controller.restore(queryArgument(argument));
     },
-    "unifiedSearch.openHelp": () => {
+    "spelunk.openHelp": () => {
       help.show();
     },
-    "unifiedSearch.nextResult": () => controller.step(1),
-    "unifiedSearch.prevResult": () => controller.step(-1),
-    "unifiedSearch.restartDaemon": () => daemon.restart(),
-    "unifiedSearch.rebuildIndex": () => pickAndRebuildIndex(daemon),
+    "spelunk.nextResult": () => controller.step(1),
+    "spelunk.prevResult": () => controller.step(-1),
+    "spelunk.restartDaemon": () => daemon.restart(),
+    "spelunk.rebuildIndex": () => pickAndRebuildIndex(daemon),
   };
   // Test builds only: lets end-to-end tests read what the panel and editor show.
-  if (process.env["UNIFIED_SEARCH_TEST"]) {
-    commands["unifiedSearch._testState"] = () => testState(daemon, controller, panel);
+  if (process.env["SPELUNK_TEST"]) {
+    commands["spelunk._testState"] = () => testState(daemon, controller, panel);
   }
   return Object.entries(commands).map(([id, run]) => vscode.commands.registerCommand(id, run));
 }
 
-/** What the unifiedSearch._testState command returns. */
+/** What the spelunk._testState command returns. */
 export interface TestState {
   panelOpen: boolean;
   text: string;
@@ -403,7 +402,7 @@ function testState(daemon: Daemon, controller: SearchController, panel: SearchPa
   };
 }
 
-/** The query in unifiedSearch.open's optional `{ query }` argument, which the help page's Try passes. */
+/** The query in spelunk.open's optional `{ query }` argument, which the help page's Try passes. */
 function queryArgument(argument: unknown): string | undefined {
   if (typeof argument !== "object" || argument === null || !("query" in argument)) return undefined;
   return typeof argument.query === "string" ? argument.query : undefined;

@@ -3,7 +3,7 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Run Unified Search on the sample repos",
+      "name": "Run Spelunk on the sample repos",
       "type": "extensionHost",
       "request": "launch",
       "args": ["--extensionDevelopmentPath=${workspaceFolder}/extension", "${workspaceFolder}/testdata/workspace"],

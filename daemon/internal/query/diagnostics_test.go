@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cruisinme30/unified-search/daemon/internal/protocol"
+	"github.com/cruisinme30/spelunk/daemon/internal/protocol"
 )
 
 // Each diagnostic code: the query that triggers it, the span it points at,

@@ -22,17 +22,12 @@ export class HelpPanel implements vscode.Disposable {
       return;
     }
     const webviewRoot = vscode.Uri.joinPath(this.extensionUri, "dist", "webview");
-    const panel = vscode.window.createWebviewPanel(
-      "unifiedSearch.help",
-      "Unified Search · Help",
-      vscode.ViewColumn.Active,
-      {
-        enableScripts: true,
-        localResourceRoots: [webviewRoot],
-      },
-    );
+    const panel = vscode.window.createWebviewPanel("spelunk.help", "Spelunk · Help", vscode.ViewColumn.Active, {
+      enableScripts: true,
+      localResourceRoots: [webviewRoot],
+    });
     this.panel = panel;
-    panel.webview.html = webviewPage(panel.webview, webviewRoot, "help.js", "Unified Search · Help");
+    panel.webview.html = webviewPage(panel.webview, webviewRoot, "help.js", "Spelunk · Help");
     panel.webview.onDidReceiveMessage((raw: unknown) => {
       const message = parseWebviewMessage(raw);
       if (message) this.onMessage(message);

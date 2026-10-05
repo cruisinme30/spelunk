@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cruisinme30/unified-search/daemon/internal/protocol"
-	"github.com/cruisinme30/unified-search/daemon/internal/query"
-	"github.com/cruisinme30/unified-search/daemon/internal/trigram"
+	"github.com/cruisinme30/spelunk/daemon/internal/protocol"
+	"github.com/cruisinme30/spelunk/daemon/internal/query"
+	"github.com/cruisinme30/spelunk/daemon/internal/trigram"
 )
 
 // ErrStale means the commit behind a ref is gone, after a rebase or a

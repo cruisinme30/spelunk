@@ -3,7 +3,7 @@ package query
 import (
 	"time"
 
-	"github.com/cruisinme30/unified-search/daemon/internal/protocol"
+	"github.com/cruisinme30/spelunk/daemon/internal/protocol"
 )
 
 // Resolver answers the only lookups the parser and completions may make:

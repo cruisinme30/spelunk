@@ -10,8 +10,8 @@ import (
 	"sort"
 	"time"
 
-	"github.com/cruisinme30/unified-search/daemon/internal/lang"
-	"github.com/cruisinme30/unified-search/daemon/internal/symbols"
+	"github.com/cruisinme30/spelunk/daemon/internal/lang"
+	"github.com/cruisinme30/spelunk/daemon/internal/symbols"
 )
 
 // shardFormatVersion changes whenever the saved layout does; an index

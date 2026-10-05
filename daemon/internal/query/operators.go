@@ -6,8 +6,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/cruisinme30/unified-search/daemon/internal/lang"
-	"github.com/cruisinme30/unified-search/daemon/internal/protocol"
+	"github.com/cruisinme30/spelunk/daemon/internal/lang"
+	"github.com/cruisinme30/spelunk/daemon/internal/protocol"
 )
 
 // scope says where an operator can be used.

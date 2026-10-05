@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cruisinme30/unified-search/daemon/internal/protocol"
+	"github.com/cruisinme30/spelunk/daemon/internal/protocol"
 )
 
 // fixedNow is the clock for every test, so relative dates are stable.

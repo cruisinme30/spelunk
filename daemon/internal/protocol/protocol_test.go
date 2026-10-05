@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/cruisinme30/unified-search/daemon/internal/rpc"
+	"github.com/cruisinme30/spelunk/daemon/internal/rpc"
 )
 
 func TestUnionMarshalsOnlyItsVariantsFields(t *testing.T) {

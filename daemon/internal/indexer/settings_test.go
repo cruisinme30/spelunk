@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cruisinme30/unified-search/daemon/internal/protocol"
-	"github.com/cruisinme30/unified-search/daemon/internal/query"
-	"github.com/cruisinme30/unified-search/daemon/internal/trigram"
+	"github.com/cruisinme30/spelunk/daemon/internal/protocol"
+	"github.com/cruisinme30/spelunk/daemon/internal/query"
+	"github.com/cruisinme30/spelunk/daemon/internal/trigram"
 )
 
 // waitUntil polls condition for up to 5 seconds.

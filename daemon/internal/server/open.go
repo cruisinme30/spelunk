@@ -10,10 +10,10 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/cruisinme30/unified-search/daemon/internal/history"
-	"github.com/cruisinme30/unified-search/daemon/internal/protocol"
-	"github.com/cruisinme30/unified-search/daemon/internal/rpc"
-	"github.com/cruisinme30/unified-search/daemon/internal/trigram"
+	"github.com/cruisinme30/spelunk/daemon/internal/history"
+	"github.com/cruisinme30/spelunk/daemon/internal/protocol"
+	"github.com/cruisinme30/spelunk/daemon/internal/rpc"
+	"github.com/cruisinme30/spelunk/daemon/internal/trigram"
 )
 
 // maxContextLines bounds preview/get's contextLines. The engines expect a

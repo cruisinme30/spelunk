@@ -1,6 +1,6 @@
 package trigram
 
-import "github.com/cruisinme30/unified-search/daemon/internal/query"
+import "github.com/cruisinme30/spelunk/daemon/internal/query"
 
 // TextIndex is a trigram index over numbered texts with no files behind
 // them. The history index keeps one over each commit's changed lines and

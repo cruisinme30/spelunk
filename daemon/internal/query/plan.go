@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cruisinme30/unified-search/daemon/internal/lang"
-	"github.com/cruisinme30/unified-search/daemon/internal/protocol"
+	"github.com/cruisinme30/spelunk/daemon/internal/lang"
+	"github.com/cruisinme30/spelunk/daemon/internal/protocol"
 )
 
 // MaxResults is the hard cap on one search's results, even with count:all.

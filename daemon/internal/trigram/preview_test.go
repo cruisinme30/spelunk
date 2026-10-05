@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/cruisinme30/unified-search/daemon/internal/protocol"
+	"github.com/cruisinme30/spelunk/daemon/internal/protocol"
 )
 
 const previewFile = "package retry\n\n// RetryPolicy retries with a timeout.\ntype RetryPolicy struct {\n\tTimeout int\n}\n"

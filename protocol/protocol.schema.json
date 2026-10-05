@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "unified-search/protocol",
-  "title": "Unified Search protocol",
+  "$id": "spelunk/protocol",
+  "title": "Spelunk protocol",
   "description": "Single source of truth for every type that crosses a process boundary: the parsed query (ParsedQuery), the messages between the search panel webview and the extension host, and the JSON-RPC methods between the extension host and the daemon. Run `node protocol/gen.mjs` after editing.",
   "x-protocol-version": 1,
   "$defs": {
@@ -323,7 +323,7 @@
       "required": ["id", "path", "name"]
     },
     "Settings": {
-      "description": "Settings are the unifiedSearch.* settings the daemon needs.",
+      "description": "Settings are the spelunk.* settings the daemon needs.",
       "type": "object",
       "properties": {
         "caseSensitive": {

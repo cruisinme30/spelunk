@@ -147,4 +147,4 @@ formatters:
   settings:
     goimports:
       local-prefixes:
-        - github.com/cruisinme30/unified-search
+        - github.com/cruisinme30/spelunk

@@ -13,8 +13,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cruisinme30/unified-search/daemon/internal/protocol"
-	"github.com/cruisinme30/unified-search/daemon/internal/rpc"
+	"github.com/cruisinme30/spelunk/daemon/internal/protocol"
+	"github.com/cruisinme30/spelunk/daemon/internal/rpc"
 )
 
 func TestForgedRefsCannotReachOutsideTheirFolder(t *testing.T) {

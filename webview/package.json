@@ -1,5 +1,5 @@
 {
-  "name": "unified-search-webview",
+  "name": "spelunk-webview",
   "private": true,
   "description": "The search panel, help page and welcome page webviews. Bundled into the extension by extension/build.mjs.",
   "scripts": {

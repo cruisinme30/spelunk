@@ -10,6 +10,12 @@ All notable changes to this project are documented here. The format follows
 - A plain word with a pipe, like `daemon|search`, now warns that it matches the pipe too, and offers
   `daemon OR search` or `/daemon|search/` instead.
 
+### Changed
+
+- Unified Search is now called Spelunk. Its settings, commands and keybinding conditions moved from
+  `unifiedSearch.*` to `spelunk.*`, and the index from `~/.unified-search` to `~/.spelunk`. Settings you changed
+  don't carry over, and the index rebuilds once.
+
 ### Fixed
 
 - A recent-queries width saved in a wide panel no longer squeezes the operator cheat sheet when the panel narrows,
@@ -121,6 +127,6 @@ All notable changes to this project are documented here. The format follows
 - The `case:` suggestion shows its description and values like the other operators.
 - `sym:` queries return no results instead of wrong ones until symbol search exists.
 
-[Unreleased]: https://github.com/cruisinme30/unified-search/compare/v0.2.0...HEAD
-[0.2.0]: https://github.com/cruisinme30/unified-search/compare/v0.1.0...v0.2.0
-[0.1.0]: https://github.com/cruisinme30/unified-search/releases/tag/v0.1.0
+[Unreleased]: https://github.com/cruisinme30/spelunk/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/cruisinme30/spelunk/compare/v0.1.0...v0.2.0
+[0.1.0]: https://github.com/cruisinme30/spelunk/releases/tag/v0.1.0

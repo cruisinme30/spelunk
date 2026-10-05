@@ -1,4 +1,4 @@
-# Unified Search
+# Spelunk
 
 **One search box for file names, code and Git history, across every repo in your VS Code workspace.**
 
@@ -30,12 +30,12 @@ removed `timeout` or `retry`. Drop `author:` and the same box searches current f
 
 ## Documentation
 
-The [wiki](https://github.com/cruisinme30/unified-search/wiki) has the user guide:
-[Getting Started](https://github.com/cruisinme30/unified-search/wiki/Getting-Started),
-[Query Language](https://github.com/cruisinme30/unified-search/wiki/Query-Language),
-[Using the Panel](https://github.com/cruisinme30/unified-search/wiki/Using-the-Panel),
-[How Searches Behave](https://github.com/cruisinme30/unified-search/wiki/How-Searches-Behave) and
-[Settings and Commands](https://github.com/cruisinme30/unified-search/wiki/Settings-and-Commands). It also explains
+The [wiki](https://github.com/cruisinme30/spelunk/wiki) has the user guide:
+[Getting Started](https://github.com/cruisinme30/spelunk/wiki/Getting-Started),
+[Query Language](https://github.com/cruisinme30/spelunk/wiki/Query-Language),
+[Using the Panel](https://github.com/cruisinme30/spelunk/wiki/Using-the-Panel),
+[How Searches Behave](https://github.com/cruisinme30/spelunk/wiki/How-Searches-Behave) and
+[Settings and Commands](https://github.com/cruisinme30/spelunk/wiki/Settings-and-Commands). It also explains
 how the pieces fit together, with diagrams and every design mock.
 
 ## Repository layout
@@ -60,7 +60,7 @@ npm test        # every test layer, including the Go daemon
 Then open the repo in VS Code and press F5 to run the extension on the sample repos, or install it in your own VS Code:
 
 ```sh
-npm run package && code --install-extension out/unified-search-*.vsix
+npm run package && code --install-extension out/spelunk-*.vsix
 ```
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for conventions, and [docs/](docs/README.md) for everything else.

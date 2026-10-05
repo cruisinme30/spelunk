@@ -65,7 +65,7 @@ step "CI test job: scripts/test-all.sh"
 CI=1 scripts/test-all.sh
 
 step "CI e2e job: the commands in a real VS Code window"
-(cd daemon && go build -o bin/unified-search-daemon ./cmd/unified-search-daemon)
+(cd daemon && go build -o bin/spelunk-daemon ./cmd/spelunk-daemon)
 npm run build
 if [ "$(uname)" = Linux ] && [ -z "${DISPLAY:-}" ]; then xvfb-run -a node scripts/e2e.mjs; else node scripts/e2e.mjs; fi
 

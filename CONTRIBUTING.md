@@ -1,7 +1,7 @@
 # Contributing
 
 Thanks for helping. This guide covers setup, how the repo is laid out, and the conventions every change follows.
-Start with the [wiki](https://github.com/cruisinme30/unified-search/wiki) for the map of the code.
+Start with the [wiki](https://github.com/cruisinme30/spelunk/wiki) for the map of the code.
 
 ## Setup
 
@@ -22,7 +22,7 @@ To try the extension, open the repo in VS Code and press **F5**. It builds the d
 a second window running the extension on the sample repos in `testdata/workspace/`. From a terminal, the same is:
 
 ```sh
-go -C daemon build -o bin/unified-search-daemon ./cmd/unified-search-daemon && npm run build
+go -C daemon build -o bin/spelunk-daemon ./cmd/spelunk-daemon && npm run build
 code --extensionDevelopmentPath="$PWD/extension" "$PWD/testdata/workspace"
 ```
 
@@ -30,7 +30,7 @@ To install it in your everyday VS Code, package it and install the `.vsix`:
 
 ```sh
 npm run package                                   # this machine; or: npm run package -- --target linux-x64
-code --install-extension out/unified-search-0.1.0-darwin-arm64.vsix
+code --install-extension out/spelunk-0.1.0-darwin-arm64.vsix
 ```
 
 `npm run package` cross-compiles the daemon for the target platform, so one machine can build every platform's
@@ -162,7 +162,7 @@ Never edit `*.gen.ts` or `*_gen.go`. Change `protocol/protocol.schema.json`, the
 
 ## Keeping code, wiki and mocks in sync
 
-The code, the [wiki](https://github.com/cruisinme30/unified-search/wiki) and the
+The code, the [wiki](https://github.com/cruisinme30/spelunk/wiki) and the
 [mocks](docs/dev/mocks.md) describe one product. A change to any of them updates the others in the same piece of
 work, whichever side it starts from:
 
@@ -173,7 +173,7 @@ work, whichever side it starts from:
 | What a screen looks like | Its mock on the design canvas, the wiki's `images/mocks/` export and `docs/dev/proof/` screenshot |
 | A mock, or a screen added or removed | The code and its `@covers screen:` tests, the `docs/dev/mocks.md` row and the wiki's Screens pages |
 
-The wiki is its own repo (`unified-search.wiki.git`); commit and push its change alongside the code's. The presubmit
+The wiki is its own repo (`spelunk.wiki.git`); commit and push its change alongside the code's. The presubmit
 runs `scripts/checkWikiSync.mjs`, which fails when a clone next to this one disagrees with `docs/dev/mocks.md` (screen
 numbers, ids, milestones, sections, images, canvas link) or has changes that aren't pushed. `specCoverage.mjs` reads
 the screen ids from `docs/dev/mocks.md`, so a new mock needs a test.

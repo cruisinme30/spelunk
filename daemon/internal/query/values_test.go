@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/cruisinme30/unified-search/daemon/internal/protocol"
+	"github.com/cruisinme30/spelunk/daemon/internal/protocol"
 )
 
 // shown renders completions one per line, as the panel lays them out:

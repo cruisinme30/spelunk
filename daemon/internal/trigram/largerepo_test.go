@@ -7,18 +7,18 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cruisinme30/unified-search/daemon/internal/protocol"
+	"github.com/cruisinme30/spelunk/daemon/internal/protocol"
 )
 
-// BenchmarkLargeRepo indexes the folder named by UNIFIED_SEARCH_BENCH_ROOT
+// BenchmarkLargeRepo indexes the folder named by SPELUNK_BENCH_ROOT
 // once, then times searches to their first result and to completion.
 // For example, on Go's standard library:
 //
-//	UNIFIED_SEARCH_BENCH_ROOT=$(go env GOROOT)/src go test -bench LargeRepo -run '^$' ./internal/trigram
+//	SPELUNK_BENCH_ROOT=$(go env GOROOT)/src go test -bench LargeRepo -run '^$' ./internal/trigram
 func BenchmarkLargeRepo(b *testing.B) {
-	root := os.Getenv("UNIFIED_SEARCH_BENCH_ROOT")
+	root := os.Getenv("SPELUNK_BENCH_ROOT")
 	if root == "" {
-		b.Skip("set UNIFIED_SEARCH_BENCH_ROOT to a large source tree")
+		b.Skip("set SPELUNK_BENCH_ROOT to a large source tree")
 	}
 	ctx := context.Background()
 	started := time.Now()

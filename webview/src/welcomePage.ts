@@ -1,5 +1,5 @@
 // Entry point of the welcome page webview (bundled to dist/webview/welcome.js),
-// shown once after installing and by Unified Search: Show Welcome. It asks
+// shown once after installing and by Spelunk: Show Welcome. It asks
 // for the search shortcut and how much to index, and shows each repo's
 // indexing while it runs.
 import { element, isIndexing, percent, progressBar } from "./format";
@@ -54,7 +54,7 @@ const SHORTCUT_CARDS: ShortcutCard[] = [
   {
     choice: "custom",
     title: "Choose my own",
-    description: () => "Opens Keyboard Shortcuts filtered to Unified Search so you can record any key.",
+    description: () => "Opens Keyboard Shortcuts filtered to Spelunk so you can record any key.",
   },
 ];
 
@@ -231,7 +231,7 @@ function render(root: HTMLElement): void {
     element(
       "article",
       { class: "welcome" },
-      element("h1", {}, "Unified Search is installed"),
+      element("h1", {}, "Spelunk is installed"),
       element("p", { class: "lead" }, "Two quick choices and you’re ready. You can change both later in Settings."),
       shortcutSection(settings),
       indexSection(settings),

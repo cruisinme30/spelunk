@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cruisinme30/unified-search/daemon/internal/protocol"
+	"github.com/cruisinme30/spelunk/daemon/internal/protocol"
 )
 
 // kelvinSign is U+212A KELVIN SIGN. It looks like K and lowercases to an

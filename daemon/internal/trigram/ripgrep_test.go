@@ -12,8 +12,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/cruisinme30/unified-search/daemon/internal/protocol"
-	"github.com/cruisinme30/unified-search/daemon/internal/query"
+	"github.com/cruisinme30/spelunk/daemon/internal/protocol"
+	"github.com/cruisinme30/spelunk/daemon/internal/query"
 )
 
 // TestMatchesRipgrep compares the lines this engine finds with ripgrep's

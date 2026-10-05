@@ -4,7 +4,7 @@
     {
       "label": "Build daemon and extension",
       "type": "shell",
-      "command": "go -C daemon build -o bin/unified-search-daemon ./cmd/unified-search-daemon && npm run build",
+      "command": "go -C daemon build -o bin/spelunk-daemon ./cmd/spelunk-daemon && npm run build",
       "group": "build",
       "problemMatcher": []
     }

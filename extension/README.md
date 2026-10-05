@@ -1,4 +1,4 @@
-# Unified Search
+# Spelunk
 
 One search box for file names, code and Git history, across every repo in your workspace.
 
@@ -8,10 +8,10 @@ One search box for file names, code and Git history, across every repo in your w
 ## Getting started
 
 1. Open a folder or workspace. The welcome page asks which key opens search and how much to index, and shows each
-   repo's indexing. **Unified Search: Show Welcome** opens it again. The status bar shows indexing progress until
-   the index is ready, then "Unified Search".
+   repo's indexing. **Spelunk: Show Welcome** opens it again. The status bar shows indexing progress until
+   the index is ready, then "Spelunk".
 2. Press **⌘P** (Ctrl+P on Windows and Linux) and type. Quick Open moves to ⌥⌘P (Ctrl+Alt+P). To keep ⌘P for Quick
-   Open, pick ⇧⌘F or your own key on the welcome page, or set `unifiedSearch.shortcut.preset`.
+   Open, pick ⇧⌘F or your own key on the welcome page, or set `spelunk.shortcut.preset`.
 3. Click a result to preview it, press ↵ to open it at the match, ⌘↵ to open it to the side, and F4 or ⇧F4 to step
    through results without the panel.
 
@@ -19,7 +19,7 @@ Type an operator such as `since:`, `file:`, `repo:`, `language:` or `author:` (o
 `l:`, `a:`) to see the values it takes: time windows with how many files changed in each, the file types and folders
 in your workspace, your repos, their languages and their authors.
 
-Press `?` in an empty box for every operator, or run **Unified Search: Open Help** for the full guide with examples.
+Press `?` in an empty box for every operator, or run **Spelunk: Open Help** for the full guide with examples.
 
 ## The query language
 
@@ -54,26 +54,26 @@ In an empty box, the recent queries are on the left: remove one with its ×, or 
 
 ## Settings
 
-Search for "Unified Search" in Settings. The most useful ones:
+Search for "Spelunk" in Settings. The most useful ones:
 
-- `unifiedSearch.shortcut.preset`: which key opens the panel.
-- `unifiedSearch.caseSensitive`: match case by default.
-- `unifiedSearch.index.exclude`: glob patterns never indexed (by default `vendor`, `node_modules` and `*.min.js`).
+- `spelunk.shortcut.preset`: which key opens the panel.
+- `spelunk.caseSensitive`: match case by default.
+- `spelunk.index.exclude`: glob patterns never indexed (by default `vendor`, `node_modules` and `*.min.js`).
   History keeps these files' line counts but not their lines.
-- `unifiedSearch.index.historyDepth`: how much Git history to index: `6m`, `2y` (the default) or `all`.
-- `unifiedSearch.index.symbols`: find definitions for `symbol:` while indexing (on by default).
-- `unifiedSearch.open.closeOnOpen`: hide the panel after opening a result (on by default). Opening to the side
+- `spelunk.index.historyDepth`: how much Git history to index: `6m`, `2y` (the default) or `all`.
+- `spelunk.index.symbols`: find definitions for `symbol:` while indexing (on by default).
+- `spelunk.open.closeOnOpen`: hide the panel after opening a result (on by default). Opening to the side
   (⌘↵) always keeps it open.
 
 Indexes stay on your machine. Nothing is sent anywhere.
 
 ## Troubleshooting
 
-The extension and its search process log to the **Unified Search** output channel (View → Output). If search stops
-responding, run **Unified Search: Restart Search**; **Unified Search: Rebuild Index** rebuilds the index from scratch.
+The extension and its search process log to the **Spelunk** output channel (View → Output). If search stops
+responding, run **Spelunk: Restart Search**; **Spelunk: Rebuild Index** rebuilds the index from scratch.
 
 ## More
 
-The [user guide](https://github.com/cruisinme30/unified-search/wiki/Getting-Started) covers every operator, key and
-setting, and [how searches behave](https://github.com/cruisinme30/unified-search/wiki/How-Searches-Behave) explains
+The [user guide](https://github.com/cruisinme30/spelunk/wiki/Getting-Started) covers every operator, key and
+setting, and [how searches behave](https://github.com/cruisinme30/spelunk/wiki/How-Searches-Behave) explains
 errors, empty results, indexing, folders without Git and crashes.

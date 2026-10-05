@@ -26,7 +26,7 @@ const page = (root: string, title: string) =>
   webviewPage(webview, new FakeUri(root) as unknown as vscode.Uri, "main.js", title);
 
 test("the page allows only its own nonce-tagged script and the webview's styles and fonts", () => {
-  const html = page("/ext/dist/webview", "Unified Search");
+  const html = page("/ext/dist/webview", "Spelunk");
   const csp = /http-equiv="Content-Security-Policy" content="([^"]*)"/.exec(html)?.[1] ?? "";
   const nonce = /script-src 'nonce-([^']+)'/.exec(csp)?.[1] ?? "";
   assert.ok(Buffer.from(nonce, "base64").length >= 16, "a nonce of at least 128 random bits");

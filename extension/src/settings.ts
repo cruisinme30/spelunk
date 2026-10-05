@@ -1,4 +1,4 @@
-// Maps the unifiedSearch.* configuration to protocol types.
+// Maps the spelunk.* configuration to protocol types.
 import type { Settings, UiSettings, WelcomeStateMsg as WelcomeState } from "./protocol.gen";
 
 /** Anything shaped like VS Code's WorkspaceConfiguration.get. */
@@ -19,7 +19,7 @@ const DEFAULTS = {
   exclude: ["**/vendor/**", "**/node_modules/**", "**/*.min.js"],
   includeIgnored: false,
   maxFileSizeKB: 1024,
-  location: "~/.unified-search/index",
+  location: "~/.spelunk/index",
   showParsedQuery: true,
   recentQueries: 20,
   shortcutPreset: "quickOpen",

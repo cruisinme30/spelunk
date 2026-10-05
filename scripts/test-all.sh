@@ -54,7 +54,7 @@ workspace_lint cspell --no-progress --gitignore .
 workspace_lint knip
 
 step "daemon: go vet, go test, build the binary"
-(cd daemon && go vet ./... && go test -count=1 ./... && go build -o bin/unified-search-daemon ./cmd/unified-search-daemon)
+(cd daemon && go vet ./... && go test -count=1 ./... && go build -o bin/spelunk-daemon ./cmd/spelunk-daemon)
 
 step "extension: typecheck + node tests (real daemon)"
 (

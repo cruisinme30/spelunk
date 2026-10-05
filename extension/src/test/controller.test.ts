@@ -172,7 +172,7 @@ test("a query round-trips to results, preview and open through the real daemon",
     assert.equal(batch.seq, 1);
     assert.equal(batch.items.length, 1);
     assert.equal(done.total, 1);
-    assert.equal(host.contextKeys["unifiedSearch.hasResults"], true);
+    assert.equal(host.contextKeys["spelunk.hasResults"], true);
 
     const ref = batch.items[0]?.ref ?? "";
     await controller.handle({ v: MESSAGE_VERSION, type: "result.select", payload: { ref } });
@@ -434,7 +434,7 @@ test("a panel opened after indexing finished still gets each repo's state", () =
   const { backend, listeners } = scriptedBackend(() => NO_RESULTS);
   const controller = newController(backend, host.ui);
   const status: IndexStatusResult = {
-    repos: [{ repoId: "r1", name: "unified-search", tree: "ready", history: "ready" }],
+    repos: [{ repoId: "r1", name: "spelunk", tree: "ready", history: "ready" }],
   };
   listeners.get("progress")?.(status);
   controller.restore();

@@ -3,7 +3,7 @@ package server
 import (
 	"sync"
 
-	"github.com/cruisinme30/unified-search/daemon/internal/query"
+	"github.com/cruisinme30/spelunk/daemon/internal/query"
 )
 
 // rememberedPlans is how many recent searches' plans are kept, so a

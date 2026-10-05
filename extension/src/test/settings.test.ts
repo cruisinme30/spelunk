@@ -1,4 +1,4 @@
-// Mapping unifiedSearch.* configuration to protocol types, and root ids.
+// Mapping spelunk.* configuration to protocol types, and root ids.
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { rootId } from "../roots";
@@ -65,7 +65,7 @@ test("settings of the wrong type or out of range fall back to defaults the daemo
     exclude: ["**/vendor/**", "**/node_modules/**", "**/*.min.js"],
     includeIgnored: false,
     maxFileSizeKB: 2,
-    location: "/home/u/.unified-search/index",
+    location: "/home/u/.spelunk/index",
   });
   const extremes = daemonSettings(
     configWith({
@@ -79,7 +79,7 @@ test("settings of the wrong type or out of range fall back to defaults the daemo
   assert.equal(extremes.defaultCount, 1);
   assert.equal(extremes.maxFileSizeKB, 1024 * 1024, "kept inside the daemon's int");
   assert.deepEqual(extremes.exclude, ["a", "b"]);
-  assert.equal(extremes.location, "/home/u/.unified-search/index", "an empty location means the default");
+  assert.equal(extremes.location, "/home/u/.spelunk/index", "an empty location means the default");
   assert.equal(JSON.stringify(daemonSettings(configWith({ defaultCount: Number.NaN }), "/h")).includes("null"), false);
 });
 

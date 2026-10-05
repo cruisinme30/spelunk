@@ -65,7 +65,7 @@ jobs:
 
       - name: Build the daemon and the extension
         run: |
-          (cd daemon && go build -o bin/unified-search-daemon ./cmd/unified-search-daemon)
+          (cd daemon && go build -o bin/spelunk-daemon ./cmd/spelunk-daemon)
           npm run build
 
       - name: Run the end-to-end tests

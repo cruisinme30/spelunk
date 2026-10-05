@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cruisinme30/unified-search/daemon/internal/lang"
-	"github.com/cruisinme30/unified-search/daemon/internal/protocol"
+	"github.com/cruisinme30/spelunk/daemon/internal/lang"
+	"github.com/cruisinme30/spelunk/daemon/internal/protocol"
 )
 
 // valueCandidate is a value an operator could take, with how to show it.

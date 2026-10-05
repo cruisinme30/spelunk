@@ -65,7 +65,7 @@ async function main() {
   if (args["help-page"]) return screenshotHelpPage();
   const host = await loadHost();
   const daemon = new host.Daemon({
-    binary: join(repoRoot, "daemon/bin/unified-search-daemon"),
+    binary: join(repoRoot, "daemon/bin/spelunk-daemon"),
     roots: () => workspaceRoots(host),
     settings: () => ({ ...host.daemonSettings(defaultsOnly, scratch), location: join(scratch, "index") }),
   });

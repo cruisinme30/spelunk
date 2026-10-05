@@ -134,7 +134,7 @@ export interface Root {
   name: string;
 }
 
-/** Settings are the unifiedSearch.* settings the daemon needs. */
+/** Settings are the spelunk.* settings the daemon needs. */
 export interface Settings {
   caseSensitive: boolean;
   defaultCount: number;

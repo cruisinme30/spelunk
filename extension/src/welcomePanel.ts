@@ -1,4 +1,4 @@
-// The welcome page: shown once after installing, and by Unified Search:
+// The welcome page: shown once after installing, and by Spelunk:
 // Show Welcome. It sets the shortcut preset and what to index, and shows
 // each repo's indexing as it runs.
 import * as vscode from "vscode";
@@ -8,7 +8,7 @@ import { parseWebviewMessage } from "./webviewMessages";
 import { webviewPage } from "./webviewPage";
 
 /** The globalState key set once the welcome page has been shown. */
-export const WELCOMED_KEY = "unifiedSearch.welcomed";
+export const WELCOMED_KEY = "spelunk.welcomed";
 
 /** What the page shows, read when it opens and whenever settings change. */
 export interface WelcomeSources {
@@ -34,14 +34,12 @@ export class WelcomePanel implements vscode.Disposable {
       return;
     }
     const webviewRoot = vscode.Uri.joinPath(this.extensionUri, "dist", "webview");
-    const panel = vscode.window.createWebviewPanel(
-      "unifiedSearch.welcome",
-      "Welcome · Unified Search",
-      vscode.ViewColumn.Active,
-      { enableScripts: true, localResourceRoots: [webviewRoot] },
-    );
+    const panel = vscode.window.createWebviewPanel("spelunk.welcome", "Welcome · Spelunk", vscode.ViewColumn.Active, {
+      enableScripts: true,
+      localResourceRoots: [webviewRoot],
+    });
     this.panel = panel;
-    panel.webview.html = webviewPage(panel.webview, webviewRoot, "welcome.js", "Welcome · Unified Search");
+    panel.webview.html = webviewPage(panel.webview, webviewRoot, "welcome.js", "Welcome · Spelunk");
     panel.webview.onDidReceiveMessage((raw: unknown) => {
       const message = parseWebviewMessage(raw);
       if (message?.type === "ready") void this.sendState();

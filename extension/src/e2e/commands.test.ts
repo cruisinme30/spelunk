@@ -16,8 +16,8 @@ const sleep = (ms: number) =>
   });
 
 async function testState(): Promise<TestState> {
-  const state = await vscode.commands.executeCommand<TestState | undefined>("unifiedSearch._testState");
-  assert.ok(state, "unifiedSearch._testState is registered (UNIFIED_SEARCH_TEST=1)");
+  const state = await vscode.commands.executeCommand<TestState | undefined>("spelunk._testState");
+  assert.ok(state, "spelunk._testState is registered (SPELUNK_TEST=1)");
   return state;
 }
 
@@ -47,7 +47,7 @@ async function untilTab(label: string): Promise<void> {
 
 /** Opens the panel on `query` and waits for its results. */
 async function searchFor(query: string): Promise<TestState> {
-  await vscode.commands.executeCommand("unifiedSearch.open", { query });
+  await vscode.commands.executeCommand("spelunk.open", { query });
   return until(
     `results for ${query}`,
     (state) => state.panelOpen && state.searched === query && state.results.length > 0,
@@ -68,11 +68,11 @@ const TESTS: [name: string, run: () => Promise<void>][] = [
     async () => {
       // @covers command:nextResult command:prevResult
       await searchFor("type:code timeout");
-      await vscode.commands.executeCommand("unifiedSearch.nextResult");
+      await vscode.commands.executeCommand("spelunk.nextResult");
       const first = await until("the first result's editor", (state) => state.editor !== undefined);
-      await vscode.commands.executeCommand("unifiedSearch.nextResult");
+      await vscode.commands.executeCommand("spelunk.nextResult");
       const second = await until("the second result's editor", (state) => !sameEditor(state, first));
-      await vscode.commands.executeCommand("unifiedSearch.prevResult");
+      await vscode.commands.executeCommand("spelunk.prevResult");
       await until("the first result again", (state) => sameEditor(state, first));
       assert.notDeepEqual(second.editor, first.editor);
     },
@@ -81,23 +81,23 @@ const TESTS: [name: string, run: () => Promise<void>][] = [
     "Open Help shows the search guide",
     async () => {
       // @covers command:openHelp
-      await vscode.commands.executeCommand("unifiedSearch.openHelp");
-      await untilTab("Unified Search · Help");
+      await vscode.commands.executeCommand("spelunk.openHelp");
+      await untilTab("Spelunk · Help");
     },
   ],
   [
     "Show Welcome shows the welcome page",
     async () => {
       // @covers command:showWelcome
-      await vscode.commands.executeCommand("unifiedSearch.showWelcome");
-      await untilTab("Welcome · Unified Search");
+      await vscode.commands.executeCommand("spelunk.showWelcome");
+      await untilTab("Welcome · Spelunk");
     },
   ],
   [
     "Rebuild Index rebuilds every repo and search keeps working",
     async () => {
       // @covers command:rebuildIndex
-      const picked = vscode.commands.executeCommand("unifiedSearch.rebuildIndex");
+      const picked = vscode.commands.executeCommand("spelunk.rebuildIndex");
       await sleep(1000); // the repo picker opens; "All repos" is first
       await vscode.commands.executeCommand("workbench.action.acceptSelectedQuickOpenItem");
       await picked;
@@ -108,7 +108,7 @@ const TESTS: [name: string, run: () => Promise<void>][] = [
     "Restart Search restarts the daemon and search keeps working",
     async () => {
       // @covers command:restartDaemon
-      await vscode.commands.executeCommand("unifiedSearch.restartDaemon");
+      await vscode.commands.executeCommand("spelunk.restartDaemon");
       await until("the daemon to be back", (state) => state.daemon === "ok");
       await searchFor("RetryPolicy");
     },

@@ -1,4 +1,4 @@
-# Unified Search — Implementation Plan
+# Spelunk — Implementation Plan
 
 Oct 3, 2026 · @Gourav Mittal
 
@@ -50,7 +50,7 @@ flowchart LR
     IX["Indexer<br/>(only writer)"] -- "published snapshots" --> TE
     IX -- "published snapshots" --> HE
   end
-  IX --> DISK[("~/.unified-search/index")]
+  IX --> DISK[("~/.spelunk/index")]
 ```
 
 A keystroke travels webview → extension → RPC server → planner → one engine, and results stream back the same way in
@@ -71,12 +71,12 @@ batches. The indexer is the only writer to the index directory.
 ### Code layout
 
 ```text
-unified-search/
+spelunk/
   protocol/    protocol.schema.json (Contracts 1-3) and gen.mjs, which writes the TypeScript and Go types
   extension/   TypeScript: the VS Code extension host (src/, tests in src/test/)
   webview/     TypeScript: the search panel (src/, render/ modules; Playwright tests in test/)
-  daemon/      Go module github.com/cruisinme30/unified-search/daemon
-    cmd/unified-search-daemon/   the binary
+  daemon/      Go module github.com/cruisinme30/spelunk/daemon
+    cmd/spelunk-daemon/   the binary
     internal/  rpc/, protocol/ (generated), server/, query/ (parser, planner), lang/,
                trigram/ (working-tree engine), history/, indexer/
   testdata/    fixture repos (built by script) and golden files
@@ -207,7 +207,7 @@ increases with each keystroke. Any response carrying an older `seq` than the new
 | `result.open` | `{ ref, where: "current" \| "side" }` | Opens the file at the line, or the commit diff, and hides the panel if `closeOnOpen` is on |
 | `results.more` | `{ searchId, cursor }` | Calls `search/start` with the cursor to load the next page |
 | `panel.close` | `{}` | Hides the panel and keeps the last query and results |
-| `help.open` / `settings.open` | `{}` | Opens the help tab, or Settings filtered to `@ext:unified-search` |
+| `help.open` / `settings.open` | `{}` | Opens the help tab, or Settings filtered to `@ext:spelunk` |
 
 Debouncing lives in the webview, using `typingDelayMs`. Applying a fix-it, accepting a completion and toggling Aa or
 `.*` are text edits done in the webview, followed by a normal `query.changed`.
@@ -237,7 +237,7 @@ framing. There is no network port. The host spawns one daemon per VS Code window
 2. The daemon replies with its version and the protocol version. On a protocol mismatch the host shows an error and
    stops.
 3. Host sends `workspace/setRoots` whenever folders are added or removed, and `settings/update` whenever a
-   `unifiedSearch.*` setting changes.
+   `spelunk.*` setting changes.
 4. On exit the host sends `shutdown`, then `exit`. The daemon must flush index writes within 2 seconds.
 
 ### Methods
@@ -444,7 +444,7 @@ Uncommitted edits count as changed now for `since:` by marking those paths dirty
 ### Storage layout
 
 ```text
-~/.unified-search/index/
+~/.spelunk/index/
   manifest.json              schema version, known repos
   <repoId>/
     lock                     held by the daemon that writes this repo
@@ -466,21 +466,21 @@ sync and per-workspace overrides. The extension builds no settings screen of its
 
 | Key | Type | Default | Scope |
 | --- | --- | --- | --- |
-| `unifiedSearch.shortcut.preset` | `"quickOpen"` \| `"findInFiles"` \| `"none"` | `"quickOpen"` | application |
-| `unifiedSearch.caseSensitive` | boolean | `false` | resource |
-| `unifiedSearch.defaultCount` | integer, 1–50000 | `500` | resource |
-| `unifiedSearch.typingDelayMs` | integer, 0–1000 | `120` | application |
-| `unifiedSearch.open.trigger` | `"doubleClick"` \| `"singleClick"` | `"doubleClick"` | application |
-| `unifiedSearch.open.preview` | boolean | `true` | application |
-| `unifiedSearch.open.closeOnOpen` | boolean | `true` | application |
-| `unifiedSearch.index.historyDepth` | `"6m"` \| `"2y"` \| `"all"` | `"2y"` | resource |
-| `unifiedSearch.index.symbols` | boolean | `true` | resource |
-| `unifiedSearch.index.exclude` | string\[\] of globs | `["**/vendor/**", "**/node_modules/**", "**/*.min.js"]` | resource |
-| `unifiedSearch.index.includeIgnored` | boolean | `false` | resource |
-| `unifiedSearch.index.maxFileSizeKB` | integer | `1024` | resource |
-| `unifiedSearch.index.location` | string, path | `~/.unified-search/index` | machine |
-| `unifiedSearch.ui.showParsedQuery` | boolean | `true` | application |
-| `unifiedSearch.ui.recentQueries` | integer, 0–100 | `20` | application |
+| `spelunk.shortcut.preset` | `"quickOpen"` \| `"findInFiles"` \| `"none"` | `"quickOpen"` | application |
+| `spelunk.caseSensitive` | boolean | `false` | resource |
+| `spelunk.defaultCount` | integer, 1–50000 | `500` | resource |
+| `spelunk.typingDelayMs` | integer, 0–1000 | `120` | application |
+| `spelunk.open.trigger` | `"doubleClick"` \| `"singleClick"` | `"doubleClick"` | application |
+| `spelunk.open.preview` | boolean | `true` | application |
+| `spelunk.open.closeOnOpen` | boolean | `true` | application |
+| `spelunk.index.historyDepth` | `"6m"` \| `"2y"` \| `"all"` | `"2y"` | resource |
+| `spelunk.index.symbols` | boolean | `true` | resource |
+| `spelunk.index.exclude` | string\[\] of globs | `["**/vendor/**", "**/node_modules/**", "**/*.min.js"]` | resource |
+| `spelunk.index.includeIgnored` | boolean | `false` | resource |
+| `spelunk.index.maxFileSizeKB` | integer | `1024` | resource |
+| `spelunk.index.location` | string, path | `~/.spelunk/index` | machine |
+| `spelunk.ui.showParsedQuery` | boolean | `true` | application |
+| `spelunk.ui.recentQueries` | integer, 0–100 | `20` | application |
 
 `resource` settings can differ per repo through `.vscode/settings.json`. `machine` settings never sync, because index
 paths differ between computers.
@@ -489,11 +489,11 @@ paths differ between computers.
 
 | Command | Title | Notes |
 | --- | --- | --- |
-| `unifiedSearch.open` | Unified Search: Open | Optional argument `{ query: string }` pre-fills the box |
-| `unifiedSearch.openHelp` | Unified Search: Open Help | Mock 17 |
-| `unifiedSearch.showWelcome` | Unified Search: Show Welcome | Mock 15; runs on first activation |
-| `unifiedSearch.nextResult` / `prevResult` | Next / Previous Result | Steps through the last result list without reopening the panel |
-| `unifiedSearch.rebuildIndex` | Unified Search: Rebuild Index | Asks which repo, or all |
+| `spelunk.open` | Spelunk: Open | Optional argument `{ query: string }` pre-fills the box |
+| `spelunk.openHelp` | Spelunk: Open Help | Mock 17 |
+| `spelunk.showWelcome` | Spelunk: Show Welcome | Mock 15; runs on first activation |
+| `spelunk.nextResult` / `prevResult` | Next / Previous Result | Steps through the last result list without reopening the panel |
+| `spelunk.rebuildIndex` | Spelunk: Rebuild Index | Asks which repo, or all |
 
 **Keybindings** (`contributes.keybindings`)
 
@@ -502,23 +502,23 @@ is a set of bindings gated on the preset setting; choosing an option only writes
 
 ```json
 [
-  { "command": "unifiedSearch.open", "key": "ctrl+p", "mac": "cmd+p",
-    "when": "config.unifiedSearch.shortcut.preset == 'quickOpen'" },
+  { "command": "spelunk.open", "key": "ctrl+p", "mac": "cmd+p",
+    "when": "config.spelunk.shortcut.preset == 'quickOpen'" },
   { "command": "workbench.action.quickOpen", "key": "ctrl+alt+p", "mac": "cmd+alt+p",
-    "when": "config.unifiedSearch.shortcut.preset == 'quickOpen'" },
-  { "command": "unifiedSearch.open", "key": "ctrl+shift+f", "mac": "cmd+shift+f",
-    "when": "config.unifiedSearch.shortcut.preset == 'findInFiles'" },
-  { "command": "unifiedSearch.nextResult", "key": "f4",
-    "when": "unifiedSearch.hasResults && !searchViewletFocus" },
-  { "command": "unifiedSearch.prevResult", "key": "shift+f4",
-    "when": "unifiedSearch.hasResults && !searchViewletFocus" }
+    "when": "config.spelunk.shortcut.preset == 'quickOpen'" },
+  { "command": "spelunk.open", "key": "ctrl+shift+f", "mac": "cmd+shift+f",
+    "when": "config.spelunk.shortcut.preset == 'findInFiles'" },
+  { "command": "spelunk.nextResult", "key": "f4",
+    "when": "spelunk.hasResults && !searchViewletFocus" },
+  { "command": "spelunk.prevResult", "key": "shift+f4",
+    "when": "spelunk.hasResults && !searchViewletFocus" }
 ]
 ```
 
-"Choose my own" sets the preset to `none` and opens Keyboard Shortcuts filtered to `unifiedSearch.open`. Bindings the
+"Choose my own" sets the preset to `none` and opens Keyboard Shortcuts filtered to `spelunk.open`. Bindings the
 user sets there always override the extension's.
 
-**Context keys the extension sets:** `unifiedSearch.panelOpen` and `unifiedSearch.hasResults`, through `setContext`.
+**Context keys the extension sets:** `spelunk.panelOpen` and `spelunk.hasResults`, through `setContext`.
 
 ## Errors, limits and performance budgets
 

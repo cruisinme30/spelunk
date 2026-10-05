@@ -134,7 +134,7 @@ function settingsSection(): HTMLElement {
     element(
       "p",
       {},
-      "Every option lives in VS Code’s Settings under Unified Search, so it syncs with your other settings and can be set per workspace.",
+      "Every option lives in VS Code’s Settings under Spelunk, so it syncs with your other settings and can be set per workspace.",
     ),
     openSettings,
   );

@@ -4,7 +4,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/cruisinme30/unified-search/daemon/internal/protocol"
+	"github.com/cruisinme30/spelunk/daemon/internal/protocol"
 )
 
 // ApplyFix applies a fix's edits, whose spans are UTF-16 offsets, to text.

@@ -38,7 +38,7 @@ Requested before M1: research open-source practice and make the code easy to rea
 | Area | What changed | Evidence |
 | --- | --- | --- |
 | Commits | Conventional Commits with directory scopes; the 12 earlier messages rewritten (contents unchanged: identical tree hash) | `git log --oneline`; every commit since passes `scripts/test-all.sh` on its own (checked in a clean worktree) |
-| Go layout | Module `github.com/cruisinme30/unified-search/daemon`, packages under `internal/`, a `doc.go` per package, `.golangci.yml` | `go vet` and tests pass |
+| Go layout | Module `github.com/cruisinme30/spelunk/daemon`, packages under `internal/`, a `doc.go` per package, `.golangci.yml` | `go vet` and tests pass |
 | TypeScript | camelCase whole-word files, tests in `src/test/`, `verbatimModuleSyntax`, webview `main.ts` split into state, host, layout and `render/` modules | 11 extension and 10 webview tests pass; tsc strict |
 | Tooling | npm workspaces at the root, ESLint (typescript-eslint, type-aware) and Prettier configs, `.editorconfig`, `.gitattributes` | `prettier --check` in test-all; ESLint needs `npm install` (not available offline) |
 | Docs | README, ARCHITECTURE, CONTRIBUTING, CHANGELOG, SECURITY, CODE_OF_CONDUCT, MIT LICENSE, `.github/` templates; docs in Diátaxis folders; ADRs 0001-0003 | `docs/README.md` |
@@ -49,7 +49,7 @@ Bugs found by the review, each now covered by a test:
 1. A reopened panel dropped every query: the host never reset its last `seq`.
 2. "1 file hidden" rendered as "1 fil hidden".
 3. Match columns were wrong (or panicked) where lowercasing changes byte length (U+212A KELVIN SIGN).
-4. `UNIFIED_SEARCH_NOW` made search durations come out as years.
+4. `SPELUNK_NOW` made search durations come out as years.
 5. Previews of CRLF files kept the `\r`.
 6. A malformed ref became line 0 instead of `RefStale`.
 7. `rpc.Call` waited forever if the peer ignored `$/cancelRequest`.

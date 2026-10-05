@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cruisinme30/unified-search/daemon/internal/protocol"
-	"github.com/cruisinme30/unified-search/daemon/internal/query"
-	"github.com/cruisinme30/unified-search/daemon/internal/symbols"
+	"github.com/cruisinme30/spelunk/daemon/internal/protocol"
+	"github.com/cruisinme30/spelunk/daemon/internal/query"
+	"github.com/cruisinme30/spelunk/daemon/internal/symbols"
 )
 
 // SearchBudget is how long one search may run before it returns what it

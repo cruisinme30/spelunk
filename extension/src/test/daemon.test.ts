@@ -93,7 +93,7 @@ function isRunning(pid: number): boolean {
 }
 
 for (const [what, binary] of [
-  ["a missing binary", "/nonexistent/unified-search-daemon"],
+  ["a missing binary", "/nonexistent/spelunk-daemon"],
   ["a binary that isn't executable", nonExecutableFile()],
 ] as const) {
   test(`${what} stops at once with the reason, without restart attempts`, async () => {

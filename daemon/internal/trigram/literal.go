@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"unicode/utf8"
 
-	"github.com/cruisinme30/unified-search/daemon/internal/query"
+	"github.com/cruisinme30/spelunk/daemon/internal/query"
 )
 
 // A literalFinder finds a literal term in file text much faster than its

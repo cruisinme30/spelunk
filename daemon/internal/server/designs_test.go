@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/cruisinme30/unified-search/daemon/internal/protocol"
+	"github.com/cruisinme30/spelunk/daemon/internal/protocol"
 )
 
 // fixtureRoots are the three repos of testdata/workspace, whose files are

@@ -7,22 +7,22 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cruisinme30/unified-search/daemon/internal/protocol"
-	"github.com/cruisinme30/unified-search/daemon/internal/trigram"
+	"github.com/cruisinme30/spelunk/daemon/internal/protocol"
+	"github.com/cruisinme30/spelunk/daemon/internal/trigram"
 )
 
 // BenchmarkLargeHistory reads the history of the Git repo named by
-// UNIFIED_SEARCH_BENCH_REPO once, leaving out the changed lines of the files
+// SPELUNK_BENCH_REPO once, leaving out the changed lines of the files
 // the default index.exclude leaves out, then times history searches to
 // their first result and to completion. The budget is 250 ms to first
 // results. For example:
 //
 //	git clone https://github.com/prometheus/prometheus /tmp/prom
-//	UNIFIED_SEARCH_BENCH_REPO=/tmp/prom go test -bench LargeHistory -run '^$' ./internal/history
+//	SPELUNK_BENCH_REPO=/tmp/prom go test -bench LargeHistory -run '^$' ./internal/history
 func BenchmarkLargeHistory(b *testing.B) {
-	root := os.Getenv("UNIFIED_SEARCH_BENCH_REPO")
+	root := os.Getenv("SPELUNK_BENCH_REPO")
 	if root == "" {
-		b.Skip("set UNIFIED_SEARCH_BENCH_REPO to a Git repo with a long history")
+		b.Skip("set SPELUNK_BENCH_REPO to a Git repo with a long history")
 	}
 	ctx := context.Background()
 	started := time.Now()

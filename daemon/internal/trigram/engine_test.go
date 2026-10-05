@@ -10,7 +10,7 @@ import (
 	"time"
 	"unicode/utf16"
 
-	"github.com/cruisinme30/unified-search/daemon/internal/protocol"
+	"github.com/cruisinme30/spelunk/daemon/internal/protocol"
 )
 
 var webRepo = repoOf("web", map[string]string{

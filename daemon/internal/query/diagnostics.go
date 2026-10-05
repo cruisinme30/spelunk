@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/cruisinme30/unified-search/daemon/internal/protocol"
+	"github.com/cruisinme30/spelunk/daemon/internal/protocol"
 )
 
 // Diagnostic codes, one per kind of problem a query can have.

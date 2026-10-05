@@ -2,7 +2,7 @@
 // Runs the end-to-end tests (extension/src/e2e) in a real VS Code window on
 // the fixture workspace. It downloads the latest stable VS Code once into
 // .vscode-test/, bundles the tests, and starts VS Code with the extension
-// under development and UNIFIED_SEARCH_TEST=1. The exit code is VS Code's:
+// under development and SPELUNK_TEST=1. The exit code is VS Code's:
 // 0 when every test passed.
 //
 // Usage: node scripts/e2e.mjs    (on Linux without a display: xvfb-run -a node scripts/e2e.mjs)
@@ -71,7 +71,7 @@ execFileSync(process.execPath, [join(repoRoot, "extension/build.mjs"), "--e2e"],
 
 const scratch = mkdtempSync(join(tmpdir(), "us-e2e-"));
 // VS Code must start as itself, not as Node, even when this runs under Electron.
-const environment = { ...process.env, UNIFIED_SEARCH_TEST: "1" };
+const environment = { ...process.env, SPELUNK_TEST: "1" };
 delete environment.ELECTRON_RUN_AS_NODE;
 const child = spawn(
   executable,

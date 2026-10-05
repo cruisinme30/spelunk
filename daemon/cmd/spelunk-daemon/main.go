@@ -1,16 +1,16 @@
-// Unified-search-daemon is the search back end of the Unified Search VS Code
+// Spelunk-daemon is the search back end of the Spelunk VS Code
 // extension. The extension host starts one per window and talks to it with
 // JSON-RPC 2.0 on stdin and stdout; the methods are defined in protocol/protocol.schema.json.
 //
 // Usage:
 //
-//	unified-search-daemon            serve JSON-RPC on stdin/stdout
-//	unified-search-daemon --version  print the version and exit
+//	spelunk-daemon            serve JSON-RPC on stdin/stdout
+//	spelunk-daemon --version  print the version and exit
 //
 // Environment, for tests and debugging:
 //
-//	UNIFIED_SEARCH_TRACE=<file>  append every JSON-RPC message to <file>, one JSON object per line
-//	UNIFIED_SEARCH_NOW=<RFC3339> freeze the clock (relative dates in tests)
+//	SPELUNK_TRACE=<file>  append every JSON-RPC message to <file>, one JSON object per line
+//	SPELUNK_NOW=<RFC3339> freeze the clock (relative dates in tests)
 package main
 
 import (
@@ -24,8 +24,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/cruisinme30/unified-search/daemon/internal/rpc"
-	"github.com/cruisinme30/unified-search/daemon/internal/server"
+	"github.com/cruisinme30/spelunk/daemon/internal/rpc"
+	"github.com/cruisinme30/spelunk/daemon/internal/server"
 )
 
 func main() {
@@ -55,10 +55,10 @@ var inputGrace = 2 * time.Second
 func serve(stdin io.Reader, stdout, stderr io.Writer, signals <-chan os.Signal) int {
 	input := &endSignallingReader{reader: stdin, ended: make(chan struct{})}
 	conn := rpc.NewConn(input, stdout)
-	if path := os.Getenv("UNIFIED_SEARCH_TRACE"); path != "" {
+	if path := os.Getenv("SPELUNK_TRACE"); path != "" {
 		closeTrace, err := traceTo(conn, path)
 		if err != nil {
-			_, _ = fmt.Fprintf(stderr, "unified-search-daemon: trace disabled: %v\n", err)
+			_, _ = fmt.Fprintf(stderr, "spelunk-daemon: trace disabled: %v\n", err)
 		} else {
 			defer closeTrace()
 		}
@@ -74,7 +74,7 @@ func serve(stdin io.Reader, stdout, stderr io.Writer, signals <-chan os.Signal) 
 	go func() { served <- conn.Serve(ctx) }()
 	servedCode := func(err error) int {
 		if err != nil {
-			_, _ = fmt.Fprintln(stderr, "unified-search-daemon:", err)
+			_, _ = fmt.Fprintln(stderr, "spelunk-daemon:", err)
 			return 1
 		}
 		return 0
@@ -117,7 +117,7 @@ func (r *endSignallingReader) Read(p []byte) (int, error) {
 	return n, err
 }
 
-// traceEntry is one line of the UNIFIED_SEARCH_TRACE file.
+// traceEntry is one line of the SPELUNK_TRACE file.
 type traceEntry struct {
 	Time      string          `json:"t"`
 	Direction string          `json:"dir"`
@@ -126,7 +126,7 @@ type traceEntry struct {
 
 // traceTo appends every message on conn to the file at path.
 func traceTo(conn *rpc.Conn, path string) (closeTrace func(), err error) {
-	traceFile, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600) //nolint:gosec // G304: the developer chose this path in UNIFIED_SEARCH_TRACE
+	traceFile, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600) //nolint:gosec // G304: the developer chose this path in SPELUNK_TRACE
 	if err != nil {
 		return nil, err
 	}
@@ -138,26 +138,26 @@ func traceTo(conn *rpc.Conn, path string) (closeTrace func(), err error) {
 		defer mu.Unlock()
 		entry := traceEntry{Time: time.Now().UTC().Format(time.RFC3339Nano), Direction: direction, Message: body}
 		if err := encoder.Encode(entry); err != nil {
-			failed.Do(func() { _, _ = fmt.Fprintf(os.Stderr, "unified-search-daemon: trace write failed: %v\n", err) })
+			failed.Do(func() { _, _ = fmt.Fprintf(os.Stderr, "spelunk-daemon: trace write failed: %v\n", err) })
 		}
 	}
 	closeTrace = func() {
 		if err := traceFile.Close(); err != nil {
-			_, _ = fmt.Fprintf(os.Stderr, "unified-search-daemon: closing trace: %v\n", err)
+			_, _ = fmt.Fprintf(os.Stderr, "spelunk-daemon: closing trace: %v\n", err)
 		}
 	}
 	return closeTrace, nil
 }
 
-// optionsFromEnv reads UNIFIED_SEARCH_NOW.
+// optionsFromEnv reads SPELUNK_NOW.
 func optionsFromEnv() server.Options {
-	value := os.Getenv("UNIFIED_SEARCH_NOW")
+	value := os.Getenv("SPELUNK_NOW")
 	if value == "" {
 		return server.Options{}
 	}
 	frozen, err := time.Parse(time.RFC3339, value)
 	if err != nil {
-		_, _ = fmt.Fprintf(os.Stderr, "unified-search-daemon: ignoring UNIFIED_SEARCH_NOW: %v\n", err)
+		_, _ = fmt.Fprintf(os.Stderr, "spelunk-daemon: ignoring SPELUNK_NOW: %v\n", err)
 		return server.Options{}
 	}
 	return server.Options{Now: func() time.Time { return frozen }}

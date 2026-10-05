@@ -27,8 +27,8 @@ flowchart TB
   S["E2E scenario script"] --> D["Desktop VS Code<br/>(@vscode/test-electron)"]
   S --> C["code-server in a container<br/>(Playwright + Chromium)"]
   D & C --> O1["Webview DOM (data-testid)"]
-  D & C --> O2["Editor state (unifiedSearch._testState)"]
-  D & C --> O3["Daemon JSON-RPC trace (UNIFIED_SEARCH_TRACE)"]
+  D & C --> O2["Editor state (spelunk._testState)"]
+  D & C --> O3["Daemon JSON-RPC trace (SPELUNK_TRACE)"]
   D & C --> O4["Screenshots vs approved baselines"]
 ```
 
@@ -42,7 +42,7 @@ A script builds the same three repos the mocks show, byte for byte, every time. 
 advance, every E2E assertion can name exact files, lines and commits.
 
 The script `testdata/build-fixtures` creates `payments-api`, `web-checkout` and `shared-libs`. It sets `GIT_AUTHOR_DATE`
-and `GIT_COMMITTER_DATE` relative to a fixed "now", which tests also pass to the daemon through `UNIFIED_SEARCH_NOW`. So
+and `GIT_COMMITTER_DATE` relative to a fixed "now", which tests also pass to the daemon through `SPELUNK_NOW`. So
 "3 days ago" means the same thing in every run.
 
 | Fixture feature | Exercises |
@@ -213,10 +213,10 @@ Adding an operator or setting without a test therefore breaks the build on the s
 E2E tests need to look inside the system. These hooks exist only in test builds, and the release build is checked to
 contain none of them:
 
-- `UNIFIED_SEARCH_NOW` freezes the daemon's clock;
-- `UNIFIED_SEARCH_TRACE` writes the JSON-RPC transcript with timing spans;
-- `UNIFIED_SEARCH_HOLD_INDEX=<repo>:<percent>` pauses indexing for scenario E14;
-- the command `unifiedSearch._testState` returns the panel state, the last results, and the active editor's file and
+- `SPELUNK_NOW` freezes the daemon's clock;
+- `SPELUNK_TRACE` writes the JSON-RPC transcript with timing spans;
+- `SPELUNK_HOLD_INDEX=<repo>:<percent>` pauses indexing for scenario E14;
+- the command `spelunk._testState` returns the panel state, the last results, and the active editor's file and
   selection.
 
 ### Manual checklist before each release

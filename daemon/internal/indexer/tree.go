@@ -6,8 +6,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/cruisinme30/unified-search/daemon/internal/protocol"
-	"github.com/cruisinme30/unified-search/daemon/internal/trigram"
+	"github.com/cruisinme30/spelunk/daemon/internal/protocol"
+	"github.com/cruisinme30/spelunk/daemon/internal/trigram"
 )
 
 // treeWork builds queued repos' working-tree indexes, one at a time, until

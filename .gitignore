@@ -23,7 +23,7 @@ coverage.*
 /testdata/repos/
 
 # Local index / traces
-.unified-search/
+.spelunk/
 *.trace.jsonl
 dist-test/
 dist-e2e/

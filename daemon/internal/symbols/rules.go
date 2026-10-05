@@ -1,6 +1,6 @@
 package symbols
 
-import "github.com/cruisinme30/unified-search/daemon/internal/protocol"
+import "github.com/cruisinme30/spelunk/daemon/internal/protocol"
 
 // Short names for the kinds, to keep the rules readable.
 const (

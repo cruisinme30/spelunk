@@ -6,7 +6,7 @@ import (
 	"regexp/syntax"
 	"slices"
 
-	"github.com/cruisinme30/unified-search/daemon/internal/query"
+	"github.com/cruisinme30/spelunk/daemon/internal/query"
 )
 
 type byteHit struct {

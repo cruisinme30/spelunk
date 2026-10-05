@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cruisinme30/unified-search/daemon/internal/trigram"
+	"github.com/cruisinme30/spelunk/daemon/internal/trigram"
 )
 
 // storeFormatVersion changes whenever the saved layout does; a store written

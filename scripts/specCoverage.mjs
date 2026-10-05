@@ -34,7 +34,7 @@ const required = new Set();
 const add = (kind, names) => {
   for (const name of names) required.add(`${kind}:${name}`);
 };
-const withoutPrefix = (key) => key.replace(/^unifiedSearch\./, "");
+const withoutPrefix = (key) => key.replace(/^spelunk\./, "");
 
 add("op", schema.$defs.OpName.enum);
 add("syntax", SYNTAX);

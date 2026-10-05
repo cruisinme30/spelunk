@@ -237,7 +237,7 @@ type Root struct {
 	Name string `json:"name"`
 }
 
-// Settings are the unifiedSearch.* settings the daemon needs.
+// Settings are the spelunk.* settings the daemon needs.
 type Settings struct {
 	CaseSensitive  bool     `json:"caseSensitive"`
 	DefaultCount   int      `json:"defaultCount"`

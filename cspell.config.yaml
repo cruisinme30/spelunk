@@ -68,7 +68,7 @@ words:
   - retrypolicy
   - trigram
   - trigrams
-  - unifiedsearch
+  - spelunk
   - unmarshals
   - unpushed
   - webview

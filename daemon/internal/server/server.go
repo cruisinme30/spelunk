@@ -9,9 +9,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cruisinme30/unified-search/daemon/internal/indexer"
-	"github.com/cruisinme30/unified-search/daemon/internal/protocol"
-	"github.com/cruisinme30/unified-search/daemon/internal/rpc"
+	"github.com/cruisinme30/spelunk/daemon/internal/indexer"
+	"github.com/cruisinme30/spelunk/daemon/internal/protocol"
+	"github.com/cruisinme30/spelunk/daemon/internal/rpc"
 )
 
 // DaemonVersion is reported by initialize.
@@ -40,7 +40,7 @@ type Server struct {
 
 // Options configure a Server.
 type Options struct {
-	// Now replaces the clock for date-relative logic (UNIFIED_SEARCH_NOW in
+	// Now replaces the clock for date-relative logic (SPELUNK_NOW in
 	// tests). It is never used to time requests.
 	Now func() time.Time
 }
@@ -109,7 +109,7 @@ func DefaultSettings() protocol.Settings {
 		Exclude:        []string{"**/vendor/**", "**/node_modules/**", "**/*.min.js"},
 		IncludeIgnored: false,
 		MaxFileSizeKB:  1024,
-		Location:       "~/.unified-search/index",
+		Location:       "~/.spelunk/index",
 	}
 }
 

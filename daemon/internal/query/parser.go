@@ -6,7 +6,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/cruisinme30/unified-search/daemon/internal/protocol"
+	"github.com/cruisinme30/spelunk/daemon/internal/protocol"
 )
 
 // Parse parses the search box. resolver supplies the "→ Jane Doe" labels

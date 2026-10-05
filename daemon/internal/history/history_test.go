@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/cruisinme30/unified-search/daemon/internal/protocol"
+	"github.com/cruisinme30/spelunk/daemon/internal/protocol"
 )
 
 // paymentsHistory builds a small repo whose history the tests search:

@@ -3,7 +3,7 @@ package trigram
 import (
 	"unicode/utf8"
 
-	"github.com/cruisinme30/unified-search/daemon/internal/protocol"
+	"github.com/cruisinme30/spelunk/daemon/internal/protocol"
 )
 
 const (

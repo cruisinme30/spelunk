@@ -6,19 +6,19 @@
 // while the wiki has uncommitted or unpushed changes, which GitHub can't see.
 //
 // The wiki is its own git repo, so this looks for a clone next to this one
-// (../unified-search.wiki) or at $UNIFIED_SEARCH_WIKI. Without a clone it
+// (../<this folder>.wiki, e.g. ../spelunk.wiki) or at $SPELUNK_WIKI. Without a clone it
 // says so and passes; CI never has one, so this runs only in the presubmit.
 //
 // Usage: node scripts/checkWikiSync.mjs
 import { execFileSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { screenRows } from "./mockTable.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
-const wiki = process.env.UNIFIED_SEARCH_WIKI ?? join(root, "../unified-search.wiki");
+const wiki = process.env.SPELUNK_WIKI ?? join(root, "..", `${basename(root)}.wiki`);
 const problems = [];
 
 if (existsSync(join(wiki, "Screens.md"))) {
@@ -28,7 +28,7 @@ if (existsSync(join(wiki, "Screens.md"))) {
   console.log(problems.length > 0 ? `${String(problems.length)} wiki problem(s)` : "Wiki matches the mocks.");
   if (problems.length > 0) process.exitCode = 1;
 } else {
-  console.log(`No wiki clone at ${wiki}; skipped (git clone the unified-search.wiki repo there to check it).`);
+  console.log(`No wiki clone at ${wiki}; skipped (git clone the spelunk.wiki repo there to check it).`);
 }
 
 /** Compares docs/dev/mocks.md with the wiki's Screens page and group pages. */

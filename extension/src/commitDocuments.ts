@@ -8,9 +8,9 @@ import type { Daemon } from "./daemon";
 /** Unchanged lines shown around each change, as `git show` does. */
 const DIFF_CONTEXT_LINES = 3;
 
-/** Provides the `unified-search-commit:` documents that show commits. */
+/** Provides the `spelunk-commit:` documents that show commits. */
 export class CommitDocuments implements vscode.TextDocumentContentProvider {
-  static readonly scheme = "unified-search-commit";
+  static readonly scheme = "spelunk-commit";
 
   /** Commit contents come from the daemon's preview/get. */
   constructor(private readonly daemon: Daemon) {}

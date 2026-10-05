@@ -12,11 +12,11 @@ The docs follow [Diátaxis](https://diataxis.fr/): each page has one job. Pick t
 | [`dev/`](dev/) | build or plan the project itself | Plans and progress, below |
 
 User docs (tutorial, how-to, reference) are written as each feature lands. Until then, the help page inside the
-extension (Unified Search: Open Help) is the query-language reference.
+extension (Spelunk: Open Help) is the query-language reference.
 
 ## For contributors
 
-- [Wiki](https://github.com/cruisinme30/unified-search/wiki): the code map, the rules that always hold, and the design mocks.
+- [Wiki](https://github.com/cruisinme30/spelunk/wiki): the code map, the rules that always hold, and the design mocks.
 - [CONTRIBUTING.md](../CONTRIBUTING.md): setup, commit and code conventions, tests.
 - [dev/implementation-plan.md](dev/implementation-plan.md): the original build plan: scope, interfaces between the
   parts, indexing, performance budgets, the order of work and risks.

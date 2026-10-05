@@ -150,7 +150,7 @@ export function createLayout(root: HTMLElement): Layout {
   );
   const shell = element(
     "section",
-    { class: "search-panel", "aria-label": "Unified search" },
+    { class: "search-panel", "aria-label": "Spelunk" },
     searchBar,
     element("div", { class: "status", role: "status" }, statusDot, statusText),
     ...Object.values(regions),

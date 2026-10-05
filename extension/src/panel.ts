@@ -39,14 +39,14 @@ export class SearchPanel implements vscode.Disposable {
       return;
     }
     const webviewRoot = vscode.Uri.joinPath(this.extensionUri, "dist", "webview");
-    const panel = vscode.window.createWebviewPanel("unifiedSearch", "Unified Search", vscode.ViewColumn.Active, {
+    const panel = vscode.window.createWebviewPanel("spelunk", "Spelunk", vscode.ViewColumn.Active, {
       enableScripts: true,
       retainContextWhenHidden: true,
       localResourceRoots: [webviewRoot],
     });
     this.panel = panel;
     this.ready = false;
-    panel.webview.html = webviewPage(panel.webview, webviewRoot, "main.js", "Unified Search");
+    panel.webview.html = webviewPage(panel.webview, webviewRoot, "main.js", "Spelunk");
     panel.webview.onDidReceiveMessage(
       (raw: unknown) => {
         const message = parseWebviewMessage(raw);

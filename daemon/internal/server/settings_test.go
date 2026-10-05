@@ -6,7 +6,7 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/cruisinme30/unified-search/daemon/internal/protocol"
+	"github.com/cruisinme30/spelunk/daemon/internal/protocol"
 )
 
 // writeWorkspace writes files under a new folder and returns it.

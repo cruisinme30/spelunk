@@ -10,7 +10,7 @@ import (
 	"testing"
 	"unicode/utf16"
 
-	"github.com/cruisinme30/unified-search/daemon/internal/protocol"
+	"github.com/cruisinme30/spelunk/daemon/internal/protocol"
 )
 
 // utf16File encodes text as UTF-16 with a byte order mark.

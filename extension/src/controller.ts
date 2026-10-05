@@ -369,14 +369,14 @@ export class SearchController {
     const search = this.search;
     if (batch.searchId !== search?.id || search.cancel.cancelled) return;
     this.results.push(...batch.items);
-    this.ui.setContext("unifiedSearch.hasResults", this.results.length > 0);
+    this.ui.setContext("spelunk.hasResults", this.results.length > 0);
     this.ui.post("search.batch", { seq: search.seq, searchId: search.id, items: batch.items });
   }
 
   private setResults(items: ResultItem[]): void {
     this.results = items;
     this.stepIndex = -1;
-    this.ui.setContext("unifiedSearch.hasResults", items.length > 0);
+    this.ui.setContext("spelunk.hasResults", items.length > 0);
   }
 
   /** Fetches a result's preview; a stale ref gets an empty preview marked stale. */

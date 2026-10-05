@@ -1,19 +1,19 @@
 {
-  "name": "unified-search",
-  "displayName": "Unified Search",
+  "name": "spelunk",
+  "displayName": "Spelunk",
   "description": "One search box for file names, code and Git history across every repo in the workspace.",
   "version": "0.2.0",
-  "publisher": "unified-search",
+  "publisher": "spelunk",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/cruisinme30/unified-search.git",
+    "url": "https://github.com/cruisinme30/spelunk.git",
     "directory": "extension"
   },
   "bugs": {
-    "url": "https://github.com/cruisinme30/unified-search/issues"
+    "url": "https://github.com/cruisinme30/spelunk/issues"
   },
-  "homepage": "https://github.com/cruisinme30/unified-search#readme",
+  "homepage": "https://github.com/cruisinme30/spelunk#readme",
   "keywords": [
     "search",
     "code search",
@@ -56,68 +56,68 @@
   "contributes": {
     "commands": [
       {
-        "command": "unifiedSearch.open",
-        "title": "Unified Search: Open"
+        "command": "spelunk.open",
+        "title": "Spelunk: Open"
       },
       {
-        "command": "unifiedSearch.openHelp",
-        "title": "Unified Search: Open Help"
+        "command": "spelunk.openHelp",
+        "title": "Spelunk: Open Help"
       },
       {
-        "command": "unifiedSearch.nextResult",
-        "title": "Unified Search: Next Result"
+        "command": "spelunk.nextResult",
+        "title": "Spelunk: Next Result"
       },
       {
-        "command": "unifiedSearch.prevResult",
-        "title": "Unified Search: Previous Result"
+        "command": "spelunk.prevResult",
+        "title": "Spelunk: Previous Result"
       },
       {
-        "command": "unifiedSearch.rebuildIndex",
-        "title": "Unified Search: Rebuild Index"
+        "command": "spelunk.rebuildIndex",
+        "title": "Spelunk: Rebuild Index"
       },
       {
-        "command": "unifiedSearch.restartDaemon",
-        "title": "Unified Search: Restart Search"
+        "command": "spelunk.restartDaemon",
+        "title": "Spelunk: Restart Search"
       },
       {
-        "command": "unifiedSearch.showWelcome",
-        "title": "Unified Search: Show Welcome"
+        "command": "spelunk.showWelcome",
+        "title": "Spelunk: Show Welcome"
       }
     ],
     "keybindings": [
       {
-        "command": "unifiedSearch.open",
+        "command": "spelunk.open",
         "key": "ctrl+p",
         "mac": "cmd+p",
-        "when": "config.unifiedSearch.shortcut.preset == 'quickOpen'"
+        "when": "config.spelunk.shortcut.preset == 'quickOpen'"
       },
       {
         "command": "workbench.action.quickOpen",
         "key": "ctrl+alt+p",
         "mac": "cmd+alt+p",
-        "when": "config.unifiedSearch.shortcut.preset == 'quickOpen'"
+        "when": "config.spelunk.shortcut.preset == 'quickOpen'"
       },
       {
-        "command": "unifiedSearch.open",
+        "command": "spelunk.open",
         "key": "ctrl+shift+f",
         "mac": "cmd+shift+f",
-        "when": "config.unifiedSearch.shortcut.preset == 'findInFiles'"
+        "when": "config.spelunk.shortcut.preset == 'findInFiles'"
       },
       {
-        "command": "unifiedSearch.nextResult",
+        "command": "spelunk.nextResult",
         "key": "f4",
-        "when": "unifiedSearch.hasResults && !searchViewletFocus"
+        "when": "spelunk.hasResults && !searchViewletFocus"
       },
       {
-        "command": "unifiedSearch.prevResult",
+        "command": "spelunk.prevResult",
         "key": "shift+f4",
-        "when": "unifiedSearch.hasResults && !searchViewletFocus"
+        "when": "spelunk.hasResults && !searchViewletFocus"
       }
     ],
     "configuration": {
-      "title": "Unified Search",
+      "title": "Spelunk",
       "properties": {
-        "unifiedSearch.shortcut.preset": {
+        "spelunk.shortcut.preset": {
           "type": "string",
           "enum": [
             "quickOpen",
@@ -127,19 +127,19 @@
           "default": "quickOpen",
           "scope": "application",
           "enumDescriptions": [
-            "⌘P / Ctrl+P opens Unified Search; Quick Open moves to ⌥⌘P / Ctrl+Alt+P.",
-            "⇧⌘F / Ctrl+Shift+F opens Unified Search; Quick Open is unchanged.",
-            "No default shortcut. Bind unifiedSearch.open yourself."
+            "⌘P / Ctrl+P opens Spelunk; Quick Open moves to ⌥⌘P / Ctrl+Alt+P.",
+            "⇧⌘F / Ctrl+Shift+F opens Spelunk; Quick Open is unchanged.",
+            "No default shortcut. Bind spelunk.open yourself."
           ],
-          "description": "Which key opens Unified Search."
+          "description": "Which key opens Spelunk."
         },
-        "unifiedSearch.caseSensitive": {
+        "spelunk.caseSensitive": {
           "type": "boolean",
           "default": false,
           "scope": "resource",
           "description": "Match case by default. A case: operator in the query always wins."
         },
-        "unifiedSearch.defaultCount": {
+        "spelunk.defaultCount": {
           "type": "integer",
           "default": 500,
           "minimum": 1,
@@ -147,7 +147,7 @@
           "scope": "resource",
           "description": "Results per page when the query has no count: operator."
         },
-        "unifiedSearch.typingDelayMs": {
+        "spelunk.typingDelayMs": {
           "type": "integer",
           "default": 120,
           "minimum": 0,
@@ -155,7 +155,7 @@
           "scope": "application",
           "description": "Milliseconds to wait after a keystroke before searching."
         },
-        "unifiedSearch.open.trigger": {
+        "spelunk.open.trigger": {
           "type": "string",
           "enum": [
             "doubleClick",
@@ -165,19 +165,19 @@
           "scope": "application",
           "description": "Whether a single click or a double click opens a result. A single click always previews."
         },
-        "unifiedSearch.open.preview": {
+        "spelunk.open.preview": {
           "type": "boolean",
           "default": true,
           "scope": "application",
           "description": "Open results in a preview editor that the next result replaces."
         },
-        "unifiedSearch.open.closeOnOpen": {
+        "spelunk.open.closeOnOpen": {
           "type": "boolean",
           "default": true,
           "scope": "application",
           "description": "Hide the search panel after opening a result, except to the side. F4 keeps stepping through the results."
         },
-        "unifiedSearch.index.historyDepth": {
+        "spelunk.index.historyDepth": {
           "type": "string",
           "enum": [
             "6m",
@@ -193,13 +193,13 @@
           ],
           "description": "How much Git history to index for author:, msg: and history search."
         },
-        "unifiedSearch.index.symbols": {
+        "spelunk.index.symbols": {
           "type": "boolean",
           "default": true,
           "scope": "resource",
           "description": "Index symbol definitions for symbol: (s:)."
         },
-        "unifiedSearch.index.exclude": {
+        "spelunk.index.exclude": {
           "type": "array",
           "items": {
             "type": "string"
@@ -212,32 +212,32 @@
           "scope": "resource",
           "description": "Glob patterns never indexed, in current files or in history."
         },
-        "unifiedSearch.index.includeIgnored": {
+        "spelunk.index.includeIgnored": {
           "type": "boolean",
           "default": false,
           "scope": "resource",
           "description": "Also index files matched by .gitignore."
         },
-        "unifiedSearch.index.maxFileSizeKB": {
+        "spelunk.index.maxFileSizeKB": {
           "type": "integer",
           "default": 1024,
           "minimum": 1,
           "scope": "resource",
           "description": "Skip files larger than this."
         },
-        "unifiedSearch.index.location": {
+        "spelunk.index.location": {
           "type": "string",
-          "default": "~/.unified-search/index",
+          "default": "~/.spelunk/index",
           "scope": "machine",
           "description": "Where indexes are stored. Never synced, because paths differ between computers."
         },
-        "unifiedSearch.ui.showParsedQuery": {
+        "spelunk.ui.showParsedQuery": {
           "type": "boolean",
           "default": true,
           "scope": "application",
           "description": "Show the parsed query as chips under the search box."
         },
-        "unifiedSearch.ui.recentQueries": {
+        "spelunk.ui.recentQueries": {
           "type": "integer",
           "default": 20,
           "minimum": 0,
