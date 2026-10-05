@@ -78,17 +78,14 @@ type searcher struct {
 
 // stats summarizes the search.
 func (s *searcher) stats() engine.Stats {
-	stats := engine.Stats{Total: s.counted, Truncated: s.truncated, Hidden: []protocol.HiddenNote{}}
-	if next := s.plan.Offset + s.plan.Limit; next < s.counted {
-		stats.NextOffset = next
-	}
-	for _, f := range s.plan.Filters {
-		if n := s.hidden[f.Index]; n > 0 {
-			stats.Hidden = append(stats.Hidden, protocol.HiddenNote{Reason: f.Reason, Filter: f.Text, Count: n, Unit: "commits", Undo: f.Undo})
+	stats := engine.NewStats(s.plan, s.counted, s.truncated)
+	for i := range s.plan.Filters {
+		if f := &s.plan.Filters[i]; s.hidden[f.Index] > 0 {
+			stats.Hidden = append(stats.Hidden, f.Note(s.hidden[f.Index], "commits"))
 		}
 	}
 	if c := s.plan.CaseFilter; c != nil && s.hiddenByCase > 0 {
-		stats.Hidden = append(stats.Hidden, protocol.HiddenNote{Reason: c.Reason, Filter: c.Text, Count: s.hiddenByCase, Unit: "commits", Undo: c.Undo})
+		stats.Hidden = append(stats.Hidden, c.Note(s.hiddenByCase, "commits"))
 	}
 	return stats
 }
@@ -167,7 +164,7 @@ func (s *searcher) visit(repo *Repo, c *Commit) {
 	case failed >= 0:
 		s.creditFilter(repo, c, files, failed)
 	case s.matches(repo, c, files):
-		if s.counted >= s.plan.Offset && s.counted < s.plan.Offset+s.plan.Limit {
+		if s.plan.OnPage(s.counted) {
 			s.emit(s.result(repo, c, files))
 		}
 		s.counted++

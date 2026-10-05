@@ -145,5 +145,5 @@ func (s *Server) symbolsAsText(ctx context.Context, text string, filter *query.F
 	if err != nil {
 		return protocol.HiddenNote{}, false
 	}
-	return protocol.HiddenNote{Reason: filter.Reason, Filter: filter.Text, Count: stats.Total, Unit: "matches", Undo: filter.Undo}, true
+	return filter.Note(stats.Total, "matches"), true
 }

@@ -161,7 +161,7 @@ func (s *searcher) add(item protocol.ResultItem) {
 		s.truncated = true
 		return
 	}
-	if s.counted >= s.plan.Offset && s.counted < s.plan.Offset+s.plan.Limit {
+	if s.plan.OnPage(s.counted) {
 		s.emit(item)
 	}
 	s.counted++
@@ -170,22 +170,17 @@ func (s *searcher) add(item protocol.ResultItem) {
 // stats summarizes the search, with one hidden-results note per filter
 // that hid something, counting unit.
 func (s *searcher) stats(unit string) engine.Stats {
-	stats := engine.Stats{Total: s.counted, Truncated: s.truncated, Hidden: []protocol.HiddenNote{}}
-	if next := s.plan.Offset + s.plan.Limit; next < s.counted {
-		stats.NextOffset = next
-	}
-	for _, f := range s.plan.Filters {
-		if n := s.hidden[f.Index]; n > 0 {
-			stats.Hidden = append(stats.Hidden, protocol.HiddenNote{Reason: f.Reason, Filter: f.Text, Count: n, Unit: unit, Undo: f.Undo})
+	stats := engine.NewStats(s.plan, s.counted, s.truncated)
+	for i := range s.plan.Filters {
+		if f := &s.plan.Filters[i]; s.hidden[f.Index] > 0 {
+			stats.Hidden = append(stats.Hidden, f.Note(s.hidden[f.Index], unit))
 		}
 	}
 	if s.hiddenByCase > 0 {
-		c := s.plan.CaseFilter
-		stats.Hidden = append(stats.Hidden, protocol.HiddenNote{Reason: c.Reason, Filter: c.Text, Count: s.hiddenByCase, Unit: unit, Undo: c.Undo})
+		stats.Hidden = append(stats.Hidden, s.plan.CaseFilter.Note(s.hiddenByCase, unit))
 	}
 	if s.hiddenByKind > 0 && s.plan.KindFilter != nil {
-		k := s.plan.KindFilter
-		stats.Hidden = append(stats.Hidden, protocol.HiddenNote{Reason: k.Reason, Filter: k.Text, Count: s.hiddenByKind, Unit: "matches", Undo: k.Undo})
+		stats.Hidden = append(stats.Hidden, s.plan.KindFilter.Note(s.hiddenByKind, "matches"))
 	}
 	return stats
 }

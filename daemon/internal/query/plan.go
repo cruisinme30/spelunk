@@ -74,6 +74,18 @@ type Filter struct {
 	Undo protocol.Fix
 }
 
+// Note is the hidden-results note for count results, counted in unit, that
+// only f hid.
+func (f *Filter) Note(count int, unit string) protocol.HiddenNote {
+	return protocol.HiddenNote{Reason: f.Reason, Filter: f.Text, Count: count, Unit: unit, Undo: f.Undo}
+}
+
+// OnPage reports whether the nth result (counting from 0) falls on the
+// requested page.
+func (p *Plan) OnPage(n int) bool {
+	return n >= p.Offset && n < p.Offset+p.Limit
+}
+
 // Pred is a node of the lowered predicate tree.
 type Pred interface {
 	String() string
