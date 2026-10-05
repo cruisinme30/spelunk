@@ -81,5 +81,10 @@ ignoreWords:
   - sinse
   - pyhton
   - wibble
+  # Fuzzy file-name queries: a name's letters in order.
+  - ervce
+  - rtry
+  - rtrypol
+  - usrsvc
   # since:'s units in a regex character class.
   - dwmy
