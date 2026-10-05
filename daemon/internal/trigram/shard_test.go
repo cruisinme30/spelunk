@@ -4,10 +4,14 @@ import (
 	"context"
 	"encoding/gob"
 	"errors"
+	"math/rand"
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"testing"
+
+	"github.com/cruisinme30/unified-search/daemon/internal/protocol"
 )
 
 func TestCandidates(t *testing.T) {
@@ -125,3 +129,93 @@ func TestLoadRejectsOtherFormatsAndCorruption(t *testing.T) {
 }
 
 func gobEncode(f *os.File, v any) error { return gob.NewEncoder(f).Encode(v) }
+
+func TestLoadRejectsShardsThatDecodeButAreInconsistent(t *testing.T) {
+	// @covers failure:index-corrupt
+	docs := []Doc{{Path: "a.txt", Content: []byte("abc")}, {Path: "b.txt", Content: []byte("abc")}}
+	key := trigramAt([]byte("abc"), 0)
+	tests := []struct {
+		name     string
+		docs     []Doc
+		postings map[uint32][]uint32
+	}{
+		{"posting_past_the_last_doc", docs, map[uint32][]uint32{key: {0, 2}}},
+		{"postings_out_of_order", docs, map[uint32][]uint32{key: {1, 0}}},
+		{"posting_listed_twice", docs, map[uint32][]uint32{key: {1, 1}}},
+		{"path_outside_the_repo", []Doc{{Path: "../../etc/passwd"}}, nil},
+		{"absolute_path", []Doc{{Path: "/etc/passwd"}}, nil},
+		{"empty_path", []Doc{{Path: ""}}, nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "s.shard")
+			f, err := os.Create(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := gobEncode(f, savedShard{Version: shardFormatVersion, Docs: tt.docs, Postings: tt.postings}); err != nil {
+				t.Fatal(err)
+			}
+			if err := f.Close(); err != nil {
+				t.Fatal(err)
+			}
+			if shard, err := Load(path); err == nil {
+				t.Errorf("Load = %d docs, nil error; want it rejected as corrupt", len(shard.Docs))
+			}
+		})
+	}
+}
+
+func TestADamagedShardNeverPanicsASearch(t *testing.T) {
+	// @covers failure:index-corrupt
+	files := map[string]string{}
+	for i := range 20 {
+		files["src/f"+string(rune('a'+i))+".go"] = "package x\n\nfunc Retry() {}\n// hello world timeout\n"
+	}
+	dir := t.TempDir()
+	path := filepath.Join(dir, "good.shard")
+	if err := shardOf(files).Save(path); err != nil {
+		t.Fatal(err)
+	}
+	good, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	trials := 1_000
+	if testing.Short() {
+		trials = 200
+	}
+	random := rand.New(rand.NewSource(1))
+	damaged := filepath.Join(dir, "damaged.shard")
+	for trial := range trials {
+		data := slices.Clone(good)
+		if trial%3 == 0 {
+			data = data[:random.Intn(len(data))] // truncated, as by a crash or a full disk
+		} else {
+			for range 1 + random.Intn(4) {
+				data[random.Intn(len(data))] = byte(random.Intn(256))
+			}
+		}
+		if err := os.WriteFile(damaged, data, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		shard, err := Load(damaged)
+		if err != nil {
+			continue
+		}
+		repo := Repo{ID: "r", Name: "r", Root: dir, Shard: shard}
+		for _, text := range []string{"retry", "hello world", "sym:Retry", "f:go timeout"} {
+			_, _ = Search(context.Background(), mustPlan(t, text, protocol.Settings{DefaultCount: 500, Symbols: true}, ""), []Repo{repo}, 1, func(protocol.ResultItem) {})
+		}
+	}
+}
+
+func TestLoadOfAnEmptyFileIsAnError(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "empty.shard")
+	if err := os.WriteFile(path, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Load(path); err == nil || errors.Is(err, os.ErrNotExist) {
+		t.Errorf("Load(empty file) error = %v, want a decode error (the index is rebuilt)", err)
+	}
+}

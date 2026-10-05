@@ -284,5 +284,27 @@ func Load(path string) (*Shard, error) {
 	if saved.Postings == nil {
 		saved.Postings = map[uint32][]uint32{}
 	}
+	if err := saved.check(); err != nil {
+		return nil, fmt.Errorf("corrupt shard %s: %w", path, err)
+	}
 	return &Shard{Docs: saved.Docs, BuiltAt: saved.BuiltAt, postings: saved.Postings}, nil
+}
+
+// check reports what makes a decoded shard unsafe to search: a doc path
+// outside the repo, or a posting list that names a doc that doesn't exist
+// or isn't in ascending order. A damaged file can decode without error.
+func (s *savedShard) check() error {
+	for i := range s.Docs {
+		if !filepath.IsLocal(filepath.FromSlash(s.Docs[i].Path)) {
+			return fmt.Errorf("doc %d has path %q", i, s.Docs[i].Path)
+		}
+	}
+	for key, list := range s.Postings {
+		for i, id := range list {
+			if int64(id) >= int64(len(s.Docs)) || i > 0 && list[i-1] >= id {
+				return fmt.Errorf("trigram %06x lists doc %d out of place", key, id)
+			}
+		}
+	}
+	return nil
 }
