@@ -37,3 +37,4 @@ covered.
 | 27 | `author:` + `is:test` → the test changes in commits | `test-history` | `TestHistory` | 1.1 |
 | 28 | `word:yes` keeps whole words | `whole-words` | `WholeWords` | 1.1 |
 | 29 | `case:smart` matches case when the query has a capital | `smart-case` | `SmartCase` | 1.1 |
+| 34 | `type:added` finds the commits that added a line | `added-removed-lines` | `AddedLines` | 1.1 |

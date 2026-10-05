@@ -245,6 +245,7 @@ test("the first result is selected and previewed; ↓ moves the selection", asyn
 });
 
 test("under type:added, chips, commit rows and the hidden note speak of added lines", async (t) => {
+  // @covers screen:added-removed-lines
   const page = await openPanel(t);
   await restore(page);
   await fromHost(page, "index.status", {

@@ -252,6 +252,7 @@ Jason Kim and Marta Ruiz, and one uncommitted edit:
 | 27 | `author:jane is:test retry` | [test-history.png](proof/test-history.png) |
 | 28 | `word:yes retry` | [whole-words.png](proof/whole-words.png) |
 | 29 | `case:smart Retry` | [smart-case.png](proof/smart-case.png) |
+| 34 | `type:added retry_policy`, over a history where one commit only removed `retry_policy` lines | [added-removed-lines.png](proof/added-removed-lines.png) |
 
 Mocks 16 (the opened file) and 18 (Settings) are VS Code's own editor and Settings UI, which the tool can't draw
 without VS Code, so they have no screenshot.

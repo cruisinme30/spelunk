@@ -18,6 +18,11 @@ All notable changes to this project are documented here. The format follows
   doesn't find `retrypolicy`. `spelunk.caseSensitive` is now `off`, `on` or `smart` (still `off` by default); a saved
   `true` or `false` becomes `on` or `off`. Under smart case **Aa** carries a dot and shows which way the query's
   capitals sent it, and a note says what matching case hid, with **Ignore case**.
+- `type:added` and `type:removed` search commits for the lines they added or removed, not their messages:
+  `type:added retry_policy` finds who introduced it, `type:removed` when it went away. Commit rows count "hits in
+  added lines", previews mark only that side, and a note counts the commits that matched only elsewhere, with
+  **Search every changed line**. The history index now keeps each line's `+` or `-`, so it is read again once after
+  upgrading.
 
 ### Fixed
 

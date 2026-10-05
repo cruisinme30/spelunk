@@ -27,6 +27,8 @@ removed `timeout` or `retry`. Drop `author:` and the same box searches current f
   first; tests, vendored and generated files come last. `order:path` sorts by path instead.
 - **Files or commits from the same box.** A query searches current files, unless it has `author:`, `message:` or
   `type:commit`; then each result is a commit, and words match the lines it added or removed or its message.
+  `type:added` and `type:removed` match only the lines commits added, or removed: who introduced a call, and when it
+  went away.
 - **Results as you type,** from local indexes that keep up with saves within a second and new commits within seconds.
 - **Helpful when you're wrong:** errors with one-key fixes, warnings for likely slips such as `daemon|search`,
   completions for operators and their values, and notes like "3 commits hidden by `-file:vendor/`".

@@ -132,7 +132,7 @@ bare     = 1*( any char except space, "(", ")", '"' ) ;
 | `msg:` | Literal, phrase or regex | Commit subject and body | History only |
 | (none) | Literal, phrase or regex | File names and lines; in history, changed lines or the commit subject and body | Both |
 | `since:` | `<n>d`, `<n>w`, `<n>m` or `<n>y` | Commit date in history; last change time on current files | Both |
-| `type:` | `file`, `code` or `commit` | Which result kinds are returned | Both |
+| `type:` | `file`, `code`, `commit`, `added` or `removed` | Which result kinds are returned; `added` and `removed` search only that side of each commit's diff | Both |
 | `case:` | `yes`, `no` or `smart` (match case only when the query has a capital letter) | Case handling for every text match in the query | Both |
 | `count:` | Positive integer or `all` | Result limit | Both |
 
@@ -140,8 +140,8 @@ bare     = 1*( any char except space, "(", ")", '"' ) ;
 
 1. `case:`, `count:` and `type:` are global. They may appear once, at the top level, never inside `( )`, after `-` or
    inside an OR branch.
-2. The query has one mode. `author:`, `msg:` or `type:commit` anywhere makes it a history query. Otherwise it is a
-   working-tree query.
+2. The query has one mode. `author:`, `msg:`, `type:commit`, `type:added` or `type:removed` anywhere makes it a
+   history query. Otherwise it is a working-tree query.
 3. An OR whose branches would need different modes is an error, because one result list cannot mix commits and lines.
 4. `sym:` in a history query is an error. `since:` works in both modes with the meaning shown above.
 5. A query with no positive terms, such as `-timeout` alone, is an error.
@@ -154,7 +154,7 @@ type ParsedQuery = {
   raw: string;
   root: Node | null;                 // null when the box is empty
   globals: { case: "yes" | "no" | "smart" | null; count: number | "all" | null;
-             type: "file" | "code" | "commit" | null };
+             type: "file" | "code" | "commit" | "added" | "removed" | null };
   mode: "workingTree" | "history";
   diagnostics: Diagnostic[];         // empty means the query can run
 };
