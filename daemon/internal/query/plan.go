@@ -293,20 +293,20 @@ func NewPlan(q protocol.ParsedQuery, settings protocol.Settings, now time.Time, 
 // top-level since: starts, so no change can be inside both. It's a
 // warning, so the search still runs (and finds nothing).
 func emptyWindowWarnings(root *protocol.Node, src *source, now time.Time) []protocol.Diagnostic {
-	var sinces, untils []*protocol.Node
+	var startsAt, endsAt []*protocol.Node
 	for _, node := range topLevel(root) {
 		switch {
 		case node.Kind != protocol.NodeKindOp:
 		case node.Op == protocol.OpNameSince:
-			sinces = append(sinces, node)
+			startsAt = append(startsAt, node)
 		case node.Op == protocol.OpNameUntil:
-			untils = append(untils, node)
+			endsAt = append(endsAt, node)
 		}
 	}
 	var problems diagnostics
-	for _, u := range untils {
+	for _, u := range endsAt {
 		end := until(now, u.Value)
-		for _, s := range sinces {
+		for _, s := range startsAt {
 			if end.After(since(now, s.Value)) {
 				continue
 			}

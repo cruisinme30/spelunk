@@ -39,7 +39,7 @@ func TestSinceSuggestsWindowsWithTheirStartAndChangedFiles(t *testing.T) {
 	}
 }
 
-func TestUntilSuggestsSincesWindowsWithTheirEnd(t *testing.T) {
+func TestUntilSuggestsTheSinceWindowsWithTheirEnd(t *testing.T) {
 	// @covers op:until
 	text := "timeout until:"
 	want := strings.Join([]string{
