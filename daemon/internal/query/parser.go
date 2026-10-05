@@ -380,10 +380,7 @@ func (p *parser) reportBadValue(op operator, t token, valueSpan protocol.Span, p
 	var fixes []protocol.Fix
 	examples := op.examples
 	if op.name == protocol.OpNameLang {
-		examples = nil
-		for _, name := range nearestLanguages(t.value) {
-			examples = append(examples, name)
-		}
+		examples = nearestLanguages(t.value)
 	}
 	// A quoted or /regex/ value may touch the next word, as in case:/ /y;
 	// a bare value put in its place must not join it.
