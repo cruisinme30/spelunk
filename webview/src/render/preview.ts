@@ -12,7 +12,7 @@ const DIFF_SIGN = { add: "+", del: "−", ctx: " " } as const;
 
 /** What the preview's buttons do. */
 export interface PreviewHandlers {
-  onOpen(ref: string, where: OpenWhere): void;
+  onOpen: (ref: string, where: OpenWhere) => void;
   onShowHiddenFiles: () => void;
 }
 
