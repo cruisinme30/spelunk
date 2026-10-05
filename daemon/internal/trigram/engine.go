@@ -251,7 +251,9 @@ func docLeaf(p query.Pred, repo *Repo, doc *Doc) bool {
 // the hidden-results note counts code matches, which addCodeLines credits.
 //
 // Matching a path is cheap, so in best-match order every matching file is
-// found first and then added best first.
+// found first and then added best first. A name that a term matches only
+// fuzzily ranks after one whose path has the term, other things equal, and
+// better fuzzy matches first.
 func (s *searcher) addFileNames(repos []Repo, countHidden bool) {
 	if !s.ranking() {
 		s.forEachFileName(repos, countHidden, func(repo *Repo, doc *Doc) { s.addFileName(repo, doc, docRank{}) })
@@ -259,7 +261,12 @@ func (s *searcher) addFileNames(repos []Repo, countHidden bool) {
 	}
 	var matched []rankedCandidate
 	s.forEachFileName(repos, countHidden, func(repo *Repo, doc *Doc) {
-		matched = append(matched, rankedCandidate{repo: repo, doc: doc, rank: s.rankDoc(repo, doc)})
+		rank := s.rankDoc(repo, doc)
+		if fuzzy := s.fuzzyNameScore(doc.Path); fuzzy > 0 {
+			rank.score += scoreNameFuzzy
+			rank.fuzzy = fuzzy
+		}
+		matched = append(matched, rankedCandidate{repo: repo, doc: doc, rank: rank})
 	})
 	sortByRank(matched)
 	for _, c := range matched {
@@ -302,11 +309,15 @@ func (s *searcher) fileNameMatches(repo *Repo, doc *Doc, countHidden bool) bool 
 }
 
 // fileNameLeaf evaluates a leaf against a file's path: text terms match
-// the path instead of the file's text.
+// the path instead of the file's text, and a fuzzy term also matches a
+// name that has its characters in order (see fuzzy.go).
 func fileNameLeaf(repo *Repo, doc *Doc) func(query.Pred) bool {
 	return func(p query.Pred) bool {
 		if c, ok := p.(*query.Content); ok {
-			return c.MatchString(doc.Path)
+			if c.MatchString(doc.Path) {
+				return true
+			}
+			return fuzzyMatches(c, doc.Path)
 		}
 		return docLeaf(p, repo, doc)
 	}
@@ -329,12 +340,19 @@ func (s *searcher) addFileName(repo *Repo, doc *Doc, rank docRank) {
 	s.add(item, rank.score, 0)
 }
 
-// nameHits highlights the matching text terms in a path; with no text
-// terms (a query of only f:, lang: …) it highlights the f: match.
+// nameHits highlights the matching text terms in a path, or the characters
+// a fuzzy term matched; with no text terms (a query of only f:, lang: …) it
+// highlights the f: match.
 func (s *searcher) nameHits(path string, terms []*query.Content) []protocol.Range {
 	var ranges []protocol.Range
 	for _, term := range terms {
-		for _, loc := range term.FindAllStringIndex(path, -1) {
+		locs := term.FindAllStringIndex(path, -1)
+		if len(locs) == 0 {
+			if offsets, _, fuzzy := fuzzyMatch(term, path); fuzzy {
+				locs = fuzzyRanges(path, offsets)
+			}
+		}
+		for _, loc := range locs {
 			ranges = append(ranges, UTF16Range(path, loc[0], loc[1]))
 		}
 	}

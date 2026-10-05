@@ -35,6 +35,7 @@ const (
 	scoreNameIsTerm  = 40 // retry.py for retry
 	scoreNameHasTerm = 20 // retry_policy.py for retry
 	scorePathHasTerm = 5  // retry/client.py for retry
+	scoreNameFuzzy   = 1  // retry_policy.py for rtrypol, in the file-name section only
 	scoreOpen        = 30 // open in the editor
 	scoreUncommitted = 15
 	scoreRecent      = 10
@@ -63,9 +64,12 @@ const (
 )
 
 // docRank is what is known about a file before its lines are read: its
-// score, and the reason the panel shows for where it landed.
+// score, and the reason the panel shows for where it landed. fuzzy is how
+// well a fuzzy term matched its name, which orders file names that score
+// the same.
 type docRank struct {
 	score  int
+	fuzzy  int
 	reason protocol.RankReason
 }
 
@@ -226,7 +230,12 @@ type rankedCandidate struct {
 // sortByRank puts candidates best first. The sort is stable, so files that
 // rank the same keep path order and every page sees the same order.
 func sortByRank(candidates []rankedCandidate) {
-	slices.SortStableFunc(candidates, func(a, b rankedCandidate) int { return b.rank.score - a.rank.score })
+	slices.SortStableFunc(candidates, func(a, b rankedCandidate) int {
+		if a.rank.score != b.rank.score {
+			return b.rank.score - a.rank.score
+		}
+		return b.rank.fuzzy - a.rank.fuzzy
+	})
 }
 
 // pageGroup is one file's results on the held page.

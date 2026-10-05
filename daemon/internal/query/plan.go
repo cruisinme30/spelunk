@@ -136,6 +136,11 @@ type (
 		// (word:yes). Match with the term's Find methods, not Re's, so it
 		// applies.
 		WholeWord bool
+		// Fuzzy lets the term also match a file name whose characters it
+		// has in order, as Quick Open does: usrsvc finds UserService.ts.
+		// Only a bare word outside a NOT, without word:yes, is fuzzy, and
+		// only file names match it so; code lines stay exact.
+		Fuzzy     bool
 		TermIndex int
 		// Reference marks a ref: term: a whole-word use of a name, never on
 		// a line that defines that name. The working-tree engine finds the
@@ -436,6 +441,7 @@ func resultKinds(q protocol.ParsedQuery) map[ResultKind]bool {
 type lowering struct {
 	caseSensitive bool
 	wholeWord     bool
+	negated       bool // lowering a NOT's kid
 	now           time.Time
 	plan          *Plan
 	// nextRefIndex is the term index the next ref: term gets.
@@ -456,12 +462,18 @@ func (l *lowering) lower(node *protocol.Node) Pred {
 		}
 		return &And{Kids: kids}
 	case protocol.NodeKindNot:
-		if kid := l.lower(node.Child); kid != nil {
+		negated := l.negated
+		l.negated = true
+		kid := l.lower(node.Child)
+		l.negated = negated
+		if kid != nil {
 			return &Not{Kid: kid}
 		}
 		return nil
 	case protocol.NodeKindText:
-		return l.term(node, l.wholeWord, node.TermIndex)
+		content := l.term(node, l.wholeWord, node.TermIndex)
+		content.Fuzzy = node.Match == protocol.MatchLiteral && !l.wholeWord && !l.negated
+		return content
 	default:
 		if node.Op == protocol.OpNameRef {
 			content := l.term(node, true, l.nextRefIndex)
