@@ -33,7 +33,7 @@ test("the page allows only its own nonce-tagged script and the webview's styles 
   assert.match(csp, /^default-src 'none'; /);
   assert.ok(csp.includes(`style-src ${CSP_SOURCE};`), csp);
   assert.doesNotMatch(csp, /unsafe-inline|unsafe-eval/);
-  const scripts = [...html.matchAll(/<script([^>]*)>/g)].map((match) => match[1]);
+  const scripts = [...html.matchAll(/<script([^>]*)>/gi)].map((match) => match[1]);
   assert.deepEqual(scripts, [` nonce="${nonce}" src="https://webview.test/ext/dist/webview/main.js"`]);
   assert.match(html, /<link rel="stylesheet" href="https:\/\/webview.test\/ext\/dist\/webview\/main.css">/);
   assert.notEqual(nonce, /'nonce-([^']+)'/.exec(page("/ext/dist/webview", "x"))?.[1], "a new nonce per page");
@@ -41,7 +41,7 @@ test("the page allows only its own nonce-tagged script and the webview's styles 
 
 test("the title and resource URIs are escaped, so they cannot inject markup", () => {
   const html = page('/odd "path" <dir>&co', "</title><script>alert(1)</script>");
-  assert.equal([...html.matchAll(/<script/g)].length, 1, "only the page's own script tag");
+  assert.equal([...html.matchAll(/<script/gi)].length, 1, "only the page's own script tag");
   assert.match(html, /<title>&#60;\/title&#62;&#60;script&#62;alert\(1\)&#60;\/script&#62;<\/title>/);
   assert.match(html, /src="https:\/\/webview.test\/odd &#34;path&#34; &#60;dir&#62;&#38;co\/main.js"/);
 });
