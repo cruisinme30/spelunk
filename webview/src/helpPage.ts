@@ -106,7 +106,9 @@ function operatorsSection(): HTMLElement {
     element(
       "p",
       { class: "muted" },
-      ...prose("Time windows for `since:` use a number and a unit: d days, w weeks, m months, y years."),
+      ...prose(
+        "Time windows for `since:` and `until:` use a number and a unit: d days, w weeks, m months, y years. Dates are 2026-09-30 or 2026-09, in your time zone.",
+      ),
     ),
   );
 }

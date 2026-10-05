@@ -13,11 +13,12 @@ const WORKSPACE = join(__dirname, "../../testdata/workspace");
 
 /**
  * Examples that may find nothing over the fixture: its repos have no .git,
- * so history search (author:, message:) has no commits, and since: on files
+ * so history search (author:, message:) has no commits, and since: and until: on files
  * falls back to file times, which depend on when the fixture was checked out.
  */
 const MAY_FIND_NOTHING = new Set([
   "since:2w timeout",
+  "until:2w timeout",
   "author:jane timeout",
   'message:"fix flaky"',
   String.raw`author:jane since:30d f:_test\.py$ timeout`,
@@ -33,7 +34,7 @@ test("every help example parses without diagnostics and finds results", { skip }
   try {
     await untilIndexed(daemon);
     const examples = allExamples();
-    assert.equal(examples.length, 27, "22 operator rows and 5 worked examples");
+    assert.equal(examples.length, 28, "23 operator rows and 5 worked examples");
     const withoutResults: string[] = [];
     for (const [index, text] of examples.entries()) {
       const { query } = await daemon.request("query/parse", { text, cursor: text.length });

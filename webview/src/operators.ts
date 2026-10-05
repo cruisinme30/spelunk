@@ -30,7 +30,7 @@ export interface OperatorGroup {
   entries: OperatorEntry[];
 }
 
-/** Every operator and piece of syntax: 22 entries in five groups. */
+/** Every operator and piece of syntax: 23 entries in five groups. */
 export const OPERATOR_GROUPS: OperatorGroup[] = [
   {
     name: "Matching",
@@ -209,12 +209,21 @@ export const OPERATOR_GROUPS: OperatorGroup[] = [
       },
       {
         operator: "since",
-        label: "since:today|2h|30d|6m",
+        label: "since:today|2h|30d|2026-09",
         insert: "since:",
-        summary: "Commits in the window, or files changed in it.",
+        summary: "Commits in the window or from a date, or files changed then.",
         description:
-          "Commits in the window, or files changed in it. today, yesterday, or a number with min, h, d, w, m (months) or y.",
+          "Commits in the window, or files changed in it. today, yesterday, a number with min, h, d, w, m (months) or y, or a date: 2026-09-30 starts at that day's midnight, 2026-09 at the month's first.",
         example: "since:2w timeout",
+      },
+      {
+        operator: "until",
+        label: "until:yesterday|2w|2026-09",
+        insert: "until:",
+        summary: "Commits up to a date or older than a window, or files last changed then.",
+        description:
+          "The other end of since: and the same values. A date or a month counts in full, so until:2026-09 keeps everything before October; until:2w keeps what is older than two weeks. since:2026-09 until:2026-09 is September.",
+        example: "until:2w timeout",
       },
     ],
   },
