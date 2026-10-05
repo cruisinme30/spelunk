@@ -96,9 +96,9 @@ export async function waitForSent(page, type, fields = {}) {
 export const fromHost = (page, type, payload) =>
   page.evaluate(([messageType, messagePayload]) => globalThis.__fromHost(messageType, messagePayload), [type, payload]);
 
-/** The host's first message to a new panel: an empty box, `recent` queries and UI_SETTINGS. */
-export const restore = (page, recent = []) =>
-  fromHost(page, "state.restore", { text: "", recent, settings: UI_SETTINGS });
+/** The host's first message to a new panel: an empty box, `recent` queries and UI_SETTINGS with `settings` over them. */
+export const restore = (page, recent = [], settings = {}) =>
+  fromHost(page, "state.restore", { text: "", recent, settings: { ...UI_SETTINGS, ...settings } });
 
 /** A ParsedQuery as the daemon would send it; `overrides` replaces any field. */
 export const parsedQuery = (raw, root, overrides = {}) => ({
@@ -109,6 +109,19 @@ export const parsedQuery = (raw, root, overrides = {}) => ({
   diagnostics: [],
   globals: { case: null, count: null, type: null },
   ...overrides,
+});
+
+/** "sinse:6m" with an unknown-operator error whose fix rewrites it to since:. */
+export const MISSPELT = parsedQuery("sinse:6m", null, {
+  diagnostics: [
+    {
+      severity: "error",
+      code: "unknown_operator",
+      message: "Unknown operator sinse:",
+      span: { start: 0, end: 6 },
+      fixes: [{ title: "Change to since:", edits: [{ span: { start: 0, end: 6 }, newText: "since:" }] }],
+    },
+  ],
 });
 
 /** A literal text term starting at `start`. */

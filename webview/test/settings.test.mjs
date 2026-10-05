@@ -7,9 +7,9 @@ import {
   openPanel,
   parsedQuery,
   QUERY,
+  restore,
   sentMessages,
   textNode,
-  UI_SETTINGS,
   useBrowser,
   waitForSent,
 } from "./harness.mjs";
@@ -19,7 +19,7 @@ useBrowser();
 test("the panel waits typingDelayMs after the last keystroke before it asks for a search", async (t) => {
   // @covers setting:typingDelayMs
   const page = await openPanel(t);
-  await fromHost(page, "state.restore", { text: "", recent: [], settings: { ...UI_SETTINGS, typingDelayMs: 300 } });
+  await restore(page, [], { typingDelayMs: 300 });
   await page.fill(QUERY, "retry");
   assert.equal((await sentMessages(page, "query.changed")).length, 0, "nothing is sent while typing");
   const sent = await waitForSent(page, "query.changed", { text: "retry" });
@@ -30,7 +30,7 @@ test("the parsed query is shown unless ui.showParsedQuery is off", async (t) => 
   // @covers setting:ui.showParsedQuery
   for (const showParsedQuery of [true, false]) {
     const page = await openPanel(t);
-    await fromHost(page, "state.restore", { text: "", recent: [], settings: { ...UI_SETTINGS, showParsedQuery } });
+    await restore(page, [], { showParsedQuery });
     await page.fill(QUERY, "retry");
     const { seq } = await waitForSent(page, "query.changed", { text: "retry" });
     await fromHost(page, "parse.result", { seq, query: parsedQuery("retry", textNode("retry", 0)), completions: [] });

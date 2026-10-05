@@ -9,6 +9,7 @@ import {
   FILE_NAME_RESULT,
   fromHost,
   lastSent,
+  MISSPELT,
   openPanel,
   openPanelWithSavedState,
   panelWithResults,
@@ -323,22 +324,7 @@ test("a parse result for an older seq is dropped and the newest one renders", as
 test("⌘. applies the first fix as a text edit followed by query.changed", async (t) => {
   const page = await openPanel(t);
   await restore(page);
-  const fix = { title: "Change to since:", edits: [{ span: { start: 0, end: 6 }, newText: "since:" }] };
-  await typeAndParse(
-    page,
-    "sinse:6m",
-    parsedQuery("sinse:6m", null, {
-      diagnostics: [
-        {
-          severity: "error",
-          code: "unknown_operator",
-          message: "Unknown operator sinse:",
-          span: { start: 0, end: 6 },
-          fixes: [fix],
-        },
-      ],
-    }),
-  );
+  await typeAndParse(page, "sinse:6m", MISSPELT);
   assert.equal(await page.locator('[data-code="unknown_operator"]').count(), 1);
   await page.keyboard.press("Control+.");
   assert.equal(await page.inputValue(QUERY), "since:6m");

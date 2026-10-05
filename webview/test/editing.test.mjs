@@ -8,6 +8,7 @@ import {
   CODE_LINE_RESULT,
   fromHost,
   lastSent,
+  MISSPELT,
   openPanel,
   parsedQuery,
   QUERY,
@@ -15,31 +16,17 @@ import {
   sentMessages,
   textNode,
   typeAndParse,
-  UI_SETTINGS,
   useBrowser,
   waitForSent,
 } from "./harness.mjs";
 
 useBrowser();
 
-/** "sinse:6m" with an unknown-operator error whose fix rewrites it to since:. */
-const MISSPELT = parsedQuery("sinse:6m", null, {
-  diagnostics: [
-    {
-      severity: "error",
-      code: "unknown_operator",
-      message: "Unknown operator sinse:",
-      span: { start: 0, end: 6 },
-      fixes: [{ title: "Change to since:", edits: [{ span: { start: 0, end: 6 }, newText: "since:" }] }],
-    },
-  ],
-});
-
 /** A panel with the real typing delay, so keystrokes reach the host only after a pause. */
 async function panelWithTypingDelay(t) {
   const page = await openPanel(t);
   await page.evaluate(() => document.querySelector('[data-testid="query"]').focus());
-  await fromHost(page, "state.restore", { text: "", recent: [], settings: { ...UI_SETTINGS, typingDelayMs: 300 } });
+  await restore(page, [], { typingDelayMs: 300 });
   return page;
 }
 
