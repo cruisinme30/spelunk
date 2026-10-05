@@ -46,7 +46,7 @@ var symbolSeeds = []string{
 // within the file, and names that appear on their line.
 func FuzzExtract(f *testing.F) {
 	for i, seed := range symbolSeeds {
-		f.Add(uint8(i), []byte(seed))
+		f.Add(uint8(i), []byte(seed)) //nolint:gosec // G115: there are far fewer than 256 seeds
 	}
 	names := languages()
 	kinds := []protocol.SymbolKind{class, iface, function, method, typeKind, otherKind}
