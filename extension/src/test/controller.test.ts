@@ -22,6 +22,7 @@ import type {
   OpenTarget,
   ParsedQuery,
   ParseResult,
+  PinnedQuery,
   ResultItem,
   RpcRequests,
   SearchResult,
@@ -72,6 +73,7 @@ function recordingUi() {
     restartDaemon: () => {},
     setContext: (key, value) => void (contextKeys[key] = value),
     saveState: () => {},
+    savePinned: () => {},
     showOpened: (position, total) => void shown.push(`${position} of ${total}`),
   };
   /** The payloads of every posted message of `type`, oldest first. */
@@ -83,6 +85,7 @@ function recordingUi() {
 function newController(backend: Backend, ui: Ui, options: Partial<ControllerOptions> = {}, initial?: PersistedState) {
   const defaults: ControllerOptions = {
     recentLimit: () => 20,
+    pinnedQueries: () => [],
     closeOnOpen: () => true,
     uiSettings: () => TEST_UI_SETTINGS,
     openFiles: () => [],
@@ -267,6 +270,42 @@ test("removing a recent query takes it off the list and keeps it off", async () 
     [["c", "a"]],
     "saved once, and not again for a query that isn't listed",
   );
+});
+
+test("pinning adds a query at the end, renames it when pinned already, and unpinning removes it", async () => {
+  // @covers msg:pinned.save
+  // @covers msg:pinned.remove
+  // @covers setting:ui.pinnedQueries
+  let pinned: PinnedQuery[] = [{ query: "sym:RetryPolicy" }];
+  const saves: PinnedQuery[][] = [];
+  const host = recordingUi();
+  const ui = {
+    ...host.ui,
+    savePinned: (list: PinnedQuery[]) => {
+      saves.push(list);
+      pinned = list;
+    },
+  };
+  const controller = newController(parseOnlyBackend().backend, ui, { pinnedQueries: () => structuredClone(pinned) });
+  const send = (message: WebviewMessage) => controller.handle(message);
+  const save = (payload: PinnedQuery) => send({ v: MESSAGE_VERSION, type: "pinned.save", payload });
+  const remove = (query: string) => send({ v: MESSAGE_VERSION, type: "pinned.remove", payload: { query } });
+
+  await save({ query: "  since:2w timeout " });
+  assert.deepEqual(pinned, [{ query: "sym:RetryPolicy" }, { query: "since:2w timeout" }], "trimmed, at the end");
+  await save({ query: "sym:RetryPolicy", name: " Retry policy " });
+  assert.deepEqual(pinned[0], { query: "sym:RetryPolicy", name: "Retry policy" }, "renamed in place");
+  await save({ query: "sym:RetryPolicy", name: "Retry policy" });
+  await save({ query: "   " });
+  await remove("not pinned");
+  assert.equal(saves.length, 2, "nothing saved when nothing changes");
+  await save({ query: "sym:RetryPolicy", name: "" });
+  assert.deepEqual(pinned[0], { query: "sym:RetryPolicy" }, "a blank name clears it");
+  await remove("since:2w timeout");
+  assert.deepEqual(pinned, [{ query: "sym:RetryPolicy" }]);
+
+  controller.restore();
+  assert.deepEqual(host.payloads("state.restore").at(-1)?.pinned, [{ query: "sym:RetryPolicy" }]);
 });
 
 test("a search typed while a repo was indexing runs again when the repo is ready", async () => {
@@ -467,6 +506,9 @@ test("malformed panel messages are dropped at the boundary, and well-formed ones
     { v: MESSAGE_VERSION, type: "results.more", payload: { searchId: "s1" } },
     { v: MESSAGE_VERSION, type: "help.try", payload: { query: null } },
     { v: MESSAGE_VERSION, type: "recent.remove", payload: {} },
+    { v: MESSAGE_VERSION, type: "pinned.save", payload: { name: "x" } },
+    { v: MESSAGE_VERSION, type: "pinned.save", payload: { query: "x", name: 5 } },
+    { v: MESSAGE_VERSION, type: "pinned.remove", payload: { query: null } },
   ]) {
     assert.equal(parseWebviewMessage(raw), undefined, JSON.stringify(raw));
   }

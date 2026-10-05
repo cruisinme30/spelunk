@@ -274,6 +274,29 @@
           "maximum": 100,
           "scope": "application",
           "description": "How many recent queries to remember."
+        },
+        "spelunk.ui.pinnedQueries": {
+          "type": "array",
+          "default": [],
+          "scope": "window",
+          "items": {
+            "type": "object",
+            "properties": {
+              "query": {
+                "type": "string",
+                "description": "The query, as typed in the search box."
+              },
+              "name": {
+                "type": "string",
+                "description": "What the empty box calls it; the query itself when left out."
+              }
+            },
+            "required": [
+              "query"
+            ],
+            "additionalProperties": false
+          },
+          "description": "Queries starred in the empty box, top first, each with an optional name. Set it in a workspace's settings to share the pins with everyone who opens the workspace; pinning then saves there."
         }
       }
     }

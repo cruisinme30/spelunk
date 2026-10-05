@@ -219,6 +219,8 @@ test("malformed host messages are dropped, and the panel keeps working", async (
     ["state.restore", {}],
     ["state.restore", { text: "", recent: "x" }],
     ["state.restore", { text: "", recent: [], settings: null }],
+    ["state.restore", { text: "", recent: [], pinned: [{ query: 5 }] }],
+    ["state.restore", { text: "", recent: [], pinned: [{ query: "a", name: null }] }],
     ["banner", null],
     ["parse.result", { seq: 1 }],
     ["search.batch", { seq: 1, searchId: "s1" }],

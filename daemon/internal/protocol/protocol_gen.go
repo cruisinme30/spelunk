@@ -869,6 +869,17 @@ type HelpTryMessage struct {
 	Query string `json:"query"`
 }
 
+// PinnedQuery is a query starred in the empty box, with the name it was given, if any.
+type PinnedQuery struct {
+	Query string `json:"query"`
+	Name  string `json:"name,omitempty"`
+}
+
+// PinnedRemoveMessage unpins a query.
+type PinnedRemoveMessage struct {
+	Query string `json:"query"`
+}
+
 // RecentRemoveMessage removes a query from the recent list.
 type RecentRemoveMessage struct {
 	Query string `json:"query"`
@@ -970,11 +981,12 @@ func (v IndexStatusMessage) MarshalJSON() ([]byte, error) {
 	return json.Marshal(p)
 }
 
-// StateRestoreMessage restores the panel's query, recent queries and settings.
+// StateRestoreMessage restores the panel's query, recent and pinned queries, and settings.
 type StateRestoreMessage struct {
-	Text     string      `json:"text"`
-	Recent   []string    `json:"recent"`
-	Settings *UiSettings `json:"settings,omitempty"`
+	Text     string        `json:"text"`
+	Recent   []string      `json:"recent"`
+	Pinned   []PinnedQuery `json:"pinned"`
+	Settings *UiSettings   `json:"settings,omitempty"`
 }
 
 // MarshalJSON emits [] rather than null for required arrays.
@@ -983,6 +995,9 @@ func (v StateRestoreMessage) MarshalJSON() ([]byte, error) {
 	p := plain(v)
 	if p.Recent == nil {
 		p.Recent = []string{}
+	}
+	if p.Pinned == nil {
+		p.Pinned = []PinnedQuery{}
 	}
 	return json.Marshal(p)
 }
@@ -1039,6 +1054,8 @@ const (
 	MsgReady           = "ready"
 	MsgDaemonRestart   = "daemon.restart"
 	MsgRecentRemove    = "recent.remove"
+	MsgPinnedSave      = "pinned.save"
+	MsgPinnedRemove    = "pinned.remove"
 	MsgParseResult     = "parse.result"
 	MsgSearchBatch     = "search.batch"
 	MsgSearchDone      = "search.done"

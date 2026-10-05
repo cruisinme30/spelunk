@@ -98,9 +98,12 @@ export async function waitForSent(page, type, fields = {}) {
 export const fromHost = (page, type, payload) =>
   page.evaluate(([messageType, messagePayload]) => globalThis.__fromHost(messageType, messagePayload), [type, payload]);
 
-/** The host's first message to a new panel: an empty box, `recent` queries and UI_SETTINGS with `settings` over them. */
-export const restore = (page, recent = [], settings = {}) =>
-  fromHost(page, "state.restore", { text: "", recent, settings: { ...UI_SETTINGS, ...settings } });
+/**
+ * The host's first message to a new panel: an empty box, `recent` queries,
+ * UI_SETTINGS with `settings` over them, and `pinned` queries.
+ */
+export const restore = (page, recent = [], settings = {}, pinned = []) =>
+  fromHost(page, "state.restore", { text: "", recent, pinned, settings: { ...UI_SETTINGS, ...settings } });
 
 /** The end of search "s1" for `seq`: nothing found, hidden or truncated, unless `fields` says otherwise. */
 export const searchDone = (page, seq, fields = {}) =>

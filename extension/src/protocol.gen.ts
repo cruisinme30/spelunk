@@ -481,6 +481,17 @@ export interface HelpTryMessage {
   query: string;
 }
 
+/** PinnedQuery is a query starred in the empty box, with the name it was given, if any. */
+export interface PinnedQuery {
+  query: string;
+  name?: string;
+}
+
+/** PinnedRemoveMessage unpins a query. */
+export interface PinnedRemoveMessage {
+  query: string;
+}
+
 /** RecentRemoveMessage removes a query from the recent list. */
 export interface RecentRemoveMessage {
   query: string;
@@ -542,10 +553,11 @@ export interface IndexStatusMessage {
   repos: RepoStatus[];
 }
 
-/** StateRestoreMessage restores the panel's query, recent queries and settings. */
+/** StateRestoreMessage restores the panel's query, recent and pinned queries, and settings. */
 export interface StateRestoreMessage {
   text: string;
   recent: string[];
+  pinned: PinnedQuery[];
   settings?: UiSettings;
 }
 
@@ -605,6 +617,8 @@ export interface WebviewToHost {
   "ready": Empty;
   "daemon.restart": Empty;
   "recent.remove": RecentRemoveMessage;
+  "pinned.save": PinnedQuery;
+  "pinned.remove": PinnedRemoveMessage;
 }
 
 /** Search panel messages, host->webview: type -> payload. */

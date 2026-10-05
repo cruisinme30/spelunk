@@ -1,5 +1,11 @@
 // Maps the spelunk.* configuration to protocol types.
-import type { CaseSetting, Settings, UiSettings, WelcomeStateMessage as WelcomeState } from "./protocol.gen";
+import type {
+  CaseSetting,
+  PinnedQuery,
+  Settings,
+  UiSettings,
+  WelcomeStateMessage as WelcomeState,
+} from "./protocol.gen";
 
 /** Anything shaped like VS Code's WorkspaceConfiguration.get. */
 export interface ConfigReader {
@@ -135,6 +141,26 @@ export function recentQueriesLimit(config: ConfigReader): number {
     MAX_RECENT_QUERIES,
     DEFAULTS.recentQueries,
   );
+}
+
+/**
+ * The pinned queries, in the order they were pinned. An entry without a
+ * query is dropped, a blank name counts as none, and a query pinned twice
+ * keeps its first entry.
+ */
+export function pinnedQueries(config: ConfigReader): PinnedQuery[] {
+  const saved = config.get<unknown>("ui.pinnedQueries", []);
+  if (!Array.isArray(saved)) return [];
+  const pinned = new Map<string, PinnedQuery>();
+  for (const entry of saved as unknown[]) {
+    if (typeof entry !== "object" || entry === null) continue;
+    const { query, name } = entry as Record<string, unknown>;
+    const text = typeof query === "string" ? query.trim() : "";
+    if (!text || pinned.has(text)) continue;
+    const label = typeof name === "string" ? name.trim() : "";
+    pinned.set(text, label ? { query: text, name: label } : { query: text });
+  }
+  return [...pinned.values()];
 }
 
 /** Whether opening a result closes the search panel. */

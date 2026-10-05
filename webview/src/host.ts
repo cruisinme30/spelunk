@@ -45,10 +45,12 @@ const HAS_REQUIRED_FIELDS: Record<keyof HostToWebview, (payload: Fields) => bool
   "search.done": ({ seq, searchId, hidden }) => isNumber(seq) && isString(searchId) && isObjectArray(hidden),
   "preview.result": ({ ref, preview }) => isString(ref) && (preview === null || isObject(preview)),
   "index.status": ({ repos }) => isObjectArray(repos) && repos.every((repo) => isString(repo["name"])),
-  "state.restore": ({ text, recent, settings }) =>
+  "state.restore": ({ text, recent, pinned, settings }) =>
     isString(text) &&
     Array.isArray(recent) &&
     recent.every((query) => isString(query)) &&
+    isObjectArray(pinned) &&
+    pinned.every(({ query, name }) => isString(query) && (name === undefined || isString(name))) &&
     (settings === undefined || isObject(settings)),
   banner: ({ state }) => isString(state),
   focus: () => true,

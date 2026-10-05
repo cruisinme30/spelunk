@@ -10,6 +10,7 @@ import {
   type OpenTarget,
   type OpenWhere,
   type ParsedQuery,
+  type PinnedQuery,
   type QueryChangedMessage,
   type ResultItem,
   type RpcRequests,
@@ -64,6 +65,8 @@ export interface Ui {
   restartDaemon(): void;
   setContext(key: string, value: boolean): void;
   saveState(state: PersistedState): void;
+  /** Saves the pinned queries to spelunk.ui.pinnedQueries. */
+  savePinned(pinned: PinnedQuery[]): void;
   /** Says which result is open, `position` of `total` (1-based), once one was opened from search or F4. */
   showOpened(position: number, total: number): void;
 }
@@ -77,6 +80,8 @@ export interface PersistedState {
 /** Settings the controller reads each time it needs them, so changes apply at once. */
 export interface ControllerOptions {
   recentLimit(): number;
+  /** spelunk.ui.pinnedQueries, checked. */
+  pinnedQueries(): PinnedQuery[];
   closeOnOpen(): boolean;
   uiSettings(): UiSettings;
   /** The absolute paths of the files open in editor tabs, for is:open. */
@@ -161,7 +166,7 @@ export class SearchController {
   }
 
   /**
-   * Sends the box text, recent queries, settings and each repo's indexing to a
+   * Sends the box text, recent and pinned queries, settings and each repo's indexing to a
    * (re)opened panel. A given query replaces the text.
    */
   restore(query?: string): void {
@@ -169,6 +174,7 @@ export class SearchController {
     this.ui.post("state.restore", {
       text: this.state.text,
       recent: this.state.recent,
+      pinned: this.options.pinnedQueries(),
       settings: this.options.uiSettings(),
     });
     if (this.lastProgress) this.ui.post("index.status", this.lastProgress);
@@ -223,6 +229,14 @@ export class SearchController {
         this.forgetQuery(message.payload.query);
         return;
       }
+      case "pinned.save": {
+        this.pin(message.payload);
+        return;
+      }
+      case "pinned.remove": {
+        this.unpin(message.payload.query);
+        return;
+      }
     }
   }
 
@@ -251,6 +265,27 @@ export class SearchController {
     if (recent.length === this.state.recent.length) return;
     this.state.recent = recent;
     this.ui.saveState(this.state);
+  }
+
+  /** Pins a query at the end of the pinned list, or renames it if it is pinned already. A blank name is none. */
+  private pin({ query, name }: PinnedQuery): void {
+    const text = query.trim();
+    if (!text) return;
+    const label = name?.trim();
+    const entry = label ? { query: text, name: label } : { query: text };
+    const pinned = this.options.pinnedQueries();
+    const index = pinned.findIndex((kept) => kept.query === text);
+    if (index === -1) pinned.push(entry);
+    else if (pinned[index]?.name === entry.name) return;
+    else pinned[index] = entry;
+    this.ui.savePinned(pinned);
+  }
+
+  /** Unpins a query. */
+  private unpin(query: string): void {
+    const pinned = this.options.pinnedQueries();
+    const kept = pinned.filter((entry) => entry.query !== query);
+    if (kept.length !== pinned.length) this.ui.savePinned(kept);
   }
 
   /** Parses the box, posts the parse, then searches it unless it has errors or is empty. */

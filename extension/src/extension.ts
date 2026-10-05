@@ -17,6 +17,7 @@ import type {
   IndexStatusResult,
   OpenTarget,
   OpenWhere,
+  PinnedQuery,
   ResultItem,
   Root,
   WelcomeChooseMessage as WelcomeChoice,
@@ -27,6 +28,7 @@ import {
   closeOnOpen,
   daemonSettings,
   migratedCaseSetting,
+  pinnedQueries,
   recentQueriesLimit,
   uiSettings,
   welcomeSettings,
@@ -234,6 +236,18 @@ async function migrateCaseSetting(): Promise<void> {
   }
 }
 
+/**
+ * Writes spelunk.ui.pinnedQueries where the list in use comes from: the
+ * workspace's settings when they set it (so a shared list stays shared),
+ * otherwise the user's. The settings change then refreshes the panel.
+ */
+async function savePinned(pinned: PinnedQuery[]): Promise<void> {
+  const config = configuration();
+  const inWorkspace = config.inspect("ui.pinnedQueries")?.workspaceValue !== undefined;
+  const target = inWorkspace ? vscode.ConfigurationTarget.Workspace : vscode.ConfigurationTarget.Global;
+  await config.update("ui.pinnedQueries", pinned.length > 0 ? pinned : undefined, target);
+}
+
 /** Stops the daemon gracefully when VS Code shuts the extension down. */
 export async function deactivate(): Promise<void> {
   await activeDaemon?.stop();
@@ -270,6 +284,7 @@ function setContext(key: string, value: boolean): void {
 function controllerOptions(): ControllerOptions {
   return {
     recentLimit: () => recentQueriesLimit(configuration()),
+    pinnedQueries: () => pinnedQueries(configuration()),
     closeOnOpen: () => closeOnOpen(configuration()),
     uiSettings: () => uiSettings(configuration()),
     openFiles: openEditorFiles,
@@ -315,6 +330,9 @@ function createUi({ panel, daemon, commitDocuments, openedStatus, globalState, l
     restartDaemon: () => void daemon.restart().catch(logError("daemon restart")),
     setContext,
     saveState: (state) => void globalState.update(STATE_KEY, state),
+    savePinned: (pinned) => {
+      savePinned(pinned).catch(logError("settings"));
+    },
     showOpened: (position, total) => {
       openedStatus.text = `$(search) Opened from search · result ${position} of ${total}`;
       openedStatus.show();

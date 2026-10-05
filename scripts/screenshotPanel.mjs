@@ -19,7 +19,8 @@
 //   --help-page         render the help page instead of the search panel
 //   --out <file>        where to save the PNG (default: panel.png)
 //   --select <n>        press ↓ n times after the results arrive, to preview a result
-//   --setting <k=v>     a spelunk.* setting, e.g. caseSensitive=smart; v is read as JSON when it parses (repeatable)
+//   --setting <k=v>     a spelunk.* setting, e.g. caseSensitive=smart; v is read as JSON when it parses (repeatable),
+//                       so --setting 'ui.pinnedQueries=[{"query":"sym:RetryPolicy"}]' pins a query
 //   --workspace <dir>   a folder of repos, one root per subfolder (default: testdata/workspace)
 //   --width, --height   the panel size in pixels (default: 1200 × 720)
 //
@@ -138,6 +139,7 @@ async function connectPanel(page, host, daemon) {
     showOpened: () => {},
     setContext: () => {},
     saveState: () => {},
+    savePinned: () => {},
   };
   const openFiles = args.open.map((path) => join(args.workspace, path));
   // The extension's settings, minus the typing delay, so each keystroke searches at once.
@@ -145,7 +147,13 @@ async function connectPanel(page, host, daemon) {
   const controller = new host.SearchController(
     daemon,
     ui,
-    { recentLimit: () => 20, closeOnOpen: () => false, uiSettings: () => uiSettings, openFiles: () => openFiles },
+    {
+      recentLimit: () => 20,
+      pinnedQueries: () => host.pinnedQueries(configured),
+      closeOnOpen: () => false,
+      uiSettings: () => uiSettings,
+      openFiles: () => openFiles,
+    },
     { text: "", recent: args.recent },
   );
   daemon.on("progress", (progress) => ui.post("index.status", progress));
@@ -197,7 +205,7 @@ async function loadHost() {
         'export { SearchController } from "./controller";',
         'export { Daemon } from "./daemon";',
         'export { makeRoot } from "./roots";',
-        'export { daemonSettings, uiSettings } from "./settings";',
+        'export { daemonSettings, pinnedQueries, uiSettings } from "./settings";',
       ].join("\n"),
       resolveDir: join(repoRoot, "extension/src"),
       loader: "ts",

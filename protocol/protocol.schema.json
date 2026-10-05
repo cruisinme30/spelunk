@@ -1251,6 +1251,29 @@
       },
       "required": ["query"]
     },
+    "PinnedQuery": {
+      "description": "PinnedQuery is a query starred in the empty box, with the name it was given, if any.",
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": ["query"]
+    },
+    "PinnedRemoveMessage": {
+      "description": "PinnedRemoveMessage unpins a query.",
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string"
+        }
+      },
+      "required": ["query"]
+    },
     "RecentRemoveMessage": {
       "description": "RecentRemoveMessage removes a query from the recent list.",
       "type": "object",
@@ -1409,7 +1432,7 @@
       "required": ["repos"]
     },
     "StateRestoreMessage": {
-      "description": "StateRestoreMessage restores the panel's query, recent queries and settings.",
+      "description": "StateRestoreMessage restores the panel's query, recent and pinned queries, and settings.",
       "type": "object",
       "properties": {
         "text": {
@@ -1421,11 +1444,17 @@
             "type": "string"
           }
         },
+        "pinned": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/PinnedQuery"
+          }
+        },
         "settings": {
           "$ref": "#/$defs/UiSettings"
         }
       },
-      "required": ["text", "recent"]
+      "required": ["text", "recent", "pinned"]
     },
     "UiSettings": {
       "description": "UiSettings are the UI-facing settings the host forwards to the webview.",
@@ -1597,6 +1626,14 @@
     "recent.remove": {
       "direction": "webview->host",
       "payload": "RecentRemoveMessage"
+    },
+    "pinned.save": {
+      "direction": "webview->host",
+      "payload": "PinnedQuery"
+    },
+    "pinned.remove": {
+      "direction": "webview->host",
+      "payload": "PinnedRemoveMessage"
     },
     "parse.result": {
       "direction": "host->webview",

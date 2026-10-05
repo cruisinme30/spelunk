@@ -210,6 +210,8 @@ increases with each keystroke. Any response carrying an older `seq` than the new
 | `results.more` | `{ searchId, cursor }` | Calls `search/start` with the cursor to load the next page |
 | `panel.close` | `{}` | Hides the panel and keeps the last query and results |
 | `help.open` / `settings.open` | `{}` | Opens the help tab, or Settings filtered to `@ext:spelunk` |
+| `pinned.save` | `{ query, name? }` | Pins the query at the end of `spelunk.ui.pinnedQueries`, or renames it if it is pinned |
+| `pinned.remove` | `{ query }` | Unpins the query |
 
 Debouncing lives in the webview, using `typingDelayMs`. Applying a fix-it, accepting a completion and toggling Aa or
 `.*` are text edits done in the webview, followed by a normal `query.changed`.
@@ -223,7 +225,7 @@ Debouncing lives in the webview, using `typingDelayMs`. Applying a fix-it, accep
 | `search.done` | `{ seq, searchId, total, truncated, nextCursor?, hidden: HiddenNote[], ms }` | Counts, "Load more", and the "N hidden by …" notes |
 | `preview.result` | `{ ref, preview: Preview }` | Right-hand pane |
 | `index.status` | `{ repos: RepoStatus[] }` | Header dot, indexing banner (mock 14) |
-| `state.restore` | `{ text, recent: string[] }` | Reopening the panel where you left it |
+| `state.restore` | `{ text, recent: string[], pinned: PinnedQuery[], settings? }` | Reopening the panel where you left it, and settings changes |
 
 The shared types `ResultItem`, `Preview`, `HiddenNote`, `Completion` and `RepoStatus` are defined once in Contract 3 and
 used unchanged here.
@@ -483,6 +485,7 @@ sync and per-workspace overrides. The extension builds no settings screen of its
 | `spelunk.index.location` | string, path | `~/.spelunk/index` | machine |
 | `spelunk.ui.showParsedQuery` | boolean | `true` | application |
 | `spelunk.ui.recentQueries` | integer, 0–100 | `20` | application |
+| `spelunk.ui.pinnedQueries` | `{ query, name? }[]` | `[]` | window |
 
 `resource` settings can differ per repo through `.vscode/settings.json`. `machine` settings never sync, because index
 paths differ between computers.

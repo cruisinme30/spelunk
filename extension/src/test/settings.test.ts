@@ -6,6 +6,7 @@ import {
   closeOnOpen,
   daemonSettings,
   migratedCaseSetting,
+  pinnedQueries,
   recentQueriesLimit,
   uiSettings,
   welcomeSettings,
@@ -135,4 +136,26 @@ test("panel settings of the wrong type fall back to their defaults", () => {
   assert.equal(recentQueriesLimit(configWith({ "ui.recentQueries": -3 })), 0);
   assert.equal(recentQueriesLimit(configWith({ "ui.recentQueries": 2.6 })), 3);
   assert.equal(uiSettings(configWith({ typingDelayMs: Number.POSITIVE_INFINITY })).typingDelayMs, 120);
+});
+
+test("pinned queries keep their order, drop bad entries and blank names, and keep a query once", () => {
+  const config = configWith({
+    "ui.pinnedQueries": [
+      { query: " sym:RetryPolicy ", name: " Retry policy " },
+      { query: "since:2w timeout", name: "  " },
+      { query: "sym:RetryPolicy", name: "again" },
+      { query: "" },
+      { name: "no query" },
+      "a string",
+      null,
+      { query: "retry", name: 7 },
+    ],
+  });
+  assert.deepEqual(pinnedQueries(config), [
+    { query: "sym:RetryPolicy", name: "Retry policy" },
+    { query: "since:2w timeout" },
+    { query: "retry" },
+  ]);
+  assert.deepEqual(pinnedQueries(configWith({ "ui.pinnedQueries": "nope" })), []);
+  assert.deepEqual(pinnedQueries(configWith({})), []);
 });
