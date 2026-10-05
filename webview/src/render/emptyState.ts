@@ -186,6 +186,7 @@ function renderRecent(state: ViewState, handlers: EmptyStateHandlers): HTMLEleme
 function sheetCard(group: OperatorGroup, onInsert: (snippet: string) => void): HTMLElement {
   const tone = `tone-${group.tone}`;
   const entries = group.entries.map((entry) => {
+    const short = shortName(entry);
     const button = element(
       "button",
       { type: "button", class: "sheet-entry", "data-testid": "sheet-op" },
@@ -193,7 +194,7 @@ function sheetCard(group: OperatorGroup, onInsert: (snippet: string) => void): H
         "span",
         { class: "sheet-names" },
         element("code", { class: tone }, entry.label),
-        shortName(entry) ? element("code", { class: "muted" }, shortName(entry)) : null,
+        short ? element("code", { class: "muted" }, short) : null,
       ),
       element("span", { class: "muted" }, entry.summary),
     );
