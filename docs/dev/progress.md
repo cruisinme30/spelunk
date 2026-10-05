@@ -230,3 +230,22 @@ banners, daemon restarts; per-platform `.vsix` on the Marketplace and Open VSX.
 | Budgets | `scripts/checkBudgets.mjs` on Prometheus: every search's first result well under its budget (under 3 ms for current files, under 1 ms for history), the working tree indexed in 1.6 s, history read in 18–31 s with the newest commits searchable within 11 s. The release workflow repeats the check before it publishes |
 
 Spec coverage at sign-off: 119/119 (`node scripts/specCoverage.mjs --strict` passes).
+
+## Screenshots for the remaining mocks
+
+Rendered by `scripts/screenshotPanel.mjs` over a copy of `testdata/workspace` with a few weeks of commits by Jane Doe,
+Jason Kim and Marta Ruiz, and one uncommitted edit:
+
+| Mock | Query | Screenshot |
+| --- | --- | --- |
+| 6 | `timeout author:ja` | [value-suggestions.png](proof/value-suggestions.png) |
+| 7 | `author:jane (timeout OR retry) -f:vendor/ since:6m` | [boolean-history.png](proof/boolean-history.png) |
+| 10 | `since:2w timeout` | [since-on-files.png](proof/since-on-files.png) |
+| 11 | `msg:"fix flaky" repo:web count:3` | [message-repo-count.png](proof/message-repo-count.png) |
+| 20 | `timeout since:` | [since-values.png](proof/since-values.png) |
+| 21 | `timeout f:` | [path-values.png](proof/path-values.png) |
+| 22 | `timeout lang:` | [other-values.png](proof/other-values.png) |
+| 23 | `author:jane retry` | [words-in-messages.png](proof/words-in-messages.png) |
+
+Mocks 16 (the opened file) and 18 (Settings) are VS Code's own editor and Settings UI, which the tool can't draw
+without VS Code, so they have no screenshot.
