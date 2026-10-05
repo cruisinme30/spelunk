@@ -7,12 +7,11 @@ import "github.com/cruisinme30/spelunk/daemon/internal/query"
 // one over each commit's message. It is immutable once built.
 type TextIndex struct {
 	postings map[uint32][]uint32
-	size     int
 }
 
 // NewTextIndex indexes texts; each text's id is its position in texts.
 func NewTextIndex(texts [][]byte) *TextIndex {
-	ix := &TextIndex{postings: map[uint32][]uint32{}, size: len(texts)}
+	ix := &TextIndex{postings: map[uint32][]uint32{}}
 	for i, text := range texts {
 		addTrigrams(ix.postings, uint32(i), text) //nolint:gosec // G115: callers index far fewer than 2^32 texts
 	}
@@ -24,9 +23,6 @@ func NewTextIndex(texts [][]byte) *TextIndex {
 func (ix *TextIndex) Candidates(literal string, caseSensitive bool) []uint32 {
 	return candidates(ix.postings, literal, caseSensitive)
 }
-
-// Size is how many texts the index holds.
-func (ix *TextIndex) Size() int { return ix.size }
 
 // LineFinder finds the lines of texts that text terms match, exactly as
 // searches match the lines of files. Share one across a search's texts:

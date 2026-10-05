@@ -25,7 +25,6 @@ type WalkOptions struct {
 // File is one file chosen for indexing.
 type File struct {
 	Path string // slash-separated, relative to the repo root
-	Size int64
 }
 
 // ListFiles returns the files under root to index, sorted by path. In a Git
@@ -67,7 +66,7 @@ func ListFiles(ctx context.Context, root string, opts WalkOptions) ([]File, erro
 		if isBinaryFile(full) {
 			continue
 		}
-		files = append(files, File{Path: path, Size: info.Size()})
+		files = append(files, File{Path: path})
 	}
 	sort.Slice(files, func(i, j int) bool { return files[i].Path < files[j].Path })
 	return files, nil
@@ -124,7 +123,7 @@ func SelectFiles(ctx context.Context, root string, paths []string, opts WalkOpti
 		if err != nil || !info.Mode().IsRegular() || opts.MaxFileBytes > 0 && info.Size() > opts.MaxFileBytes || isBinaryFile(full) {
 			continue
 		}
-		files = append(files, File{Path: path, Size: info.Size()})
+		files = append(files, File{Path: path})
 	}
 	sort.Slice(files, func(i, j int) bool { return files[i].Path < files[j].Path })
 	return files
