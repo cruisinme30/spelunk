@@ -100,11 +100,11 @@ export const OPERATOR_GROUPS: OperatorGroup[] = [
     entries: [
       {
         operator: "f",
-        label: "f:",
-        insert: "f:",
+        label: "file:",
+        insert: "file:",
         summary: "Regex or glob (*.go) on the file path.",
         description: String.raw`A regex on the full file path (\.go$), or a glob (*.go, src/**/*.ts).`,
-        example: String.raw`f:.*test\.py$ timeout`,
+        example: String.raw`file:.*test\.py$ timeout`,
       },
       {
         operator: "repo",
@@ -116,11 +116,11 @@ export const OPERATOR_GROUPS: OperatorGroup[] = [
       },
       {
         operator: "lang",
-        label: "lang:",
-        insert: "lang:",
+        label: "language:",
+        insert: "language:",
         summary: "python, ts, go and so on.",
         description: "Only files in this language.",
-        example: "lang:python retry",
+        example: "language:python retry",
       },
       {
         operator: "type",
@@ -132,11 +132,11 @@ export const OPERATOR_GROUPS: OperatorGroup[] = [
       },
       {
         operator: "sym",
-        label: "sym:",
-        insert: "sym:",
+        label: "symbol:",
+        insert: "symbol:",
         summary: "Class, function and method definitions.",
         description: "Where a class, function or method is defined. Current files only.",
-        example: "sym:RetryPolicy",
+        example: "symbol:RetryPolicy",
       },
     ],
   },
@@ -154,11 +154,11 @@ export const OPERATOR_GROUPS: OperatorGroup[] = [
       },
       {
         operator: "msg",
-        label: "msg:",
-        insert: "msg:",
+        label: "message:",
+        insert: "message:",
         summary: "Words in the commit message.",
         description: "Words in the commit message.",
-        example: 'msg:"fix flaky"',
+        example: 'message:"fix flaky"',
       },
       {
         operator: "since",
@@ -204,9 +204,9 @@ export const OPERATOR_TONE: Record<OpName, Tone> = {
 
 /** How each operator reads in the parsed-query chips. */
 export const OPERATOR_CHIP_LABEL: Record<OpName, string> = {
-  f: "path",
+  f: "file",
   repo: "repo",
-  lang: "lang",
+  lang: "language",
   type: "type",
   sym: "symbol",
   author: "author",
@@ -216,13 +216,40 @@ export const OPERATOR_CHIP_LABEL: Record<OpName, string> = {
   count: "count",
 };
 
-/** The reference entry for an operator name such as "since". */
-export function operatorEntry(operator: string): OperatorEntry | undefined {
+/** The two spellings of each operator: file: and f:. The daemon also accepts the OpName itself (lang:, sym:, msg:). */
+const OPERATOR_NAMES: Record<OpName, { full: string; short: string }> = {
+  f: { full: "file", short: "f" },
+  repo: { full: "repo", short: "r" },
+  lang: { full: "language", short: "l" },
+  type: { full: "type", short: "t" },
+  sym: { full: "symbol", short: "s" },
+  author: { full: "author", short: "a" },
+  msg: { full: "message", short: "m" },
+  since: { full: "since", short: "d" },
+  case: { full: "case", short: "c" },
+  count: { full: "count", short: "n" },
+};
+
+/** The operator a typed name stands for, in any spelling: "f", "file" → "f". */
+export function opNameFor(spelling: string): OpName | undefined {
+  return (Object.keys(OPERATOR_NAMES) as OpName[]).find(
+    (op) => op === spelling || OPERATOR_NAMES[op].full === spelling || OPERATOR_NAMES[op].short === spelling,
+  );
+}
+
+/** An entry's short name, "f:", shown beside its full name; absent for syntax. */
+export function shortName(entry: OperatorEntry): string | undefined {
+  return entry.operator ? `${OPERATOR_NAMES[entry.operator].short}:` : undefined;
+}
+
+/** The reference entry for an operator name in any spelling, such as "since" or "d". */
+export function operatorEntry(spelling: string): OperatorEntry | undefined {
+  const operator = opNameFor(spelling);
   return OPERATOR_GROUPS.flatMap((group) => group.entries).find((entry) => entry.operator === operator);
 }
 
 /** The tone for a completion label such as "since:" (anything that isn't an operator reads as logic). */
 export function toneForLabel(label: string): Tone {
-  const name = label.replace(/:.*$/, "");
-  return name in OPERATOR_TONE ? OPERATOR_TONE[name as OpName] : "logic";
+  const operator = opNameFor(label.replace(/:.*$/, ""));
+  return operator ? OPERATOR_TONE[operator] : "logic";
 }

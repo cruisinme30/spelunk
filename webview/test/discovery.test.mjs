@@ -258,6 +258,19 @@ test("the help page lists every operator with an example, and Try runs it", asyn
   const page = await openHelp(t);
   assert.equal(await page.locator('[data-testid="operator-row"]').count(), 16);
   assert.equal(await page.locator('[data-testid="example"]').count(), 5);
+  // Each operator reads by its full name, with its short name beside it.
+  assert.deepEqual(await page.locator('[data-testid="short-name"]').allTextContents(), [
+    "c:",
+    "f:",
+    "r:",
+    "l:",
+    "t:",
+    "s:",
+    "a:",
+    "m:",
+    "d:",
+    "n:",
+  ]);
   await page.locator('[data-testid="operator-row"]').first().locator('[data-testid="try"]').click();
   assert.deepEqual(await lastSent(page, "help.try"), { query: "case:yes RetryPolicy" });
   await page.click('[data-testid="open-settings"]');

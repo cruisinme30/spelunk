@@ -1,6 +1,6 @@
 // The empty box: recent queries and the operator cheat sheet.
 import { element } from "../format";
-import { OPERATOR_GROUPS, type OperatorGroup } from "../operators";
+import { OPERATOR_GROUPS, type OperatorGroup, shortName } from "../operators";
 import type { ViewState } from "../state";
 
 /** A small clock, marking a recent query. */
@@ -89,6 +89,7 @@ function sheetCard(group: OperatorGroup, onInsert: (snippet: string) => void): H
       "button",
       { type: "button", class: "sheet-entry", "data-testid": "sheet-op" },
       element("code", { class: tone }, entry.label),
+      shortName(entry) ? element("code", { class: "muted" }, shortName(entry)) : null,
       element("span", { class: "muted" }, entry.summary),
     );
     button.addEventListener("click", () => {

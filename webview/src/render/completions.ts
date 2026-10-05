@@ -3,7 +3,7 @@
 // and a glimpse of the results, which keep updating without that word.
 import { element, highlight, plural, trimIndent } from "../format";
 import type { Layout } from "../layout";
-import { operatorEntry, toneForLabel } from "../operators";
+import { opNameFor, operatorEntry, toneForLabel } from "../operators";
 import { textTerms } from "../parsedQuery";
 import type { Completion, OpName, ResultItem } from "../protocol.gen";
 import type { ViewState } from "../state";
@@ -17,7 +17,7 @@ const VALUE_LISTS: Partial<Record<OpName, { heading: string; hint?: string }>> =
     heading: "Time windows",
     hint: "Or type a number and a unit: 45min, 3h, 10d, 3w, 2m, 1y. m is months; minutes are min.",
   },
-  f: { heading: "Paths", hint: String.raw`f: takes a glob (*.go, src/**/*.ts) or a regex (_test\.py$).` },
+  f: { heading: "Paths", hint: String.raw`file: takes a glob (*.go, src/**/*.ts) or a regex (_test\.py$).` },
   repo: { heading: "Repos", hint: "repo: also takes a glob (web-*) or a regex (^pay)." },
   lang: { heading: "Languages" },
   type: { heading: "Result kinds" },
@@ -62,7 +62,8 @@ export function renderCompletions(
   const typed = typedWord(input.value, first);
   // Values replace the whole operator ("since:2" → "since:2h"); the operator comes before the colon.
   const operator = first.group === "operator" ? undefined : typed.slice(0, typed.indexOf(":"));
-  const list = operator === undefined ? undefined : VALUE_LISTS[operator as OpName];
+  const name = operator === undefined ? undefined : opNameFor(operator);
+  const list = name === undefined ? undefined : VALUE_LISTS[name];
   completions.append(
     element("div", { class: "completion-group", role: "presentation" }, listHeading(typed, operator, list?.heading)),
     ...state.completions.flatMap((completion, index) => {

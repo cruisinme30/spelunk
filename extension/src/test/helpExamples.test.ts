@@ -13,13 +13,13 @@ const WORKSPACE = join(__dirname, "../../testdata/workspace");
 
 /**
  * Examples that may find nothing over the fixture: its repos have no .git,
- * so history search (author:, msg:) has no commits, and since: on files
+ * so history search (author:, message:) has no commits, and since: on files
  * falls back to file times, which depend on when the fixture was checked out.
  */
 const MAY_FIND_NOTHING = new Set([
   "since:2w timeout",
   "author:jane timeout",
-  'msg:"fix flaky"',
+  'message:"fix flaky"',
   String.raw`author:jane since:30d f:_test\.py$ timeout`,
   'msg:"fix flaky" repo:web',
 ]);

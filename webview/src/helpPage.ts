@@ -4,7 +4,7 @@
 import { element } from "./format";
 import { BASICS, COMBINING, EXAMPLES, KEYS } from "./helpContent";
 import { send } from "./host";
-import { OPERATOR_GROUPS, type OperatorGroup } from "./operators";
+import { OPERATOR_GROUPS, type OperatorEntry, type OperatorGroup, shortName } from "./operators";
 
 const SECTIONS: [id: string, title: string][] = [
   ["basics", "Basics"],
@@ -50,7 +50,7 @@ function operatorTable(groups: OperatorGroup[]): HTMLElement {
         element(
           "tr",
           { "data-testid": "operator-row" },
-          element("td", {}, element("code", { class: tone }, entry.label)),
+          element("td", {}, element("code", { class: tone }, entry.label), ...shortTag(entry)),
           element("td", {}, entry.description),
           element("td", {}, element("code", {}, entry.example)),
           element("td", {}, tryButton(entry.example)),
@@ -60,6 +60,12 @@ function operatorTable(groups: OperatorGroup[]): HTMLElement {
   }
   const headings = ["Operator", "What it does", "Example", ""].map((heading) => element("th", {}, heading));
   return element("table", { class: "operator-table" }, element("thead", {}, element("tr", {}, ...headings)), body);
+}
+
+/** " or f:" after a full name; nothing for syntax. */
+function shortTag(entry: OperatorEntry): (Node | string)[] {
+  const short = shortName(entry);
+  return short ? [" or ", element("code", { class: "muted", "data-testid": "short-name" }, short)] : [];
 }
 
 function section(id: string, title: string, ...children: (Node | null)[]): HTMLElement {
