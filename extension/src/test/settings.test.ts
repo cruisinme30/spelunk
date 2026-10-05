@@ -5,6 +5,7 @@ import { rootId } from "../roots";
 import {
   closeOnOpen,
   daemonSettings,
+  migratedCaseSetting,
   recentQueriesLimit,
   uiSettings,
   welcomeSettings,
@@ -40,6 +41,20 @@ test("the index location expands ~ and ~/ but not ~user", () => {
   assert.equal(location("~alice/idx"), "~alice/idx");
 });
 
+test("caseSensitive is off, on or smart, and reads the boolean it used to be", () => {
+  // @covers setting:caseSensitive
+  for (const value of ["off", "on", "smart"]) {
+    assert.equal(daemonSettings(configWith({ caseSensitive: value }), "/h").caseSensitive, value);
+    assert.equal(uiSettings(configWith({ caseSensitive: value })).caseSensitive, value);
+  }
+  assert.equal(daemonSettings(configWith({ caseSensitive: true }), "/h").caseSensitive, "on");
+  assert.equal(uiSettings(configWith({ caseSensitive: false })).caseSensitive, "off");
+  assert.equal(migratedCaseSetting(true), "on");
+  assert.equal(migratedCaseSetting(false), "off");
+  assert.equal(migratedCaseSetting("smart"), undefined, "already migrated");
+  assert.equal(migratedCaseSetting(null), undefined, "not a boolean");
+});
+
 test("the welcome page shows the saved preset and index choices, and an unknown preset as the default", () => {
   const config = configWith({ "shortcut.preset": "findInFiles", "index.historyDepth": "6m", "index.symbols": false });
   assert.deepEqual(welcomeSettings(config, true), {
@@ -66,7 +81,7 @@ test("settings of the wrong type or out of range fall back to defaults the daemo
     order: "random",
   });
   assert.deepEqual(daemonSettings(wrong, "/home/u"), {
-    caseSensitive: false,
+    caseSensitive: "off",
     wholeWord: false,
     defaultCount: 500,
     historyDepth: "2y",
@@ -111,7 +126,7 @@ test("panel settings of the wrong type fall back to their defaults", () => {
     openTrigger: "doubleClick",
     preview: true,
     showParsedQuery: true,
-    caseSensitive: false,
+    caseSensitive: "off",
     wholeWord: false,
     order: "best",
   });

@@ -209,7 +209,7 @@ export class SearchPanel {
     );
 
     caseButton.addEventListener("click", () => {
-      this.editQuery((text) => toggleCase(text, this.state.parsed, this.state.ui.caseSensitive));
+      this.editQuery((text) => toggleCase(text, this.state.parsed, this.state.ui.caseSensitive === "on"));
     });
     wordButton.addEventListener("click", () => {
       this.editQuery((text) => toggleWord(text, this.state.parsed, this.state.ui.wholeWord));
@@ -538,7 +538,7 @@ export class SearchPanel {
     if (!errors) state.searchReplaced = true; // the host searches this query instead
 
     const { caseButton, wordButton, regexButton, shell, input } = this.layout;
-    caseButton.setAttribute("aria-pressed", String(isCasePressed(query, state.ui.caseSensitive)));
+    caseButton.setAttribute("aria-pressed", String(isCasePressed(query, state.ui.caseSensitive === "on")));
     wordButton.setAttribute("aria-pressed", String(isWordPressed(query, state.ui.wholeWord)));
     regexButton.setAttribute("aria-pressed", String(isRegexPressed(query)));
     shell.classList.toggle("has-errors", errors);

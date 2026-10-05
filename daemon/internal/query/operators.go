@@ -51,7 +51,7 @@ var operators = []operator{
 	{name: protocol.OpNameRepo, full: "repo", short: "r", summary: "Repo name, as a regex or a glob", interpret: asPathRegex},
 	{name: protocol.OpNameMsg, full: "message", short: "m", scope: scopeHistoryOnly, summary: "Words in the commit message", interpret: asText},
 	{name: protocol.OpNameType, full: "type", short: "t", global: true, summary: "Only file names, code, or commits", examples: []string{"file", "code", "commit"}, interpret: oneOf("file", "code", "commit")},
-	{name: protocol.OpNameCase, full: "case", short: "c", global: true, summary: "Match case (yes) or ignore it (no)", examples: []string{"yes", "no"}, interpret: oneOf("yes", "no")},
+	{name: protocol.OpNameCase, full: "case", short: "c", global: true, summary: "Match case (yes), ignore it (no), or match it when the query has a capital (smart)", examples: []string{"yes", "no", "smart"}, interpret: oneOf("yes", "no", "smart")},
 	{name: protocol.OpNameWord, full: "word", short: "w", global: true, summary: "Match whole words only (yes) or parts of words too (no)", examples: []string{"yes", "no"}, interpret: oneOf("yes", "no")},
 	{name: protocol.OpNameCount, full: "count", short: "n", global: true, summary: "How many results", examples: []string{"50", "200", "all"}, interpret: asCount},
 	{name: protocol.OpNameOrder, full: "order", short: "o", global: true, scope: scopeWorkingTreeOnly, summary: "Best match first, or by path", examples: []string{"best", "path"}, interpret: oneOf("best", "path")},

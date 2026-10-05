@@ -31,6 +31,9 @@ func Parse(text string, resolver Resolver) protocol.ParsedQuery {
 		Mode:    protocol.ModeWorkingTree,
 	}
 	check(src, &query, &p.problems)
+	if root != nil {
+		query.HasCapital = hasCapital(root)
+	}
 	query.Diagnostics = sortedBySpan(p.problems.list)
 	return query
 }

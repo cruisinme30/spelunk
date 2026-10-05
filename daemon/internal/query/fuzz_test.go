@@ -131,7 +131,7 @@ func checkFix(t *testing.T, src *source, text string, d protocol.Diagnostic, fix
 // checkPlan plans a query without errors and runs what engines run on the plan.
 func checkPlan(t *testing.T, q protocol.ParsedQuery) {
 	t.Helper()
-	for _, caseSensitive := range []bool{false, true} {
+	for _, caseSensitive := range []protocol.CaseSetting{protocol.CaseSettingOff, protocol.CaseSettingOn, protocol.CaseSettingSmart} {
 		plan, _, err := NewPlan(q, protocol.Settings{DefaultCount: 500, CaseSensitive: caseSensitive}, fixedNow, "")
 		if err != nil {
 			t.Fatalf("NewPlan(%q) = %v, want a plan: the query has no errors", q.Raw, err)

@@ -47,6 +47,9 @@ export interface Hit {
 /** OpName is an operator's name, the part before the colon. */
 export type OpName = "f" | "repo" | "lang" | "type" | "sym" | "is" | "author" | "msg" | "since" | "case" | "word" | "count" | "order";
 
+/** CaseSetting is how capital letters match when the query has no case: ignored (off), matched (on), or matched only when the query has a capital letter (smart). */
+export type CaseSetting = "off" | "on" | "smart";
+
 /** ResultOrder is how current files are sorted: best match first, or by repo, path and line. */
 export type ResultOrder = "best" | "path";
 
@@ -118,7 +121,8 @@ export type Node =
 
 /** Globals are the query-wide operators case:, word:, count:, type: and order:, or null when absent. */
 export interface Globals {
-  case: "yes" | "no" | null;
+  /** the query's case: value: yes, no or smart (match case only when the query has a capital letter). */
+  case: "yes" | "no" | "smart" | null;
   count: number | "all" | null;
   type: "file" | "code" | "commit" | null;
   /** the query's word: value, yes or no; absent when the query doesn't say. */
@@ -135,6 +139,8 @@ export interface ParsedQuery {
   globals: Globals;
   mode: Mode;
   diagnostics: Diagnostic[];
+  /** whether a text term, sym: or msg: value has a capital letter, so smart case matches case. In a regex, only literal letters count: \W and \p{Lu} don't. */
+  hasCapital?: boolean;
 }
 
 /** Root is a workspace folder; its id is the first 12 hex digits of sha256(path). */
@@ -146,7 +152,8 @@ export interface Root {
 
 /** Settings are the spelunk.* settings the daemon needs. */
 export interface Settings {
-  caseSensitive: boolean;
+  /** the spelunk.caseSensitive setting: how a query without case: treats capital letters. */
+  caseSensitive: CaseSetting;
   /** the spelunk.wholeWord setting: match text terms only as whole words unless the query says word:no. */
   wholeWord: boolean;
   defaultCount: number;
@@ -548,7 +555,7 @@ export interface UiSettings {
   openTrigger: "doubleClick" | "singleClick";
   preview: boolean;
   showParsedQuery: boolean;
-  caseSensitive: boolean;
+  caseSensitive: CaseSetting;
   wholeWord: boolean;
   order: ResultOrder;
 }

@@ -134,10 +134,20 @@
           "description": "Which key opens Spelunk."
         },
         "spelunk.caseSensitive": {
-          "type": "boolean",
-          "default": false,
+          "type": "string",
+          "enum": [
+            "off",
+            "on",
+            "smart"
+          ],
+          "default": "off",
           "scope": "resource",
-          "description": "Match case by default. A case: operator in the query always wins."
+          "enumDescriptions": [
+            "Ignore case: retry also finds Retry and RETRY.",
+            "Match case: retry finds only retry.",
+            "Match case only when the query has a capital letter: retry finds Retry, but RetryPolicy doesn't find retrypolicy."
+          ],
+          "description": "How capital letters match by default. A case: operator in the query always wins."
         },
         "spelunk.wholeWord": {
           "type": "boolean",

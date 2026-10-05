@@ -17,5 +17,6 @@
     "type": null
   },
   "mode": "workingTree",
-  "diagnostics": []
+  "diagnostics": [],
+  "hasCapital": true
 }

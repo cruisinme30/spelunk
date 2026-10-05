@@ -102,7 +102,7 @@ func (s *Server) Close() {
 // DefaultSettings mirrors the defaults declared in extension/package.json.
 func DefaultSettings() protocol.Settings {
 	return protocol.Settings{
-		CaseSensitive:  false,
+		CaseSensitive:  protocol.CaseSettingOff,
 		WholeWord:      false,
 		DefaultCount:   500,
 		HistoryDepth:   "2y",
@@ -220,6 +220,9 @@ func withDefaults(settings protocol.Settings) protocol.Settings {
 	}
 	if settings.MaxFileSizeKB < 1 {
 		settings.MaxFileSizeKB = defaults.MaxFileSizeKB
+	}
+	if !slices.Contains([]string{protocol.CaseSettingOff, protocol.CaseSettingOn, protocol.CaseSettingSmart}, settings.CaseSensitive) {
+		settings.CaseSensitive = defaults.CaseSensitive
 	}
 	if !slices.Contains([]string{"6m", "2y", "all"}, settings.HistoryDepth) {
 		settings.HistoryDepth = defaults.HistoryDepth

@@ -50,8 +50,9 @@ type Plan struct {
 	// KindFilter is set when type: narrows the result kinds, so engines can
 	// count what it hid ("17 code matches hidden by type:file").
 	KindFilter *Filter
-	// CaseFilter is set when the query says case:yes, so engines can count
-	// the matches that differ only in case ("1 match hidden by case:yes").
+	// CaseFilter is set when the query says case:yes, or smart case (from
+	// case:smart or the setting) matches case, so engines can count the
+	// matches that differ only in case ("1 match hidden by case:yes").
 	CaseFilter *Filter
 	// WordFilter is set when the query says word:yes, so engines can count
 	// the matches that are only parts of words ("4 matches hidden by word:yes").
@@ -221,14 +222,11 @@ func NewPlan(q protocol.ParsedQuery, settings protocol.Settings, now time.Time, 
 	plan := &Plan{
 		Mode:          q.Mode,
 		Kinds:         resultKinds(q),
-		CaseSensitive: settings.CaseSensitive,
+		CaseSensitive: matchesCase(q, settings.CaseSensitive),
 		WholeWord:     settings.WholeWord,
 		Limit:         pageSize(q.Globals.Count, settings.DefaultCount),
 		Offset:        offset,
 		Pred:          &And{},
-	}
-	if q.Globals.Case != nil {
-		plan.CaseSensitive = *q.Globals.Case == "yes"
 	}
 	if q.Globals.Word != "" {
 		plan.WholeWord = q.Globals.Word == "yes"
@@ -251,6 +249,10 @@ func NewPlan(q protocol.ParsedQuery, settings protocol.Settings, now time.Time, 
 			})
 		}
 		plan.Pred.Kids = append(plan.Pred.Kids, pred)
+	}
+	if plan.CaseSensitive && q.Globals.Case == nil && settings.CaseSensitive == protocol.CaseSettingSmart {
+		// Smart case from the setting can surprise, so it is undone like case:smart.
+		plan.CaseFilter = &Filter{Reason: "case", Index: -1, Text: "case:smart", Undo: insertFix("Ignore case", 0, "case:no ")}
 	}
 	plan.SymbolFilter = symbolFilter(q.Root, src)
 	return plan, historyScanWarnings(plan), nil
@@ -275,6 +277,31 @@ func symbolFilter(root *protocol.Node, src *source) *Filter {
 	return &Filter{
 		Reason: "symbol", Index: -1, Text: strings.Join(texts, " "),
 		Undo: protocol.Fix{Title: "Search " + strings.Join(values, " ") + " as text", Edits: edits},
+	}
+}
+
+// matchesCase resolves case: (yes, no or smart), or the caseSensitive
+// setting when the query doesn't say: smart matches case only when the
+// query has a capital letter.
+func matchesCase(q protocol.ParsedQuery, setting protocol.CaseSetting) bool {
+	mode := setting
+	if q.Globals.Case != nil {
+		switch *q.Globals.Case {
+		case "yes":
+			mode = protocol.CaseSettingOn
+		case "no":
+			mode = protocol.CaseSettingOff
+		case "smart":
+			mode = protocol.CaseSettingSmart
+		}
+	}
+	switch mode {
+	case protocol.CaseSettingOn:
+		return true
+	case protocol.CaseSettingSmart:
+		return q.HasCapital
+	default:
+		return false
 	}
 }
 
@@ -318,9 +345,9 @@ func pageOffset(cursor string) (int, error) {
 	return offset, nil
 }
 
-// addGlobalFilter records a type:, case:yes or word:yes global as a filter
-// whose hidden results the engine counts (the type:file, case:yes and
-// word:yes notes).
+// addGlobalFilter records a type:, case:yes, case:smart or word:yes global
+// as a filter whose hidden results the engine counts (the type:file,
+// case:yes and word:yes notes).
 func (p *Plan) addGlobalFilter(node *protocol.Node, src *source) {
 	if node.Kind != protocol.NodeKindOp {
 		return
@@ -330,7 +357,11 @@ func (p *Plan) addGlobalFilter(node *protocol.Node, src *source) {
 	case node.Op == protocol.OpNameType:
 		p.KindFilter = &Filter{Reason: "type", Index: -1, Text: text, Undo: removeFix("Remove "+text, src, node.Span)}
 	case node.Op == protocol.OpNameCase && p.CaseSensitive:
-		p.CaseFilter = &Filter{Reason: "case", Index: -1, Text: text, Undo: removeFix("Ignore case", src, node.Span)}
+		undo := removeFix("Ignore case", src, node.Span)
+		if node.Value == "smart" { // removing it may leave the setting's smart case on
+			undo = replaceFix("Ignore case", node.Span, "case:no")
+		}
+		p.CaseFilter = &Filter{Reason: "case", Index: -1, Text: text, Undo: undo}
 	case node.Op == protocol.OpNameWord && p.WholeWord:
 		p.WordFilter = &Filter{Reason: "word", Index: -1, Text: text, Undo: removeFix("Match parts of words", src, node.Span)}
 	}

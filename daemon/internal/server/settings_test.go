@@ -39,7 +39,7 @@ func TestChangedSettingsTakeEffectWithoutARestart(t *testing.T) {
 		t.Fatalf("retry = %q, want 3 lines in both files", got)
 	}
 
-	updateSettings(t, client, func(s *protocol.Settings) { s.CaseSensitive = true })
+	updateSettings(t, client, func(s *protocol.Settings) { s.CaseSensitive = protocol.CaseSettingOn })
 	waitUntil(t, "case-sensitive matching", func() bool {
 		got, _ := paths(t, client, "type:code Retry")
 		return slices.Equal(got, []string{"r/src/a.py:2"})
@@ -56,6 +56,15 @@ func TestChangedSettingsTakeEffectWithoutARestart(t *testing.T) {
 		got, _ := paths(t, client, "type:code retry")
 		return slices.Equal(got, []string{"r/src/a.py:1"})
 	})
+
+	updateSettings(t, client, func(s *protocol.Settings) { s.CaseSensitive = protocol.CaseSettingSmart })
+	waitUntil(t, "smart case to ignore case in a lowercase query", func() bool {
+		got, result := paths(t, client, "type:code retry")
+		return len(got) == 1 && result.Total == 2
+	})
+	if got, _ := paths(t, client, "type:code Retry"); !slices.Equal(got, []string{"r/src/a.py:2"}) {
+		t.Errorf("Retry with smart case = %q, want only the capitalized line", got)
+	}
 }
 
 func TestSetRootsAddsAndDropsRepos(t *testing.T) {

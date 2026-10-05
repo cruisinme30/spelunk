@@ -68,6 +68,11 @@
       "type": "string",
       "enum": ["f", "repo", "lang", "type", "sym", "is", "author", "msg", "since", "case", "word", "count", "order"]
     },
+    "CaseSetting": {
+      "description": "CaseSetting is how capital letters match when the query has no case: ignored (off), matched (on), or matched only when the query has a capital letter (smart).",
+      "type": "string",
+      "enum": ["off", "on", "smart"]
+    },
     "ResultOrder": {
       "description": "ResultOrder is how current files are sorted: best match first, or by repo, path and line.",
       "type": "string",
@@ -245,9 +250,10 @@
       "type": "object",
       "properties": {
         "case": {
+          "description": "the query's case: value: yes, no or smart (match case only when the query has a capital letter).",
           "oneOf": [
             {
-              "enum": ["yes", "no"]
+              "enum": ["yes", "no", "smart"]
             },
             {
               "type": "null"
@@ -320,6 +326,10 @@
           "items": {
             "$ref": "#/$defs/Diagnostic"
           }
+        },
+        "hasCapital": {
+          "description": "whether a text term, sym: or msg: value has a capital letter, so smart case matches case. In a regex, only literal letters count: \\W and \\p{Lu} don't.",
+          "type": "boolean"
         }
       },
       "required": ["version", "raw", "root", "globals", "mode", "diagnostics"]
@@ -345,7 +355,8 @@
       "type": "object",
       "properties": {
         "caseSensitive": {
-          "type": "boolean"
+          "description": "the spelunk.caseSensitive setting: how a query without case: treats capital letters.",
+          "$ref": "#/$defs/CaseSetting"
         },
         "wholeWord": {
           "description": "the spelunk.wholeWord setting: match text terms only as whole words unless the query says word:no.",
@@ -1417,7 +1428,7 @@
           "type": "boolean"
         },
         "caseSensitive": {
-          "type": "boolean"
+          "$ref": "#/$defs/CaseSetting"
         },
         "wholeWord": {
           "type": "boolean"

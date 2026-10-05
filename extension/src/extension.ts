@@ -23,7 +23,14 @@ import type {
   WelcomeStateMessage as WelcomeState,
 } from "./protocol.gen";
 import { makeRoot } from "./roots";
-import { closeOnOpen, daemonSettings, recentQueriesLimit, uiSettings, welcomeSettings } from "./settings";
+import {
+  closeOnOpen,
+  daemonSettings,
+  migratedCaseSetting,
+  recentQueriesLimit,
+  uiSettings,
+  welcomeSettings,
+} from "./settings";
 import type { WebviewMessage } from "./webviewMessages";
 import { WELCOMED_KEY, WelcomePanel } from "./welcomePanel";
 
@@ -109,6 +116,7 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi {
     }),
   );
 
+  migrateCaseSetting().catch(logError("settings"));
   daemon.start().catch(logError("daemon start"));
   if (!context.globalState.get<boolean>(WELCOMED_KEY)) {
     welcome.show();
@@ -199,6 +207,30 @@ async function saveWelcomeChoice(choice: WelcomeChoice): Promise<void> {
   if (choice.preset !== undefined) await config.update("shortcut.preset", choice.preset, global);
   if (choice.historyDepth !== undefined) await config.update("index.historyDepth", choice.historyDepth, global);
   if (choice.symbols !== undefined) await config.update("index.symbols", choice.symbols, global);
+}
+
+/**
+ * Rewrites a spelunk.caseSensitive saved as true or false, from before it
+ * had a smart value, as on or off, so settings.json shows no type warning.
+ * The value is read the same either way.
+ */
+async function migrateCaseSetting(): Promise<void> {
+  const targets = vscode.ConfigurationTarget;
+  const scopes = [undefined, ...(vscode.workspace.workspaceFolders ?? []).map((folder) => folder.uri)];
+  for (const scope of scopes) {
+    const config = vscode.workspace.getConfiguration("spelunk", scope);
+    const saved = config.inspect("caseSensitive");
+    const values = scope
+      ? ([[saved?.workspaceFolderValue, targets.WorkspaceFolder]] as const)
+      : ([
+          [saved?.globalValue, targets.Global],
+          [saved?.workspaceValue, targets.Workspace],
+        ] as const);
+    for (const [value, target] of values) {
+      const migrated = migratedCaseSetting(value);
+      if (migrated) await config.update("caseSensitive", migrated, target);
+    }
+  }
 }
 
 /** Stops the daemon gracefully when VS Code shuts the extension down. */

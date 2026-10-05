@@ -76,8 +76,9 @@ func TestSinceWindowsCountBackFromNow(t *testing.T) {
 }
 
 func TestCaseSensitivityComesFromCaseOrTheSetting(t *testing.T) {
-	sensitive := defaultSettings
-	sensitive.CaseSensitive = true
+	sensitive, smart := defaultSettings, defaultSettings
+	sensitive.CaseSensitive = protocol.CaseSettingOn
+	smart.CaseSensitive = protocol.CaseSettingSmart
 	tests := []struct {
 		query    string
 		settings protocol.Settings
@@ -87,6 +88,12 @@ func TestCaseSensitivityComesFromCaseOrTheSetting(t *testing.T) {
 		{"x", sensitive, true},
 		{"case:yes x", defaultSettings, true},
 		{"case:no x", sensitive, false},
+		{"retry", smart, false},
+		{"RetryPolicy", smart, true},
+		{"case:smart retry", sensitive, false},
+		{"case:smart Retry", defaultSettings, true},
+		{"case:no Retry", smart, false},
+		{"case:yes retry", smart, true},
 	}
 	for _, tt := range tests {
 		if got := mustPlan(t, tt.query, tt.settings).CaseSensitive; got != tt.want {
@@ -215,9 +222,33 @@ func TestCaseYesIsACaseFilterThatCanBeIgnored(t *testing.T) {
 		t.Error("CaseFilter of case:no = non-nil, want nil")
 	}
 	sensitive := defaultSettings
-	sensitive.CaseSensitive = true
+	sensitive.CaseSensitive = protocol.CaseSettingOn
 	if mustPlan(t, "Retry", sensitive).CaseFilter != nil {
 		t.Error("CaseFilter from the caseSensitive setting = non-nil, want nil (nothing in the query to undo)")
+	}
+}
+
+func TestSmartCaseThatMatchesCaseCanBeUndone(t *testing.T) {
+	smart := defaultSettings
+	smart.CaseSensitive = protocol.CaseSettingSmart
+	tests := []struct {
+		query    string
+		settings protocol.Settings
+		undone   string // the query after the undo; "" when there is no filter
+	}{
+		{"case:smart Retry lang:python", defaultSettings, "case:no Retry lang:python"},
+		{"Retry lang:python", smart, "case:no Retry lang:python"},
+		{"case:smart retry", defaultSettings, ""},
+		{"retry", smart, ""},
+	}
+	for _, tt := range tests {
+		f := mustPlan(t, tt.query, tt.settings).CaseFilter
+		switch {
+		case tt.undone == "" && f != nil:
+			t.Errorf("plan(%q).CaseFilter = %+v, want nil: smart case ignores case here", tt.query, f)
+		case tt.undone != "" && (f == nil || f.Text != "case:smart" || f.Undo.Title != "Ignore case" || ApplyFix(tt.query, f.Undo) != tt.undone):
+			t.Errorf("plan(%q).CaseFilter = %+v, want case:smart with an Ignore case undo to %q", tt.query, f, tt.undone)
+		}
 	}
 }
 

@@ -14,7 +14,7 @@ export const UI_SETTINGS = {
   openTrigger: "doubleClick",
   preview: true,
   showParsedQuery: true,
-  caseSensitive: false,
+  caseSensitive: "off",
   wholeWord: false,
   order: "best",
 };

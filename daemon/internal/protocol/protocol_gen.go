@@ -78,6 +78,16 @@ const (
 	OpNameOrder  OpName = "order"
 )
 
+// CaseSetting is how capital letters match when the query has no case: ignored (off), matched (on), or matched only when the query has a capital letter (smart).
+type CaseSetting = string
+
+// CaseSetting values.
+const (
+	CaseSettingOff   CaseSetting = "off"
+	CaseSettingOn    CaseSetting = "on"
+	CaseSettingSmart CaseSetting = "smart"
+)
+
 // ResultOrder is how current files are sorted: best match first, or by repo, path and line.
 type ResultOrder = string
 
@@ -229,6 +239,7 @@ func (v Node) MarshalJSON() ([]byte, error) {
 
 // Globals are the query-wide operators case:, word:, count:, type: and order:, or null when absent.
 type Globals struct {
+	// Case is the query's case: value: yes, no or smart (match case only when the query has a capital letter).
 	Case  *string `json:"case"`
 	Count any     `json:"count"`
 	Type  *string `json:"type"`
@@ -246,6 +257,8 @@ type ParsedQuery struct {
 	Globals     Globals      `json:"globals"`
 	Mode        Mode         `json:"mode"`
 	Diagnostics []Diagnostic `json:"diagnostics"`
+	// HasCapital is whether a text term, sym: or msg: value has a capital letter, so smart case matches case. In a regex, only literal letters count: \W and \p{Lu} don't.
+	HasCapital bool `json:"hasCapital,omitempty"`
 }
 
 // MarshalJSON emits [] rather than null for required arrays.
@@ -267,7 +280,8 @@ type Root struct {
 
 // Settings are the spelunk.* settings the daemon needs.
 type Settings struct {
-	CaseSensitive bool `json:"caseSensitive"`
+	// CaseSensitive is the spelunk.caseSensitive setting: how a query without case: treats capital letters.
+	CaseSensitive CaseSetting `json:"caseSensitive"`
 	// WholeWord is the spelunk.wholeWord setting: match text terms only as whole words unless the query says word:no.
 	WholeWord      bool     `json:"wholeWord"`
 	DefaultCount   int      `json:"defaultCount"`
@@ -977,7 +991,7 @@ type UiSettings struct {
 	OpenTrigger     string      `json:"openTrigger"`
 	Preview         bool        `json:"preview"`
 	ShowParsedQuery bool        `json:"showParsedQuery"`
-	CaseSensitive   bool        `json:"caseSensitive"`
+	CaseSensitive   CaseSetting `json:"caseSensitive"`
 	WholeWord       bool        `json:"wholeWord"`
 	Order           ResultOrder `json:"order"`
 }

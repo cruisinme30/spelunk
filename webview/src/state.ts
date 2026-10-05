@@ -66,7 +66,7 @@ const DEFAULT_UI_SETTINGS: UiSettings = {
   openTrigger: "doubleClick",
   preview: true,
   showParsedQuery: true,
-  caseSensitive: false,
+  caseSensitive: "off",
   wholeWord: false,
   order: "best",
 };

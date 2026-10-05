@@ -1,5 +1,5 @@
 // Maps the spelunk.* configuration to protocol types.
-import type { Settings, UiSettings, WelcomeStateMessage as WelcomeState } from "./protocol.gen";
+import type { CaseSetting, Settings, UiSettings, WelcomeStateMessage as WelcomeState } from "./protocol.gen";
 
 /** Anything shaped like VS Code's WorkspaceConfiguration.get. */
 export interface ConfigReader {
@@ -8,7 +8,7 @@ export interface ConfigReader {
 
 /** Defaults, matching the "default" values declared in package.json. */
 const DEFAULTS = {
-  caseSensitive: false,
+  caseSensitive: "off",
   wholeWord: false,
   defaultCount: 500,
   typingDelayMs: 120,
@@ -37,6 +37,7 @@ const MAX_RECENT_QUERIES = 100;
 export const HISTORY_DEPTHS: readonly Settings["historyDepth"][] = ["6m", "2y", "all"];
 const OPEN_TRIGGERS: readonly UiSettings["openTrigger"][] = ["doubleClick", "singleClick"];
 const ORDERS: readonly UiSettings["order"][] = ["best", "path"];
+const CASE_SETTINGS: readonly CaseSetting[] = ["off", "on", "smart"];
 /** The shortcut.preset values. */
 export const SHORTCUT_PRESETS: readonly WelcomeState["preset"][] = ["quickOpen", "findInFiles", "none"];
 
@@ -57,6 +58,17 @@ function oneOf<T extends string>(value: unknown, allowed: readonly T[], fallback
 
 function boolean(value: unknown, fallback: boolean): boolean {
   return typeof value === "boolean" ? value : fallback;
+}
+
+/** caseSensitive was a boolean before it had a smart value: true is on, false is off. */
+export function migratedCaseSetting(value: unknown): CaseSetting | undefined {
+  if (typeof value !== "boolean") return undefined;
+  return value ? "on" : "off";
+}
+
+/** spelunk.caseSensitive, reading the boolean it used to be. */
+function caseSetting(value: unknown): CaseSetting {
+  return migratedCaseSetting(value) ?? oneOf(value, CASE_SETTINGS, DEFAULTS.caseSensitive);
 }
 
 function string(value: unknown, fallback: string): string {
@@ -80,7 +92,7 @@ function expandHome(path: string, home: string): string {
 export function daemonSettings(config: ConfigReader, home: string): Settings {
   const read = (key: string, fallback: unknown) => config.get<unknown>(key, fallback);
   return {
-    caseSensitive: boolean(read("caseSensitive", DEFAULTS.caseSensitive), DEFAULTS.caseSensitive),
+    caseSensitive: caseSetting(read("caseSensitive", DEFAULTS.caseSensitive)),
     wholeWord: boolean(read("wholeWord", DEFAULTS.wholeWord), DEFAULTS.wholeWord),
     defaultCount: clamp(read("defaultCount", DEFAULTS.defaultCount), 1, MAX_DEFAULT_COUNT, DEFAULTS.defaultCount),
     historyDepth: oneOf(read("index.historyDepth", DEFAULTS.historyDepth), HISTORY_DEPTHS, DEFAULTS.historyDepth),
@@ -109,7 +121,7 @@ export function uiSettings(config: ConfigReader): UiSettings {
     openTrigger: oneOf(read("open.trigger", DEFAULTS.openTrigger), OPEN_TRIGGERS, DEFAULTS.openTrigger),
     preview: boolean(read("open.preview", DEFAULTS.openPreview), DEFAULTS.openPreview),
     showParsedQuery: boolean(read("ui.showParsedQuery", DEFAULTS.showParsedQuery), DEFAULTS.showParsedQuery),
-    caseSensitive: boolean(read("caseSensitive", DEFAULTS.caseSensitive), DEFAULTS.caseSensitive),
+    caseSensitive: caseSetting(read("caseSensitive", DEFAULTS.caseSensitive)),
     wholeWord: boolean(read("wholeWord", DEFAULTS.wholeWord), DEFAULTS.wholeWord),
     order: oneOf(read("order", DEFAULTS.order), ORDERS, DEFAULTS.order),
   };
