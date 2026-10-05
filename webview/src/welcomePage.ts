@@ -105,6 +105,10 @@ function repoRow(repo: RepoStatus, index: number): HTMLElement {
   );
 }
 
+function keysFor(settings: WelcomeState): Keys {
+  return settings.mac ? MAC_KEYS : OTHER_KEYS;
+}
+
 function shortcutCard(card: ShortcutCard, keys: Keys, chosen: ShortcutChoice): HTMLElement {
   const input = element("input", {
     type: "radio",
@@ -137,7 +141,7 @@ function shortcutCard(card: ShortcutCard, keys: Keys, chosen: ShortcutChoice): H
 }
 
 function shortcutSection(settings: WelcomeState): HTMLElement {
-  const keys = settings.mac ? MAC_KEYS : OTHER_KEYS;
+  const keys = keysFor(settings);
   const chosen: ShortcutChoice = settings.preset === "none" ? "custom" : settings.preset;
   return element(
     "fieldset",
@@ -193,9 +197,7 @@ function indexSection(settings: WelcomeState): HTMLElement {
 }
 
 function actions(settings: WelcomeState): HTMLElement {
-  const keys = settings.mac ? MAC_KEYS : OTHER_KEYS;
-  const key =
-    settings.preset === "quickOpen" ? keys.quickOpen : settings.preset === "findInFiles" ? keys.findInFiles : "";
+  const key = SHORTCUT_CARDS.find((card) => card.choice === settings.preset)?.key?.(keysFor(settings)) ?? "";
   const start = button(
     { class: "btn primary", "data-testid": "start" },
     () => {
