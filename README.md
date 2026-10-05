@@ -35,6 +35,8 @@ removed `timeout` or `retry`. Drop `author:` and the same box searches current f
 - **Results as you type,** from local indexes that keep up with saves within a second and new commits within seconds.
 - **Helpful when you're wrong:** errors with one-key fixes, warnings for likely slips such as `daemon|search`,
   completions for operators and their values, and notes like "3 commits hidden by `-file:vendor/`".
+- **Replace in current files.** ⇄ shows every code match struck out and replaced, then **Replace all** changes
+  them in one edit that ⌘Z undoes, skipping any file edited since it was indexed.
 - **Keyboard first:** ⌘P or ⇧⌘F to open, ↵ to open at the match, ⌘↵ to open to the side, F4 to step through results.
 - Works the same in desktop VS Code and code-server. Nothing leaves your machine.
 
