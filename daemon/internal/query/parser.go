@@ -235,14 +235,7 @@ func (p *parser) skipGroup() {
 func (p *parser) reportUnclosedParen(open token, inner *protocol.Node) {
 	var fixes []protocol.Fix
 	if inner != nil {
-		closeAfter := inner
-		if inner.Kind == protocol.NodeKindOr {
-			lastBranch := &inner.Children[len(inner.Children)-1]
-			closeAfter = lastBranch
-			if lastBranch.Kind == protocol.NodeKindAnd {
-				closeAfter = &lastBranch.Children[0]
-			}
-		}
+		closeAfter := groupEnd(inner)
 		closing := ")"
 		// An unclosed quote or regex runs to the end of the text, so a ")"
 		// inserted there would only join it; close it first.
@@ -252,6 +245,19 @@ func (p *parser) reportUnclosedParen(open token, inner *protocol.Node) {
 		fixes = append(fixes, insertFix("Close it after "+p.src.excerpt(closeAfter.Span), closeAfter.Span.End, closing))
 	}
 	p.problems.errorf(DiagUnclosedParen, p.span(open), fixes, "Missing closing parenthesis")
+}
+
+// groupEnd is the node an unclosed group most likely ends after: the whole
+// group, or after an OR the first operand of its last branch.
+func groupEnd(inner *protocol.Node) *protocol.Node {
+	if inner.Kind != protocol.NodeKindOr {
+		return inner
+	}
+	lastBranch := &inner.Children[len(inner.Children)-1]
+	if lastBranch.Kind == protocol.NodeKindAnd {
+		return &lastBranch.Children[0]
+	}
+	return lastBranch
 }
 
 func (p *parser) textNode(t token) *protocol.Node {
