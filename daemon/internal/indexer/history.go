@@ -94,26 +94,21 @@ type historyJob struct {
 func (ix *Indexer) nextHistory(ctx context.Context) (historyJob, bool) {
 	ix.mu.Lock()
 	defer ix.mu.Unlock()
-	for len(ix.historyQueue.ids) > 0 {
-		id := ix.historyQueue.ids[0]
-		ix.historyQueue.ids = ix.historyQueue.ids[1:]
-		r, ok := ix.repos[id]
-		if !ok {
-			continue
-		}
-		jobCtx, cancel := context.WithCancel(ctx)
-		r.cancelHistory = cancel
-		job := historyJob{
-			ctx: jobCtx, done: cancel, id: id, root: r.root, generation: r.historyGeneration,
-			full: r.historyFull || r.history == nil, opts: historyOptions(ix.settings, time.Now()),
-			store: r.history, path: historyPath(ix.settings.Location, r.root),
-		}
-		if job.full {
-			r.historyState, r.historyProgress, r.historyMessage = protocol.IndexStateIndexing, 0, ""
-		}
-		return job, true
+	id, r, ok := ix.popQueued(&ix.historyQueue)
+	if !ok {
+		return historyJob{}, false
 	}
-	return historyJob{}, false
+	jobCtx, cancel := context.WithCancel(ctx)
+	r.cancelHistory = cancel
+	job := historyJob{
+		ctx: jobCtx, done: cancel, id: id, root: r.root, generation: r.historyGeneration,
+		full: r.historyFull || r.history == nil, opts: historyOptions(ix.settings, time.Now()),
+		store: r.history, path: historyPath(ix.settings.Location, r.root),
+	}
+	if job.full {
+		r.historyState, r.historyProgress, r.historyMessage = protocol.IndexStateIndexing, 0, ""
+	}
+	return job, true
 }
 
 // readHistory reads or updates one repo's history, publishing the newest

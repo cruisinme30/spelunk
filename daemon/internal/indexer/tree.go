@@ -69,27 +69,22 @@ type buildJob struct {
 func (ix *Indexer) nextBuild(ctx context.Context) (buildJob, bool) {
 	ix.mu.Lock()
 	defer ix.mu.Unlock()
-	for len(ix.treeQueue.ids) > 0 {
-		id := ix.treeQueue.ids[0]
-		ix.treeQueue.ids = ix.treeQueue.ids[1:]
-		r, ok := ix.repos[id]
-		if !ok {
-			continue
-		}
-		buildCtx, cancel := context.WithCancel(ctx)
-		r.cancelBuild = cancel
-		if r.visible {
-			// The message stays: a saved index that couldn't be read says
-			// so until the rebuild is done.
-			r.state, r.progress = protocol.IndexStateIndexing, 0
-		}
-		return buildJob{
-			ctx: buildCtx, done: cancel, id: id, root: r.root, generation: r.generation,
-			settings: ix.settings, shardPath: shardPath(ix.settings.Location, r.root), started: time.Now(),
-			before: ix.beforeBuild,
-		}, true
+	id, r, ok := ix.popQueued(&ix.treeQueue)
+	if !ok {
+		return buildJob{}, false
 	}
-	return buildJob{}, false
+	buildCtx, cancel := context.WithCancel(ctx)
+	r.cancelBuild = cancel
+	if r.visible {
+		// The message stays: a saved index that couldn't be read says
+		// so until the rebuild is done.
+		r.state, r.progress = protocol.IndexStateIndexing, 0
+	}
+	return buildJob{
+		ctx: buildCtx, done: cancel, id: id, root: r.root, generation: r.generation,
+		settings: ix.settings, shardPath: shardPath(ix.settings.Location, r.root), started: time.Now(),
+		before: ix.beforeBuild,
+	}, true
 }
 
 // build lists, indexes and saves one repo, then publishes the shard.

@@ -79,6 +79,19 @@ type queue struct {
 	wake chan struct{}
 }
 
+// popQueued takes the first id off q whose repo is still there. Callers
+// hold ix.mu.
+func (ix *Indexer) popQueued(q *queue) (string, *repo, bool) {
+	for len(q.ids) > 0 {
+		id := q.ids[0]
+		q.ids = q.ids[1:]
+		if r, ok := ix.repos[id]; ok {
+			return id, r, true
+		}
+	}
+	return "", nil, false
+}
+
 // add queues id once and wakes the worker. Callers hold Indexer.mu.
 func (q *queue) add(id string) {
 	if !slices.Contains(q.ids, id) {
