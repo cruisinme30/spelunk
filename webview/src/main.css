@@ -959,8 +959,10 @@ pre.body {
     gap: 0;
   }
 
+  /* Clamped here too, as clampWidth does while dragging, so a width saved in a wider panel leaves the sheet its 320px
+     (plus the 7px divider) when the panel narrows. */
   .empty.sized .recent {
-    flex: 0 0 var(--recent-width);
+    flex: 0 0 clamp(200px, var(--recent-width), calc(100% - 327px));
   }
 
   .empty.sized .sheet {

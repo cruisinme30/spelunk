@@ -64,6 +64,14 @@ test("dragging the divider resizes the recent queries and the width survives a r
   assert.equal(await reloaded.evaluate(() => globalThis.__savedState.recentWidth), undefined);
 });
 
+test("a recent width saved in a wide panel still leaves the cheat sheet its minimum when the panel narrows", async (t) => {
+  const page = await openPanelWithSavedState(t, { recentWidth: 800 });
+  await page.setViewportSize({ width: 1200, height: 700 });
+  await restore(page, ["sym:RetryPolicy"]);
+  await page.setViewportSize({ width: 900, height: 700 });
+  assert.ok((await page.locator(".sheet").boundingBox()).width >= 320, "the cheat sheet keeps 320px");
+});
+
 test("the divider hides when recent and the cheat sheet stack", async (t) => {
   const page = await openPanel(t);
   await page.setViewportSize({ width: 600, height: 700 });
