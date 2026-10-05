@@ -439,6 +439,44 @@ export interface RebuildParams {
   repoId?: string;
 }
 
+/** ReplacePlanParams ask for every edit that replacing the query's matches in current files would make. */
+export interface ReplacePlanParams {
+  text: string;
+  /** the text each match becomes; for a /regex/ term, $1 or ${name} insert what a group matched. */
+  replacement: string;
+  /** the absolute paths of the files open in editor tabs, for is:open. */
+  openFiles?: string[];
+}
+
+/** ReplaceEdit replaces one match: a range of UTF-16 offsets into the whole line. */
+export interface ReplaceEdit {
+  start: number;
+  end: number;
+  newText: string;
+}
+
+/** ReplaceLine is one line to edit: its 1-based number, its whole text as indexed (without the line end), and its edits in order. */
+export interface ReplaceLine {
+  line: number;
+  text: string;
+  edits: ReplaceEdit[];
+}
+
+/** ReplaceFile is one file to edit, with its absolute path. */
+export interface ReplaceFile {
+  repoId: string;
+  path: string;
+  file: string;
+  lines: ReplaceLine[];
+}
+
+/** ReplacePlan is every edit a replace would make. When it would make more than the daemon plans at once, truncated is set and files is empty. */
+export interface ReplacePlan {
+  matches: number;
+  files: ReplaceFile[];
+  truncated: boolean;
+}
+
 /** Empty is a message with no fields. */
 export type Empty = Record<string, never>;
 
@@ -587,6 +625,7 @@ export interface RpcRequests {
   "open/resolve": [OpenResolveParams, OpenTarget];
   "index/status": [Empty, IndexStatusResult];
   "index/rebuild": [RebuildParams, Empty];
+  "replace/plan": [ReplacePlanParams, ReplacePlan];
   "shutdown": [Empty, Empty];
 }
 

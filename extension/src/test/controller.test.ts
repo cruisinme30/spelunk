@@ -407,7 +407,8 @@ function threeResultsBackend() {
       case "shutdown":
       case "preview/get":
       case "index/status":
-      case "index/rebuild": {
+      case "index/rebuild":
+      case "replace/plan": {
         throw new Error(`unexpected request ${method}`);
       }
     }

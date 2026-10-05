@@ -1158,6 +1158,103 @@
       },
       "required": []
     },
+    "ReplacePlanParams": {
+      "description": "ReplacePlanParams ask for every edit that replacing the query's matches in current files would make.",
+      "type": "object",
+      "properties": {
+        "text": {
+          "type": "string"
+        },
+        "replacement": {
+          "description": "the text each match becomes; for a /regex/ term, $1 or ${name} insert what a group matched.",
+          "type": "string"
+        },
+        "openFiles": {
+          "description": "the absolute paths of the files open in editor tabs, for is:open.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": ["text", "replacement"]
+    },
+    "ReplaceEdit": {
+      "description": "ReplaceEdit replaces one match: a range of UTF-16 offsets into the whole line.",
+      "type": "object",
+      "properties": {
+        "start": {
+          "type": "integer"
+        },
+        "end": {
+          "type": "integer"
+        },
+        "newText": {
+          "type": "string"
+        }
+      },
+      "required": ["start", "end", "newText"]
+    },
+    "ReplaceLine": {
+      "description": "ReplaceLine is one line to edit: its 1-based number, its whole text as indexed (without the line end), and its edits in order.",
+      "type": "object",
+      "properties": {
+        "line": {
+          "type": "integer"
+        },
+        "text": {
+          "type": "string"
+        },
+        "edits": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ReplaceEdit"
+          }
+        }
+      },
+      "required": ["line", "text", "edits"]
+    },
+    "ReplaceFile": {
+      "description": "ReplaceFile is one file to edit, with its absolute path.",
+      "type": "object",
+      "properties": {
+        "repoId": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "file": {
+          "type": "string"
+        },
+        "lines": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ReplaceLine"
+          }
+        }
+      },
+      "required": ["repoId", "path", "file", "lines"]
+    },
+    "ReplacePlan": {
+      "description": "ReplacePlan is every edit a replace would make. When it would make more than the daemon plans at once, truncated is set and files is empty.",
+      "type": "object",
+      "properties": {
+        "matches": {
+          "type": "integer"
+        },
+        "files": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ReplaceFile"
+          }
+        },
+        "truncated": {
+          "type": "boolean"
+        }
+      },
+      "required": ["matches", "files", "truncated"]
+    },
     "Empty": {
       "description": "Empty is a message with no fields.",
       "type": "object",
@@ -1559,6 +1656,11 @@
       "kind": "request",
       "params": "RebuildParams",
       "result": "Empty"
+    },
+    "replace/plan": {
+      "kind": "request",
+      "params": "ReplacePlanParams",
+      "result": "ReplacePlan"
     },
     "shutdown": {
       "kind": "request",

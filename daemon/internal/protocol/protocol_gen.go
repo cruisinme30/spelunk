@@ -826,6 +826,74 @@ type RebuildParams struct {
 	RepoID string `json:"repoId,omitempty"`
 }
 
+// ReplacePlanParams ask for every edit that replacing the query's matches in current files would make.
+type ReplacePlanParams struct {
+	Text string `json:"text"`
+	// Replacement is the text each match becomes; for a /regex/ term, $1 or ${name} insert what a group matched.
+	Replacement string `json:"replacement"`
+	// OpenFiles is the absolute paths of the files open in editor tabs, for is:open.
+	OpenFiles []string `json:"openFiles,omitempty"`
+}
+
+// ReplaceEdit replaces one match: a range of UTF-16 offsets into the whole line.
+type ReplaceEdit struct {
+	Start   int    `json:"start"`
+	End     int    `json:"end"`
+	NewText string `json:"newText"`
+}
+
+// ReplaceLine is one line to edit: its 1-based number, its whole text as indexed (without the line end), and its edits in order.
+type ReplaceLine struct {
+	Line  int           `json:"line"`
+	Text  string        `json:"text"`
+	Edits []ReplaceEdit `json:"edits"`
+}
+
+// MarshalJSON emits [] rather than null for required arrays.
+func (v ReplaceLine) MarshalJSON() ([]byte, error) {
+	type plain ReplaceLine
+	p := plain(v)
+	if p.Edits == nil {
+		p.Edits = []ReplaceEdit{}
+	}
+	return json.Marshal(p)
+}
+
+// ReplaceFile is one file to edit, with its absolute path.
+type ReplaceFile struct {
+	RepoID string        `json:"repoId"`
+	Path   string        `json:"path"`
+	File   string        `json:"file"`
+	Lines  []ReplaceLine `json:"lines"`
+}
+
+// MarshalJSON emits [] rather than null for required arrays.
+func (v ReplaceFile) MarshalJSON() ([]byte, error) {
+	type plain ReplaceFile
+	p := plain(v)
+	if p.Lines == nil {
+		p.Lines = []ReplaceLine{}
+	}
+	return json.Marshal(p)
+}
+
+// ReplacePlan is every edit a replace would make. When it would make more than the daemon plans at once, truncated is set and files is empty.
+type ReplacePlan struct {
+	Matches   int           `json:"matches"`
+	Files     []ReplaceFile `json:"files"`
+	Truncated bool          `json:"truncated"`
+}
+
+// MarshalJSON emits [] rather than null for required arrays.
+func (v ReplacePlan) MarshalJSON() ([]byte, error) {
+	type plain ReplacePlan
+	p := plain(v)
+	if p.Files == nil {
+		p.Files = []ReplaceFile{}
+	}
+	return json.Marshal(p)
+}
+
 // Empty is a message with no fields.
 type Empty struct {
 }
@@ -1034,6 +1102,7 @@ const (
 	MethodIndexStatus             = "index/status"
 	MethodIndexProgress           = "index/progress"
 	MethodIndexRebuild            = "index/rebuild"
+	MethodReplacePlan             = "replace/plan"
 	MethodShutdown                = "shutdown"
 	MethodExit                    = "exit"
 )
