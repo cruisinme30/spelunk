@@ -1,0 +1,123 @@
+# Releases a version tag such as v0.2.0: checks the tag matches the
+# extension's version and that every spec id has a test, checks the
+# performance budgets on a large open-source repo (Prometheus), packages one
+# .vsix per platform, attaches them to a GitHub release, and publishes them
+# to the VS Code Marketplace and Open VSX when their tokens (VSCE_PAT,
+# OVSX_PAT) are set as repository secrets. Nothing is published unless every
+# check passes.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: daemon/go.mod
+          cache-dependency-path: daemon/go.mod
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Node dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Check the tag is the extension's version
+        run: test "v$(node -p "require('./extension/package.json').version")" = "$GITHUB_REF_NAME"
+
+      - name: Check every spec id has a test
+        run: node scripts/specCoverage.mjs --strict
+
+      - name: Package every platform
+        run: |
+          for target in darwin-arm64 darwin-x64 linux-arm64 linux-x64 win32-arm64 win32-x64; do
+            node scripts/packageExtension.mjs --target "$target"
+          done
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vsix
+          path: out/*.vsix
+          if-no-files-found: error
+
+  budgets:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: daemon/go.mod
+          cache-dependency-path: daemon/go.mod
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Clone the benchmark repo
+        run: git clone --quiet --single-branch https://github.com/prometheus/prometheus.git "$RUNNER_TEMP/bench"
+
+      - name: Run the benchmarks
+        working-directory: daemon
+        env:
+          UNIFIED_SEARCH_BENCH_ROOT: ${{ runner.temp }}/bench
+          UNIFIED_SEARCH_BENCH_REPO: ${{ runner.temp }}/bench
+        run: |
+          go test -run '^$' -bench 'LargeRepo|LargeHistory' -benchtime 10x -timeout 40m -v \
+            ./internal/trigram ./internal/history | tee "$RUNNER_TEMP/bench.txt"
+
+      - name: Check the budgets
+        run: node scripts/checkBudgets.mjs "$RUNNER_TEMP/bench.txt"
+
+  publish:
+    needs: [package, budgets]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      VSCE_PAT: ${{ secrets.VSCE_PAT }}
+      OVSX_PAT: ${{ secrets.OVSX_PAT }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Node dependencies
+        run: npm install --no-audit --no-fund
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: vsix
+          path: out
+
+      - name: Attach the packages to a GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" out/*.vsix --title "$GITHUB_REF_NAME" --generate-notes
+
+      - name: Publish to the VS Code Marketplace
+        if: env.VSCE_PAT != ''
+        run: |
+          for vsix in out/*.vsix; do
+            npx vsce publish --packagePath "$vsix"
+          done
+
+      - name: Publish to Open VSX
+        if: env.OVSX_PAT != ''
+        run: |
+          for vsix in out/*.vsix; do
+            npx --yes ovsx publish "$vsix"
+          done
