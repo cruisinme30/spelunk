@@ -7,7 +7,9 @@ const TERM_COLOR_COUNT = 4;
 
 /** The CSS class that colors text term `termIndex`: each term, and so each OR branch, has its own color. */
 export function termClass(termIndex: number): string {
-  return `term-color-${termIndex % TERM_COLOR_COUNT}`;
+  // An index that isn't a whole number >= 0 still gets a color class that exists.
+  const index = Number.isSafeInteger(termIndex) ? wrapIndex(termIndex, 0, TERM_COLOR_COUNT) : 0;
+  return `term-color-${index}`;
 }
 
 type AttributeValue = string | number | boolean | undefined;
@@ -51,15 +53,30 @@ export function element<K extends keyof HTMLElementTagNameMap>(
   return created;
 }
 
-/** Splits text into plain runs and <mark> runs. Hits are UTF-16 ranges, which JS strings index directly. */
+/** Whether UTF-16 offset `index` falls between the two halves of a surrogate pair. */
+function splitsSurrogatePair(text: string, index: number): boolean {
+  const before = text.codePointAt(index - 1);
+  return before !== undefined && before > 0xff_ff;
+}
+
+/**
+ * Splits text into plain runs and <mark> runs. Hits are UTF-16 ranges, which
+ * JS strings index directly. Hits that overlap, are out of order or out of
+ * range, or aren't numbers are clipped or skipped, and a hit that would cut
+ * an astral character (an emoji) in half grows to cover all of it.
+ */
 export function highlight(text: string, hits: (Hit | Range)[]): DocumentFragment {
   const fragment = document.createDocumentFragment();
-  const sorted = [...hits].sort((first, second) => first.start - second.start);
+  const sorted = hits
+    .filter((hit) => Number.isFinite(hit.start) && Number.isFinite(hit.end))
+    .sort((first, second) => first.start - second.start);
   let position = 0;
   for (const hit of sorted) {
-    const start = Math.max(hit.start, position);
-    const end = Math.min(hit.end, text.length);
+    let start = Math.max(hit.start, position);
+    let end = Math.min(hit.end, text.length);
     if (end <= start) continue;
+    if (splitsSurrogatePair(text, start)) start--;
+    if (splitsSurrogatePair(text, end)) end++;
     if (start > position) fragment.append(text.slice(position, start));
     const termIndex = "termIndex" in hit ? hit.termIndex : 0;
     fragment.append(element("mark", { class: termClass(termIndex) }, text.slice(start, end)));
