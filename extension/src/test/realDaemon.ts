@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { Daemon, type DaemonOptions } from "../daemon";
 import type { Root, Settings } from "../protocol.gen";
 import { daemonSettings } from "../settings";
+import { setTimeout as sleep } from "node:timers/promises";
 
 /** The binary `npm test` builds into daemon/bin, or $SPELUNK_DAEMON. Tests run from extension/dist-test. */
 const DAEMON_BINARY = process.env["SPELUNK_DAEMON"] ?? join(__dirname, "../../daemon/bin/spelunk-daemon");
@@ -33,7 +34,7 @@ export async function waitFor(
   const deadline = Date.now() + timeoutMs;
   while (!(await condition())) {
     if (Date.now() > deadline) throw new Error(`timed out after ${timeoutMs}ms waiting for: ${description}`);
-    await new Promise((resolve) => setTimeout(resolve, 10));
+    await sleep(10);
   }
 }
 

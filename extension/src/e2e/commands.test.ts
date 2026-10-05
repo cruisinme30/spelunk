@@ -5,15 +5,11 @@
 import assert from "node:assert/strict";
 import * as vscode from "vscode";
 import type { TestState } from "../extension";
+import { setTimeout as sleep } from "node:timers/promises";
 
 /** How long a step may take: the first search waits for the fixture workspace to be indexed. */
 const TIMEOUT_MS = 30_000;
 const POLL_MS = 100;
-
-const sleep = (ms: number) =>
-  new Promise<void>((resolve) => {
-    setTimeout(resolve, ms);
-  });
 
 async function testState(): Promise<TestState> {
   const state = await vscode.commands.executeCommand<TestState | undefined>("spelunk._testState");

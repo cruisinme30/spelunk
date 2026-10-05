@@ -11,10 +11,9 @@ import type { Daemon, DaemonState } from "../daemon";
 import { makeRoot } from "../roots";
 import { newFakeDaemon, nonExecutableFile } from "./fakeDaemon";
 import { newTestDaemon, SKIP_WITHOUT_DAEMON as skip, waitFor } from "./realDaemon";
+import { setTimeout as pause } from "node:timers/promises";
 
 const RESTART_BUDGET = 3;
-
-const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /** A daemon over an empty folder that records its states and restarts quickly after a crash. */
 function crashTestDaemon(states: DaemonState[] = [], restartDelayMs = 10): Daemon {

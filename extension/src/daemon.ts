@@ -14,6 +14,7 @@ import {
   type SearchBatchParams,
   type Settings,
 } from "./protocol.gen";
+import { setTimeout as sleep } from "node:timers/promises";
 
 /**
  * Where the daemon is in its life: "ok" accepts requests; "stopped" waits for
@@ -370,13 +371,9 @@ export class Daemon extends EventEmitter {
       if (this.state === "stopped" || this.state === "protocolMismatch")
         throw new Error(`search daemon is ${this.state}`);
       if (this.now() > deadline) throw new Error("search daemon not ready");
-      await delay(CONNECTION_POLL_MS);
+      await sleep(CONNECTION_POLL_MS);
     }
   }
-}
-
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 /** Whether `promise` settles (either way) within `ms`; the timer is cleared as soon as it does. */
