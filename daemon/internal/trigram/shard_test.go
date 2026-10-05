@@ -216,7 +216,7 @@ func TestSaveRemovesTempFilesACrashLeftBehind(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	old := time.Now().Add(-2 * staleTempAge)
+	old := time.Now().Add(-2 * StaleTempAge)
 	if err := os.Chtimes(stale, old, old); err != nil {
 		t.Fatal(err)
 	}

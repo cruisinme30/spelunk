@@ -15,7 +15,8 @@
 // result, and so the server can say where opening it goes.
 //
 // The history engine reuses TextIndex, LineFinder and PreviewLine, so a
-// term matches and is marked the same way in both engines.
+// term matches and is marked the same way in both engines, and saves its
+// store with SaveGob and LoadGob, as Save and Load do a shard.
 //
 // Invariants:
 //   - A Shard is immutable once built; the indexer publishes a new one

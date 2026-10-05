@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/cruisinme30/spelunk/daemon/internal/protocol"
+	"github.com/cruisinme30/spelunk/daemon/internal/trigram"
 )
 
 // rawCommit writes a commit object exactly as given (header lines, a blank
@@ -214,7 +215,7 @@ func TestSaveRemovesTempFilesACrashLeftBehind(t *testing.T) {
 	if err := os.WriteFile(stale, []byte("half a store"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	old := time.Now().Add(-2 * staleTempAge)
+	old := time.Now().Add(-2 * trigram.StaleTempAge)
 	if err := os.Chtimes(stale, old, old); err != nil {
 		t.Fatal(err)
 	}

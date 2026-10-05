@@ -3,11 +3,7 @@ package history
 import (
 	"bytes"
 	"context"
-	"encoding/gob"
 	"errors"
-	"fmt"
-	"os"
-	"path/filepath"
 	"slices"
 	"strings"
 	"time"
@@ -283,42 +279,13 @@ type savedStore struct {
 	Commits []Commit
 }
 
-// tempPattern names the temporary file Save writes before renaming it.
-const tempPattern = ".history-*"
-
-// staleTempAge is how old a temporary file must be before Save removes it
-// as left behind by a crash; a younger one may be another daemon's save.
-const staleTempAge = time.Hour
-
-// Save writes the store to path atomically, even across a crash, and
-// removes the temporary files of saves a crash interrupted.
+// Save writes the store to path atomically (see trigram.SaveGob).
 func (s *Store) Save(path string) error {
-	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0o750); err != nil {
-		return err
-	}
-	trigram.RemoveStaleTemps(dir, tempPattern, time.Now().Add(-staleTempAge))
-	temp, err := os.CreateTemp(dir, tempPattern)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = os.Remove(temp.Name()) }() // fails harmlessly after the rename
 	saved := savedStore{Version: storeFormatVersion, Head: s.Head, Since: s.Since}
 	for _, seg := range s.segments {
 		saved.Commits = append(saved.Commits, seg.commits...)
 	}
-	if err := gob.NewEncoder(temp).Encode(saved); err != nil {
-		_ = temp.Close() // the encode error is the one to report
-		return fmt.Errorf("encode history: %w", err)
-	}
-	if err := temp.Sync(); err != nil { // before the rename, so a crash can't leave an empty file
-		_ = temp.Close() // the sync error is the one to report
-		return err
-	}
-	if err := temp.Close(); err != nil {
-		return err
-	}
-	return os.Rename(temp.Name(), path)
+	return trigram.SaveGob(path, ".history-*", "history", saved)
 }
 
 // ErrStaleFormat means a saved store was written by another format version.
@@ -327,14 +294,9 @@ var ErrStaleFormat = errors.New("history format changed")
 // Load reads a store written by Save. Its uncommitted paths are empty until
 // the next Update.
 func Load(path string) (*Store, error) {
-	f, err := os.Open(path) //nolint:gosec // G304: path is under the index directory the user configured
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = f.Close() }()
 	var saved savedStore
-	if err := gob.NewDecoder(f).Decode(&saved); err != nil {
-		return nil, fmt.Errorf("decode history %s: %w", path, err)
+	if err := trigram.LoadGob(path, "history", &saved); err != nil {
+		return nil, err
 	}
 	if saved.Version != storeFormatVersion {
 		return nil, ErrStaleFormat
