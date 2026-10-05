@@ -87,6 +87,25 @@ func TestOperators(t *testing.T) {
 		{"count: number", "count:20 x", "and(count=20/literal literal:x)"},
 		{"count: all", "count:all x", "and(count=all/literal literal:x)"},
 	}
+	// Every operator also answers to its short and full names.
+	aliases := []struct{ short, full, value, want string }{
+		{"f", "file", "src/", "f=src//regex"},
+		{"r", "repo", "web", "repo=web/regex"},
+		{"l", "language", "go", "lang=go/literal"},
+		{"t", "type", "code", "type=code/literal"},
+		{"s", "symbol", "Retry", "sym=Retry/literal"},
+		{"a", "author", "jane", "author=jane/literal"},
+		{"m", "message", "fix", "msg=fix/literal"},
+		{"d", "since", "2w", "since=2w/literal"},
+		{"c", "case", "yes", "case=yes/literal"},
+		{"n", "count", "all", "count=all/literal"},
+	}
+	for _, a := range aliases {
+		for _, name := range []string{a.short, a.full} {
+			query := name + ":" + a.value + " x"
+			tests = append(tests, struct{ name, query, want string }{name + ": spelling", query, "and(" + a.want + " literal:x)"})
+		}
+	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := shape(mustParseCleanly(t, tt.query).Root); got != tt.want {

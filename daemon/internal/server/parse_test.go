@@ -24,8 +24,8 @@ func TestParseReturnsTheParsedQueryAndCompletions(t *testing.T) {
 	if resolved := root.Children[0].Resolved; resolved == nil || resolved.Label != "web-checkout" {
 		t.Errorf("repo:web resolved = %+v, want web-checkout (from the open roots)", resolved)
 	}
-	if len(result.Completions) != 2 || result.Completions[0].Label != "since:" {
-		t.Errorf("completions = %+v, want since: and sym:", result.Completions)
+	if len(result.Completions) != 2 || result.Completions[0].Label != "symbol:" {
+		t.Errorf("completions = %+v, want symbol: (s is its short name) and since:", result.Completions)
 	}
 }
 

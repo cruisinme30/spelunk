@@ -2,6 +2,7 @@ package query
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -42,18 +43,26 @@ func Complete(text string, cursor int, resolver Resolver, now time.Time) []proto
 	return []protocol.Completion{}
 }
 
-// operatorCompletions offers operators whose names start with the word.
+// operatorCompletions offers, by full name, operators with a spelling that
+// starts with the word. The operator whose short name is the word comes first.
 func operatorCompletions(word token) []protocol.Completion {
 	prefix := strings.ToLower(word.value)
 	completions := []protocol.Completion{}
 	for _, op := range operators {
-		if strings.HasPrefix(op.name, prefix) {
-			completions = append(completions, protocol.Completion{
-				Label:  op.name + ":",
-				Detail: op.summary,
-				Insert: replaceFix("Insert "+op.name+":", protocol.Span{Start: word.start, End: word.end}, op.name+":"),
-				Group:  "operator",
-			})
+		if !slices.ContainsFunc(op.spellings(), func(name string) bool { return strings.HasPrefix(name, prefix) }) {
+			continue
+		}
+		completion := protocol.Completion{
+			Label:  op.full + ":",
+			Detail: op.summary,
+			Note:   op.short + ":",
+			Insert: replaceFix("Insert "+op.full+":", protocol.Span{Start: word.start, End: word.end}, op.full+":"),
+			Group:  "operator",
+		}
+		if op.short == prefix {
+			completions = slices.Insert(completions, 0, completion)
+		} else {
+			completions = append(completions, completion)
 		}
 	}
 	return completions
@@ -74,7 +83,7 @@ func valueCompletions(t token, resolver Resolver, now time.Time) []protocol.Comp
 		if strings.EqualFold(candidate.value, t.value) {
 			continue // already typed in full: nothing to complete
 		}
-		written := op.name + ":" + quoteIfNeeded(candidate.value)
+		written := t.name + ":" + quoteIfNeeded(candidate.value) // keeps the spelling typed: f: or file:
 		completions = append(completions, protocol.Completion{
 			Label:   candidate.value,
 			Detail:  candidate.detail,

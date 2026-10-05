@@ -334,7 +334,7 @@ func (p *parser) operatorNode(t token) *protocol.Node {
 	p.reportUnclosed(t)
 	valueSpan := protocol.Span{Start: t.valueStart, End: t.end}
 	if t.value == "" && t.unclosed == 0 {
-		p.reportBadValue(op, t, valueSpan, op.name+": needs a value")
+		p.reportBadValue(op, t, valueSpan, t.name+": needs a value")
 		return nil
 	}
 	match, problem := op.interpret(t.value, t.form)
@@ -362,8 +362,8 @@ func (p *parser) warnIfMonthsMeantAsMinutes(t token, valueSpan protocol.Span) {
 		return
 	}
 	p.problems.add(protocol.SeverityWarning, DiagBadValue, p.span(t),
-		fmt.Sprintf("since:%s means %s months; for minutes write since:%s", t.value, strings.TrimSuffix(t.value, "m"), minutes),
-		replaceFix("Use since:"+minutes, valueSpan, minutes))
+		fmt.Sprintf("%[1]s:%[2]s means %[3]s months; for minutes write %[1]s:%[4]s", t.name, t.value, strings.TrimSuffix(t.value, "m"), minutes),
+		replaceFix("Use "+t.name+":"+minutes, valueSpan, minutes))
 }
 
 func (p *parser) reportUnknownOperator(t token) {
@@ -394,7 +394,7 @@ func (p *parser) reportBadValue(op operator, t token, valueSpan protocol.Span, p
 	}
 	for _, example := range examples {
 		value := strings.TrimPrefix(example, op.name+":")
-		fixes = append(fixes, replaceFix("Use "+example, valueSpan, value+separator))
+		fixes = append(fixes, replaceFix("Use "+t.name+":"+value, valueSpan, value+separator))
 	}
 	p.problems.errorf(DiagBadValue, protocol.Span{Start: t.start, End: t.end}, fixes, "%s", problem)
 }

@@ -15,14 +15,47 @@ func labels(text string, cursor int) []string {
 }
 
 func TestCompletingOperatorsByPrefix(t *testing.T) {
-	// "timeout s" offers since: then sym:, and accepting inserts since:.
-	text := "timeout s"
+	// "timeout si" offers since: then symbol:, and accepting inserts since:.
+	text := "timeout si"
 	completions := Complete(text, len(text), testResolver, fixedNow)
-	if got := labels(text, len(text)); strings.Join(got, " ") != "since: sym:" {
-		t.Fatalf("Complete(%q) = %v, want [since: sym:]", text, got)
+	if got := labels(text, len(text)); strings.Join(got, " ") != "since:" {
+		t.Fatalf("Complete(%q) = %v, want [since:]", text, got)
 	}
 	if got := ApplyFix(text, completions[0].Insert); got != "timeout since:" {
 		t.Errorf("accepting since: gives %q, want %q", got, "timeout since:")
+	}
+}
+
+func TestCompletingOperatorsOffersFullNames(t *testing.T) {
+	// A short name offers its operator first; an old name offers the new one.
+	tests := map[string]string{
+		"s":    "symbol: since:",
+		"f":    "file:",
+		"d":    "since:",
+		"n":    "count:",
+		"lang": "language:",
+		"msg":  "message:",
+		"sym":  "symbol:",
+	}
+	for text, want := range tests {
+		if got := strings.Join(labels(text, len(text)), " "); got != want {
+			t.Errorf("Complete(%q) = [%s], want [%s]", text, got, want)
+		}
+	}
+	completions := Complete("s", 1, testResolver, fixedNow)
+	if completions[0].Note != "s:" {
+		t.Errorf("symbol: note = %q, want the short name s:", completions[0].Note)
+	}
+}
+
+func TestValueCompletionKeepsTheSpellingTyped(t *testing.T) {
+	text := "c:y"
+	completions := Complete(text, len(text), testResolver, fixedNow)
+	if len(completions) == 0 {
+		t.Fatalf("Complete(%q) offered nothing", text)
+	}
+	if got := ApplyFix(text, completions[0].Insert); got != "c:yes " {
+		t.Errorf("accepting %s gives %q, want %q", completions[0].Label, got, "c:yes ")
 	}
 }
 
