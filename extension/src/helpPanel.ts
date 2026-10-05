@@ -2,6 +2,7 @@
 // buttons run an example in the search panel.
 import * as vscode from "vscode";
 import type { WebviewMessage } from "./controller";
+import { parseWebviewMessage } from "./webviewMessages";
 import { webviewPage } from "./webviewPage";
 
 /** The help page's editor tab; at most one is open. */
@@ -32,8 +33,9 @@ export class HelpPanel implements vscode.Disposable {
     );
     this.panel = panel;
     panel.webview.html = webviewPage(panel.webview, webviewRoot, "help.js", "Unified Search · Help");
-    panel.webview.onDidReceiveMessage((message: WebviewMessage) => {
-      this.onMessage(message);
+    panel.webview.onDidReceiveMessage((raw: unknown) => {
+      const message = parseWebviewMessage(raw);
+      if (message) this.onMessage(message);
     });
     panel.onDidDispose(() => {
       this.panel = undefined;

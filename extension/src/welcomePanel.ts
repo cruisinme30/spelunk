@@ -4,6 +4,7 @@
 import * as vscode from "vscode";
 import { MESSAGE_VERSION, type WebviewMessage } from "./controller";
 import type { HostToWebview, IndexStatusResult, WelcomeStateMsg as WelcomeState } from "./protocol.gen";
+import { parseWebviewMessage } from "./webviewMessages";
 import { webviewPage } from "./webviewPage";
 
 /** The globalState key set once the welcome page has been shown. */
@@ -41,9 +42,10 @@ export class WelcomePanel implements vscode.Disposable {
     );
     this.panel = panel;
     panel.webview.html = webviewPage(panel.webview, webviewRoot, "welcome.js", "Welcome · Unified Search");
-    panel.webview.onDidReceiveMessage((message: WebviewMessage) => {
-      if (message.type === "ready") void this.sendState();
-      else this.onMessage(message);
+    panel.webview.onDidReceiveMessage((raw: unknown) => {
+      const message = parseWebviewMessage(raw);
+      if (message?.type === "ready") void this.sendState();
+      else if (message) this.onMessage(message);
     });
     panel.onDidDispose(() => {
       this.panel = undefined;

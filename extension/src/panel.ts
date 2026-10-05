@@ -3,6 +3,7 @@
 import * as vscode from "vscode";
 import { MESSAGE_VERSION, type WebviewMessage } from "./controller";
 import type { HostToWebview } from "./protocol.gen";
+import { parseWebviewMessage } from "./webviewMessages";
 import { webviewPage } from "./webviewPage";
 
 interface QueuedMessage {
@@ -47,8 +48,9 @@ export class SearchPanel implements vscode.Disposable {
     this.ready = false;
     panel.webview.html = webviewPage(panel.webview, webviewRoot, "main.js", "Unified Search");
     panel.webview.onDidReceiveMessage(
-      (message: WebviewMessage) => {
-        this.receive(message);
+      (raw: unknown) => {
+        const message = parseWebviewMessage(raw);
+        if (message) this.receive(message);
       },
       undefined,
       this.panelDisposables,

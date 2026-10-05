@@ -239,7 +239,7 @@ export class SearchController {
 
   /** Parses the box, posts the parse, then searches it unless it has errors or is empty. */
   private async onQueryChanged(change: QueryChangedMessage): Promise<void> {
-    if (change.seq < this.latestSeq) return;
+    if (!(change.seq >= this.latestSeq)) return; // older, or not a number (which would poison latestSeq)
     this.latestSeq = change.seq;
     this.state.text = change.text;
     this.ui.saveState(this.state);

@@ -30,6 +30,7 @@ import type {
   UiSettings,
 } from "../protocol.gen";
 import { makeRoot } from "../roots";
+import { parseWebviewMessage } from "../webviewMessages";
 import { newTestDaemon, SKIP_WITHOUT_DAEMON as skip, untilIndexed } from "./realDaemon";
 
 const TEST_UI_SETTINGS: UiSettings = {
@@ -419,4 +420,69 @@ test("a panel opened after indexing finished still gets each repo's state", () =
   listeners.get("progress")?.(status);
   controller.restore();
   assert.deepEqual(host.payloads("index.status").at(-1), status);
+});
+
+test("malformed panel messages are dropped at the boundary, and well-formed ones are normalised", () => {
+  const query = (payload: object) => {
+    const message = parseWebviewMessage({ v: MESSAGE_VERSION, type: "query.changed", payload });
+    return message?.type === "query.changed" ? message.payload : undefined;
+  };
+  for (const raw of [
+    null,
+    "query.changed",
+    [],
+    { type: "ready", payload: {} },
+    { v: 2, type: "ready", payload: {} },
+    { v: MESSAGE_VERSION, type: "nope", payload: {} },
+    { v: MESSAGE_VERSION, type: "toString", payload: {} },
+    { v: MESSAGE_VERSION, type: "__proto__", payload: {} },
+    { v: MESSAGE_VERSION, type: "ready" },
+    { v: MESSAGE_VERSION, type: "ready", payload: [] },
+    { v: MESSAGE_VERSION, type: "result.open", payload: { ref: "r" } },
+    { v: MESSAGE_VERSION, type: "result.open", payload: { ref: "r", where: "elsewhere" } },
+    { v: MESSAGE_VERSION, type: "result.select", payload: { ref: 7 } },
+    { v: MESSAGE_VERSION, type: "results.more", payload: { searchId: "s1" } },
+    { v: MESSAGE_VERSION, type: "help.try", payload: { query: null } },
+  ]) {
+    assert.equal(parseWebviewMessage(raw), undefined, JSON.stringify(raw));
+  }
+  for (const payload of [
+    { text: 5, cursor: 0, seq: 1 },
+    { text: "a", cursor: 0, seq: Number.NaN },
+    { text: "a", cursor: 0, seq: "2" },
+    { text: "a", cursor: 0, seq: -1 },
+    { text: "a", cursor: 0, seq: 1.5 },
+    { text: "a", cursor: Number.NaN, seq: 1 },
+    { text: "a", seq: 1 },
+  ]) {
+    assert.equal(query(payload), undefined, JSON.stringify(payload));
+  }
+  assert.deepEqual(query({ text: "abc", cursor: 99, seq: 3, asTyped: "yes", extra: 1 }), {
+    text: "abc",
+    cursor: 3,
+    seq: 3,
+  });
+  assert.equal(query({ text: "abc", cursor: -4, seq: 0 })?.cursor, 0);
+  assert.deepEqual(
+    parseWebviewMessage({
+      v: MESSAGE_VERSION,
+      type: "welcome.choose",
+      payload: { preset: "everything", historyDepth: "6m", symbols: "no" },
+    })?.payload,
+    { historyDepth: "6m" },
+    "only valid choices reach the user's settings",
+  );
+});
+
+test("a query.changed whose seq is not a number is ignored and doesn't let older queries back in", async () => {
+  const host = recordingUi();
+  const controller = newController(parseOnlyBackend().backend, host.ui);
+  await controller.handle(queryChanged("good", 2));
+  const payload = { text: "bad", cursor: 3, seq: Number.NaN };
+  await controller.handle({ v: MESSAGE_VERSION, type: "query.changed", payload });
+  await controller.handle(queryChanged("older", 1));
+  assert.deepEqual(
+    host.payloads("parse.result").map((parsed) => parsed.query.raw),
+    ["good"],
+  );
 });
