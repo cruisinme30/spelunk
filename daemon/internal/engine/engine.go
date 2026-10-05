@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"context"
 	"time"
 
 	"github.com/cruisinme30/spelunk/daemon/internal/protocol"
@@ -27,4 +28,19 @@ func NewStats(plan *query.Plan, counted int, truncated bool) Stats {
 		stats.NextOffset = next
 	}
 	return stats
+}
+
+// SearchFunc is an engine's Search.
+type SearchFunc[R any] func(ctx context.Context, plan *query.Plan, repos []R, planID int, emit func(protocol.ResultItem)) (Stats, error)
+
+// CountIgnoringCase counts the results search finds for plan without its
+// case:yes, or 0 if that search fails.
+func CountIgnoringCase[R any](ctx context.Context, plan *query.Plan, repos []R, search SearchFunc[R]) int {
+	folded := plan.IgnoringCase()
+	folded.Offset, folded.Limit = 0, 0 // count only
+	stats, err := search(ctx, folded, repos, 0, func(protocol.ResultItem) {})
+	if err != nil {
+		return 0
+	}
+	return stats.Total
 }

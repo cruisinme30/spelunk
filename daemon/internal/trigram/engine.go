@@ -95,7 +95,7 @@ func Search(ctx context.Context, plan *query.Plan, repos []Repo, planID int, emi
 		}
 	}
 	if plan.CaseFilter != nil {
-		s.hiddenByCase = countIgnoringCase(ctx, plan, repos) - s.counted
+		s.hiddenByCase = engine.CountIgnoringCase(ctx, plan, repos, Search) - s.counted
 	}
 	if errors.Is(ctx.Err(), context.Canceled) {
 		return engine.Stats{}, context.Cause(ctx)
@@ -114,17 +114,6 @@ func resultUnit(plan *query.Plan, onlyFiles bool) string {
 	default:
 		return "matches"
 	}
-}
-
-// countIgnoringCase counts the results plan would have without case:yes.
-func countIgnoringCase(ctx context.Context, plan *query.Plan, repos []Repo) int {
-	folded := plan.IgnoringCase()
-	folded.Offset, folded.Limit = 0, 0 // count only
-	stats, err := Search(ctx, folded, repos, 0, func(protocol.ResultItem) {})
-	if err != nil {
-		return 0
-	}
-	return stats.Total
 }
 
 // searcher holds one search's progress.
