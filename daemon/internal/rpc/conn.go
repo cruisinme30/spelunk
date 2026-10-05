@@ -525,32 +525,36 @@ func (c *Conn) dispatch(connCtx context.Context, m message) {
 	c.handlersRunning.Add(1)
 	go func() {
 		defer c.handlersRunning.Done()
-		defer func() {
-			cancel()
-			c.mu.Lock()
-			delete(c.inflight, string(id))
-			c.mu.Unlock()
-		}()
-		if handler == nil {
-			_ = c.send(&errorResponse{JSONRPC: "2.0", ID: id, Error: Errorf(CodeMethodNotFound, "method not found: %s", m.Method)})
-			return
-		}
-		result, err := callSafely(requestCtx, handler, m.Params)
-		cancelledByPeer := requestCtx.Err() != nil && connCtx.Err() == nil
-		if err == nil && cancelledByPeer {
-			err = errRequestCancelled // a handler that ignores ctx still reports the cancel
-		}
-		if err != nil {
-			_ = c.send(&errorResponse{JSONRPC: "2.0", ID: id, Error: toRPCError(err)})
-			return
-		}
-		encoded, err := json.Marshal(result)
-		if err != nil {
-			_ = c.send(&errorResponse{JSONRPC: "2.0", ID: id, Error: Errorf(CodeInternalError, "encode result: %v", err)})
-			return
-		}
-		_ = c.send(&successResponse{JSONRPC: "2.0", ID: id, Result: encoded})
+		response := respond(connCtx, requestCtx, handler, m)
+		// The id is free once the peer can see the answer, so it is
+		// released before the answer is sent: a peer that reuses it at
+		// once must not be told it is still in flight.
+		cancel()
+		c.mu.Lock()
+		delete(c.inflight, string(id))
+		c.mu.Unlock()
+		_ = c.send(response)
 	}()
+}
+
+// respond calls the handler for request m and returns the response to send.
+func respond(connCtx, requestCtx context.Context, handler Handler, m message) any {
+	if handler == nil {
+		return &errorResponse{JSONRPC: "2.0", ID: m.ID, Error: Errorf(CodeMethodNotFound, "method not found: %s", m.Method)}
+	}
+	result, err := callSafely(requestCtx, handler, m.Params)
+	cancelledByPeer := requestCtx.Err() != nil && connCtx.Err() == nil
+	if err == nil && cancelledByPeer {
+		err = errRequestCancelled // a handler that ignores ctx still reports the cancel
+	}
+	if err != nil {
+		return &errorResponse{JSONRPC: "2.0", ID: m.ID, Error: toRPCError(err)}
+	}
+	encoded, err := json.Marshal(result)
+	if err != nil {
+		return &errorResponse{JSONRPC: "2.0", ID: m.ID, Error: Errorf(CodeInternalError, "encode result: %v", err)}
+	}
+	return &successResponse{JSONRPC: "2.0", ID: m.ID, Result: encoded}
 }
 
 // toRPCError maps a handler error to the JSON-RPC error the caller sees.

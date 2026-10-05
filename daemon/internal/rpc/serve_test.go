@@ -176,6 +176,20 @@ func TestDuplicateInFlightIDIsRefusedAndTheFirstStaysCancellable(t *testing.T) {
 	}
 }
 
+func TestAnIDIsFreeAsSoonAsItsAnswerArrives(t *testing.T) {
+	// The id used to be released only after the answer was written, so a
+	// peer reusing it at once was sometimes told it was still in flight.
+	peer := newRawPeer(t, func(c *Conn) {
+		c.Handle("echo", func(_ context.Context, params json.RawMessage) (any, error) { return params, nil })
+	})
+	for i := range 500 {
+		peer.send(t, fmt.Sprintf(`{"jsonrpc":"2.0","id":1,"method":"echo","params":%d}`, i))
+		if got := peer.receive(t); got["result"] != float64(i) {
+			t.Fatalf("request %d reusing id 1 = %v, want result %d", i, got, i)
+		}
+	}
+}
+
 func TestPanickingNotificationHandlerDoesNotEndTheConnection(t *testing.T) {
 	peer := newRawPeer(t, func(c *Conn) {
 		c.OnNotify("boom", func(json.RawMessage) { panic("notification handler bug") })
