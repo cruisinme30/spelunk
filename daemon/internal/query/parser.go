@@ -39,8 +39,7 @@ func Parse(text string, resolver Resolver) protocol.ParsedQuery {
 // query that can't run anyway.
 func parseTooLong(text, prefix string) protocol.ParsedQuery {
 	var problems diagnostics
-	problems.errorf(DiagQueryTooLong, protocol.Span{Start: maxQueryLength, End: utf16Length(text)}, nil,
-		"Queries can be at most %d characters", maxQueryLength)
+	reportTooLong(&problems, utf16Length(text))
 	return protocol.ParsedQuery{
 		Version:     1,
 		Raw:         text,

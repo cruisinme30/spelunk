@@ -34,9 +34,15 @@ func check(src *source, query *protocol.ParsedQuery, problems *diagnostics) {
 // first, so the report is never dropped by the cap on diagnostics.
 func checkLength(src *source, problems *diagnostics) {
 	if src.length() > maxQueryLength {
-		problems.errorf(DiagQueryTooLong, protocol.Span{Start: maxQueryLength, End: src.length()}, nil,
-			"Queries can be at most %d characters", maxQueryLength)
+		reportTooLong(problems, src.length())
 	}
+}
+
+// reportTooLong reports the characters past maxQueryLength in a query of
+// length UTF-16 units.
+func reportTooLong(problems *diagnostics, length int) {
+	problems.errorf(DiagQueryTooLong, protocol.Span{Start: maxQueryLength, End: length}, nil,
+		"Queries can be at most %d characters", maxQueryLength)
 }
 
 // topLevel returns the nodes that are directly part of the top-level AND.
