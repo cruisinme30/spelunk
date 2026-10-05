@@ -7,6 +7,8 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- Drag the line between recent queries and the operators to resize them, or focus it and press ← →. Double-click it
+  to reset; the panel remembers the width.
 - Every operator has a full name and a one-letter short name, such as `file:` and `f:` or `author:` and `a:`.
   Suggestions and help show the full name with the short one beside it; `lang:`, `sym:` and `msg:` still work.
 - Search daemon skeleton: JSON-RPC 2.0 over stdio, initialize/shutdown lifecycle, crash restarts.

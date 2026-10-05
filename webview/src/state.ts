@@ -55,6 +55,8 @@ export interface ViewState {
   banner: BannerMessage | undefined;
   /** Whether ? opened the operator cheat sheet over the empty box. */
   sheetOpen: boolean;
+  /** The width in pixels the divider gave the recent queries; undefined for the default split. */
+  recentWidth: number | undefined;
 }
 
 /**
@@ -91,6 +93,7 @@ export function createViewState(): ViewState {
     repos: [],
     banner: undefined,
     sheetOpen: false,
+    recentWidth: undefined,
   };
 }
 

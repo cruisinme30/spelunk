@@ -20,6 +20,7 @@
   --sel-fg: var(--vscode-list-activeSelectionForeground, inherit);
   --hover: var(--vscode-list-hoverBackground, #20242c);
   --focus: var(--vscode-focusBorder, #3e4f6a);
+  --sash: var(--vscode-sash-hoverBorder, #3b82f6);
   --btn: var(--vscode-button-secondaryBackground, #20242c);
   --btn-fg: var(--vscode-button-secondaryForeground, #c9cdd5);
   --err: var(--vscode-errorForeground, #ffb4ac);
@@ -945,6 +946,72 @@ pre.body {
   min-width: 0;
   background: var(--panel);
   padding: 6px 0 12px;
+}
+
+/* The divider exists only while recent and the cheat sheet sit side by side. */
+.recent-divider {
+  display: none;
+}
+
+@media (width > 841px) {
+  .empty {
+    flex-wrap: nowrap;
+    gap: 0;
+  }
+
+  .empty.sized .recent {
+    flex: 0 0 var(--recent-width);
+  }
+
+  .empty.sized .sheet {
+    flex: 1 1 0;
+  }
+
+  /* Like VS Code's sash: a 1px line with a wider grab area that lights up while hovered or dragged. */
+  .recent-divider {
+    position: relative;
+    display: flex;
+    flex: 0 0 7px;
+    align-items: center;
+    justify-content: center;
+    margin: 0 -3px;
+    z-index: 1;
+    cursor: col-resize;
+    touch-action: none;
+  }
+
+  .recent-divider::before {
+    content: "";
+    position: absolute;
+    inset: 0 3px;
+    background: var(--line);
+  }
+
+  .recent-divider:hover::before,
+  .recent-divider.active::before,
+  .recent-divider:focus-visible::before {
+    inset: 0 2px;
+    background: var(--sash);
+  }
+
+  .recent-divider:focus-visible {
+    outline: none;
+  }
+
+  .recent-divider .grip {
+    position: relative;
+    width: 5px;
+    height: 28px;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    background: var(--panel);
+  }
+
+  .recent-divider:hover .grip,
+  .recent-divider.active .grip,
+  .recent-divider:focus-visible .grip {
+    border-color: var(--sash);
+  }
 }
 
 .recent-row {

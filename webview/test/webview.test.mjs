@@ -10,6 +10,7 @@ import {
   fromHost,
   lastSent,
   openPanel,
+  openPanelWithSavedState,
   panelWithResults,
   parsedQuery,
   restore,
@@ -24,6 +25,51 @@ useBrowser();
 
 /** The query's error diagnostics as rendered, one element each. */
 const DIAGNOSTIC_ROWS = '[data-testid="diagnostics"] > *';
+
+test("dragging the divider resizes the recent queries and the width survives a reload", async (t) => {
+  const page = await openPanel(t);
+  await page.setViewportSize({ width: 1200, height: 700 });
+  await restore(page, ["sym:RetryPolicy"]);
+  const recentWidth = async () => (await page.locator(".recent").boundingBox()).width;
+  const divider = page.locator('[data-testid="recent-divider"]');
+  const before = await recentWidth();
+  const box = await divider.boundingBox();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2 + 150, box.y + box.height / 2, { steps: 5 });
+  await page.mouse.up();
+  assert.ok(Math.abs((await recentWidth()) - (before + 150)) <= 2, "the recent queries follow the pointer");
+  const dragged = await recentWidth();
+  assert.equal(await page.evaluate(() => globalThis.__savedState.recentWidth), dragged);
+
+  // ← and → move it too, and neither side can be dragged shut.
+  await divider.focus();
+  await page.keyboard.press("ArrowLeft");
+  assert.equal(Math.round(await recentWidth()), Math.round(dragged) - 24);
+  const moved = await divider.boundingBox();
+  await page.mouse.move(moved.x + moved.width / 2, moved.y + moved.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(0, moved.y + moved.height / 2, { steps: 5 });
+  await page.mouse.up();
+  assert.equal(Math.round(await recentWidth()), 200);
+
+  // A reloaded panel keeps the width; a double-click puts back the default split.
+  const saved = await page.evaluate(() => globalThis.__savedState);
+  const reloaded = await openPanelWithSavedState(t, saved);
+  await reloaded.setViewportSize({ width: 1200, height: 700 });
+  await restore(reloaded, ["sym:RetryPolicy"]);
+  assert.equal(Math.round((await reloaded.locator(".recent").boundingBox()).width), 200);
+  await reloaded.locator('[data-testid="recent-divider"]').dblclick();
+  assert.equal(Math.round((await reloaded.locator(".recent").boundingBox()).width), Math.round(before));
+  assert.equal(await reloaded.evaluate(() => globalThis.__savedState.recentWidth), undefined);
+});
+
+test("the divider hides when recent and the cheat sheet stack", async (t) => {
+  const page = await openPanel(t);
+  await page.setViewportSize({ width: 600, height: 700 });
+  await restore(page, ["sym:RetryPolicy"]);
+  assert.equal(await page.locator('[data-testid="recent-divider"]').isVisible(), false);
+});
 
 test("an empty box shows recent queries and all 16 operators", async (t) => {
   // @covers screen:empty-box

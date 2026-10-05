@@ -16,14 +16,100 @@ export interface EmptyStateHandlers {
   onRunRecent: (query: string) => void;
   onRemoveRecent: (query: string) => void;
   onInsert: (snippet: string) => void;
+  /** The divider settled at a new width for the recent queries; no width after a reset. */
+  onResizeRecent: (width?: number) => void;
 }
+
+/** The narrowest the recent queries and the cheat sheet can be dragged. */
+const MIN_RECENT_WIDTH = 200;
+const MIN_SHEET_WIDTH = 320;
+/** How far one ← or → moves the divider. */
+const KEY_STEP = 24;
 
 /** Fills `body` with the recent queries and the operator cheat sheet. */
 export function renderEmptyState(body: HTMLElement, state: ViewState, handlers: EmptyStateHandlers): void {
   const className = state.sheetOpen ? "empty sheet-open" : "empty";
-  body.replaceChildren(
-    element("div", { class: className }, renderRecent(state, handlers), renderSheet(handlers.onInsert)),
+  const recent = renderRecent(state, handlers);
+  const empty = element("div", { class: className }, recent);
+  empty.append(renderDivider(empty, recent, handlers.onResizeRecent), renderSheet(handlers.onInsert));
+  setRecentWidth(empty, state.recentWidth);
+  body.replaceChildren(empty);
+}
+
+/** Sizes the recent queries to `width`, or back to the default split when undefined. */
+function setRecentWidth(empty: HTMLElement, width: number | undefined): void {
+  if (width === undefined) {
+    empty.classList.remove("sized");
+    empty.style.removeProperty("--recent-width");
+  } else {
+    empty.classList.add("sized");
+    empty.style.setProperty("--recent-width", `${width}px`);
+  }
+}
+
+/** Keeps a width between the minimums of both sides, given the room the two share. */
+function clampWidth(width: number, empty: HTMLElement, divider: HTMLElement): number {
+  const room = empty.clientWidth - divider.offsetWidth;
+  return Math.round(Math.max(MIN_RECENT_WIDTH, Math.min(width, room - MIN_SHEET_WIDTH)));
+}
+
+/**
+ * The line between the recent queries and the cheat sheet: drag it, or
+ * focus it and press ← →, to resize; double-click it to reset. It shows
+ * only while the two sit side by side.
+ */
+function renderDivider(empty: HTMLElement, recent: HTMLElement, onResize: (width?: number) => void): HTMLElement {
+  const divider = element(
+    "div",
+    {
+      class: "recent-divider",
+      role: "separator",
+      tabindex: 0,
+      "aria-orientation": "vertical",
+      "aria-label": "Resize recent queries",
+      title: "Drag to resize · double-click to reset",
+      "data-testid": "recent-divider",
+    },
+    element("span", { class: "grip", "aria-hidden": "true" }),
   );
+  const resize = (width: number) => {
+    const clamped = clampWidth(width, empty, divider);
+    setRecentWidth(empty, clamped);
+    return clamped;
+  };
+  divider.addEventListener("pointerdown", (event) => {
+    event.preventDefault();
+    divider.setPointerCapture(event.pointerId);
+    divider.classList.add("active");
+    const startX = event.clientX;
+    const startWidth = recent.getBoundingClientRect().width;
+    let width = startWidth;
+    const move = (moved: PointerEvent) => {
+      width = resize(startWidth + moved.clientX - startX);
+    };
+    const end = () => {
+      divider.classList.remove("active");
+      divider.removeEventListener("pointermove", move);
+      divider.removeEventListener("pointerup", end);
+      divider.removeEventListener("pointercancel", end);
+      if (width !== startWidth) onResize(width);
+    };
+    divider.addEventListener("pointermove", move);
+    divider.addEventListener("pointerup", end);
+    divider.addEventListener("pointercancel", end);
+  });
+  divider.addEventListener("dblclick", () => {
+    setRecentWidth(empty, undefined);
+    onResize();
+  });
+  divider.addEventListener("keydown", (event) => {
+    const step = { ArrowLeft: -KEY_STEP, ArrowRight: KEY_STEP }[event.key];
+    if (step === undefined) return;
+    event.preventDefault();
+    event.stopPropagation();
+    onResize(resize(recent.getBoundingClientRect().width + step));
+  });
+  return divider;
 }
 
 function clockIcon(): HTMLElement {

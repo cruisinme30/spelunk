@@ -4,7 +4,7 @@
 // The panel is a pure view: it never parses. Fix-its, completions and the Aa / .*
 // toggles all edit the query text, then send an ordinary query.changed.
 import { clamp, element, plural, scrollIntoContainer, wrapIndex } from "./format";
-import { type HostMessage, loadDraft, onHostMessage, saveDraft, send } from "./host";
+import { type HostMessage, loadDraft, loadRecentWidth, onHostMessage, saveDraft, saveRecentWidth, send } from "./host";
 import { createLayout, type Layout, REPO_MENU_ANCHOR_CLASS } from "./layout";
 import { pathScope, scopedRepo } from "./parsedQuery";
 import type {
@@ -61,6 +61,7 @@ export class SearchPanel {
       this.onHostMessage(message);
     });
     renderIndexStatus(this.layout, this.state);
+    this.state.recentWidth = loadRecentWidth();
     this.showEmptyState();
     const draft = loadDraft();
     if (draft) this.layout.input.value = draft;
@@ -590,6 +591,10 @@ export class SearchPanel {
       },
       onInsert: (snippet) => {
         this.insertAtCursor(snippet);
+      },
+      onResizeRecent: (width) => {
+        state.recentWidth = width;
+        saveRecentWidth(width);
       },
     });
     this.renderFooter();

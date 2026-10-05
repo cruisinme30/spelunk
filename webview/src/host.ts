@@ -75,13 +75,30 @@ export function onHostMessage(handler: (message: HostMessage) => void): void {
   });
 }
 
-/** Keeps the unsent query text across webview reloads (VS Code's webview state). */
-export function saveDraft(text: string): void {
-  vscode.setState({ text });
+/** What the panel keeps in VS Code's webview state; an older or corrupt state reads as empty. */
+function savedState(): Record<string, unknown> {
+  const saved = vscode.getState();
+  return isObject(saved) ? saved : {};
 }
 
-/** The query text saveDraft kept, if any; anything else VS Code hands back (an older or corrupt state) is ignored. */
+/** Keeps the unsent query text across webview reloads (VS Code's webview state). */
+export function saveDraft(text: string): void {
+  vscode.setState({ ...savedState(), text });
+}
+
+/** The query text saveDraft kept, if any. */
 export function loadDraft(): string | undefined {
-  const saved = vscode.getState();
-  return isObject(saved) && isString(saved["text"]) ? saved["text"] : undefined;
+  const text = savedState()["text"];
+  return isString(text) ? text : undefined;
+}
+
+/** Keeps the width dragged for the recent queries across reloads; undefined goes back to the default. */
+export function saveRecentWidth(width: number | undefined): void {
+  vscode.setState({ ...savedState(), recentWidth: width });
+}
+
+/** The width saveRecentWidth kept, if any. */
+export function loadRecentWidth(): number | undefined {
+  const width = savedState()["recentWidth"];
+  return typeof width === "number" && Number.isFinite(width) && width > 0 ? width : undefined;
 }
