@@ -30,10 +30,16 @@ func newLiteralFinder(term *query.Content) (literalFinder, bool) {
 	if !term.IgnoreCase {
 		return literalFinder{needle: []byte(term.Literal)}, true
 	}
-	needle := []byte(term.Literal)
+	return foldedLiteralFinder(term.Literal)
+}
+
+// foldedLiteralFinder finds literal ignoring case. ok is false when literal
+// isn't ASCII: Unicode case folding is left to the regex.
+func foldedLiteralFinder(literal string) (literalFinder, bool) {
+	needle := []byte(literal)
 	for i, b := range needle {
 		if b >= utf8.RuneSelf {
-			return literalFinder{}, false // Unicode case folding: leave it to the regex
+			return literalFinder{}, false
 		}
 		needle[i] = foldASCII(b)
 	}
@@ -49,14 +55,7 @@ func regexLiteralFinder(term *query.Content) (literalFinder, bool) {
 	if len(literal) < minRegexLiteral {
 		return literalFinder{}, false
 	}
-	needle := []byte(literal)
-	for i, b := range needle {
-		if b >= utf8.RuneSelf {
-			return literalFinder{}, false
-		}
-		needle[i] = foldASCII(b)
-	}
-	return literalFinder{needle: needle, folded: true}, true
+	return foldedLiteralFinder(literal)
 }
 
 // The only non-ASCII characters that ignore-case matching equates with
