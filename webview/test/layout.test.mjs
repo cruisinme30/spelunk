@@ -67,3 +67,30 @@ test("the help page and the welcome page fit a narrow editor without scrolling s
     assert.equal(await horizontalOverflow(welcome), 0, `welcome at ${width}px`);
   }
 });
+
+test("the help page's operator table keeps Try buttons and examples readable at every width", async (t) => {
+  for (const width of [1200, 800, 480, 360]) {
+    const help = await openHelp(t);
+    await help.setViewportSize({ width, height: 720 });
+    const layout = await help.evaluate(() => {
+      /** How many lines an element's text takes. */
+      const lines = (node) => {
+        const range = document.createRange();
+        range.selectNodeContents(node);
+        return new Set([...range.getClientRects()].map((rect) => Math.round(rect.top))).size;
+      };
+      const rows = [...document.querySelectorAll('[data-testid="operator-row"]')];
+      return {
+        tryLines: Math.max(...rows.map((row) => lines(row.querySelector('[data-testid="try"]')))),
+        // An example breaks only between its words, never inside one.
+        brokenExamples: rows
+          .map((row) => row.querySelector(".operator-example code"))
+          .filter((code) => lines(code) > code.textContent.split(/[\s|]+/).length)
+          .map((code) => code.textContent),
+      };
+    });
+    assert.equal(layout.tryLines, 1, `Try wraps at ${width}px`);
+    assert.deepEqual(layout.brokenExamples, [], `examples broken mid-word at ${width}px`);
+    assert.equal(await horizontalOverflow(help), 0, `help at ${width}px`);
+  }
+});

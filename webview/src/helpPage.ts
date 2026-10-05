@@ -52,16 +52,26 @@ function operatorTable(groups: OperatorGroup[]): HTMLElement {
         element(
           "tr",
           { "data-testid": "operator-row" },
-          element("td", {}, element("code", { class: tone }, entry.label), ...shortTag(entry)),
-          element("td", {}, entry.description),
-          element("td", {}, element("code", {}, entry.example)),
-          element("td", {}, tryButton(entry.example)),
+          element(
+            "td",
+            { class: "operator-name" },
+            element("code", { class: tone }, ...breakable(entry.label)),
+            ...shortTag(entry),
+          ),
+          element("td", { class: "operator-description" }, entry.description),
+          element("td", { class: "operator-example" }, element("code", {}, ...breakable(entry.example))),
+          element("td", { class: "operator-try" }, tryButton(entry.example)),
         ),
       );
     }
   }
   const headings = ["Operator", "What it does", "Example", ""].map((heading) => element("th", {}, heading));
   return element("table", { class: "operator-table" }, element("thead", {}, element("tr", {}, ...headings)), body);
+}
+
+/** `text` with a line-break opportunity after each "|", so `case:yes|no|smart` wraps between its values. */
+function breakable(text: string): (Node | string)[] {
+  return text.split(/(?<=\|)/).flatMap((part, index) => (index ? [element("wbr"), part] : [part]));
 }
 
 /** " or f:" after a full name; nothing for syntax. */

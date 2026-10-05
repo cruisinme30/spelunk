@@ -1346,6 +1346,8 @@ pre.body {
 }
 
 .guide {
+  /* The operator table lays itself out by the guide's width, not the window's. */
+  container: guide / inline-size;
   flex: 1;
   min-width: 0;
   max-width: 880px;
@@ -1388,9 +1390,76 @@ pre.body {
   vertical-align: middle;
 }
 
+/* anywhere lets the table squeeze a column to one letter to make room for the long descriptions; break-word
+   keeps whole words in each column's minimum width. Narrow guides get cards instead, below. */
+.operator-table td {
+  overflow-wrap: break-word;
+}
+
 .operator-table tr.operator-group th {
   font-size: 12px;
   padding-top: 12px;
+}
+
+/* Fixed shares, so the long descriptions can't starve the code columns. */
+.operator-table .operator-name {
+  width: 25%;
+}
+
+.operator-table .operator-example {
+  width: 28%;
+}
+
+.operator-table .operator-try {
+  width: 1%;
+  white-space: nowrap;
+}
+
+/* Too narrow for four columns: each operator becomes a card, its Try button beside the name. */
+@container guide (width < 560px) {
+  .operator-table,
+  .operator-table tbody {
+    display: block;
+  }
+
+  .operator-table thead {
+    display: none;
+  }
+
+  .operator-table tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 4px 12px;
+    padding: 8px 12px;
+    border-top: 1px solid var(--line);
+  }
+
+  .operator-table tr.operator-group {
+    display: block;
+    padding-top: 12px;
+  }
+
+  .operator-table th,
+  .operator-table td,
+  .operator-table .operator-name,
+  .operator-table .operator-example,
+  .operator-table .operator-try {
+    display: block;
+    width: auto;
+    padding: 0;
+    border-top: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .operator-table .operator-try {
+    grid-area: 1 / 2;
+  }
+
+  .operator-table .operator-description,
+  .operator-table .operator-example {
+    grid-column: 1 / -1;
+  }
 }
 
 .examples {
