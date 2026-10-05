@@ -10,6 +10,7 @@ import (
 	"reflect"
 	"slices"
 	"testing"
+	"time"
 
 	"github.com/cruisinme30/unified-search/daemon/internal/protocol"
 )
@@ -217,5 +218,28 @@ func TestLoadOfAnEmptyFileIsAnError(t *testing.T) {
 	}
 	if _, err := Load(path); err == nil || errors.Is(err, os.ErrNotExist) {
 		t.Errorf("Load(empty file) error = %v, want a decode error (the index is rebuilt)", err)
+	}
+}
+
+func TestSaveRemovesTempFilesACrashLeftBehind(t *testing.T) {
+	dir := t.TempDir()
+	stale, fresh := filepath.Join(dir, ".shard-111"), filepath.Join(dir, ".shard-222")
+	for _, path := range []string{stale, fresh} {
+		if err := os.WriteFile(path, []byte("half a shard"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	old := time.Now().Add(-2 * staleTempAge)
+	if err := os.Chtimes(stale, old, old); err != nil {
+		t.Fatal(err)
+	}
+	if err := shardOf(map[string]string{"a.txt": "alpha"}).Save(filepath.Join(dir, "repo.shard")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(stale); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("a temp file from an hour-old crashed save is still there (%v)", err)
+	}
+	if _, err := os.Stat(fresh); err != nil {
+		t.Errorf("a recent temp file, maybe another daemon's save in progress, was removed: %v", err)
 	}
 }

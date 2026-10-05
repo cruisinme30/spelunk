@@ -283,12 +283,22 @@ type savedStore struct {
 	Commits []Commit
 }
 
-// Save writes the store to path atomically.
+// tempPattern names the temporary file Save writes before renaming it.
+const tempPattern = ".history-*"
+
+// staleTempAge is how old a temporary file must be before Save removes it
+// as left behind by a crash; a younger one may be another daemon's save.
+const staleTempAge = time.Hour
+
+// Save writes the store to path atomically, even across a crash, and
+// removes the temporary files of saves a crash interrupted.
 func (s *Store) Save(path string) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0o750); err != nil {
 		return err
 	}
-	temp, err := os.CreateTemp(filepath.Dir(path), ".history-*")
+	trigram.RemoveStaleTemps(dir, tempPattern, time.Now().Add(-staleTempAge))
+	temp, err := os.CreateTemp(dir, tempPattern)
 	if err != nil {
 		return err
 	}
@@ -300,6 +310,10 @@ func (s *Store) Save(path string) error {
 	if err := gob.NewEncoder(temp).Encode(saved); err != nil {
 		_ = temp.Close() // the encode error is the one to report
 		return fmt.Errorf("encode history: %w", err)
+	}
+	if err := temp.Sync(); err != nil { // before the rename, so a crash can't leave an empty file
+		_ = temp.Close() // the sync error is the one to report
+		return err
 	}
 	if err := temp.Close(); err != nil {
 		return err

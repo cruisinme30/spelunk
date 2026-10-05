@@ -241,13 +241,24 @@ type savedShard struct {
 	Postings map[uint32][]uint32
 }
 
+// tempPattern names the temporary file Save writes before renaming it.
+const tempPattern = ".shard-*"
+
+// staleTempAge is how old a temporary file must be before Save treats it as
+// left behind by a crash and removes it. Another daemon (one runs per VS
+// Code window) may be writing a newer one into the same folder.
+const staleTempAge = time.Hour
+
 // Save writes the shard to path atomically: readers see the old file or
-// the new one, never half of one.
+// the new one, never half of one, even after a crash. It also removes the
+// temporary files of saves a crash interrupted.
 func (s *Shard) Save(path string) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0o750); err != nil {
 		return err
 	}
-	temp, err := os.CreateTemp(filepath.Dir(path), ".shard-*")
+	RemoveStaleTemps(dir, tempPattern, time.Now().Add(-staleTempAge))
+	temp, err := os.CreateTemp(dir, tempPattern)
 	if err != nil {
 		return err
 	}
@@ -258,10 +269,28 @@ func (s *Shard) Save(path string) error {
 		_ = temp.Close() // the encode error is the one to report
 		return fmt.Errorf("encode shard: %w", err)
 	}
+	// Flushed before the rename, so a crash can't leave a renamed but empty file.
+	if err := temp.Sync(); err != nil {
+		_ = temp.Close() // the sync error is the one to report
+		return err
+	}
 	if err := temp.Close(); err != nil {
 		return err
 	}
 	return os.Rename(temp.Name(), path)
+}
+
+// RemoveStaleTemps removes the files in dir that match pattern and were
+// last written before cutoff: what saves interrupted by a crash left. The
+// history store saves its index the same way. Errors are ignored; a file
+// that can't be removed is tried again next time.
+func RemoveStaleTemps(dir, pattern string, cutoff time.Time) {
+	matches, _ := filepath.Glob(filepath.Join(dir, pattern))
+	for _, match := range matches {
+		if info, err := os.Lstat(match); err == nil && info.Mode().IsRegular() && info.ModTime().Before(cutoff) {
+			_ = os.Remove(match)
+		}
+	}
 }
 
 // ErrStaleFormat means a saved shard was written by another format version.
