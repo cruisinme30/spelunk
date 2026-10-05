@@ -66,7 +66,7 @@ type Filter struct {
 	Reason string
 	// Index is the position of the filter's conjunct in Plan.Pred.Kids, so
 	// an engine can tell which filter a result failed. It is -1 for
-	// KindFilter and CaseFilter, which have no conjunct.
+	// KindFilter, CaseFilter and SymbolFilter, which have no conjunct.
 	Index int
 	// Text is the filter as typed, e.g. -f:vendor/.
 	Text string
@@ -489,8 +489,8 @@ func Contributing(p Pred, leaf func(Pred) bool) []*Content {
 }
 
 // historyScanWarnings warns when a history regex has no literal of three
-// or more characters and nothing else narrows the commits: FTS5 trigrams
-// can't help, so the search scans every row (capped at 2 seconds).
+// or more characters and nothing else narrows the commits: the trigram
+// index can't help, so the search scans every commit (within SearchBudget).
 func historyScanWarnings(plan *Plan) []protocol.Diagnostic {
 	if plan.Mode != protocol.ModeHistory || narrowsHistory(plan.Pred) {
 		return nil
