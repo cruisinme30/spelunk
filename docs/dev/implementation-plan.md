@@ -187,6 +187,7 @@ drives labels such as "→ Jane Doe" in the chip row.
 | `op_wrong_mode` | `author:jane sym:Foo` | Remove the operator |
 | `invalid_regex` | `/Retry(/` | None; show the RE2 error |
 | `no_positive_term` | `-timeout` | None |
+| `pipe_in_word` (warning) | `daemon\|search` | `daemon OR search` or `/daemon\|search/` |
 
 ## Contract 2: webview ↔ extension host
 

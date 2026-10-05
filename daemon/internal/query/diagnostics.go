@@ -26,6 +26,7 @@ const (
 	DiagNoPositiveTerm  = "no_positive_term"
 	DiagQueryTooLong    = "query_too_long"
 	DiagHistoryFullScan = "history_full_scan"
+	DiagPipeInWord      = "pipe_in_word"
 )
 
 const (

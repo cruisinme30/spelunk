@@ -5,6 +5,11 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- A plain word with a pipe, like `daemon|search`, now warns that it matches the pipe too, and offers
+  `daemon OR search` or `/daemon|search/` instead.
+
 ### Fixed
 
 - A recent-queries width saved in a wide panel no longer squeezes the operator cheat sheet when the panel narrows,

@@ -199,3 +199,49 @@ func TestFixesThatRemoveTextNeverJoinWords(t *testing.T) {
 		}
 	}
 }
+
+// A plain word with a pipe, like daemon|search, matches the pipe too, so it
+// warns and offers OR and a regex. The query still runs.
+func TestPipeInWord(t *testing.T) {
+	// @covers diag:pipe_in_word
+	tests := []struct {
+		name, query string
+		fixed       []string // what each fix turns the query into
+	}{
+		{"alone in a group needs no new parentheses", "(daemon|search)", []string{"(daemon OR search)", "(/daemon|search/)"}},
+		{"alone in the query", "daemon|search", []string{"daemon OR search", "/daemon|search/"}},
+		{"beside another term keeps its meaning", "a|b c", []string{"(a OR b) c", "/a|b/ c"}},
+		{"after a minus stays excluded", "x -a|b", []string{"x -(a OR b)", "x -/a|b/"}},
+		{"three words", "a|b|c", []string{"a OR b OR c", "/a|b|c/"}},
+		{"regex characters are escaped", "a.b|c/d", []string{"a.b OR c/d", "/a\\.b|c\\/d/"}},
+		{"a keyword offers only the regex", "x|OR", []string{"/x|OR/"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			q := Parse(tt.query, testResolver)
+			if len(q.Diagnostics) != 1 || q.Diagnostics[0].Code != DiagPipeInWord {
+				t.Fatalf("Parse(%q) diagnostics = %v, want one %s", tt.query, codes(q.Diagnostics), DiagPipeInWord)
+			}
+			found := q.Diagnostics[0]
+			if found.Severity != protocol.SeverityWarning {
+				t.Errorf("severity = %s, want warning", found.Severity)
+			}
+			if len(found.Fixes) != len(tt.fixed) {
+				t.Fatalf("%d fixes, want %d", len(found.Fixes), len(tt.fixed))
+			}
+			for i, fix := range found.Fixes {
+				if got := ApplyFix(tt.query, fix); got != tt.fixed[i] {
+					t.Errorf("fix %q gives %q, want %q", fix.Title, got, tt.fixed[i])
+				}
+				if fixed := Parse(ApplyFix(tt.query, fix), testResolver); len(fixed.Diagnostics) != 0 {
+					t.Errorf("fix %q leaves diagnostics %v", fix.Title, codes(fixed.Diagnostics))
+				}
+			}
+		})
+	}
+	for _, query := range []string{"a||b", "a|", "|a", `"a|b"`, "/a|b/"} {
+		if q := Parse(query, testResolver); len(q.Diagnostics) != 0 {
+			t.Errorf("Parse(%q) diagnostics = %v, want none", query, codes(q.Diagnostics))
+		}
+	}
+}

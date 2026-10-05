@@ -2,6 +2,8 @@ package query
 
 import (
 	"fmt"
+	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/cruisinme30/unified-search/daemon/internal/protocol"
@@ -292,10 +294,62 @@ func (p *parser) textNode(t token) *protocol.Node {
 		}
 	case formBare:
 		// a plain word is matched literally
+		p.warnIfPipeMeantAsOr(t)
 	}
 	node := &protocol.Node{Kind: protocol.NodeKindText, Value: t.value, Match: match, TermIndex: p.nextTermIndex, Span: p.span(t)}
 	p.nextTermIndex++
 	return node
+}
+
+// warnIfPipeMeantAsOr warns about a plain word like daemon|search, which
+// matches that text pipe and all, and offers OR and a regex instead. It's a
+// warning, so the search still runs: a|b may really be code.
+func (p *parser) warnIfPipeMeantAsOr(t token) {
+	parts := strings.Split(t.value, "|")
+	if len(parts) < 2 || slices.Contains(parts, "") {
+		return // no pipe, or a || or a dangling | that reads as code
+	}
+	span := p.span(t)
+	quoted := make([]string, len(parts))
+	for i, part := range parts {
+		quoted[i] = strings.ReplaceAll(regexp.QuoteMeta(part), "/", `\/`)
+	}
+	regex := "/" + strings.Join(quoted, "|") + "/"
+	var fixes []protocol.Fix
+	if orSafe(parts) {
+		or := strings.Join(parts, " OR ")
+		if !p.aloneInGroup(span) {
+			or = "(" + or + ")" // AND binds tighter, so a|b c needs (a OR b) c
+		}
+		fixes = append(fixes, replaceFix("Search for any of them with OR", span, or))
+	}
+	fixes = append(fixes, replaceFix("Search for any of them with a regex", span, regex))
+	p.problems.add(protocol.SeverityWarning, DiagPipeInWord, span,
+		fmt.Sprintf("%s matches the text with the | in it; for any of the words write %s", t.value, regex), fixes...)
+}
+
+// orSafe reports whether each part stays one plain term when joined with OR.
+func orSafe(parts []string) bool {
+	for _, part := range parts {
+		if part == "AND" || part == "OR" || strings.ContainsAny(part[:1], "-/") || strings.Contains(part, ":") {
+			return false
+		}
+	}
+	return true
+}
+
+// aloneInGroup reports whether span is the only thing in its parentheses,
+// or in the whole query, so an OR put there needs no parentheses of its own.
+func (p *parser) aloneInGroup(span protocol.Span) bool {
+	text := p.src.runes
+	start, end := p.src.runeIndex(span.Start), p.src.runeIndex(span.End)
+	for start > 0 && isSpace(text[start-1]) {
+		start--
+	}
+	for end < len(text) && isSpace(text[end]) {
+		end++
+	}
+	return (start == 0 || text[start-1] == '(') && (end == len(text) || text[end] == ')')
 }
 
 // reportUnclosed reports a quote or regex that never closed, with a fix
