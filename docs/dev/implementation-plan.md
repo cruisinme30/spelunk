@@ -164,7 +164,8 @@ type ParsedQuery = {
 type Node =
   | { kind: "and" | "or"; children: Node[]; span: Span }
   | { kind: "not"; child: Node; span: Span }
-  | { kind: "text"; value: string; match: Match; termIndex: number; span: Span }
+  | { kind: "text"; value: string; match: Match; termIndex: number; span: Span;
+      contentOnly?: boolean }        // content:x: file text only, never names or commit messages
   | { kind: "op"; op: OpName; value: string; match: Match; span: Span;
       resolved?: { label: string } };  // e.g. "jane" -> "Jane Doe", "web" -> "web-checkout"
 

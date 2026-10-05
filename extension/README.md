@@ -31,10 +31,11 @@ one-letter short name that mean the same: `file:` and `f:`, `author:` and `a:`.
 | --- | --- |
 | `retry policy` or `retry AND policy` | Match both words in one file |
 | `timeout OR time_out`, `( … )` | Match either; group terms |
-| `-vendor`, `-file:vendor/` | Exclude a word or an operator |
+| `-vendor`, `-file:vendor/`, `NOT vendor` | Exclude a word or an operator |
 | `"exact phrase"`, `/Retry(Policy\|Config)/` | Match a phrase or a regular expression |
 | `case:yes`, `case:smart` | Match case exactly, or only when the query has a capital letter (case-insensitive by default) |
-| `file:*.go`, `f:_test\.py$` | Keep files whose path matches a glob or a regex |
+| `file:*.go`, `f:_test\.py$`, `path:src/` | Keep files whose path matches a glob or a regex |
+| `content:retry` | Match the text inside files but never file names (in commits, changed lines but not the message) |
 | `repo:web`, `language:python` | Keep one repo or one language |
 | `type:file` | Show file names only |
 | `symbol:RetryPolicy` | Find where classes, functions and methods whose name contains RetryPolicy are defined |

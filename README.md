@@ -17,13 +17,14 @@ removed `timeout` or `retry`. Drop `author:` and the same box searches current f
 
 ## What it does
 
-- **One query language.** Combine words, `"phrases"`, `/regex/`, `AND`, `OR`, `( )` and `-exclusions` with
+- **One query language.** Combine words, `"phrases"`, `/regex/`, `AND`, `OR`, `( )` and `-exclusions` (or `NOT`) with
   operators. Each has a full name and a one-letter short one: `file:` / `f:`, `repo:` / `r:`, `language:` / `l:`,
   `type:` / `t:`, `symbol:` / `s:`, `kind:` / `k:`, `ref:` / `x:`, `is:` / `i:`, `author:` / `a:`, `message:` /
-  `m:`, `since:` / `d:`, `case:` / `c:`, `word:` / `w:`, `count:` / `n:`, `order:` / `o:`. `is:open`, `is:changed`
-  and `is:test` keep the files open in the editor, the uncommitted ones, or the tests, `word:yes` matches whole words
-  only, `case:smart` matches case only when the query has a capital letter, `kind:class` keeps one kind of
-  definition, and `ref:RetryPolicy` finds a name's uses without its definitions.
+  `m:`, `since:` / `d:`, `case:` / `c:`, `word:` / `w:`, `count:` / `n:`, `order:` / `o:`, plus `content:`, and
+  `path:` for `file:`. `is:open`, `is:changed` and `is:test` keep the files open in the editor, the uncommitted ones,
+  or the tests, `word:yes` matches whole words only, `case:smart` matches case only when the query has a capital
+  letter, `kind:class` keeps one kind of definition, `ref:RetryPolicy` finds a name's uses without its definitions,
+  and `content:retry` matches text inside files but never file names.
 - **File names the way Quick Open finds them.** A word also finds file names that have its letters in order, so
   `usrsvc` finds `UserService.ts`; code lines still match exactly.
 - **Best match first.** Files that define what you searched for, are open in the editor, or are named after it come
