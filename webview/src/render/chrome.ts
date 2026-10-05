@@ -255,7 +255,12 @@ export type FooterMode = "empty" | "errors" | "results" | "operators" | "values"
 /** Key hints along the bottom, which change with what the panel shows. */
 export function renderFooter(layout: Layout, mode: FooterMode, isHistory: boolean): void {
   const hints: Record<FooterMode, HTMLElement[]> = {
-    empty: [hint("↑↓", "move"), hint("↵", "run recent query"), hintAtEnd("?", "opens this sheet anytime")],
+    empty: [
+      hint("↑↓", "move"),
+      hint("↵", "run recent query"),
+      hint("⇧⌫", "remove"),
+      hintAtEnd("?", "opens this sheet anytime"),
+    ],
     errors: [hint("⌘.", "apply first fix"), hint("Tab", "complete operator"), hintAtEnd("?", "all operators")],
     operators: [
       hint("↑↓", "pick"),

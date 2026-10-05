@@ -7,9 +7,14 @@ import type { ViewState } from "../state";
 const CLOCK_ICON =
   '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>';
 
-/** What clicking a recent query or a cheat-sheet entry does. */
+/** A small ×, on the recent query under the mouse or selected with ↑↓. */
+const REMOVE_ICON =
+  '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+
+/** What clicking a recent query, its ×, or a cheat-sheet entry does. */
 export interface EmptyStateHandlers {
   onRunRecent: (query: string) => void;
+  onRemoveRecent: (query: string) => void;
   onInsert: (snippet: string) => void;
 }
 
@@ -17,7 +22,7 @@ export interface EmptyStateHandlers {
 export function renderEmptyState(body: HTMLElement, state: ViewState, handlers: EmptyStateHandlers): void {
   const className = state.sheetOpen ? "empty sheet-open" : "empty";
   body.replaceChildren(
-    element("div", { class: className }, renderRecent(state, handlers.onRunRecent), renderSheet(handlers.onInsert)),
+    element("div", { class: className }, renderRecent(state, handlers), renderSheet(handlers.onInsert)),
   );
 }
 
@@ -27,22 +32,29 @@ function clockIcon(): HTMLElement {
   return icon;
 }
 
-function recentRow(query: string, selected: boolean, onRunRecent: (query: string) => void): HTMLElement {
-  const row = element(
+/** A recent query: the row runs it, the × at its end takes it off the list. */
+function recentRow(query: string, selected: boolean, handlers: EmptyStateHandlers): HTMLElement {
+  const run = element(
     "button",
-    {
-      type: "button",
-      class: selected ? "recent-row selected" : "recent-row",
-      "data-recent": query,
-      "data-testid": "recent",
-    },
+    { type: "button", class: "recent-run", "data-testid": "recent" },
     clockIcon(),
     element("code", {}, query),
   );
-  row.addEventListener("click", () => {
-    onRunRecent(query);
+  run.addEventListener("click", () => {
+    handlers.onRunRecent(query);
   });
-  return row;
+  const remove = element("button", {
+    type: "button",
+    class: "recent-remove",
+    title: "Remove from recent",
+    "aria-label": `Remove ${query} from recent`,
+    "data-testid": "recent-remove",
+  });
+  remove.innerHTML = REMOVE_ICON;
+  remove.addEventListener("click", () => {
+    handlers.onRemoveRecent(query);
+  });
+  return element("div", { class: selected ? "recent-row selected" : "recent-row", "data-recent": query }, run, remove);
 }
 
 /** A reminder of how terms combine, under the recent queries. */
@@ -56,8 +68,8 @@ function combineCard(): HTMLElement {
   );
 }
 
-function renderRecent(state: ViewState, onRunRecent: (query: string) => void): HTMLElement {
-  const rows = state.recent.map((query, index) => recentRow(query, index === state.recentIndex, onRunRecent));
+function renderRecent(state: ViewState, handlers: EmptyStateHandlers): HTMLElement {
+  const rows = state.recent.map((query, index) => recentRow(query, index === state.recentIndex, handlers));
   const placeholder = rows.length === 0 ? element("p", { class: "muted pad" }, "Queries you run show up here.") : null;
   return element(
     "div",

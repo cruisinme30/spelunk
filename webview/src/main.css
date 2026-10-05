@@ -215,7 +215,8 @@ mark.term-color-3 {
 
 .toggle:focus-visible,
 .btn:focus-visible,
-.recent-row:focus-visible,
+.recent-run:focus-visible,
+.recent-remove:focus-visible,
 .sheet-entry:focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 1px;
@@ -949,7 +950,14 @@ pre.body {
 .recent-row {
   display: flex;
   align-items: center;
-  width: 100%;
+  padding-right: 8px;
+}
+
+.recent-run {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  min-width: 0;
   min-height: 36px;
   padding: 6px 14px;
   background: transparent;
@@ -957,6 +965,34 @@ pre.body {
   text-align: left;
   cursor: pointer;
   gap: 10px;
+}
+
+/* Shown on the row under the mouse or selected with ↑↓, and when tabbed to. */
+.recent-remove {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  opacity: 0;
+}
+
+.recent-row.selected .recent-remove,
+.recent-row:hover .recent-remove,
+.recent-remove:focus-visible {
+  opacity: 1;
+}
+
+.recent-remove:hover {
+  background: var(--line);
+  color: var(--fg);
 }
 
 .recent-row .icon {

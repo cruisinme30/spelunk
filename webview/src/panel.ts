@@ -312,6 +312,9 @@ export class SearchPanel {
         this.onEnter(event, modifier);
         return true;
       }
+      case "Backspace": {
+        return this.removeSelectedRecent(event);
+      }
       default: {
         return false;
       }
@@ -352,6 +355,25 @@ export class SearchPanel {
 
   private runRecent(query: string | undefined): void {
     if (query) this.setQuery(query);
+  }
+
+  /** Takes a query off the recent list; the selection stays on the same row, now the next query. */
+  private removeRecent(query: string): void {
+    const recent = this.state.recent.filter((kept) => kept !== query);
+    if (recent.length === this.state.recent.length) return;
+    this.state.recent = recent;
+    this.state.recentIndex = clamp(this.state.recentIndex, 0, Math.max(recent.length - 1, 0));
+    send("recent.remove", { query });
+    this.showEmptyState();
+    this.layout.input.focus();
+  }
+
+  /** ⇧⌫ on an empty box removes the selected recent query, as browsers do for their history. */
+  private removeSelectedRecent(event: KeyboardEvent): boolean {
+    const selected = this.state.recent[this.state.recentIndex];
+    if (!event.shiftKey || this.layout.input.value || !selected) return false;
+    this.removeRecent(selected);
+    return true;
   }
 
   private moveRecentSelection(step: 1 | -1): void {
@@ -562,6 +584,9 @@ export class SearchPanel {
     renderEmptyState(this.layout.body, state, {
       onRunRecent: (query) => {
         this.runRecent(query);
+      },
+      onRemoveRecent: (query) => {
+        this.removeRecent(query);
       },
       onInsert: (snippet) => {
         this.insertAtCursor(snippet);

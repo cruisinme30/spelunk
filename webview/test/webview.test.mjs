@@ -34,6 +34,41 @@ test("an empty box shows recent queries and all 16 operators", async (t) => {
   assert.equal(await page.locator('[data-testid="sheet-op"]').count(), 16);
 });
 
+test("the × on a recent query removes it without running it", async (t) => {
+  // @covers msg:recent.remove
+  const page = await openPanel(t);
+  await restore(page, ["first", "second", "third"]);
+  const recent = page.locator('[data-testid="recent"] code');
+  await page.locator(".recent-row").nth(1).hover();
+  await page.locator('[data-testid="recent-remove"]').nth(1).click();
+  assert.deepEqual(await recent.allTextContents(), ["first", "third"]);
+  assert.deepEqual(
+    (await sentMessages(page, "recent.remove")).map((message) => message.payload),
+    [{ query: "second" }],
+  );
+  assert.equal((await sentMessages(page, "query.changed")).length, 0, "removing doesn't run the query");
+  assert.equal(await page.evaluate(() => document.activeElement.dataset.testid), "query", "the box keeps focus");
+});
+
+test("⇧⌫ on an empty box removes the selected recent query and keeps the selection in place", async (t) => {
+  const page = await openPanel(t);
+  await restore(page, ["first", "second", "third"]);
+  await page.keyboard.press("ArrowDown"); // "second"
+  await page.keyboard.press("Shift+Backspace");
+  assert.deepEqual(await page.locator('[data-testid="recent"] code').allTextContents(), ["first", "third"]);
+  assert.equal(await page.locator(".recent-row.selected").getAttribute("data-recent"), "third");
+  await page.keyboard.press("Shift+Backspace");
+  await page.keyboard.press("Shift+Backspace");
+  assert.deepEqual(await page.locator('[data-testid="recent"]').count(), 0);
+  assert.deepEqual(
+    (await sentMessages(page, "recent.remove")).map((message) => message.payload.query),
+    ["second", "third", "first"],
+  );
+  await page.fill('[data-testid="query"]', "timeouts");
+  await page.keyboard.press("Shift+Backspace");
+  assert.equal(await page.inputValue('[data-testid="query"]'), "timeout", "with text in the box it just deletes");
+});
+
 test("typing sends query.changed with the text and a new seq", async (t) => {
   const page = await openPanel(t);
   await restore(page);
