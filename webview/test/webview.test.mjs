@@ -413,6 +413,33 @@ test("Aa and .* reflect the query, and Aa removes case:yes from the text", async
   assert.equal(await page.inputValue(QUERY), "/Retry/");
 });
 
+test("under smart case, Aa has a dot, follows the query's capitals, and writes the opposite case:", async (t) => {
+  const page = await openPanel(t);
+  await restore(page, [], { caseSensitive: "smart" });
+  const button = page.locator('[data-testid="toggle-case"]');
+  await typeAndParse(page, "retry", parsedQuery("retry", textNode("retry", 0)));
+  assert.equal(await button.getAttribute("aria-pressed"), "false");
+  assert.match((await button.getAttribute("class")) ?? "", /\bsmart\b/);
+  assert.match((await button.getAttribute("title")) ?? "", /ignoring case until the query has a capital/);
+  await typeAndParse(page, "Retry", parsedQuery("Retry", textNode("Retry", 0), { hasCapital: true }));
+  assert.equal(await button.getAttribute("aria-pressed"), "true");
+  assert.match((await button.getAttribute("title")) ?? "", /matching case, since the query has a capital/);
+  await button.click();
+  assert.equal(await page.inputValue(QUERY), "case:no Retry");
+});
+
+test("a case:smart note says why nothing was found and offers to ignore case", async (t) => {
+  const page = await openPanel(t);
+  await restore(page, [], { caseSensitive: "smart" });
+  const seq = await typeAndParse(page, "Retry", parsedQuery("Retry", textNode("Retry", 0), { hasCapital: true }));
+  const undo = { title: "Ignore case", edits: [{ span: { start: 0, end: 0 }, newText: "case:no " }] };
+  await searchDone(page, seq, { hidden: [{ reason: "case", filter: "case:smart", count: 18, unit: "matches", undo }] });
+  assert.match(await page.locator('[data-testid="no-results"]').innerText(), /Smart case matches case/);
+  const note = page.locator('[data-testid="hidden-notes"] .note');
+  assert.equal(await note.locator("span").first().innerText(), "18 matches hidden by case:smart");
+  assert.equal(await note.locator('[data-testid="show-hidden"]').innerText(), "Ignore case");
+});
+
 test("ab reflects word:yes and removes it from the text", async (t) => {
   const page = await openPanel(t);
   await restore(page);

@@ -4,7 +4,7 @@
 // parsed query; nothing here scans the raw text.
 import { clamp } from "./format";
 import { operatorNodes, textNodes, topLevelOperators } from "./parsedQuery";
-import type { ParsedQuery, Span, TextEdit } from "./protocol.gen";
+import type { CaseSetting, ParsedQuery, Span, TextEdit } from "./protocol.gen";
 
 /** The query text and cursor after an edit. */
 export interface Edited {
@@ -51,43 +51,67 @@ function removeSpan(text: string, span: Span): Edited {
 /** A global that is yes or no, with a setting for its default: case: behind Aa, word: behind ab. */
 type SwitchOperator = "case" | "word";
 
-/** Whether a switch's button shows as pressed: an explicit value in the query wins over the setting. */
-function isSwitchOn(query: ParsedQuery | undefined, op: SwitchOperator, onByDefault: boolean): boolean {
-  const value = op === "case" ? query?.globals.case : query?.globals.word;
-  return value ? value === "yes" : onByDefault;
+/** A switch's state: pressed now, and whether it would be without the query's value. */
+interface SwitchState {
+  pressed: boolean;
+  onByDefault: boolean;
 }
 
 /** A switch's button: drops an explicit value when that flips the state, otherwise writes the opposite one. */
-function toggleSwitch(text: string, query: ParsedQuery | undefined, op: SwitchOperator, onByDefault: boolean): Edited {
+function toggleSwitch(
+  text: string,
+  query: ParsedQuery | undefined,
+  op: SwitchOperator,
+  { pressed, onByDefault }: SwitchState,
+): Edited {
   const [existing] = operatorNodes(query, op);
   if (!existing) {
     const operator = `${op}:${onByDefault ? "no" : "yes"}`;
     const edited = `${operator} ${text}`.trimEnd();
     return { text: edited, cursor: Math.min(operator.length + 1, edited.length) };
   }
-  const pressed = isSwitchOn(query, op, onByDefault);
   if (pressed !== onByDefault) return removeSpan(text, existing.span);
   return applyEdits(text, [{ span: existing.span, newText: `${op}:${pressed ? "no" : "yes"}` }]);
 }
 
-/** Whether Aa shows as pressed: an explicit case: wins over the setting. */
-export function isCasePressed(query: ParsedQuery | undefined, caseSensitiveByDefault: boolean): boolean {
-  return isSwitchOn(query, "case", caseSensitiveByDefault);
+/** Whether smart case decides Aa: the query says case:smart, or says nothing and the setting is smart. */
+export function isCaseSmart(query: ParsedQuery | undefined, setting: CaseSetting): boolean {
+  const value = query?.globals.case;
+  return value ? value === "smart" : setting === "smart";
+}
+
+/** Whether case matches by `setting` alone: smart case matches it when the query has a capital letter. */
+function matchesCaseByDefault(query: ParsedQuery | undefined, setting: CaseSetting): boolean {
+  return setting === "smart" ? !!query?.hasCapital : setting === "on";
+}
+
+/** Whether Aa shows as pressed: case matches, by an explicit case: or else by the setting. */
+export function isCasePressed(query: ParsedQuery | undefined, setting: CaseSetting): boolean {
+  const value = query?.globals.case;
+  if (value === "smart") return !!query?.hasCapital;
+  return value ? value === "yes" : matchesCaseByDefault(query, setting);
 }
 
 /** Aa: drops an explicit case: when that flips the state, otherwise writes the opposite one. */
-export function toggleCase(text: string, query: ParsedQuery | undefined, caseSensitiveByDefault: boolean): Edited {
-  return toggleSwitch(text, query, "case", caseSensitiveByDefault);
+export function toggleCase(text: string, query: ParsedQuery | undefined, setting: CaseSetting): Edited {
+  return toggleSwitch(text, query, "case", {
+    pressed: isCasePressed(query, setting),
+    onByDefault: matchesCaseByDefault(query, setting),
+  });
 }
 
 /** Whether ab shows as pressed: an explicit word: wins over the setting. */
 export function isWordPressed(query: ParsedQuery | undefined, wholeWordByDefault: boolean): boolean {
-  return isSwitchOn(query, "word", wholeWordByDefault);
+  const value = query?.globals.word;
+  return value ? value === "yes" : wholeWordByDefault;
 }
 
 /** ab: drops an explicit word: when that flips the state, otherwise writes the opposite one. */
 export function toggleWord(text: string, query: ParsedQuery | undefined, wholeWordByDefault: boolean): Edited {
-  return toggleSwitch(text, query, "word", wholeWordByDefault);
+  return toggleSwitch(text, query, "word", {
+    pressed: isWordPressed(query, wholeWordByDefault),
+    onByDefault: wholeWordByDefault,
+  });
 }
 
 /** Whether .* shows as pressed: every text term is a regex. */

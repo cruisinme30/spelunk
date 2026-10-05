@@ -6,6 +6,8 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   applyEdits,
+  isCasePressed,
+  isCaseSmart,
   isRegexPressed,
   isWordPressed,
   scopeToRepo,
@@ -25,6 +27,7 @@ const parsed = (raw, root, caseValue = null, wordValue = null) => ({
   mode: "workingTree",
   diagnostics: [],
   globals: { case: caseValue, count: null, type: null, ...(wordValue ? { word: wordValue } : {}) },
+  ...(/\p{Lu}/u.test(raw.replace(/case:\w+/, "")) ? { hasCapital: true } : {}),
 });
 
 /** A text term spanning `start` to `end` (default: start + value's length). */
@@ -79,15 +82,39 @@ test("applyEdits counts astral characters as two UTF-16 code units", () => {
 });
 
 test("Aa on an empty box writes case:yes (or case:no) with the cursor inside the text", () => {
-  assert.deepEqual(toggleCase("", undefined, false), { text: "case:yes", cursor: 8 });
-  assert.deepEqual(toggleCase("", undefined, true), { text: "case:no", cursor: 7 });
-  assert.deepEqual(toggleCase("😀", undefined, false), { text: "case:yes 😀", cursor: 9 });
+  assert.deepEqual(toggleCase("", undefined, "off"), { text: "case:yes", cursor: 8 });
+  assert.deepEqual(toggleCase("", undefined, "on"), { text: "case:no", cursor: 7 });
+  assert.deepEqual(toggleCase("😀", undefined, "off"), { text: "case:yes 😀", cursor: 9 });
 });
 
 test("Aa removes an explicit case:yes along with one neighbouring space", () => {
   const raw = "x case:yes";
   const query = parsed(raw, { kind: "and", children: [term("x", 0), operator("case", "yes", 2)] }, "yes");
-  assert.deepEqual(toggleCase(raw, query, false), { text: "x", cursor: 1 });
+  assert.deepEqual(toggleCase(raw, query, "off"), { text: "x", cursor: 1 });
+});
+
+test("under smart case, Aa shows whether the query's capitals made case match, and flips it", () => {
+  const lower = parsed("retry", term("retry", 0));
+  const upper = parsed("Retry", term("Retry", 0));
+  assert.equal(isCaseSmart(lower, "smart"), true);
+  assert.equal(isCasePressed(lower, "smart"), false);
+  assert.equal(isCasePressed(upper, "smart"), true);
+  assert.deepEqual(toggleCase("retry", lower, "smart"), { text: "case:yes retry", cursor: 9 });
+  assert.deepEqual(toggleCase("Retry", upper, "smart"), { text: "case:no Retry", cursor: 8 });
+
+  const raw = "case:smart Retry";
+  const query = parsed(raw, { kind: "and", children: [operator("case", "smart", 0), term("Retry", 11)] }, "smart");
+  assert.equal(isCaseSmart(query, "off"), true, "case:smart wins over the setting");
+  assert.equal(isCasePressed(query, "off"), true);
+  assert.deepEqual(toggleCase(raw, query, "off"), { text: "Retry", cursor: 0 }, "removing it ignores case again");
+  assert.deepEqual(toggleCase(raw, query, "smart"), { text: "case:no Retry", cursor: 7 });
+  const explicit = parsed(
+    "case:no Retry",
+    { kind: "and", children: [operator("case", "no", 0), term("Retry", 8)] },
+    "no",
+  );
+  assert.equal(isCaseSmart(explicit, "smart"), false, "an explicit case:no isn't smart");
+  assert.deepEqual(toggleCase("case:no Retry", explicit, "smart"), { text: "Retry", cursor: 0 });
 });
 
 test("ab writes word:yes, or word:no when whole words are the default", () => {

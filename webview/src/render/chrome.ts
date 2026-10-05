@@ -5,7 +5,17 @@ import { button, clamp, element, isIndexing, percent, plural, progressBar, termC
 import type { Layout } from "../layout";
 import { fullName, OPERATOR_TONE } from "../operators";
 import { scopedRepo, type OperatorNode, type TextNode } from "../parsedQuery";
-import type { BannerMessage, Diagnostic, Fix, Mode, Node as QueryNode, RepoStatus } from "../protocol.gen";
+import type {
+  BannerMessage,
+  CaseSetting,
+  Diagnostic,
+  Fix,
+  Mode,
+  ParsedQuery,
+  Node as QueryNode,
+  RepoStatus,
+} from "../protocol.gen";
+import { isCasePressed, isCaseSmart } from "../queryEdit";
 import { hasErrors, type ViewState } from "../state";
 
 /** How the index is doing overall: the status dot's color class and the words beside it. */
@@ -30,6 +40,24 @@ export function renderIndexStatus(layout: Layout, state: ViewState): void {
   layout.statusDot.className = `status-dot ${health.dotClass}`;
   layout.statusText.textContent = health.text;
   layout.reposButton.textContent = scopedRepo(state.parsed) ?? `All repos · ${state.repos.length}`;
+}
+
+/**
+ * Aa: pressed when case matches. Under smart case it carries a dot, and its
+ * tooltip says which way the query's capital letters sent it.
+ */
+export function renderCaseToggle(
+  button: HTMLButtonElement,
+  query: ParsedQuery | undefined,
+  setting: CaseSetting,
+): void {
+  const pressed = isCasePressed(query, setting);
+  const smart = isCaseSmart(query, setting);
+  button.setAttribute("aria-pressed", String(pressed));
+  button.classList.toggle("smart", smart);
+  if (!smart) button.title = "Match case (case:yes)";
+  else if (pressed) button.title = "Smart case: matching case, since the query has a capital letter";
+  else button.title = "Smart case: ignoring case until the query has a capital letter";
 }
 
 /** Daemon health (restarting, stopped) followed by one banner per repo still indexing. */
@@ -213,9 +241,12 @@ function chipsFor(node: QueryNode, context: ChipContext): Node[] {
   }
 }
 
+/** How case:'s values read on its chip. */
+const CASE_LABEL: Record<string, string> = { yes: "sensitive", no: "insensitive", smart: "smart" };
+
 /** How an operator's value reads on its chip: case:yes reads "sensitive", type:file "file names only". */
 function operatorChipValue(node: OperatorNode): string {
-  if (node.op === "case") return node.value === "yes" ? "sensitive" : "insensitive";
+  if (node.op === "case") return CASE_LABEL[node.value] ?? node.value;
   if (node.op === "word") return node.value === "yes" ? "whole words" : "parts of words";
   if (node.op === "type") return TYPE_LABEL[node.value] ?? node.value;
   return node.value;

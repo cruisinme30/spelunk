@@ -230,6 +230,22 @@ mark {
   text-underline-offset: 2px;
 }
 
+/* Under smart case, Aa carries a dot: case matches only when the query has a capital letter. */
+.toggle.smart {
+  position: relative;
+}
+
+.toggle.smart::after {
+  content: "";
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #b9a3ff;
+}
+
 .toggle.settings svg {
   display: block;
 }

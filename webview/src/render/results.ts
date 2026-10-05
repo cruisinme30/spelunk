@@ -221,7 +221,9 @@ export class ResultsView {
     const symbols = operatorNodes(this.state.parsed, "sym").map((node) => node.value);
     const title = symbols.length > 0 ? `No symbol is named ${symbols.join(" or ")}` : "No results";
     let hint = "Try fewer terms, or check the operators with ?";
-    if (notes.some((note) => note.reason === "case")) hint = "case:yes is on, so capital letters have to match.";
+    const caseNote = notes.find((note) => note.reason === "case");
+    if (caseNote?.filter === "case:smart") hint = "Smart case matches case when the query has a capital letter.";
+    else if (caseNote) hint = "case:yes is on, so capital letters have to match.";
     else if (notes.some((note) => note.reason === "word")) hint = "word:yes is on, so only whole words match.";
     else if (notes.length > 0) hint = "Some results are hidden by filters below.";
     this.list.prepend(
