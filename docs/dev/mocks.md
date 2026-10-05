@@ -29,7 +29,7 @@ covered.
 | 19 | Values — every author for `author:` | `author-values` | `AuthorValues` | M3 |
 | 20 | Values — time windows for `since:` | `since-values` | `SinceValues` | M2 |
 | 21 | Values — file types and folders for `f:` | `path-values` | `PathValues` | M2 |
-| 22 | Values — `repo:`, `lang:`, `type:`, `case:`, `word:`, `count:`, `order:`, `is:`, `sym:`, `msg:` | `other-values` | `OtherValues` | M2 |
+| 22 | Values — `repo:`, `lang:`, `type:`, `kind:`, `case:`, `word:`, `count:`, `order:`, `is:`, `sym:`, `msg:` | `other-values` | `OtherValues` | M2 |
 | 23 | Bare words match commit messages too | `words-in-messages` | `MessageWords` | M3 |
 | 24 | Best match first: definitions and names first, tests last | `ranked-results` | `Ranking` | 1.1 |
 | 25 | `order:path` keeps path order | `path-order` | `PathOrder` | 1.1 |
