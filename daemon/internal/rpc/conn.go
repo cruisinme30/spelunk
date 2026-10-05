@@ -25,6 +25,9 @@ const (
 	CodeRequestCancelled = -32800
 )
 
+// jsonrpcVersion is the "jsonrpc" field of every message sent.
+const jsonrpcVersion = "2.0"
+
 // readBufferSize is the reader's initial buffer: big enough for a typical batch.
 const readBufferSize = 64 << 10
 
@@ -276,7 +279,7 @@ func (c *Conn) Notify(method string, params any) error {
 	if err != nil {
 		return err
 	}
-	return c.send(&message{JSONRPC: "2.0", Method: method, Params: encoded})
+	return c.send(&message{JSONRPC: jsonrpcVersion, Method: method, Params: encoded})
 }
 
 // Call sends a request and waits for the response, decoding the result into
@@ -302,7 +305,7 @@ func (c *Conn) Call(ctx context.Context, method string, params, out any) error {
 	if err != nil {
 		return err
 	}
-	if err := c.send(&message{JSONRPC: "2.0", ID: id, Method: method, Params: encoded}); err != nil {
+	if err := c.send(&message{JSONRPC: jsonrpcVersion, ID: id, Method: method, Params: encoded}); err != nil {
 		return err
 	}
 
@@ -447,7 +450,7 @@ func validID(id json.RawMessage) bool {
 // sendError answers the request with id with err. A failed write is
 // remembered by send and stops Serve, so the error is not returned.
 func (c *Conn) sendError(id json.RawMessage, err *Error) {
-	_ = c.send(&errorResponse{JSONRPC: "2.0", ID: id, Error: err})
+	_ = c.send(&errorResponse{JSONRPC: jsonrpcVersion, ID: id, Error: err})
 }
 
 func (c *Conn) shutdown(cancel context.CancelFunc) {
@@ -540,7 +543,7 @@ func (c *Conn) dispatch(connCtx context.Context, m message) {
 // respond calls the handler for request m and returns the response to send.
 func respond(connCtx, requestCtx context.Context, handler Handler, m message) any {
 	if handler == nil {
-		return &errorResponse{JSONRPC: "2.0", ID: m.ID, Error: Errorf(CodeMethodNotFound, "method not found: %s", m.Method)}
+		return &errorResponse{JSONRPC: jsonrpcVersion, ID: m.ID, Error: Errorf(CodeMethodNotFound, "method not found: %s", m.Method)}
 	}
 	result, err := callSafely(requestCtx, handler, m.Params)
 	cancelledByPeer := requestCtx.Err() != nil && connCtx.Err() == nil
@@ -548,13 +551,13 @@ func respond(connCtx, requestCtx context.Context, handler Handler, m message) an
 		err = errRequestCancelled // a handler that ignores ctx still reports the cancel
 	}
 	if err != nil {
-		return &errorResponse{JSONRPC: "2.0", ID: m.ID, Error: toRPCError(err)}
+		return &errorResponse{JSONRPC: jsonrpcVersion, ID: m.ID, Error: toRPCError(err)}
 	}
 	encoded, err := json.Marshal(result)
 	if err != nil {
-		return &errorResponse{JSONRPC: "2.0", ID: m.ID, Error: Errorf(CodeInternalError, "encode result: %v", err)}
+		return &errorResponse{JSONRPC: jsonrpcVersion, ID: m.ID, Error: Errorf(CodeInternalError, "encode result: %v", err)}
 	}
-	return &successResponse{JSONRPC: "2.0", ID: m.ID, Result: encoded}
+	return &successResponse{JSONRPC: jsonrpcVersion, ID: m.ID, Result: encoded}
 }
 
 // toRPCError maps a handler error to the JSON-RPC error the caller sees.
