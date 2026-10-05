@@ -45,10 +45,12 @@ one-letter short name that mean the same: `file:` and `f:`, `author:` and `a:`.
 | `message:"fix flaky"`, `type:commit retry` | Search commit messages, or every commit's changes |
 | `type:added retry`, `type:removed retry` | Find the commits that added, or removed, a line with `retry` |
 | `since:today`, `since:2h`, `since:2w` | Keep files (or commits) changed today, in the last two hours, or in the last two weeks |
+| `since:2026-09-30`, `since:2026-09` | Keep files (or commits) changed from that day, or that month, on |
+| `until:2w`, `until:2026-09` | Keep files (or commits) last changed more than two weeks ago, or by the end of September 2026 |
 | `count:50`, `count:all` | Show this many results per page |
 
 A query with `author:`, `message:`, `type:commit`, `type:added` or `type:removed` searches Git history: each result
-is a commit, newest first, and ↵ opens its diff. For current files, `since:` uses each file's last commit, and files
+is a commit, newest first, and ↵ opens its diff. For current files, `since:` and `until:` use each file's last commit, and files
 with uncommitted edits count as changed now.
 
 When a query has a mistake, the panel says what is wrong and offers a one-key fix (⌘.), and the last good results

@@ -101,7 +101,7 @@ primary  = "(" orExpr ")" | operator | term ;
 operator = name ":" value ;
 name     = "f" | "file" | "r" | "repo" | "l" | "language" | "lang"
          | "t" | "type" | "s" | "symbol" | "sym" | "a" | "author"
-         | "m" | "message" | "msg" | "d" | "since" | "c" | "case"
+         | "m" | "message" | "msg" | "d" | "since" | "u" | "until" | "c" | "case"
          | "n" | "count" ;
 value    = quoted | regex | bare ;
 term     = quoted | regex | bare ;
@@ -113,8 +113,8 @@ bare     = 1*( any char except space, "(", ")", '"' ) ;
 ### Lexical rules
 
 - Every operator has a full name and a one-letter short name: `file:` `f:`, `repo:` `r:`, `language:` `l:`,
-  `type:` `t:`, `symbol:` `s:`, `author:` `a:`, `message:` `m:`, `since:` `d:`, `case:` `c:`, `count:` `n:`. The
-  older `lang:`, `sym:` and `msg:` still work. Suggestions and help show the full name.
+  `type:` `t:`, `symbol:` `s:`, `author:` `a:`, `message:` `m:`, `since:` `d:`, `until:` `u:`, `case:` `c:`,
+  `count:` `n:`. The older `lang:`, `sym:` and `msg:` still work. Suggestions and help show the full name.
 - `AND` and `OR` are keywords only in uppercase. Lowercase `or` is a search term.
 - AND binds tighter than OR. `a b OR c` means `(a b) OR c`.
 - A word shaped like `name:` with an unknown name is an error, not a term. Quoting it (`"sinse:6m"`) makes it a term.
@@ -133,7 +133,8 @@ bare     = 1*( any char except space, "(", ")", '"' ) ;
 | `author:` | Substring, or quoted full name | Author name and email, after `.mailmap` | History only |
 | `msg:` | Literal, phrase or regex | Commit subject and body | History only |
 | (none) | Literal, phrase or regex | File names (a bare word also by its letters in order, as Quick Open does) and lines; in history, changed lines or the commit subject and body | Both |
-| `since:` | `<n>d`, `<n>w`, `<n>m` or `<n>y` | Commit date in history; last change time on current files | Both |
+| `since:` | `today`, `yesterday`, `<n>min`, `<n>h`, `<n>d`, `<n>w`, `<n>m`, `<n>y`, or a date (`2026-09-30`, `2026-09`) from its local midnight | Commit date in history; last change time on current files | Both |
+| `until:` | `since:`'s values; a day or month counts in full, a length of time ends where `since:` would start | Same as `since:`, keeping what is before the end | Both |
 | `type:` | `file`, `code`, `commit`, `added` or `removed` | Which result kinds are returned; `added` and `removed` search only that side of each commit's diff | Both |
 | `case:` | `yes`, `no` or `smart` (match case only when the query has a capital letter) | Case handling for every text match in the query | Both |
 | `count:` | Positive integer or `all` | Result limit | Both |

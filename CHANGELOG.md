@@ -39,6 +39,11 @@ All notable changes to this project are documented here. The format follows
 - `content:retry` matches text inside files but never file names, and in a commit search only the changed lines, not
   the message. Its value is searched as written, so `content:"type:file"` finds that text.
 - `path:` is another spelling of `file:`, and `NOT x` of `-x`, as GitHub and Sourcegraph write them.
+- `since:` takes dates: `since:2026-09-30` starts at that day's midnight and `since:2026-09` at the month's first, in
+  your time zone. A date that doesn't exist, such as `2026-02-30`, says why and offers the nearest one.
+- `until:` (short form `u:`) is the other end of `since:`, with the same values. A day or a month counts in full, so
+  `until:2026-09` keeps everything before October and `since:2026-09 until:2026-09` is September; `until:2w` keeps
+  what is older than two weeks. A warning says when `until:` ends before `since:` starts.
 
 ### Fixed
 
