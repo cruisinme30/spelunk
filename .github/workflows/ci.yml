@@ -31,8 +31,16 @@ jobs:
           node-version: 22
 
       - name: Install golangci-lint
+        # The release download sometimes answers with a 5xx, so retry it.
+        # scripts/presubmit.sh reads the version from the end of the curl line.
         run: |
-          curl -sSfL https://golangci-lint.run/install.sh | sh -s -- -b "$(go env GOPATH)/bin" v2.5.0
+          set -o pipefail
+          for delay in 5 15 30 0; do
+            if curl -sSfL --retry 3 https://golangci-lint.run/install.sh | sh -s -- -b "$(go env GOPATH)/bin" v2.5.0
+            then break; fi
+            [ "$delay" = 0 ] && exit 1
+            sleep "$delay"
+          done
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
       - name: Install Node dependencies
