@@ -29,6 +29,8 @@ import type {
   SearchResult,
   UiSettings,
 } from "../protocol.gen";
+import { RpcError } from "../jsonRpc";
+import { ErrorCodes } from "../protocol.gen";
 import { makeRoot } from "../roots";
 import { parseWebviewMessage } from "../webviewMessages";
 import { newTestDaemon, SKIP_WITHOUT_DAEMON as skip, untilIndexed } from "./realDaemon";
@@ -487,6 +489,36 @@ test("a query.changed whose seq is not a number is ignored and doesn't let older
   );
 });
 
+test("a burst of keystrokes whose parses finish out of order only ever moves forward", async () => {
+  const host = recordingUi();
+  const releases: (() => void)[] = [];
+  const { backend } = scriptedBackend(async (method, { text, searchId }) => {
+    if (method === "query/parse") {
+      await new Promise<void>((resolve) => releases.push(resolve));
+      return { query: parsedQuery(text, true), completions: [] };
+    }
+    return { ...NO_RESULTS, total: Number(searchId?.slice(1)) };
+  });
+  const controller = newController(backend, host.ui);
+  const keystrokes = Array.from({ length: 30 }, (_, index) =>
+    controller.handle(queryChanged(`q${index + 1}`, index + 1)),
+  );
+  while (releases.length > 0) {
+    releases.pop()?.(); // the newest keystroke's parse finishes first
+    await nextTurn();
+  }
+  await Promise.all(keystrokes);
+  assert.deepEqual(
+    host.payloads("parse.result").map((parsed) => parsed.seq),
+    [30],
+  );
+  assert.deepEqual(
+    host.payloads("search.done").map((done) => done.seq),
+    [30],
+  );
+  assert.equal(controller.text, "q30");
+});
+
 test("a search still running when a new webview says ready posts nothing to it", async () => {
   const host = recordingUi();
   let answer: (() => void) | undefined;
@@ -506,6 +538,51 @@ test("a search still running when a new webview says ready posts nothing to it",
   assert.deepEqual(host.payloads("search.done"), []);
   await controller.handle({ v: MESSAGE_VERSION, type: "results.more", payload: { searchId: "s1", cursor: "c" } });
   assert.deepEqual(host.payloads("search.done"), [], "load more cannot revive it");
+});
+
+test("load more for a search the query has moved on from is ignored", async () => {
+  const host = recordingUi();
+  const starts: (string | undefined)[] = [];
+  const { backend } = scriptedBackend((method, { text, searchId }) => {
+    if (method === "query/parse") return { query: parsedQuery(text, true), completions: [] };
+    starts.push(searchId);
+    return NO_RESULTS;
+  });
+  const controller = newController(backend, host.ui);
+  await controller.handle(queryChanged("one", 1));
+  await controller.handle(queryChanged("two", 2));
+  await controller.handle({ v: MESSAGE_VERSION, type: "results.more", payload: { searchId: "s1", cursor: "c" } });
+  assert.deepEqual(starts, ["s1", "s2"]);
+});
+
+test("a daemon that dies mid-search ends the search with its error, and the next query searches again", async () => {
+  const host = recordingUi();
+  let crash = true;
+  const { backend } = scriptedBackend((method, { text }) => {
+    if (method === "query/parse") return { query: parsedQuery(text, true), completions: [] };
+    if (crash) throw new Error("daemon exited");
+    return NO_RESULTS;
+  });
+  const controller = newController(backend, host.ui);
+  await controller.handle(queryChanged("retry", 1));
+  assert.equal(host.payloads("search.done").at(-1)?.error, "daemon exited");
+  crash = false;
+  await controller.handle(queryChanged("retry", 2));
+  assert.deepEqual(host.payloads("search.done").at(-1), { seq: 2, searchId: "s2", ...NO_RESULTS });
+});
+
+test("opening a stale result greys it out and neither closes the panel nor remembers the query", async () => {
+  // @covers failure:ref-stale
+  const host = recordingUi();
+  const { backend } = scriptedBackend(() => {
+    throw new RpcError(ErrorCodes.RefStale, "gone");
+  });
+  const controller = newController(backend, host.ui);
+  controller.restore("retry");
+  await controller.handle({ v: MESSAGE_VERSION, type: "result.open", payload: { ref: "old", where: "current" } });
+  assert.deepEqual(host.payloads("preview.result"), [{ ref: "old", preview: null, stale: true }]);
+  assert.equal(host.closedPanels(), 0);
+  assert.deepEqual(host.shown, []);
 });
 
 test("a pasted query too long for the recent list is searched but not remembered", () => {

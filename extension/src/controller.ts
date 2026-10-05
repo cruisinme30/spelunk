@@ -21,6 +21,8 @@ import {
 
 /** Lines of context above and below the match in a file preview. */
 const DEFAULT_PREVIEW_CONTEXT_LINES = 7;
+/** Longer queries (a pasted file, say) are searched but not kept in the recent list, which lives in globalState. */
+const MAX_REMEMBERED_QUERY_LENGTH = 1000;
 
 /** The `v` of every message between the extension host and a webview. */
 export const MESSAGE_VERSION: Envelope["v"] = 1;
@@ -234,7 +236,7 @@ export class SearchController {
   rememberQuery(): void {
     const text = this.state.text.trim();
     const limit = this.options.recentLimit();
-    if (!text || limit <= 0) return;
+    if (!text || text.length > MAX_REMEMBERED_QUERY_LENGTH || !(limit > 0)) return;
     this.state.recent = [text, ...this.state.recent.filter((query) => query !== text)].slice(0, limit);
     this.ui.saveState(this.state);
   }
