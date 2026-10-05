@@ -196,7 +196,9 @@ async function loadHost() {
 }
 
 /** Whether an index has nothing left to read: it's ready, or off (a folder outside Git has no history). */
-const finished = (state) => state === "ready" || state === "off";
+function finished(state) {
+  return state === "ready" || state === "off";
+}
 
 /** Waits until the daemon has indexed every root's files and history, so the results are complete. */
 async function untilIndexed(daemon) {
