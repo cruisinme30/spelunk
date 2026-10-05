@@ -14,6 +14,8 @@ import { newTestDaemon, SKIP_WITHOUT_DAEMON as skip, waitFor } from "./realDaemo
 
 const RESTART_BUDGET = 3;
 
+const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
 /** A daemon over an empty folder that records its states and restarts quickly after a crash. */
 function crashTestDaemon(states: DaemonState[] = [], restartDelayMs = 10): Daemon {
   const root = makeRoot(mkdtempSync(join(tmpdir(), "us-root-")));
@@ -62,7 +64,7 @@ test("a manual restart cancels the restart scheduled after a crash", { skip }, a
   await waitFor("the crash is noticed", () => daemon.state === "restarting");
   await daemon.restart();
   const pid = daemon.pid;
-  await new Promise((resolve) => setTimeout(resolve, restartDelayMs * 2));
+  await pause(restartDelayMs * 2);
   assert.equal(daemon.pid, pid, "the scheduled restart must not replace the daemon the manual restart started");
   assert.equal(daemon.state, "ok");
   await daemon.stop();
@@ -89,8 +91,6 @@ function isRunning(pid: number): boolean {
     return false;
   }
 }
-
-const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 for (const [what, binary] of [
   ["a missing binary", "/nonexistent/unified-search-daemon"],
@@ -121,8 +121,8 @@ test("a daemon that exits at once is restarted within the budget, then stays sto
 });
 
 test("restarts back off, doubling the pause after each crash in a row up to a cap", async () => {
-  // Crashes 25 s apart never spend the per-minute budget; without a backoff
-  // such a daemon was restarted every 200 ms forever.
+  // Crashes 25 s apart never spend the per-minute budget, so only the backoff
+  // slows the restarts. The fake clock moves on 25 s each time it is read.
   let clock = 0;
   const lines: string[] = [];
   const { daemon } = newFakeDaemon("exitAtOnce", {
