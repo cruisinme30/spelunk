@@ -5,6 +5,13 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-10-05
+
+### Changed
+
+- The README and Getting Started say to install the `.vsix` from the GitHub release instead of building it from a
+  clone.
+
 ## [1.0.0] - 2026-10-05
 
 ### Added
@@ -135,7 +142,8 @@ All notable changes to this project are documented here. The format follows
 - The `case:` suggestion shows its description and values like the other operators.
 - `sym:` queries return no results instead of wrong ones until symbol search exists.
 
-[Unreleased]: https://github.com/cruisinme30/spelunk/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/cruisinme30/spelunk/compare/v1.0.1...HEAD
+[1.0.1]: https://github.com/cruisinme30/spelunk/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/cruisinme30/spelunk/compare/v0.2.0...v1.0.0
 [0.2.0]: https://github.com/cruisinme30/spelunk/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/cruisinme30/spelunk/releases/tag/v0.1.0
