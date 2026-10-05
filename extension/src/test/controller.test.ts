@@ -248,6 +248,25 @@ test("closing the panel hides it and remembers the query", async () => {
   assert.deepEqual(host.payloads("state.restore").at(-1)?.recent, ["timeout"]);
 });
 
+test("removing a recent query takes it off the list and keeps it off", async () => {
+  // @covers msg:recent.remove
+  const saved: PersistedState[] = [];
+  const host = recordingUi();
+  const ui = { ...host.ui, saveState: (state: PersistedState) => saved.push(structuredClone(state)) };
+  const controller = newController(parseOnlyBackend().backend, ui, {}, { text: "", recent: ["c", "b", "a"] });
+  const remove = (query: string) =>
+    controller.handle({ v: MESSAGE_VERSION, type: "recent.remove", payload: { query } });
+  await remove("b");
+  await remove("not there");
+  controller.restore();
+  assert.deepEqual(host.payloads("state.restore").at(-1)?.recent, ["c", "a"]);
+  assert.deepEqual(
+    saved.map((state) => state.recent),
+    [["c", "a"]],
+    "saved once, and not again for a query that isn't listed",
+  );
+});
+
 test("a search typed while a repo was indexing runs again when the repo is ready", async () => {
   const host = recordingUi();
   const searches: string[] = [];
@@ -445,6 +464,7 @@ test("malformed panel messages are dropped at the boundary, and well-formed ones
     { v: MESSAGE_VERSION, type: "result.select", payload: { ref: 7 } },
     { v: MESSAGE_VERSION, type: "results.more", payload: { searchId: "s1" } },
     { v: MESSAGE_VERSION, type: "help.try", payload: { query: null } },
+    { v: MESSAGE_VERSION, type: "recent.remove", payload: {} },
   ]) {
     assert.equal(parseWebviewMessage(raw), undefined, JSON.stringify(raw));
   }

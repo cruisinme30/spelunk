@@ -441,6 +441,11 @@ export interface HelpTryMsg {
   query: string;
 }
 
+/** RecentRemoveMsg removes a query from the recent list. */
+export interface RecentRemoveMsg {
+  query: string;
+}
+
 /** WelcomeStateMsg is what the welcome page shows: the shortcut preset and what is indexed. */
 export interface WelcomeStateMsg {
   preset: "quickOpen" | "findInFiles" | "none";
@@ -557,6 +562,7 @@ export interface WebviewToHost {
   "welcome.start": Empty;
   "ready": Empty;
   "daemon.restart": Empty;
+  "recent.remove": RecentRemoveMsg;
 }
 
 /** Search panel messages, host->webview: type -> payload. */

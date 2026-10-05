@@ -773,6 +773,11 @@ type HelpTryMsg struct {
 	Query string `json:"query"`
 }
 
+// RecentRemoveMsg removes a query from the recent list.
+type RecentRemoveMsg struct {
+	Query string `json:"query"`
+}
+
 // WelcomeStateMsg is what the welcome page shows: the shortcut preset and what is indexed.
 type WelcomeStateMsg struct {
 	Preset       string `json:"preset"`
@@ -935,6 +940,7 @@ const (
 	MsgWelcomeStart    = "welcome.start"
 	MsgReady           = "ready"
 	MsgDaemonRestart   = "daemon.restart"
+	MsgRecentRemove    = "recent.remove"
 	MsgParseResult     = "parse.result"
 	MsgSearchBatch     = "search.batch"
 	MsgSearchDone      = "search.done"

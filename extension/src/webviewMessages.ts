@@ -34,6 +34,7 @@ const PAYLOAD_CHECKS: { [K in keyof WebviewToHost]: PayloadCheck<K> } = {
   },
   "results.more": ({ searchId, cursor }) => (isString(searchId) && isString(cursor) ? { searchId, cursor } : undefined),
   "help.try": ({ query }) => (isString(query) ? { query } : undefined),
+  "recent.remove": ({ query }) => (isString(query) ? { query } : undefined),
   "welcome.choose": ({ preset, historyDepth, symbols }) => {
     const choice: WebviewToHost["welcome.choose"] = {};
     const checkedPreset = member(preset, PRESETS);

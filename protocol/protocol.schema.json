@@ -1137,6 +1137,16 @@
       },
       "required": ["query"]
     },
+    "RecentRemoveMsg": {
+      "description": "RecentRemoveMsg removes a query from the recent list.",
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string"
+        }
+      },
+      "required": ["query"]
+    },
     "WelcomeStateMsg": {
       "description": "WelcomeStateMsg is what the welcome page shows: the shortcut preset and what is indexed.",
       "type": "object",
@@ -1463,6 +1473,10 @@
     "daemon.restart": {
       "direction": "webview->host",
       "payload": "Empty"
+    },
+    "recent.remove": {
+      "direction": "webview->host",
+      "payload": "RecentRemoveMsg"
     },
     "parse.result": {
       "direction": "host->webview",

@@ -226,6 +226,10 @@ export class SearchController {
         this.ui.restartDaemon();
         return;
       }
+      case "recent.remove": {
+        this.forgetQuery(message.payload.query);
+        return;
+      }
     }
   }
 
@@ -245,6 +249,14 @@ export class SearchController {
     const limit = this.options.recentLimit();
     if (!text || text.length > MAX_REMEMBERED_QUERY_LENGTH || !(limit > 0)) return;
     this.state.recent = [text, ...this.state.recent.filter((query) => query !== text)].slice(0, limit);
+    this.ui.saveState(this.state);
+  }
+
+  /** Takes a query off the recent list. */
+  forgetQuery(query: string): void {
+    const recent = this.state.recent.filter((kept) => kept !== query);
+    if (recent.length === this.state.recent.length) return;
+    this.state.recent = recent;
     this.ui.saveState(this.state);
   }
 

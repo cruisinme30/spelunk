@@ -187,6 +187,7 @@ function handleWelcome(
     case "panel.close":
     case "query.changed":
     case "ready":
+    case "recent.remove":
     case "result.open":
     case "result.select":
     case "results.more": {
