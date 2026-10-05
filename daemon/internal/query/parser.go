@@ -29,6 +29,16 @@ func Parse(text string, resolver Resolver) protocol.ParsedQuery {
 	return query
 }
 
+// parseTree returns the syntax tree of text without checking it. Fixes use
+// it to look at a rewritten query: a full Parse would build that query's
+// fixes too, and the fixes for misplaced globals parse the query again, so
+// "x -case:yes -case:yes …" took factorial time.
+func parseTree(text string) *protocol.Node {
+	src := newSource(text)
+	p := &parser{src: src, tokens: lex(src), resolver: noResolver{}}
+	return p.parseQuery()
+}
+
 // parser is a recursive-descent parser over the token list.
 type parser struct {
 	src      *source

@@ -80,8 +80,14 @@ func collectGlobals(src *source, query *protocol.ParsedQuery, problems *diagnost
 			if parent != nil && parent.Kind == protocol.NodeKindNot {
 				removed = parent.Span
 			}
-			move := moveToTopLevel(src, written, removeSpan(src, removed))
-			problems.errorf(DiagGlobalMisplaced, node.Span, []protocol.Fix{move},
+			// The fix rewrites the whole query, so offering it for each of
+			// many globals in an over-long query would be quadratic; such a
+			// query can't run anyway.
+			fixes := []protocol.Fix{}
+			if src.length() <= maxQueryLength {
+				fixes = append(fixes, moveToTopLevel(src, written, removeSpan(src, removed)))
+			}
+			problems.errorf(DiagGlobalMisplaced, node.Span, fixes,
 				"%s: applies to the whole query, so it can't be inside ( ), after - or in an OR branch", node.Op)
 		case seen[node.Op]:
 			problems.errorf(DiagDuplicateGlobal, node.Span, []protocol.Fix{removeFix("Remove "+written, src, node.Span)},
@@ -99,7 +105,7 @@ func collectGlobals(src *source, query *protocol.ParsedQuery, problems *diagnost
 // back inside an OR branch.
 func moveToTopLevel(src *source, global string, removed protocol.Span) protocol.Fix {
 	rest := strings.TrimSpace(src.slice(0, removed.Start) + src.slice(removed.End, src.length()))
-	if root := Parse(rest, nil).Root; root != nil && root.Kind == protocol.NodeKindOr {
+	if root := parseTree(rest); root != nil && root.Kind == protocol.NodeKindOr {
 		rest = "(" + rest + ")"
 	}
 	whole := protocol.Span{Start: 0, End: src.length()}
