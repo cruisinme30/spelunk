@@ -135,3 +135,14 @@ test("malformed host messages are dropped, and the panel keeps working", async (
   assert.equal(await page.locator('[data-testid="result"]').count(), 1);
   assert.deepEqual(pageErrors(page), []);
 });
+
+test("a result of a kind the panel doesn't know is skipped, and the rest of its batch shows", async (t) => {
+  const { page, seq } = await searchingPanel(t);
+  const items = [{ kind: "notebookCell", ref: "n1", repoId: "r1" }, FILE_NAME_RESULT];
+  await fromHost(page, "search.batch", { seq, searchId: "s1", items });
+  assert.deepEqual(
+    await page.locator('[data-testid="result"]').evaluateAll((rows) => rows.map((row) => row.dataset.ref)),
+    ["f1"],
+  );
+  assert.deepEqual(pageErrors(page), []);
+});

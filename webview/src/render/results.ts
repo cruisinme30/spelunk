@@ -136,9 +136,10 @@ export class ResultsView {
     return [...this.list.querySelectorAll<HTMLElement>("[data-ref]")];
   }
 
-  /** Adds a batch of results to their sections. */
+  /** Adds a batch of results to their sections, skipping any of a kind this webview doesn't know. */
   append(items: ResultItem[]): void {
     for (const item of items) {
+      if (!Object.hasOwn(this.sections, item.kind)) continue;
       this.items.push(item);
       this.countByKind[item.kind]++;
       this.repoIds.add(item.repoId);
