@@ -21,6 +21,7 @@ import {
   type UiSettings,
 } from "./protocol.gen";
 import { checkReplace, type DocumentLines, type LineEdit } from "./replaceEdits";
+import { pinnedEntry } from "./settings";
 import { type GuardedBy, messageGuard, type WebviewMessage } from "./webviewMessages";
 
 /** Lines of context above and below the match in a file preview. */
@@ -304,12 +305,10 @@ export class SearchController {
 
   /** Pins a query at the end of the pinned list, or renames it if it is pinned already. A blank name is none. */
   private pin({ query, name }: PinnedQuery): void {
-    const text = query.trim();
-    if (!text) return;
-    const label = name?.trim();
-    const entry = label ? { query: text, name: label } : { query: text };
+    const entry = pinnedEntry(query, name);
+    if (!entry) return;
     const pinned = this.options.pinnedQueries();
-    const index = pinned.findIndex((kept) => kept.query === text);
+    const index = pinned.findIndex((kept) => kept.query === entry.query);
     if (index === -1) pinned.push(entry);
     else if (pinned[index]?.name === entry.name) return;
     else pinned[index] = entry;

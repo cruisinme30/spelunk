@@ -155,12 +155,18 @@ export function pinnedQueries(config: ConfigReader): PinnedQuery[] {
   for (const entry of saved as unknown[]) {
     if (typeof entry !== "object" || entry === null) continue;
     const { query, name } = entry as Record<string, unknown>;
-    const text = typeof query === "string" ? query.trim() : "";
-    if (!text || pinned.has(text)) continue;
-    const label = typeof name === "string" ? name.trim() : "";
-    pinned.set(text, label ? { query: text, name: label } : { query: text });
+    const pin = pinnedEntry(typeof query === "string" ? query : "", typeof name === "string" ? name : undefined);
+    if (pin && !pinned.has(pin.query)) pinned.set(pin.query, pin);
   }
   return [...pinned.values()];
+}
+
+/** A pinned query as it is saved: trimmed, a blank name dropped; undefined for a blank query. */
+export function pinnedEntry(query: string, name: string | undefined): PinnedQuery | undefined {
+  const text = query.trim();
+  if (!text) return undefined;
+  const label = name?.trim();
+  return label ? { query: text, name: label } : { query: text };
 }
 
 /** Whether opening a result closes the search panel. */
