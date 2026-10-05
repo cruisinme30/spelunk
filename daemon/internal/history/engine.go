@@ -104,7 +104,7 @@ func (s *searcher) stopped() bool {
 func (s *searcher) searchNewestFirst(repos []Repo) {
 	var cursors []*cursor
 	for i := range repos {
-		if repos[i].Store != nil && !s.repoExcluded(&repos[i]) {
+		if repos[i].Store != nil && !s.plan.ExcludesRepo(repos[i].Name) {
 			cursors = append(cursors, &cursor{repo: &repos[i]})
 		}
 	}
@@ -181,16 +181,6 @@ func topLevelCommitLeaf(repo *Repo, c *Commit, kid query.Pred) (matched, ok bool
 		return !matched, ok
 	}
 	return commitLeaf(repo, c, kid)
-}
-
-// repoExcluded reports whether a top-level repo: rules the whole repo out.
-func (s *searcher) repoExcluded(repo *Repo) bool {
-	for _, kid := range s.plan.Pred.Kids {
-		if r, ok := kid.(*query.Repo); ok && !r.Re.MatchString(repo.Name) {
-			return true
-		}
-	}
-	return false
 }
 
 // candidates narrows a segment's commits with its trigram indexes: text

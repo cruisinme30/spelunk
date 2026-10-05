@@ -185,16 +185,6 @@ func (s *searcher) stats(unit string) engine.Stats {
 	return stats
 }
 
-// repoExcluded reports whether a top-level repo: rules the whole repo out.
-func (s *searcher) repoExcluded(repo *Repo) bool {
-	for _, kid := range s.plan.Pred.Kids {
-		if r, ok := kid.(*query.Repo); ok && !r.Re.MatchString(repo.Name) {
-			return true
-		}
-	}
-	return false
-}
-
 // docLeaf evaluates a leaf that doesn't depend on the file's text: its
 // path, repo, language or modification time. Text terms are evaluated by
 // the caller, so they never reach here.
@@ -228,7 +218,7 @@ func (s *searcher) addFileNames(repos []Repo, countHidden bool) {
 
 // addRepoFileNames does addFileNames for one repo.
 func (s *searcher) addRepoFileNames(repo *Repo, countHidden bool) {
-	if s.repoExcluded(repo) {
+	if s.plan.ExcludesRepo(repo.Name) {
 		return
 	}
 	for _, shard := range repo.shards() {
@@ -452,7 +442,7 @@ func (s *searcher) countCodeLinesHiddenByType(repos []Repo) {
 // leaf, which evaluates the query's leaves against the file. It stops when
 // the search does.
 func (s *searcher) forEachCandidate(repo *Repo, visit func(doc *Doc, matcher *lineMatcher, leaf func(query.Pred) bool)) {
-	if s.repoExcluded(repo) {
+	if s.plan.ExcludesRepo(repo.Name) {
 		return
 	}
 	for _, shard := range repo.shards() {

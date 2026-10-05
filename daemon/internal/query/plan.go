@@ -80,6 +80,17 @@ func (f *Filter) Note(count int, unit string) protocol.HiddenNote {
 	return protocol.HiddenNote{Reason: f.Reason, Filter: f.Text, Count: count, Unit: unit, Undo: f.Undo}
 }
 
+// ExcludesRepo reports whether a top-level repo: rules out the whole repo
+// named name.
+func (p *Plan) ExcludesRepo(name string) bool {
+	for _, kid := range p.Pred.Kids {
+		if r, ok := kid.(*Repo); ok && !r.Re.MatchString(name) {
+			return true
+		}
+	}
+	return false
+}
+
 // OnPage reports whether the nth result (counting from 0) falls on the
 // requested page.
 func (p *Plan) OnPage(n int) bool {
