@@ -111,6 +111,15 @@ for (const [what, binary] of [
   });
 }
 
+test("a daemon that exits at once is restarted within the budget, then stays stopped", async () => {
+  const counter = countingSpawn();
+  const { daemon } = newFakeDaemon("exitAtOnce", { maxRestartsPerMinute: 2, spawn: counter.spawn });
+  await assert.rejects(daemon.start(), /exited|closed/);
+  await waitFor("stopped after the budget", () => daemon.state === "stopped");
+  await pause(100);
+  assert.equal(counter.spawns, 3, "the first start plus two restarts, and no more");
+});
+
 test("a daemon that never answers initialize is killed and restarted, not waited on forever", async () => {
   const counter = countingSpawn();
   const { daemon } = newFakeDaemon("silent", {
@@ -155,6 +164,26 @@ test("settings that can't be read stop the start before any process is spawned",
   assert.equal(counter.spawns, 0);
 });
 
+test("stray output on stdout is skipped and the handshake still succeeds", async () => {
+  const { daemon, log } = newFakeDaemon("garbage");
+  await daemon.start();
+  assert.equal(daemon.state, "ok");
+  assert.deepEqual(await daemon.request("index/status", {}), { repos: [] });
+  assert.ok(
+    log.some((line) => line.startsWith("[rpc]")),
+    "the garbage is logged",
+  );
+  await daemon.stop();
+});
+
+test("a flood of stderr is drained, so the daemon never blocks writing it", async () => {
+  const { daemon, log } = newFakeDaemon("stderrFlood", { initializeTimeoutMs: 5000 });
+  await daemon.start();
+  assert.equal(daemon.state, "ok");
+  assert.ok(log.join("").length >= 4 * 1024 * 1024);
+  await daemon.stop();
+});
+
 test("stop called twice at once stops the daemon once, and both calls resolve", async () => {
   const { daemon, states } = newFakeDaemon("ok");
   await daemon.start();
@@ -195,6 +224,13 @@ test("stop kills a daemon that ignores shutdown, and resolves only once it has e
   await daemon.stop();
   assert.equal(daemon.state, "stopped");
   assert.equal(isRunning(pid), false);
+});
+
+test("a request in flight when the daemon dies rejects instead of hanging", async () => {
+  const { daemon } = newFakeDaemon("exitOnRequest", { maxRestartsPerMinute: 0 });
+  await daemon.start();
+  await assert.rejects(daemon.request("index/status", {}), /exited|closed/);
+  await waitFor("stopped", () => daemon.state === "stopped");
 });
 
 test("restart during the handshake replaces the starting daemon", async () => {
