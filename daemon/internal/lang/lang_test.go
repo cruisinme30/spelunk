@@ -11,6 +11,8 @@ func TestDetectAndResolve(t *testing.T) {
 		{"bin/run", "#!/usr/bin/env python3\nprint()", "python"},
 		{"bin/tool", "#!/bin/bash -e\n", "shell"},
 		{"bin/x", "#!/usr/bin/env -S node --flag\n", "javascript"},
+		{"bin/y", "#!/usr/bin/env -S LANG=C.UTF-8 python3.12 -u\r\n", "python"},
+		{"bin/z", "#!/usr/bin/env\n", ""},
 		{"notes", "hello", ""},
 		{"lib/x.hpp", "", "c++"},
 	}

@@ -141,7 +141,7 @@ func Detect(filePath string, head []byte) string {
 }
 
 // shebangInterpreter returns the program a "#!" line runs, looking through
-// "/usr/bin/env [-flags]"; "" when the file has no shebang.
+// "/usr/bin/env [-flags] [NAME=value…]"; "" when the file has no shebang.
 func shebangInterpreter(head []byte) string {
 	line, ok := bytes.CutPrefix(head, []byte("#!"))
 	if !ok {
@@ -159,7 +159,7 @@ func shebangInterpreter(head []byte) string {
 		return interpreter
 	}
 	for _, field := range fields[1:] {
-		if !strings.HasPrefix(field, "-") {
+		if !strings.HasPrefix(field, "-") && !strings.Contains(field, "=") {
 			return field
 		}
 	}
