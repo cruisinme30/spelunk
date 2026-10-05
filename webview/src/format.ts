@@ -85,14 +85,17 @@ function splitsSurrogatePair(text: string, index: number): boolean {
  * JS strings index directly. Hits that overlap, are out of order or out of
  * range, or aren't numbers are clipped or skipped, and a hit that would cut
  * an astral character (an emoji) in half grows to cover all of it.
+ *
+ * With `replacements`, the nth hit (in text order) shows as a replace would
+ * change it: struck out, followed by the nth replacement.
  */
-export function highlight(text: string, hits: (Hit | Range)[]): DocumentFragment {
+export function highlight(text: string, hits: (Hit | Range)[], replacements?: readonly string[]): DocumentFragment {
   const fragment = document.createDocumentFragment();
   const sorted = hits
     .filter((hit) => Number.isFinite(hit.start) && Number.isFinite(hit.end))
     .sort((first, second) => first.start - second.start);
   let position = 0;
-  for (const hit of sorted) {
+  for (const [index, hit] of sorted.entries()) {
     let start = Math.max(hit.start, position);
     let end = Math.min(hit.end, text.length);
     if (end <= start) continue;
@@ -100,22 +103,30 @@ export function highlight(text: string, hits: (Hit | Range)[]): DocumentFragment
     if (splitsSurrogatePair(text, end)) end++;
     if (start > position) fragment.append(text.slice(position, start));
     const termIndex = "termIndex" in hit ? hit.termIndex : 0;
-    fragment.append(element("mark", { class: termClass(termIndex) }, text.slice(start, end)));
+    const replacement = replacements?.[index];
+    if (replacement === undefined) {
+      fragment.append(element("mark", { class: termClass(termIndex) }, text.slice(start, end)));
+    } else {
+      fragment.append(element("del", {}, text.slice(start, end)), element("ins", {}, replacement));
+    }
     position = end;
   }
   if (position < text.length) fragment.append(text.slice(position));
   return fragment;
 }
 
-/** Drops a code line's indentation, shifting its hits to match, so result rows line up. */
-function trimIndent<H extends Range>(text: string, hits: H[]): { text: string; hits: H[] } {
+/**
+ * Drops a code line's indentation, shifting its hits to match, so result
+ * rows line up; `dropped` counts the hits inside the indentation.
+ */
+function trimIndent<H extends Range>(text: string, hits: H[]): { text: string; hits: H[]; dropped: number } {
   const indent = text.length - text.trimStart().length;
-  if (indent === 0) return { text, hits };
+  if (indent === 0) return { text, hits, dropped: 0 };
+  const kept = hits.filter((hit) => hit.end > indent);
   return {
     text: text.slice(indent),
-    hits: hits
-      .filter((hit) => hit.end > indent)
-      .map((hit) => ({ ...hit, start: Math.max(hit.start, indent) - indent, end: hit.end - indent })),
+    hits: kept.map((hit) => ({ ...hit, start: Math.max(hit.start, indent) - indent, end: hit.end - indent })),
+    dropped: hits.length - kept.length,
   };
 }
 
@@ -159,18 +170,28 @@ export function plural(count: number, one: string, many = one + "s"): string {
   return `${count.toLocaleString("en-US")} ${count === 1 ? one : many}`;
 }
 
-/** A code line as results show it: its number, then its text without the indent, with `hits` marked. */
+/**
+ * A code line as results show it: its number, then its text without the
+ * indent, with `hits` marked, or shown replaced with `replacements` (see
+ * highlight).
+ */
 export function codeLineRow(
   line: { line: number; text: string; hits: Hit[] },
   attributes: Record<string, AttributeValue> = {},
+  replacements?: readonly string[],
 ): HTMLDivElement {
-  const shown = trimIndent(line.text, line.hits);
   return element(
     "div",
     { ...attributes, class: "row line" },
     element("span", { class: "line-number" }, String(line.line)),
-    element("code", { class: "text" }, highlight(shown.text, shown.hits)),
+    element("code", { class: "text" }, codeLineText(line, replacements)),
   );
+}
+
+/** The text of codeLineRow: the line without its indent, marked or shown replaced. */
+export function codeLineText(line: { text: string; hits: Hit[] }, replacements?: readonly string[]): DocumentFragment {
+  const shown = trimIndent(line.text, line.hits);
+  return highlight(shown.text, shown.hits, replacements?.slice(shown.dropped));
 }
 
 /** The first seven characters of a commit sha, as Git shows them. */

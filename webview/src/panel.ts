@@ -42,6 +42,7 @@ import { renderEmptyState } from "./render/emptyState";
 import { renderRepoMenu } from "./render/repoMenu";
 import { renderPreview } from "./render/preview";
 import { ResultsView } from "./render/results";
+import { ReplaceBox } from "./replace";
 import { createViewState, hasErrors, type ViewState } from "./state";
 
 /** Cheat-sheet snippets that put the cursor between a pair: "|", /|/, (|). */
@@ -54,6 +55,7 @@ export class SearchPanel {
   private readonly state: ViewState = createViewState();
   private readonly layout: Layout;
   private readonly emptyBox: EmptyBox;
+  private readonly replace: ReplaceBox;
   private readonly summary = element("span", { class: "summary", "data-testid": "summary" });
   private results: ResultsView | undefined;
   private debounceTimer: ReturnType<typeof setTimeout> | undefined;
@@ -65,6 +67,23 @@ export class SearchPanel {
   constructor(root: HTMLElement) {
     this.layout = createLayout(root);
     this.emptyBox = new EmptyBox(this.state, this.layout, this);
+    this.replace = new ReplaceBox(this.layout, {
+      searchedText: () => this.searchedText(),
+      typingDelayMs: () => this.state.ui.typingDelayMs,
+      onPreviewChanged: () => {
+        this.results?.showReplacements();
+        this.renderPreview();
+      },
+      onFocusChanged: () => {
+        this.renderFooter();
+      },
+    });
+  }
+
+  /** The query the results on screen are for, while there are results of a query to replace. */
+  private searchedText(): string | undefined {
+    if (!this.results || hasErrors(this.state) || !this.state.parsed?.root) return undefined;
+    return this.state.searchText ?? this.state.parsed.raw;
   }
 
   /** Binds events, restores the draft and tells the host the panel is ready. */
@@ -445,9 +464,15 @@ export class SearchPanel {
         this.renderBanners();
         return;
       }
-      case "welcome.state": // for the welcome page
-      case "replace.plan": // until the panel has a Replace row
+      case "welcome.state": {
+        return; // for the welcome page
+      }
+      case "replace.plan": {
+        this.replace.onPlan(message.payload);
+        return;
+      }
       case "replace.done": {
+        this.replace.onDone(message.payload);
         return;
       }
     }
@@ -553,10 +578,13 @@ export class SearchPanel {
       onLoadMore: (id: string, cursor: string) => {
         send("results.more", { searchId: id, cursor });
       },
+      replacementsFor: (item: { repoId: string; path: string; line: number }) =>
+        this.replace.replacementsFor(item.repoId, item.path, item.line),
     };
     const errors = hasErrors(state);
     this.results = new ResultsView(this.layout.body, state, handlers, errors ? [] : pathScope(state.parsed));
     this.results.showLastGood(errors ? state.lastGoodText : undefined);
+    this.replace.refresh(); // a new search: preview replacing its matches
     return this.results;
   }
 
@@ -582,6 +610,7 @@ export class SearchPanel {
     state.selectedRef = "";
     state.preview = undefined;
     this.results = undefined;
+    this.replace.refresh();
     this.layout.chips.replaceChildren();
     this.layout.diagnostics.replaceChildren();
     renderEmptyState(this.layout.body, state, this.emptyBox.handlers());
@@ -616,6 +645,7 @@ export class SearchPanel {
 
   /** What the panel shows right now, which picks the key hints. */
   private footerMode(): FooterMode {
+    if (document.activeElement === this.layout.replaceRow.input) return "replace";
     if (!this.layout.input.value) return "empty";
     if (this.completionsVisible) return this.state.completions[0]?.group === "operator" ? "operators" : "values";
     return hasErrors(this.state) ? "errors" : "results";
@@ -632,6 +662,7 @@ export class SearchPanel {
         this.state.showHiddenFiles = true;
         this.renderPreview();
       },
+      replacementsFor: (path, line) => (item ? this.replace.replacementsFor(item.repoId, path, line) : undefined),
     });
   }
 

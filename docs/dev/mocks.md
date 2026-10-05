@@ -38,6 +38,7 @@ covered.
 | 28 | `word:yes` keeps whole words | `whole-words` | `WholeWords` | 1.1 |
 | 29 | `case:smart` matches case when the query has a capital | `smart-case` | `SmartCase` | 1.1 |
 | 31 | Pinned queries: star a recent query, name it, keep it on top | `pinned-queries` | `PinnedQueries` | 1.1 |
+| 32 | Replace in current files: preview every edit, then one undoable change | `replace-in-files` | `Replace` | 1.1 |
 | 33 | Bare words find file names by their letters in order | `fuzzy-file-names` | `FuzzyNames` | 1.1 |
 | 34 | `type:added` finds the commits that added a line | `added-removed-lines` | `AddedLines` | 1.1 |
 | 35 | `kind:` keeps one kind of definition; `ref:` finds a name's uses | `symbol-kinds` | `SymbolKinds` | 1.1 |

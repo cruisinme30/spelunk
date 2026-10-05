@@ -15,6 +15,8 @@ const DIFF_SIGN = { add: "+", del: "−", ctx: " " } as const;
 interface PreviewHandlers {
   onOpen: (ref: string, where: OpenWhere) => void;
   onShowHiddenFiles: () => void;
+  /** What a replace would make of a line's matches, while the Replace row previews one. */
+  replacementsFor: (path: string, line: number) => string[] | undefined;
 }
 
 /** Fills `container` with the preview in `state.preview`, if any. */
@@ -49,7 +51,7 @@ export function renderPreview(
   });
   const header = { repo: repoId ? repoName(state, repoId) : "", actions };
   if (preview.kind === "file") {
-    renderFilePreview(container, preview, header);
+    renderFilePreview(container, preview, header, handlers.replacementsFor);
   } else {
     renderCommitPreview(container, preview, header, {
       showHiddenFiles: state.showHiddenFiles,
@@ -65,7 +67,12 @@ interface PreviewHeader {
   actions: HTMLElement;
 }
 
-function renderFilePreview(container: HTMLElement, preview: FilePreview, { repo, actions }: PreviewHeader): void {
+function renderFilePreview(
+  container: HTMLElement,
+  preview: FilePreview,
+  { repo, actions }: PreviewHeader,
+  replacementsFor: PreviewHandlers["replacementsFor"],
+): void {
   container.append(
     element(
       "div",
@@ -93,7 +100,11 @@ function renderFilePreview(container: HTMLElement, preview: FilePreview, { repo,
         "div",
         { class: classes.join(" ") },
         element("span", { class: "line-number" }, String(lineNumber)),
-        element("code", {}, highlight(text, hitsByLine.get(lineNumber) ?? [])),
+        element(
+          "code",
+          {},
+          highlight(text, hitsByLine.get(lineNumber) ?? [], replacementsFor(preview.path, lineNumber)),
+        ),
       ),
     );
   }

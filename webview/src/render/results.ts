@@ -3,6 +3,7 @@
 import {
   button,
   codeLineRow,
+  codeLineText,
   codeList,
   element,
   fileStat,
@@ -61,6 +62,8 @@ interface Section {
 interface ResultsHandlers {
   onApplyFix(fix: Fix): void;
   onLoadMore(searchId: string, cursor: string): void;
+  /** What a replace would make of a code line's matches, while the Replace row previews one. */
+  replacementsFor(item: ItemOf<"line">): string[] | undefined;
 }
 
 /** How many results of each kind are on screen, plus the files and repos they come from. */
@@ -175,6 +178,15 @@ export class ResultsView {
       section.list.append(this.renderItem(item));
     }
     this.updateSectionCounts();
+  }
+
+  /** Redraws the code lines' text: replaced as the Replace row's preview shows, or marked again. */
+  showReplacements(): void {
+    for (const item of this.items) {
+      if (item.kind !== "line") continue;
+      const text = this.list.querySelector(`#${rowId(item.ref)} .text`);
+      text?.replaceChildren(codeLineText(item, this.handlers.replacementsFor(item)));
+    }
   }
 
   /** Greys out a row whose file or commit no longer exists. */
@@ -361,7 +373,7 @@ export class ResultsView {
     }
     this.openCodeFile.lineCount++;
     this.openCodeFile.countLabel.textContent = String(this.openCodeFile.lineCount);
-    group.append(codeLineRow(item, this.rowAttributes(item)));
+    group.append(codeLineRow(item, this.rowAttributes(item), this.handlers.replacementsFor(item)));
     return group;
   }
 

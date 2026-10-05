@@ -272,7 +272,7 @@ const hintAtEnd = (key: string, what: string) =>
   element("span", { class: "hint-at-end" }, element("kbd", {}, key), what);
 
 /** What the panel shows, which decides the key hints. */
-export type FooterMode = "empty" | "errors" | "results" | "operators" | "values";
+export type FooterMode = "empty" | "errors" | "results" | "operators" | "values" | "replace";
 
 /** Key hints along the bottom, which change with what the panel shows. */
 export function renderFooter(layout: Layout, mode: FooterMode, isHistory: boolean): void {
@@ -296,6 +296,7 @@ export function renderFooter(layout: Layout, mode: FooterMode, isHistory: boolea
       hint("Esc", "keep as typed"),
       hintAtEnd("?", "all operators"),
     ],
+    replace: [hint("⌘↵", "replace all"), hintAtEnd("Esc", "close replace")],
     results: [
       hint("↑↓", "move"),
       hint("↵", isHistory ? "open diff" : "open"),

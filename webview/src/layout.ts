@@ -1,5 +1,6 @@
 // The panel's fixed skeleton, built once. Regions are filled by render/*.
 import { element, icon } from "./format";
+import { createReplaceRow, type ReplaceRow } from "./replace";
 
 /** The panel's regions and controls, from top to bottom. */
 export interface Layout {
@@ -8,6 +9,9 @@ export interface Layout {
   caseButton: HTMLButtonElement;
   wordButton: HTMLButtonElement;
   regexButton: HTMLButtonElement;
+  /** ⇄: opens and closes the Replace row. */
+  replaceButton: HTMLButtonElement;
+  replaceRow: ReplaceRow;
   reposButton: HTMLButtonElement;
   repoMenu: HTMLElement;
   settingsButton: HTMLButtonElement;
@@ -114,10 +118,29 @@ function createMatchToggles(): Pick<Layout, "caseButton" | "wordButton" | "regex
   return { caseButton, wordButton, regexButton };
 }
 
+/** ⇄, which opens and closes the Replace row. */
+function createReplaceToggle(): HTMLButtonElement {
+  return element(
+    "button",
+    {
+      type: "button",
+      class: "toggle replace",
+      "aria-label": "Replace",
+      "aria-expanded": "false",
+      "aria-controls": "replacement",
+      "data-testid": "toggle-replace",
+      title: "Replace in current files (⌥⌘F)",
+    },
+    "⇄",
+  );
+}
+
 /** Builds the skeleton into `root` and returns its parts. */
 export function createLayout(root: HTMLElement): Layout {
   const input = createQueryInput();
   const { caseButton, wordButton, regexButton } = createMatchToggles();
+  const replaceButton = createReplaceToggle();
+  const replaceRow = createReplaceRow();
   const reposButton = element(
     "button",
     {
@@ -159,9 +182,11 @@ export function createLayout(root: HTMLElement): Layout {
       caseButton,
       wordButton,
       regexButton,
+      replaceButton,
       element("span", { class: REPO_MENU_ANCHOR_CLASS }, reposButton, repoMenu),
       settingsButton,
     ),
+    replaceRow.root,
   );
   const shell = element(
     "section",
@@ -177,6 +202,8 @@ export function createLayout(root: HTMLElement): Layout {
     caseButton,
     wordButton,
     regexButton,
+    replaceButton,
+    replaceRow,
     reposButton,
     repoMenu,
     settingsButton,
