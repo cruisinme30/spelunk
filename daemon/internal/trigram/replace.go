@@ -9,10 +9,6 @@ import (
 	"github.com/cruisinme30/spelunk/daemon/internal/query"
 )
 
-// byteOrderMark starts some UTF-8 files; editors hide it, so a line's
-// offsets are counted after it.
-const byteOrderMark = "\xef\xbb\xbf"
-
 // Replacements lists the edits that replacing term's matches with
 // replacement would make: one per match of term on every line that the
 // query's code results show. Unlike a search it never stops part way: it
@@ -30,10 +26,7 @@ func Replacements(ctx context.Context, plan *query.Plan, repos []Repo, term *que
 			RepoID: c.repo.ID, Path: c.doc.Path, File: filepath.Join(c.repo.Root, filepath.FromSlash(c.doc.Path)),
 		}
 		for _, line := range matcher.lines(query.Contributing(plan.Pred, leaf)) {
-			text := line.text
-			if line.number == 1 {
-				text = strings.TrimPrefix(text, byteOrderMark)
-			}
+			text := line.text // decodeText already dropped any byte order mark
 			edits := replaceEdits(term, text, replacement)
 			if len(edits) == 0 {
 				continue // another term's line, or only empty matches
