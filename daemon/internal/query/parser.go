@@ -382,7 +382,7 @@ func (p *parser) reportBadValue(op operator, t token, valueSpan protocol.Span, p
 	if op.name == protocol.OpNameLang {
 		examples = nil
 		for _, name := range nearestLanguages(t.value) {
-			examples = append(examples, "lang:"+name)
+			examples = append(examples, name)
 		}
 	}
 	// A quoted or /regex/ value may touch the next word, as in case:/ /y;
@@ -391,8 +391,7 @@ func (p *parser) reportBadValue(op operator, t token, valueSpan protocol.Span, p
 	if end := p.src.runeIndex(t.end); t.form != formBare && end < len(p.src.runes) && !endsBareWord(p.src.runes[end]) {
 		separator = " "
 	}
-	for _, example := range examples {
-		value := strings.TrimPrefix(example, op.name+":")
+	for _, value := range examples {
 		fixes = append(fixes, replaceFix("Use "+t.name+":"+value, valueSpan, value+separator))
 	}
 	p.problems.errorf(DiagBadValue, protocol.Span{Start: t.start, End: t.end}, fixes, "%s", problem)

@@ -32,7 +32,7 @@ type operator struct {
 	scope  scope
 	// summary is the one-line description shown in completions.
 	summary string
-	// examples are valid values, offered as fixes for a bad value and as completions.
+	// examples are valid values, offered as fixes for a bad value.
 	examples []string
 	// interpret checks a value and says how it matches. A non-empty problem is a bad_value.
 	interpret func(value string, form valueForm) (match protocol.Match, problem string)
@@ -42,16 +42,16 @@ type operator struct {
 // word that is exactly a short name offers that operator first, so "s"
 // offers symbol: before since:.
 var operators = []operator{
-	{name: protocol.OpNameF, full: "file", short: "f", summary: "File path, as a regex or a glob", examples: []string{"f:*.py", `f:\.py$`, "f:src/", "f:test"}, interpret: asPathRegex},
+	{name: protocol.OpNameF, full: "file", short: "f", summary: "File path, as a regex or a glob", examples: []string{"*.py", `\.py$`, "src/", "test"}, interpret: asPathRegex},
 	{name: protocol.OpNameAuthor, full: "author", short: "a", scope: scopeHistoryOnly, summary: "Commits by this person", interpret: asName},
-	{name: protocol.OpNameSince, full: "since", short: "d", summary: "Only changes inside a time window", examples: []string{"since:30d", "since:2w", "since:6m", "since:1y", "since:today", "since:yesterday", "since:2h"}, interpret: asDuration},
+	{name: protocol.OpNameSince, full: "since", short: "d", summary: "Only changes inside a time window", examples: []string{"30d", "2w", "6m", "1y", "today", "yesterday", "2h"}, interpret: asDuration},
 	{name: protocol.OpNameSym, full: "symbol", short: "s", scope: scopeWorkingTreeOnly, summary: "Symbol definitions", interpret: asText},
-	{name: protocol.OpNameLang, full: "language", short: "l", summary: "Programming language", examples: []string{"lang:python", "lang:go", "lang:typescript"}, interpret: asLanguage},
+	{name: protocol.OpNameLang, full: "language", short: "l", summary: "Programming language", examples: []string{"python", "go", "typescript"}, interpret: asLanguage},
 	{name: protocol.OpNameRepo, full: "repo", short: "r", summary: "Repo name, as a regex or a glob", interpret: asPathRegex},
 	{name: protocol.OpNameMsg, full: "message", short: "m", scope: scopeHistoryOnly, summary: "Words in the commit message", interpret: asText},
-	{name: protocol.OpNameType, full: "type", short: "t", global: true, summary: "Only file names, code, or commits", examples: []string{"type:file", "type:code", "type:commit"}, interpret: oneOf("file", "code", "commit")},
-	{name: protocol.OpNameCase, full: "case", short: "c", global: true, summary: "Match case (yes) or ignore it (no)", examples: []string{"case:yes", "case:no"}, interpret: oneOf("yes", "no")},
-	{name: protocol.OpNameCount, full: "count", short: "n", global: true, summary: "How many results", examples: []string{"count:50", "count:200", "count:all"}, interpret: asCount},
+	{name: protocol.OpNameType, full: "type", short: "t", global: true, summary: "Only file names, code, or commits", examples: []string{"file", "code", "commit"}, interpret: oneOf("file", "code", "commit")},
+	{name: protocol.OpNameCase, full: "case", short: "c", global: true, summary: "Match case (yes) or ignore it (no)", examples: []string{"yes", "no"}, interpret: oneOf("yes", "no")},
+	{name: protocol.OpNameCount, full: "count", short: "n", global: true, summary: "How many results", examples: []string{"50", "200", "all"}, interpret: asCount},
 }
 
 // lookupOperator finds an operator by any of its spellings: f, file.
