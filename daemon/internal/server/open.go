@@ -7,6 +7,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"os"
+	"path/filepath"
 
 	"github.com/cruisinme30/unified-search/daemon/internal/history"
 	"github.com/cruisinme30/unified-search/daemon/internal/protocol"
@@ -68,11 +70,39 @@ func (s *Server) repoForRef(text string) (*trigram.Repo, trigram.Ref, error) {
 		return nil, trigram.Ref{}, rpc.Errorf(protocol.CodeRefStale, "malformed ref")
 	}
 	for _, root := range s.Roots() {
-		if root.ID == ref.RepoID {
-			return &trigram.Repo{ID: root.ID, Name: root.Name, Root: root.Path}, ref, nil
+		if root.ID != ref.RepoID {
+			continue
 		}
+		if err := insideRoot(root.Path, ref.Path); err != nil {
+			return nil, trigram.Ref{}, err
+		}
+		return &trigram.Repo{ID: root.ID, Name: root.Name, Root: root.Path}, ref, nil
 	}
 	return nil, trigram.Ref{}, rpc.Errorf(protocol.CodeRefStale, "repo no longer open")
+}
+
+// insideRoot checks that the file a ref names is a regular file inside
+// root once symbolic links are followed. Refs are opaque, but a client can
+// still send any string: a ref through a link in the workspace (link ->
+// /etc) must not read or open a file outside the folders the user opened.
+// The index never follows links, so no real result is refused.
+func insideRoot(root, rel string) error {
+	realRoot, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		return rpc.Errorf(protocol.CodeRefStale, "%v", trigram.ErrStale)
+	}
+	realPath, err := filepath.EvalSymlinks(filepath.Join(root, filepath.FromSlash(rel)))
+	if err != nil {
+		return rpc.Errorf(protocol.CodeRefStale, "%v", trigram.ErrStale)
+	}
+	inside, err := filepath.Rel(realRoot, realPath)
+	if err != nil || !filepath.IsLocal(inside) {
+		return rpc.Errorf(protocol.CodeRefStale, "ref is outside its folder")
+	}
+	if info, err := os.Stat(realPath); err != nil || !info.Mode().IsRegular() {
+		return rpc.Errorf(protocol.CodeRefStale, "%v", trigram.ErrStale)
+	}
+	return nil
 }
 
 // historyRepoFor finds the open root a commit ref points into.
