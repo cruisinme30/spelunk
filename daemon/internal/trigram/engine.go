@@ -465,7 +465,7 @@ func (s *searcher) candidateDocs(shard *Shard) []uint32 {
 	if ids := narrowShard(shard, s.plan.Pred, s.plan.CaseSensitive); ids != nil {
 		return ids
 	}
-	return shard.allDocIDs()
+	return engine.AllIDs(len(shard.Docs))
 }
 
 // narrowShard returns the docs that can satisfy p, or nil for "any doc".

@@ -44,3 +44,13 @@ func CountIgnoringCase[R any](ctx context.Context, plan *query.Plan, repos []R, 
 	}
 	return stats.Total
 }
+
+// AllIDs returns the ids 0 to n-1: every doc or commit, when narrowing
+// can't rule any out.
+func AllIDs(n int) []uint32 {
+	ids := make([]uint32, n)
+	for i := range ids {
+		ids[i] = uint32(i) //nolint:gosec // G115: shards and segments hold far fewer than 2^32 ids
+	}
+	return ids
+}

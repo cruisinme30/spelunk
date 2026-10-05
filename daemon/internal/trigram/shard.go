@@ -125,15 +125,6 @@ func NewShard(docs []Doc) *Shard {
 	return s
 }
 
-// allDocIDs returns the id of every doc, in path order.
-func (s *Shard) allDocIDs() []uint32 {
-	ids := make([]uint32, len(s.Docs))
-	for i := range ids {
-		ids[i] = uint32(i) //nolint:gosec // G115: Build keeps a shard under maxDocs docs
-	}
-	return ids
-}
-
 // add appends a doc and records its trigrams.
 func (s *Shard) add(doc Doc) {
 	id := uint32(len(s.Docs)) //nolint:gosec // G115: Build keeps a shard under maxDocs docs

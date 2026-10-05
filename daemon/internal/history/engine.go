@@ -195,11 +195,7 @@ func (s *searcher) candidates(seg *segment) []uint32 {
 	if ids != nil {
 		return ids
 	}
-	all := make([]uint32, len(seg.commits))
-	for i := range all {
-		all[i] = uint32(i) //nolint:gosec // G115: a segment holds far fewer than 2^32 commits
-	}
-	return all
+	return engine.AllIDs(len(seg.commits))
 }
 
 // fileView is one changed file, as the predicate's leaves see it. A commit
