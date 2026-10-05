@@ -244,6 +244,29 @@ test("the first result is selected and previewed; ↓ moves the selection", asyn
   assert.equal(await page.locator('[data-testid="preview"] mark').count(), 1);
 });
 
+test("under type:added, commit rows count the hits in added lines", async (t) => {
+  const page = await openPanel(t);
+  await restore(page);
+  await fromHost(page, "index.status", {
+    repos: [{ repoId: "r1", name: "payments-api", tree: "ready", history: "ready" }],
+  });
+  const query = "type:added retry";
+  const parsed = parsedQuery(query, textNode("retry", 11), {
+    mode: "history",
+    globals: { case: null, count: null, type: "added" },
+  });
+  const seq = await typeAndParse(page, query, parsed);
+  await fromHost(page, "search.batch", {
+    seq,
+    searchId: "s1",
+    items: [commitResult("c1", "Add retry to charge", { diffHits: 3 })],
+  });
+  await searchDone(page, seq, { total: 1, ms: 3 });
+  const meta = await page.locator(".row.commit .commit-meta").innerText();
+  assert.match(meta, /3 hits in added lines/);
+  assert.doesNotMatch(meta, /in diff/);
+});
+
 /** A commit result for "retry" from Jane; `overrides` replaces any field. */
 const commitResult = (ref, subject, overrides) => ({
   kind: "commit",

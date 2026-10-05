@@ -397,7 +397,7 @@ export class ResultsView {
         element("span", {}, item.author.name),
         element("span", {}, timeAgo(item.at)),
         element("span", {}, repoName(this.state, item.repoId)),
-        commitMatchPlace(item),
+        commitMatchPlace(item, this.state.parsed?.globals.type),
         ...tags,
       ),
       item.bodyLine
@@ -408,9 +408,13 @@ export class ResultsView {
   }
 }
 
-/** Where a commit's text terms matched: "in message · 3 hits in diff", "in message only" or "3 hits in diff". */
-function commitMatchPlace(item: ItemOf<"commit">): HTMLElement | null {
-  const inDiff = item.diffHits ? plural(item.diffHits, "hit") + " in diff" : "";
+/**
+ * Where a commit's text terms matched: "in message · 3 hits in diff", "in message only" or "3 hits in diff".
+ * Under type:added or type:removed only that side of the diff is searched: "3 hits in added lines".
+ */
+function commitMatchPlace(item: ItemOf<"commit">, type: string | null | undefined): HTMLElement | null {
+  const place = type === "added" || type === "removed" ? `in ${type} lines` : "in diff";
+  const inDiff = item.diffHits ? `${plural(item.diffHits, "hit")} ${place}` : "";
   if (item.inMessage) return element("span", {}, inDiff ? `in message · ${inDiff}` : "in message only");
   return inDiff ? element("span", {}, inDiff) : null;
 }

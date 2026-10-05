@@ -134,10 +134,11 @@ export const OPERATOR_GROUPS: OperatorGroup[] = [
       },
       {
         operator: "type",
-        label: "type:file|code|commit",
+        label: "type:file|code|commit|added|removed",
         insert: "type:",
         summary: "Return one kind of result.",
-        description: "Return only file names, code lines, or commits.",
+        description:
+          "Return only file names, code lines, or commits. type:added and type:removed search commits too, but only the lines they added or removed, not their messages.",
         example: "type:file retry",
       },
       {
