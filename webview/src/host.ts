@@ -80,8 +80,8 @@ export function saveDraft(text: string): void {
   vscode.setState({ text });
 }
 
-/** The query text saveDraft kept, if any. */
+/** The query text saveDraft kept, if any; anything else VS Code hands back (an older or corrupt state) is ignored. */
 export function loadDraft(): string | undefined {
-  const saved = vscode.getState() as { text?: string } | undefined;
-  return saved?.text;
+  const saved = vscode.getState();
+  return isObject(saved) && isString(saved["text"]) ? saved["text"] : undefined;
 }

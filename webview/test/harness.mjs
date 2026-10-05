@@ -29,6 +29,10 @@ export function useBrowser() {
 /** Opens a fresh search panel, closed again when the test ends (even if it fails). */
 export const openPanel = (testContext) => openPage(testContext, "searchPanel.html");
 
+/** Opens a search panel that VS Code hands `savedState` on load, as after a webview reload. */
+export const openPanelWithSavedState = (testContext, savedState) =>
+  openPage(testContext, "searchPanel.html", savedState);
+
 /** Opens the help page. */
 export const openHelp = (testContext) => openPage(testContext, "help.html");
 
@@ -38,7 +42,7 @@ export const openWelcome = (testContext) => openPage(testContext, "welcome.html"
 /** Uncaught exceptions and console errors of each open page, in order. */
 const errorsByPage = new WeakMap();
 
-async function openPage(testContext, file) {
+async function openPage(testContext, file, savedState) {
   const page = await browser.newPage();
   testContext.after(() => page.close());
   const errors = [];
@@ -47,6 +51,11 @@ async function openPage(testContext, file) {
   page.on("console", (message) => {
     if (message.type() === "error") errors.push(message.text());
   });
+  if (savedState !== undefined) {
+    await page.addInitScript((state) => {
+      globalThis.__savedState = state;
+    }, savedState);
+  }
   await page.goto(pathToFileURL(join(out, file)).href);
   return page;
 }

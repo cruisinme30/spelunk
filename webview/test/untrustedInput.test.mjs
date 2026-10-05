@@ -10,9 +10,11 @@ import {
   FILE_NAME_RESULT,
   fromHost,
   openPanel,
+  openPanelWithSavedState,
   pageErrors,
   parsedQuery,
   restore,
+  sentMessages,
   textNode,
   typeAndParse,
   useBrowser,
@@ -145,4 +147,15 @@ test("a result of a kind the panel doesn't know is skipped, and the rest of its 
     ["f1"],
   );
   assert.deepEqual(pageErrors(page), []);
+});
+
+test("a corrupt or old saved state leaves the box empty", async (t) => {
+  for (const saved of ["text", 42, [1, 2], { text: 5 }, { text: { nested: true } }, { version: 0, query: "x" }]) {
+    const page = await openPanelWithSavedState(t, saved);
+    assert.equal(await page.inputValue('[data-testid="query"]'), "", JSON.stringify(saved));
+    assert.equal((await sentMessages(page, "ready")).length, 1);
+    assert.deepEqual(pageErrors(page), []);
+  }
+  const page = await openPanelWithSavedState(t, { text: "since:2w" });
+  assert.equal(await page.inputValue('[data-testid="query"]'), "since:2w", "a good draft is restored");
 });

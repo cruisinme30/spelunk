@@ -5,7 +5,9 @@
 //
 //   window.__sent                every message the webview sent, in order
 //   window.__fromHost(type, p)   delivers a host message to the webview
-//   window.__savedState          what the webview saved with setState
+//   window.__savedState          what the webview saved with setState; a test can
+//                                set it before the page loads (addInitScript) to
+//                                play the state VS Code hands back on a reload
 //   window.__forwardToHost       optional; when a page defines it (e.g. as a
 //                                Playwright binding), every sent message is
 //                                also passed to it, as to a real host
@@ -20,7 +22,7 @@ mkdirSync(out, { recursive: true });
 
 const FAKE_VSCODE_API = `
 window.__sent = [];
-window.__savedState = undefined;
+if (!("__savedState" in window)) window.__savedState = undefined;
 window.acquireVsCodeApi = () => ({
   postMessage: (message) => {
     const copy = JSON.parse(JSON.stringify(message));
