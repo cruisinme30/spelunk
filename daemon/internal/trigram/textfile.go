@@ -91,9 +91,10 @@ var (
 //   - UTF-16 text with a byte order mark is converted to UTF-8;
 //   - a lone "\r" (not followed by "\n") becomes "\n", because VS Code
 //     ends a line there too. "\r\n" stays: lines are split on "\n" and the
-//     "\r" before it is trimmed.
-//
-// Other bytes, including invalid UTF-8, are kept as they are.
+//     "\r" before it is trimmed;
+//   - invalid UTF-8 becomes U+FFFD the way VS Code's decoder does it: one
+//     per maximal invalid subsequence, not one per byte, so a column after
+//     a truncated character still lands where the editor shows it.
 func decodeText(raw []byte) []byte {
 	switch {
 	case bytes.HasPrefix(raw, bomUTF8):
@@ -101,7 +102,63 @@ func decodeText(raw []byte) []byte {
 	case hasUTF16BOM(raw):
 		raw = decodeUTF16(raw)
 	}
-	return loneCRToLF(raw)
+	return loneCRToLF(replaceInvalidUTF8(raw))
+}
+
+// replaceInvalidUTF8 replaces each maximal invalid subsequence of text with
+// one U+FFFD, as the WHATWG UTF-8 decoder (which VS Code uses) does. Valid
+// text is returned as it is.
+func replaceInvalidUTF8(text []byte) []byte {
+	if utf8.Valid(text) {
+		return text
+	}
+	out := make([]byte, 0, len(text)+len(text)/2)
+	for i := 0; i < len(text); {
+		r, size := utf8.DecodeRune(text[i:])
+		if r != utf8.RuneError || size > 1 { // a real U+FFFD is 3 bytes long
+			out = append(out, text[i:i+size]...)
+			i += size
+			continue
+		}
+		out = utf8.AppendRune(out, utf8.RuneError)
+		i += invalidSubpartLength(text[i:])
+	}
+	return out
+}
+
+// invalidSubpartLength is how many bytes at the start of text, which does
+// not start with a valid character, make up one maximal subpart: a lead
+// byte and the continuation bytes that could still follow it.
+func invalidSubpartLength(text []byte) int {
+	need, lo, hi := leadRule(text[0])
+	n := 1
+	for ; n <= need && n < len(text) && text[n] >= lo && text[n] <= hi; n++ {
+		lo, hi = 0x80, 0xbf
+	}
+	return n
+}
+
+// leadRule says how many continuation bytes follow lead in a valid
+// character, and the range the first of them must be in (later ones are
+// always 0x80-0xBF). A byte that never starts a character needs none.
+func leadRule(lead byte) (need int, lo, hi byte) {
+	switch {
+	case lead >= 0xc2 && lead <= 0xdf:
+		return 1, 0x80, 0xbf
+	case lead == 0xe0:
+		return 2, 0xa0, 0xbf // no overlong forms
+	case lead == 0xed:
+		return 2, 0x80, 0x9f // no surrogates
+	case lead >= 0xe1 && lead <= 0xef:
+		return 2, 0x80, 0xbf
+	case lead == 0xf0:
+		return 3, 0x90, 0xbf // no overlong forms
+	case lead == 0xf4:
+		return 3, 0x80, 0x8f // nothing past U+10FFFF
+	case lead >= 0xf1 && lead <= 0xf3:
+		return 3, 0x80, 0xbf
+	}
+	return 0, 0, 0 // a continuation byte, or a byte that never starts a character
 }
 
 // hasUTF16BOM reports whether head starts with a UTF-16 byte order mark

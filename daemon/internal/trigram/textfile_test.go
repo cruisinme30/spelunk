@@ -40,7 +40,14 @@ func TestDecodeTextShowsWhatAnEditorShows(t *testing.T) {
 		{"utf16be_is_converted", utf16File("café 😀\nworld\n", true), "café 😀\nworld\n"},
 		{"utf16_odd_byte_is_a_replacement", utf16File("ab", false) + "\x63", "ab�"},
 		{"lone_cr_ends_a_line", "one\rtwo\r\nthree\r", "one\ntwo\r\nthree\n"},
-		{"invalid_utf8_is_kept", "caf\xe9\n", "caf\xe9\n"},
+		// The expected text is what JavaScript's TextDecoder (and so VS Code) shows.
+		{"invalid_byte_is_a_replacement", "caf\xe9 \xff\xfe\n", "caf� ��\n"},
+		{"truncated_character_is_one_replacement", "\xe2\x82 x\xf0\x9f\x98A", "� x�A"},
+		{"surrogate_is_one_replacement_per_byte", "\xed\xa0\x80", "���"},
+		{"overlong_forms_are_one_replacement_per_byte", "\xc0\xaf\xe0\x80\x80", "�����"},
+		{"past_u10ffff_is_one_replacement_per_byte", "\xf4\x90\x80\x80", "����"},
+		{"stray_continuations_and_a_lone_lead", "\x80\x80\xf5\x80\xc3", "�����"},
+		{"a_real_replacement_character_is_kept", "a�b", "a�b"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -48,6 +55,30 @@ func TestDecodeTextShowsWhatAnEditorShows(t *testing.T) {
 				t.Errorf("decodeText(%q) = %q, want %q", tt.raw, got, tt.want)
 			}
 		})
+	}
+}
+
+func TestAResultOpensWhereTheEditorShowsItAfterInvalidUTF8(t *testing.T) {
+	// VS Code shows each of the truncated characters "\xe2\x82" and
+	// "\xf0\x9f" as one U+FFFD, so "needle" is at column 4 there; one U+FFFD
+	// per byte put it at column 6.
+	root := writeTree(t, map[string]string{"broken.txt": "\xe2\x82\xf0\x9f  needle\n"})
+	listed, err := ListFiles(context.Background(), root, WalkOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	shard, err := Build(context.Background(), root, listed, BuildOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	repo := Repo{ID: "r", Name: "r", Root: root, Shard: shard}
+	items, _ := runItems(t, "needle", defaultSettings, "", repo)
+	if len(items) != 1 {
+		t.Fatalf("results = %q, want one", summarize(items))
+	}
+	ref, _ := ParseRef(items[0].Ref)
+	if items[0].Text != "��  needle" || ref.Column != 4 {
+		t.Errorf("result text %q column %d, want %q at column 4", items[0].Text, ref.Column, "��  needle")
 	}
 }
 

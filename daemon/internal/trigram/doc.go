@@ -20,8 +20,8 @@
 //   - The trigram prefilter may let through files that don't match, but
 //     never drops one that does: results equal a plain regex scan, line by
 //     line, as ripgrep would report them, of each file's text as an editor
-//     shows it (see decodeText: no byte order mark, UTF-16 converted, and a
-//     lone "\r" ending a line).
+//     shows it (see decodeText: no byte order mark, UTF-16 converted, a
+//     lone "\r" ending a line, and invalid UTF-8 replaced as VS Code does).
 //   - Only regular files are read, without following symlinks or blocking
 //     on a FIFO, and never past the size limit, even when a file changed
 //     after it was listed (see readText).
