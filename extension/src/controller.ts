@@ -19,7 +19,7 @@ import {
 import type { WebviewMessage } from "./webviewMessages";
 
 /** Lines of context above and below the match in a file preview. */
-const DEFAULT_PREVIEW_CONTEXT_LINES = 7;
+const PREVIEW_CONTEXT_LINES = 7;
 /** Longer queries (a pasted file, say) are searched but not kept in the recent list, which lives in globalState. */
 const MAX_REMEMBERED_QUERY_LENGTH = 1000;
 
@@ -79,7 +79,6 @@ export interface ControllerOptions {
   recentLimit(): number;
   closeOnOpen(): boolean;
   uiSettings(): UiSettings;
-  previewContextLines?: number;
 }
 
 /** A query/parse answer, plus the text to search while a word is being completed. */
@@ -382,8 +381,7 @@ export class SearchController {
   /** Fetches a result's preview; a stale ref gets an empty preview marked stale. */
   private async onSelect(ref: string): Promise<void> {
     try {
-      const contextLines = this.options.previewContextLines ?? DEFAULT_PREVIEW_CONTEXT_LINES;
-      const preview = await this.backend.request("preview/get", { ref, contextLines });
+      const preview = await this.backend.request("preview/get", { ref, contextLines: PREVIEW_CONTEXT_LINES });
       this.ui.post("preview.result", { ref, preview });
     } catch (error) {
       const stale = error instanceof RpcError && error.code === ErrorCodes.RefStale;
