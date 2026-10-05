@@ -1,5 +1,5 @@
 // The preview pane: a file excerpt around the match, or a commit's diff.
-import { element, fileStat, highlight, plural, shortSha, timeAgo } from "../format";
+import { element, fileStat, highlight, plural, scrollIntoContainer, shortSha, timeAgo } from "../format";
 import type { OpenWhere, Preview } from "../protocol.gen";
 import { repoName, type ViewState } from "../state";
 
@@ -96,7 +96,8 @@ function renderFilePreview(container: HTMLElement, preview: FilePreview, { repo,
     );
   }
   container.append(code);
-  code.querySelector(".focus")?.scrollIntoView({ block: "center" });
+  const focus = code.querySelector<HTMLElement>(".focus");
+  if (focus) scrollIntoContainer(container, focus, "center");
   if (preview.symbols && preview.symbols.length > 0) {
     const names = preview.symbols.slice(0, MAX_OUTLINE_SYMBOLS).map((symbol) => element("code", {}, symbol.name));
     container.append(element("div", { class: "outline muted" }, "In this file: ", ...names));

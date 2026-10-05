@@ -3,7 +3,7 @@
 //
 // The panel is a pure view: it never parses. Fix-its, completions and the Aa / .*
 // toggles all edit the query text, then send an ordinary query.changed.
-import { clamp, element, plural, wrapIndex } from "./format";
+import { clamp, element, plural, scrollIntoContainer, wrapIndex } from "./format";
 import { type HostMessage, loadDraft, onHostMessage, saveDraft, send } from "./host";
 import { createLayout, type Layout, REPO_MENU_ANCHOR_CLASS } from "./layout";
 import { pathScope, scopedRepo } from "./parsedQuery";
@@ -380,7 +380,7 @@ export class SearchPanel {
       row.classList.toggle("selected", selected);
       row.setAttribute("aria-selected", String(selected));
       if (selected) {
-        row.scrollIntoView({ block: "nearest" });
+        if (this.results) scrollIntoContainer(this.results.list, row, "nearest");
         this.layout.input.setAttribute("aria-activedescendant", row.id);
       }
     }

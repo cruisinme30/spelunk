@@ -119,6 +119,20 @@ export function timeAgo(iso: string, now = Date.now()): string {
   return "just now";
 }
 
+/**
+ * Scrolls `container` alone so `child` shows: just into view, or centred.
+ * Unlike scrollIntoView, it never scrolls the panel around the container,
+ * which in a short panel would push the query box out of sight.
+ */
+export function scrollIntoContainer(container: HTMLElement, child: HTMLElement, align: "nearest" | "center"): void {
+  const top = child.getBoundingClientRect().top - container.getBoundingClientRect().top - container.clientTop;
+  const { height } = child.getBoundingClientRect();
+  const visible = container.clientHeight;
+  if (align === "center") container.scrollTop += top + height / 2 - visible / 2;
+  else if (top < 0) container.scrollTop += top;
+  else if (top + height > visible) container.scrollTop += Math.min(top, top + height - visible);
+}
+
 /** "1 file" / "3 files", with thousands separators. */
 export function plural(count: number, one: string, many = one + "s"): string {
   return `${count.toLocaleString("en-US")} ${count === 1 ? one : many}`;

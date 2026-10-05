@@ -93,7 +93,10 @@ button {
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 12px;
-  overflow: hidden;
+
+  /* A panel too short for everything scrolls as a whole, with the query box
+     pinned at the top (.search-bar) and room kept for the results (#body). */
+  overflow: hidden auto;
 }
 
 .muted {
@@ -138,12 +141,17 @@ mark.term-color-3 {
 }
 
 .search-bar {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  flex: none;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 10px;
   padding: 10px 14px;
   border-bottom: 1px solid var(--line);
+  background: var(--panel);
 }
 
 .search-panel.has-errors .search-bar {
@@ -520,7 +528,7 @@ mark.term-color-3 {
 
 #body {
   flex: 1 1 auto;
-  min-height: 0;
+  min-height: 120px;
   overflow: hidden;
   display: flex;
 }
@@ -1074,6 +1082,7 @@ pre.body {
 
 .search-panel.completing #completions {
   flex: 1 1 auto;
+  min-height: 120px;
   overflow: auto;
 }
 
