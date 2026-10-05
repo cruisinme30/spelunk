@@ -19,8 +19,8 @@ import type {
   OpenWhere,
   ResultItem,
   Root,
-  WelcomeChooseMsg as WelcomeChoice,
-  WelcomeStateMsg as WelcomeState,
+  WelcomeChooseMessage as WelcomeChoice,
+  WelcomeStateMessage as WelcomeState,
 } from "./protocol.gen";
 import { makeRoot } from "./roots";
 import { closeOnOpen, daemonSettings, recentQueriesLimit, uiSettings, welcomeSettings } from "./settings";

@@ -1,5 +1,5 @@
 // Maps the spelunk.* configuration to protocol types.
-import type { Settings, UiSettings, WelcomeStateMsg as WelcomeState } from "./protocol.gen";
+import type { Settings, UiSettings, WelcomeStateMessage as WelcomeState } from "./protocol.gen";
 
 /** Anything shaped like VS Code's WorkspaceConfiguration.get. */
 export interface ConfigReader {

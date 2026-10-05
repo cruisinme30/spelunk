@@ -2,7 +2,7 @@
 // appended to as batches stream in, plus hidden-result notes and Load more.
 import { codeList, element, fileStat, highlight, plural, shortSha, termClass, timeAgo, trimIndent } from "../format";
 import { operatorNodes, textNodes, textTerms } from "../parsedQuery";
-import type { Fix, HiddenNote, ResultItem, SearchDoneMsg as SearchDoneMessage } from "../protocol.gen";
+import type { Fix, HiddenNote, ResultItem, SearchDoneMessage } from "../protocol.gen";
 import { repoName, type ViewState } from "../state";
 
 type ResultKind = ResultItem["kind"];

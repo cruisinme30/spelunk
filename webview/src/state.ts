@@ -1,12 +1,12 @@
 // Everything the panel knows. Only SearchPanel (panel.ts) changes it;
 // render functions read it.
 import type {
-  BannerMsg as BannerMessage,
+  BannerMessage,
   Completion,
   ParsedQuery,
   Preview,
   RepoStatus,
-  SearchDoneMsg as SearchDoneMessage,
+  SearchDoneMessage,
   UiSettings,
 } from "./protocol.gen";
 

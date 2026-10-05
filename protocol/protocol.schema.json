@@ -1108,8 +1108,8 @@
       },
       "required": ["v", "type", "payload"]
     },
-    "QueryChangedMsg": {
-      "description": "QueryChangedMsg reports the query box after the typing delay.",
+    "QueryChangedMessage": {
+      "description": "QueryChangedMessage reports the query box after the typing delay.",
       "type": "object",
       "properties": {
         "text": {
@@ -1128,8 +1128,8 @@
       },
       "required": ["text", "cursor", "seq"]
     },
-    "ResultSelectMsg": {
-      "description": "ResultSelectMsg asks for a result's preview.",
+    "ResultSelectMessage": {
+      "description": "ResultSelectMessage asks for a result's preview.",
       "type": "object",
       "properties": {
         "ref": {
@@ -1138,8 +1138,8 @@
       },
       "required": ["ref"]
     },
-    "ResultOpenMsg": {
-      "description": "ResultOpenMsg opens a result in an editor.",
+    "ResultOpenMessage": {
+      "description": "ResultOpenMessage opens a result in an editor.",
       "type": "object",
       "properties": {
         "ref": {
@@ -1151,8 +1151,8 @@
       },
       "required": ["ref", "where"]
     },
-    "ResultsMoreMsg": {
-      "description": "ResultsMoreMsg loads the next page of results.",
+    "ResultsMoreMessage": {
+      "description": "ResultsMoreMessage loads the next page of results.",
       "type": "object",
       "properties": {
         "searchId": {
@@ -1164,8 +1164,8 @@
       },
       "required": ["searchId", "cursor"]
     },
-    "HelpTryMsg": {
-      "description": "HelpTryMsg runs an example from the help page in the search panel.",
+    "HelpTryMessage": {
+      "description": "HelpTryMessage runs an example from the help page in the search panel.",
       "type": "object",
       "properties": {
         "query": {
@@ -1174,8 +1174,8 @@
       },
       "required": ["query"]
     },
-    "RecentRemoveMsg": {
-      "description": "RecentRemoveMsg removes a query from the recent list.",
+    "RecentRemoveMessage": {
+      "description": "RecentRemoveMessage removes a query from the recent list.",
       "type": "object",
       "properties": {
         "query": {
@@ -1184,8 +1184,8 @@
       },
       "required": ["query"]
     },
-    "WelcomeStateMsg": {
-      "description": "WelcomeStateMsg is what the welcome page shows: the shortcut preset and what is indexed.",
+    "WelcomeStateMessage": {
+      "description": "WelcomeStateMessage is what the welcome page shows: the shortcut preset and what is indexed.",
       "type": "object",
       "properties": {
         "preset": {
@@ -1204,8 +1204,8 @@
       },
       "required": ["preset", "historyDepth", "symbols", "mac"]
     },
-    "WelcomeChooseMsg": {
-      "description": "WelcomeChooseMsg saves one choice made on the welcome page in the user's settings.",
+    "WelcomeChooseMessage": {
+      "description": "WelcomeChooseMessage saves one choice made on the welcome page in the user's settings.",
       "type": "object",
       "properties": {
         "preset": {
@@ -1219,8 +1219,8 @@
         }
       }
     },
-    "ParseResultMsg": {
-      "description": "ParseResultMsg drives the chips, diagnostics, completions and toggles.",
+    "ParseResultMessage": {
+      "description": "ParseResultMessage drives the chips, diagnostics, completions and toggles.",
       "type": "object",
       "properties": {
         "seq": {
@@ -1242,8 +1242,8 @@
       },
       "required": ["seq", "query", "completions"]
     },
-    "SearchBatchMsg": {
-      "description": "SearchBatchMsg appends streamed results.",
+    "SearchBatchMessage": {
+      "description": "SearchBatchMessage appends streamed results.",
       "type": "object",
       "properties": {
         "seq": {
@@ -1261,8 +1261,8 @@
       },
       "required": ["seq", "searchId", "items"]
     },
-    "SearchDoneMsg": {
-      "description": "SearchDoneMsg ends a search: counts, hidden notes, Load more and errors.",
+    "SearchDoneMessage": {
+      "description": "SearchDoneMessage ends a search: counts, hidden notes, Load more and errors.",
       "type": "object",
       "properties": {
         "seq": {
@@ -1295,8 +1295,8 @@
       },
       "required": ["seq", "searchId", "total", "truncated", "hidden", "ms"]
     },
-    "PreviewResultMsg": {
-      "description": "PreviewResultMsg fills the preview pane; stale means the result no longer exists.",
+    "PreviewResultMessage": {
+      "description": "PreviewResultMessage fills the preview pane; stale means the result no longer exists.",
       "type": "object",
       "properties": {
         "ref": {
@@ -1318,8 +1318,8 @@
       },
       "required": ["ref", "preview"]
     },
-    "IndexStatusMsg": {
-      "description": "IndexStatusMsg drives the header dot and indexing banners.",
+    "IndexStatusMessage": {
+      "description": "IndexStatusMessage drives the header dot and indexing banners.",
       "type": "object",
       "properties": {
         "repos": {
@@ -1331,8 +1331,8 @@
       },
       "required": ["repos"]
     },
-    "StateRestoreMsg": {
-      "description": "StateRestoreMsg restores the panel's query, recent queries and settings.",
+    "StateRestoreMessage": {
+      "description": "StateRestoreMessage restores the panel's query, recent queries and settings.",
       "type": "object",
       "properties": {
         "text": {
@@ -1372,8 +1372,8 @@
       },
       "required": ["typingDelayMs", "openTrigger", "preview", "showParsedQuery", "caseSensitive"]
     },
-    "BannerMsg": {
-      "description": "BannerMsg reports daemon health: restarting, stopped or cleared.",
+    "BannerMessage": {
+      "description": "BannerMessage reports daemon health: restarting, stopped or cleared.",
       "type": "object",
       "properties": {
         "state": {
@@ -1461,19 +1461,19 @@
   "x-webview-messages": {
     "query.changed": {
       "direction": "webview->host",
-      "payload": "QueryChangedMsg"
+      "payload": "QueryChangedMessage"
     },
     "result.select": {
       "direction": "webview->host",
-      "payload": "ResultSelectMsg"
+      "payload": "ResultSelectMessage"
     },
     "result.open": {
       "direction": "webview->host",
-      "payload": "ResultOpenMsg"
+      "payload": "ResultOpenMessage"
     },
     "results.more": {
       "direction": "webview->host",
-      "payload": "ResultsMoreMsg"
+      "payload": "ResultsMoreMessage"
     },
     "panel.close": {
       "direction": "webview->host",
@@ -1485,7 +1485,7 @@
     },
     "help.try": {
       "direction": "webview->host",
-      "payload": "HelpTryMsg"
+      "payload": "HelpTryMessage"
     },
     "settings.open": {
       "direction": "webview->host",
@@ -1493,7 +1493,7 @@
     },
     "welcome.choose": {
       "direction": "webview->host",
-      "payload": "WelcomeChooseMsg"
+      "payload": "WelcomeChooseMessage"
     },
     "welcome.shortcut": {
       "direction": "webview->host",
@@ -1513,35 +1513,35 @@
     },
     "recent.remove": {
       "direction": "webview->host",
-      "payload": "RecentRemoveMsg"
+      "payload": "RecentRemoveMessage"
     },
     "parse.result": {
       "direction": "host->webview",
-      "payload": "ParseResultMsg"
+      "payload": "ParseResultMessage"
     },
     "search.batch": {
       "direction": "host->webview",
-      "payload": "SearchBatchMsg"
+      "payload": "SearchBatchMessage"
     },
     "search.done": {
       "direction": "host->webview",
-      "payload": "SearchDoneMsg"
+      "payload": "SearchDoneMessage"
     },
     "preview.result": {
       "direction": "host->webview",
-      "payload": "PreviewResultMsg"
+      "payload": "PreviewResultMessage"
     },
     "index.status": {
       "direction": "host->webview",
-      "payload": "IndexStatusMsg"
+      "payload": "IndexStatusMessage"
     },
     "state.restore": {
       "direction": "host->webview",
-      "payload": "StateRestoreMsg"
+      "payload": "StateRestoreMessage"
     },
     "banner": {
       "direction": "host->webview",
-      "payload": "BannerMsg"
+      "payload": "BannerMessage"
     },
     "focus": {
       "direction": "host->webview",
@@ -1549,7 +1549,7 @@
     },
     "welcome.state": {
       "direction": "host->webview",
-      "payload": "WelcomeStateMsg"
+      "payload": "WelcomeStateMessage"
     }
   },
   "x-error-codes": {

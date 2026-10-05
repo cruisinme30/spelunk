@@ -4,7 +4,7 @@
 // indexing while it runs.
 import { element, isIndexing, percent, progressBar } from "./format";
 import { onHostMessage, send } from "./host";
-import type { RepoStatus, WelcomeStateMsg as WelcomeState } from "./protocol.gen";
+import type { RepoStatus, WelcomeStateMessage as WelcomeState } from "./protocol.gen";
 
 /** The three shortcut choices, in the order the page lists them. */
 type ShortcutChoice = WelcomeState["preset"] | "custom";

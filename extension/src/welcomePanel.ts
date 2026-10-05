@@ -3,7 +3,7 @@
 // each repo's indexing as it runs.
 import type * as vscode from "vscode";
 import { MESSAGE_VERSION, type WebviewMessage } from "./webviewMessages";
-import type { HostToWebview, IndexStatusResult, WelcomeStateMsg as WelcomeState } from "./protocol.gen";
+import type { HostToWebview, IndexStatusResult, WelcomeStateMessage as WelcomeState } from "./protocol.gen";
 import { openWebviewPanel } from "./webviewPanel";
 
 /** The globalState key set once the welcome page has been shown. */

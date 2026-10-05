@@ -776,8 +776,8 @@ type Envelope struct {
 	Payload json.RawMessage `json:"payload"`
 }
 
-// QueryChangedMsg reports the query box after the typing delay.
-type QueryChangedMsg struct {
+// QueryChangedMessage reports the query box after the typing delay.
+type QueryChangedMessage struct {
 	Text   string `json:"text"`
 	Cursor int    `json:"cursor"`
 	Seq    int    `json:"seq"`
@@ -785,35 +785,35 @@ type QueryChangedMsg struct {
 	AsTyped bool `json:"asTyped,omitempty"`
 }
 
-// ResultSelectMsg asks for a result's preview.
-type ResultSelectMsg struct {
+// ResultSelectMessage asks for a result's preview.
+type ResultSelectMessage struct {
 	Ref string `json:"ref"`
 }
 
-// ResultOpenMsg opens a result in an editor.
-type ResultOpenMsg struct {
+// ResultOpenMessage opens a result in an editor.
+type ResultOpenMessage struct {
 	Ref   string    `json:"ref"`
 	Where OpenWhere `json:"where"`
 }
 
-// ResultsMoreMsg loads the next page of results.
-type ResultsMoreMsg struct {
+// ResultsMoreMessage loads the next page of results.
+type ResultsMoreMessage struct {
 	SearchID string `json:"searchId"`
 	Cursor   string `json:"cursor"`
 }
 
-// HelpTryMsg runs an example from the help page in the search panel.
-type HelpTryMsg struct {
+// HelpTryMessage runs an example from the help page in the search panel.
+type HelpTryMessage struct {
 	Query string `json:"query"`
 }
 
-// RecentRemoveMsg removes a query from the recent list.
-type RecentRemoveMsg struct {
+// RecentRemoveMessage removes a query from the recent list.
+type RecentRemoveMessage struct {
 	Query string `json:"query"`
 }
 
-// WelcomeStateMsg is what the welcome page shows: the shortcut preset and what is indexed.
-type WelcomeStateMsg struct {
+// WelcomeStateMessage is what the welcome page shows: the shortcut preset and what is indexed.
+type WelcomeStateMessage struct {
 	Preset       string `json:"preset"`
 	HistoryDepth string `json:"historyDepth"`
 	Symbols      bool   `json:"symbols"`
@@ -821,15 +821,15 @@ type WelcomeStateMsg struct {
 	Mac bool `json:"mac"`
 }
 
-// WelcomeChooseMsg saves one choice made on the welcome page in the user's settings.
-type WelcomeChooseMsg struct {
+// WelcomeChooseMessage saves one choice made on the welcome page in the user's settings.
+type WelcomeChooseMessage struct {
 	Preset       string `json:"preset,omitempty"`
 	HistoryDepth string `json:"historyDepth,omitempty"`
 	Symbols      bool   `json:"symbols,omitempty"`
 }
 
-// ParseResultMsg drives the chips, diagnostics, completions and toggles.
-type ParseResultMsg struct {
+// ParseResultMessage drives the chips, diagnostics, completions and toggles.
+type ParseResultMessage struct {
 	Seq         int          `json:"seq"`
 	Query       ParsedQuery  `json:"query"`
 	Completions []Completion `json:"completions"`
@@ -838,8 +838,8 @@ type ParseResultMsg struct {
 }
 
 // MarshalJSON emits [] rather than null for required arrays.
-func (v ParseResultMsg) MarshalJSON() ([]byte, error) {
-	type plain ParseResultMsg
+func (v ParseResultMessage) MarshalJSON() ([]byte, error) {
+	type plain ParseResultMessage
 	p := plain(v)
 	if p.Completions == nil {
 		p.Completions = []Completion{}
@@ -847,16 +847,16 @@ func (v ParseResultMsg) MarshalJSON() ([]byte, error) {
 	return json.Marshal(p)
 }
 
-// SearchBatchMsg appends streamed results.
-type SearchBatchMsg struct {
+// SearchBatchMessage appends streamed results.
+type SearchBatchMessage struct {
 	Seq      int          `json:"seq"`
 	SearchID string       `json:"searchId"`
 	Items    []ResultItem `json:"items"`
 }
 
 // MarshalJSON emits [] rather than null for required arrays.
-func (v SearchBatchMsg) MarshalJSON() ([]byte, error) {
-	type plain SearchBatchMsg
+func (v SearchBatchMessage) MarshalJSON() ([]byte, error) {
+	type plain SearchBatchMessage
 	p := plain(v)
 	if p.Items == nil {
 		p.Items = []ResultItem{}
@@ -864,8 +864,8 @@ func (v SearchBatchMsg) MarshalJSON() ([]byte, error) {
 	return json.Marshal(p)
 }
 
-// SearchDoneMsg ends a search: counts, hidden notes, Load more and errors.
-type SearchDoneMsg struct {
+// SearchDoneMessage ends a search: counts, hidden notes, Load more and errors.
+type SearchDoneMessage struct {
 	Seq        int          `json:"seq"`
 	SearchID   string       `json:"searchId"`
 	Total      int          `json:"total"`
@@ -877,8 +877,8 @@ type SearchDoneMsg struct {
 }
 
 // MarshalJSON emits [] rather than null for required arrays.
-func (v SearchDoneMsg) MarshalJSON() ([]byte, error) {
-	type plain SearchDoneMsg
+func (v SearchDoneMessage) MarshalJSON() ([]byte, error) {
+	type plain SearchDoneMessage
 	p := plain(v)
 	if p.Hidden == nil {
 		p.Hidden = []HiddenNote{}
@@ -886,21 +886,21 @@ func (v SearchDoneMsg) MarshalJSON() ([]byte, error) {
 	return json.Marshal(p)
 }
 
-// PreviewResultMsg fills the preview pane; stale means the result no longer exists.
-type PreviewResultMsg struct {
+// PreviewResultMessage fills the preview pane; stale means the result no longer exists.
+type PreviewResultMessage struct {
 	Ref     string   `json:"ref"`
 	Preview *Preview `json:"preview"`
 	Stale   bool     `json:"stale,omitempty"`
 }
 
-// IndexStatusMsg drives the header dot and indexing banners.
-type IndexStatusMsg struct {
+// IndexStatusMessage drives the header dot and indexing banners.
+type IndexStatusMessage struct {
 	Repos []RepoStatus `json:"repos"`
 }
 
 // MarshalJSON emits [] rather than null for required arrays.
-func (v IndexStatusMsg) MarshalJSON() ([]byte, error) {
-	type plain IndexStatusMsg
+func (v IndexStatusMessage) MarshalJSON() ([]byte, error) {
+	type plain IndexStatusMessage
 	p := plain(v)
 	if p.Repos == nil {
 		p.Repos = []RepoStatus{}
@@ -908,16 +908,16 @@ func (v IndexStatusMsg) MarshalJSON() ([]byte, error) {
 	return json.Marshal(p)
 }
 
-// StateRestoreMsg restores the panel's query, recent queries and settings.
-type StateRestoreMsg struct {
+// StateRestoreMessage restores the panel's query, recent queries and settings.
+type StateRestoreMessage struct {
 	Text     string      `json:"text"`
 	Recent   []string    `json:"recent"`
 	Settings *UiSettings `json:"settings,omitempty"`
 }
 
 // MarshalJSON emits [] rather than null for required arrays.
-func (v StateRestoreMsg) MarshalJSON() ([]byte, error) {
-	type plain StateRestoreMsg
+func (v StateRestoreMessage) MarshalJSON() ([]byte, error) {
+	type plain StateRestoreMessage
 	p := plain(v)
 	if p.Recent == nil {
 		p.Recent = []string{}
@@ -934,8 +934,8 @@ type UiSettings struct {
 	CaseSensitive   bool   `json:"caseSensitive"`
 }
 
-// BannerMsg reports daemon health: restarting, stopped or cleared.
-type BannerMsg struct {
+// BannerMessage reports daemon health: restarting, stopped or cleared.
+type BannerMessage struct {
 	State   string `json:"state"`
 	Message string `json:"message,omitempty"`
 }

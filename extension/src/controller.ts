@@ -10,7 +10,7 @@ import {
   type OpenTarget,
   type OpenWhere,
   type ParsedQuery,
-  type QueryChangedMsg as QueryChangedMessage,
+  type QueryChangedMessage,
   type ResultItem,
   type RpcRequests,
   type SearchBatchParams,

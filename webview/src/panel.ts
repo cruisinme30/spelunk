@@ -11,11 +11,11 @@ import type {
   Completion,
   Fix,
   OpenWhere,
-  ParseResultMsg as ParseResultMessage,
-  PreviewResultMsg as PreviewResultMessage,
-  SearchBatchMsg as SearchBatchMessage,
-  SearchDoneMsg as SearchDoneMessage,
-  StateRestoreMsg as StateRestoreMessage,
+  ParseResultMessage,
+  PreviewResultMessage,
+  SearchBatchMessage,
+  SearchDoneMessage,
+  StateRestoreMessage,
 } from "./protocol.gen";
 import { applyEdits, isCasePressed, isRegexPressed, scopeToRepo, toggleCase, toggleRegex } from "./queryEdit";
 import {

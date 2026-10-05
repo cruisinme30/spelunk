@@ -422,8 +422,8 @@ export interface Envelope {
   payload: unknown;
 }
 
-/** QueryChangedMsg reports the query box after the typing delay. */
-export interface QueryChangedMsg {
+/** QueryChangedMessage reports the query box after the typing delay. */
+export interface QueryChangedMessage {
   text: string;
   cursor: number;
   seq: number;
@@ -431,35 +431,35 @@ export interface QueryChangedMsg {
   asTyped?: boolean;
 }
 
-/** ResultSelectMsg asks for a result's preview. */
-export interface ResultSelectMsg {
+/** ResultSelectMessage asks for a result's preview. */
+export interface ResultSelectMessage {
   ref: string;
 }
 
-/** ResultOpenMsg opens a result in an editor. */
-export interface ResultOpenMsg {
+/** ResultOpenMessage opens a result in an editor. */
+export interface ResultOpenMessage {
   ref: string;
   where: OpenWhere;
 }
 
-/** ResultsMoreMsg loads the next page of results. */
-export interface ResultsMoreMsg {
+/** ResultsMoreMessage loads the next page of results. */
+export interface ResultsMoreMessage {
   searchId: string;
   cursor: string;
 }
 
-/** HelpTryMsg runs an example from the help page in the search panel. */
-export interface HelpTryMsg {
+/** HelpTryMessage runs an example from the help page in the search panel. */
+export interface HelpTryMessage {
   query: string;
 }
 
-/** RecentRemoveMsg removes a query from the recent list. */
-export interface RecentRemoveMsg {
+/** RecentRemoveMessage removes a query from the recent list. */
+export interface RecentRemoveMessage {
   query: string;
 }
 
-/** WelcomeStateMsg is what the welcome page shows: the shortcut preset and what is indexed. */
-export interface WelcomeStateMsg {
+/** WelcomeStateMessage is what the welcome page shows: the shortcut preset and what is indexed. */
+export interface WelcomeStateMessage {
   preset: "quickOpen" | "findInFiles" | "none";
   historyDepth: "6m" | "2y" | "all";
   symbols: boolean;
@@ -467,15 +467,15 @@ export interface WelcomeStateMsg {
   mac: boolean;
 }
 
-/** WelcomeChooseMsg saves one choice made on the welcome page in the user's settings. */
-export interface WelcomeChooseMsg {
+/** WelcomeChooseMessage saves one choice made on the welcome page in the user's settings. */
+export interface WelcomeChooseMessage {
   preset?: "quickOpen" | "findInFiles" | "none";
   historyDepth?: "6m" | "2y" | "all";
   symbols?: boolean;
 }
 
-/** ParseResultMsg drives the chips, diagnostics, completions and toggles. */
-export interface ParseResultMsg {
+/** ParseResultMessage drives the chips, diagnostics, completions and toggles. */
+export interface ParseResultMessage {
   seq: number;
   query: ParsedQuery;
   completions: Completion[];
@@ -483,15 +483,15 @@ export interface ParseResultMsg {
   searchText?: string;
 }
 
-/** SearchBatchMsg appends streamed results. */
-export interface SearchBatchMsg {
+/** SearchBatchMessage appends streamed results. */
+export interface SearchBatchMessage {
   seq: number;
   searchId: string;
   items: ResultItem[];
 }
 
-/** SearchDoneMsg ends a search: counts, hidden notes, Load more and errors. */
-export interface SearchDoneMsg {
+/** SearchDoneMessage ends a search: counts, hidden notes, Load more and errors. */
+export interface SearchDoneMessage {
   seq: number;
   searchId: string;
   total: number;
@@ -502,20 +502,20 @@ export interface SearchDoneMsg {
   error?: string;
 }
 
-/** PreviewResultMsg fills the preview pane; stale means the result no longer exists. */
-export interface PreviewResultMsg {
+/** PreviewResultMessage fills the preview pane; stale means the result no longer exists. */
+export interface PreviewResultMessage {
   ref: string;
   preview: Preview | null;
   stale?: boolean;
 }
 
-/** IndexStatusMsg drives the header dot and indexing banners. */
-export interface IndexStatusMsg {
+/** IndexStatusMessage drives the header dot and indexing banners. */
+export interface IndexStatusMessage {
   repos: RepoStatus[];
 }
 
-/** StateRestoreMsg restores the panel's query, recent queries and settings. */
-export interface StateRestoreMsg {
+/** StateRestoreMessage restores the panel's query, recent queries and settings. */
+export interface StateRestoreMessage {
   text: string;
   recent: string[];
   settings?: UiSettings;
@@ -530,8 +530,8 @@ export interface UiSettings {
   caseSensitive: boolean;
 }
 
-/** BannerMsg reports daemon health: restarting, stopped or cleared. */
-export interface BannerMsg {
+/** BannerMessage reports daemon health: restarting, stopped or cleared. */
+export interface BannerMessage {
   state: "ok" | "restarting" | "stopped" | "protocolMismatch";
   message?: string;
 }
@@ -561,31 +561,31 @@ export interface RpcNotifications {
 
 /** Search panel messages, webview->host: type -> payload. */
 export interface WebviewToHost {
-  "query.changed": QueryChangedMsg;
-  "result.select": ResultSelectMsg;
-  "result.open": ResultOpenMsg;
-  "results.more": ResultsMoreMsg;
+  "query.changed": QueryChangedMessage;
+  "result.select": ResultSelectMessage;
+  "result.open": ResultOpenMessage;
+  "results.more": ResultsMoreMessage;
   "panel.close": Empty;
   "help.open": Empty;
-  "help.try": HelpTryMsg;
+  "help.try": HelpTryMessage;
   "settings.open": Empty;
-  "welcome.choose": WelcomeChooseMsg;
+  "welcome.choose": WelcomeChooseMessage;
   "welcome.shortcut": Empty;
   "welcome.start": Empty;
   "ready": Empty;
   "daemon.restart": Empty;
-  "recent.remove": RecentRemoveMsg;
+  "recent.remove": RecentRemoveMessage;
 }
 
 /** Search panel messages, host->webview: type -> payload. */
 export interface HostToWebview {
-  "parse.result": ParseResultMsg;
-  "search.batch": SearchBatchMsg;
-  "search.done": SearchDoneMsg;
-  "preview.result": PreviewResultMsg;
-  "index.status": IndexStatusMsg;
-  "state.restore": StateRestoreMsg;
-  "banner": BannerMsg;
+  "parse.result": ParseResultMessage;
+  "search.batch": SearchBatchMessage;
+  "search.done": SearchDoneMessage;
+  "preview.result": PreviewResultMessage;
+  "index.status": IndexStatusMessage;
+  "state.restore": StateRestoreMessage;
+  "banner": BannerMessage;
   "focus": Empty;
-  "welcome.state": WelcomeStateMsg;
+  "welcome.state": WelcomeStateMessage;
 }

@@ -5,7 +5,7 @@ import { clamp, element, isIndexing, percent, plural, progressBar, termClass } f
 import type { Layout } from "../layout";
 import { fullName, OPERATOR_TONE } from "../operators";
 import { scopedRepo } from "../parsedQuery";
-import type { BannerMsg as BannerMessage, Diagnostic, Fix, Mode, Node as QueryNode, RepoStatus } from "../protocol.gen";
+import type { BannerMessage, Diagnostic, Fix, Mode, Node as QueryNode, RepoStatus } from "../protocol.gen";
 import { hasErrors, type ViewState } from "../state";
 
 /** How the index is doing overall: the status dot's color class and the words beside it. */
