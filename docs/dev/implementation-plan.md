@@ -2,6 +2,10 @@
 
 Oct 3, 2026 · @Gourav Mittal
 
+> **Partly superseded.** [ADR 0003](../adr/0003-in-house-trigram-index.md) replaced Zoekt with an in-house trigram
+> index, and [ADR 0004](../adr/0004-in-house-history-index.md) replaced SQLite FTS5 with an in-house history index.
+> Where this plan names Zoekt, ctags or SQLite, the ADRs describe what was built.
+
 ## Scope
 
 v1 is a VS Code extension plus a local search daemon that answers one query language over current files and Git history,

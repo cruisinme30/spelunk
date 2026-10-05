@@ -21,5 +21,5 @@ extension (Unified Search: Open Help) is the query-language reference.
 - [dev/implementation-plan.md](dev/implementation-plan.md): the original build plan: scope, interfaces between the
   parts, indexing, performance budgets, the order of work and risks.
 - [dev/test-plan.md](dev/test-plan.md): test layers, the end-to-end harness, its scenarios and CI gates.
-- [dev/mocks.md](dev/mocks.md): the 18 design mockups, with the screen ids tests use in `@covers screen:…`.
+- [dev/mocks.md](dev/mocks.md): the design mockups, with the screen ids tests use in `@covers screen:…`.
 - [dev/progress.md](dev/progress.md): what each stage of the plan delivered, with the tests that prove it.
