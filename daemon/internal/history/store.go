@@ -286,8 +286,8 @@ func (s *Store) Save(path string) error {
 	return trigram.SaveGob(path, ".history-*", "history", saved)
 }
 
-// ErrStaleFormat means a saved store was written by another format version.
-var ErrStaleFormat = errors.New("history format changed")
+// errStaleFormat means a saved store was written by another format version.
+var errStaleFormat = errors.New("history format changed")
 
 // Load reads a store written by Save. Its uncommitted paths are empty until
 // the next Update.
@@ -297,7 +297,7 @@ func Load(path string) (*Store, error) {
 		return nil, err
 	}
 	if saved.Version != storeFormatVersion {
-		return nil, ErrStaleFormat
+		return nil, errStaleFormat
 	}
 	b := &builder{store: &Store{Head: saved.Head, Since: saved.Since, touches: map[string]Touch{}}}
 	for i := range saved.Commits {

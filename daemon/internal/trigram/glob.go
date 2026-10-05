@@ -14,8 +14,8 @@ import (
 // Brace alternatives ({a,b}) are not supported: braces match themselves.
 type Glob struct{ re *regexp.Regexp }
 
-// CompileGlob turns a glob into a matcher.
-func CompileGlob(pattern string) (Glob, error) {
+// compileGlob turns a glob into a matcher.
+func compileGlob(pattern string) (Glob, error) {
 	if !strings.Contains(pattern, "/") {
 		pattern = "**/" + pattern
 	}
@@ -25,7 +25,7 @@ func CompileGlob(pattern string) (Glob, error) {
 }
 
 // Match reports whether path (slash-separated, relative to the repo) matches.
-func (g Glob) Match(path string) bool { return g.re.MatchString(path) }
+func (g Glob) match(path string) bool { return g.re.MatchString(path) }
 
 // Excluder holds the compiled index.exclude patterns.
 type Excluder []Glob
@@ -34,7 +34,7 @@ type Excluder []Glob
 func NewExcluder(patterns []string) Excluder {
 	var e Excluder
 	for _, p := range patterns {
-		if g, err := CompileGlob(p); err == nil {
+		if g, err := compileGlob(p); err == nil {
 			e = append(e, g)
 		}
 	}
@@ -44,7 +44,7 @@ func NewExcluder(patterns []string) Excluder {
 // Excludes reports whether any pattern matches path.
 func (e Excluder) Excludes(path string) bool {
 	for _, g := range e {
-		if g.Match(path) {
+		if g.match(path) {
 			return true
 		}
 	}

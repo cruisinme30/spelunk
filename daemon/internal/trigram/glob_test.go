@@ -24,11 +24,11 @@ func TestGlobs(t *testing.T) {
 		{"a+b.txt", "aab.txt", false},
 	}
 	for _, tt := range tests {
-		g, err := CompileGlob(tt.pattern)
+		g, err := compileGlob(tt.pattern)
 		if err != nil {
-			t.Fatalf("CompileGlob(%q): %v", tt.pattern, err)
+			t.Fatalf("compileGlob(%q): %v", tt.pattern, err)
 		}
-		if got := g.Match(tt.path); got != tt.want {
+		if got := g.match(tt.path); got != tt.want {
 			t.Errorf("glob %q matching %q = %v, want %v", tt.pattern, tt.path, got, tt.want)
 		}
 	}

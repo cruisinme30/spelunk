@@ -421,8 +421,8 @@ func (s *searcher) creditFilter(repo *Repo, c *Commit, views []*fileView, index 
 
 // ------------------------------------------------------------ refs
 
-// RefPrefix starts every history ref; working-tree refs use another.
-const RefPrefix = "hist"
+// refPrefix starts every history ref; working-tree refs use another.
+const refPrefix = "hist"
 
 // Ref locates one commit result. Its string form is the opaque ref handed
 // to clients.
@@ -436,14 +436,14 @@ type Ref struct {
 
 // String encodes the ref.
 func (r Ref) String() string {
-	return strings.Join([]string{RefPrefix, strconv.Itoa(r.PlanID), r.RepoID, r.SHA}, "|")
+	return strings.Join([]string{refPrefix, strconv.Itoa(r.PlanID), r.RepoID, r.SHA}, "|")
 }
 
 // ParseRef decodes a ref built by String. ok is false for anything else,
 // including a sha that isn't hexadecimal (it is passed to git).
 func ParseRef(text string) (ref Ref, ok bool) {
 	parts := strings.Split(text, "|")
-	if len(parts) != 4 || parts[0] != RefPrefix || parts[2] == "" || !isHex(parts[3]) {
+	if len(parts) != 4 || parts[0] != refPrefix || parts[2] == "" || !isHex(parts[3]) {
 		return Ref{}, false
 	}
 	planID, err := strconv.Atoi(parts[1])

@@ -22,8 +22,8 @@ type Ref struct {
 	Length int
 }
 
-// RefPrefix starts every working-tree ref; history refs use another.
-const RefPrefix = "tree"
+// refPrefix starts every working-tree ref; history refs use another.
+const refPrefix = "tree"
 
 // IsFile reports whether the ref is a file-name result.
 func (r Ref) IsFile() bool { return r.Line == 0 }
@@ -31,7 +31,7 @@ func (r Ref) IsFile() bool { return r.Line == 0 }
 // String encodes the ref; the path goes last because it may contain "|".
 func (r Ref) String() string {
 	return strings.Join([]string{
-		RefPrefix, strconv.Itoa(r.PlanID), r.RepoID,
+		refPrefix, strconv.Itoa(r.PlanID), r.RepoID,
 		strconv.Itoa(r.Line), strconv.Itoa(r.Column), strconv.Itoa(r.Length), r.Path,
 	}, "|")
 }
@@ -39,7 +39,7 @@ func (r Ref) String() string {
 // ParseRef decodes a ref built by String. ok is false for anything else.
 func ParseRef(text string) (ref Ref, ok bool) {
 	parts := strings.SplitN(text, "|", 7)
-	if len(parts) != 7 || parts[0] != RefPrefix || parts[2] == "" || parts[6] == "" {
+	if len(parts) != 7 || parts[0] != refPrefix || parts[2] == "" || parts[6] == "" {
 		return Ref{}, false
 	}
 	numbers := make([]int, 0, 4)

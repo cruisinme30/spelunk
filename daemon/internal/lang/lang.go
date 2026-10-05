@@ -7,8 +7,8 @@ import (
 	"strings"
 )
 
-// Language is one entry in the table.
-type Language struct {
+// language is one entry in the table.
+type language struct {
 	Name       string   // canonical, lowercase: the value shown in completions
 	Title      string   // how people write it: "TypeScript", "C#"
 	Aliases    []string // other accepted lang: values
@@ -17,7 +17,7 @@ type Language struct {
 	Shebangs   []string // interpreter names found after #! (python3, node)
 }
 
-var table = []Language{
+var table = []language{
 	{Name: "python", Title: "Python", Aliases: []string{"py"}, Extensions: []string{".py", ".pyi", ".pyw"}, Shebangs: []string{"python", "python3", "python2"}},
 	{Name: "typescript", Title: "TypeScript", Aliases: []string{"ts", "tsx"}, Extensions: []string{".ts", ".tsx", ".mts", ".cts"}, Shebangs: []string{"ts-node", "deno"}},
 	{Name: "javascript", Title: "JavaScript", Aliases: []string{"js", "jsx"}, Extensions: []string{".js", ".jsx", ".mjs", ".cjs"}, Shebangs: []string{"node"}},
