@@ -16,6 +16,11 @@ import (
 	"github.com/cruisinme30/unified-search/daemon/internal/trigram"
 )
 
+// maxContextLines bounds preview/get's contextLines. The engines expect a
+// small non-negative count: a negative one used to fail the request with
+// a slice panic, and a huge one overflowed the line arithmetic.
+const maxContextLines = 10_000
+
 // preview answers preview/get: the lines around a result, with its matches
 // marked, or a commit's diff.
 func (s *Server) preview(ctx context.Context, raw json.RawMessage) (any, error) {
@@ -23,6 +28,7 @@ func (s *Server) preview(ctx context.Context, raw json.RawMessage) (any, error) 
 	if err := decode(raw, &params); err != nil {
 		return nil, err
 	}
+	params.ContextLines = min(max(params.ContextLines, 0), maxContextLines)
 	if ref, ok := history.ParseRef(params.Ref); ok {
 		repo, err := s.historyRepoFor(ref)
 		if err != nil {

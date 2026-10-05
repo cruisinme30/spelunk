@@ -39,3 +39,29 @@ func TestForgedRefsCannotReachOutsideTheirFolder(t *testing.T) {
 		wantRPCCode(t, fmt.Sprintf("open/resolve %q", ref), err, protocol.CodeRefStale)
 	}
 }
+
+func TestPreviewClampsContextLines(t *testing.T) {
+	// @covers rpc:preview/get
+	dir := t.TempDir()
+	mustWriteFile(t, filepath.Join(dir, "client.py"), clientSource)
+	client := newTestClient(t)
+	client.mustInitialize(t, protocol.Root{ID: "r1", Path: dir, Name: "r"})
+	tests := []struct {
+		ref          string
+		contextLines int
+		wantLines    int
+	}{
+		{"tree|1|r1|5|0|0|client.py", -5, 1},
+		{"tree|1|r1|5|0|0|client.py", -1 << 40, 1},
+		{"tree|1|r1|5|0|0|client.py", 1 << 62, 6}, // the whole file, with its final empty line
+		{"tree|1|r1|0|0|0|client.py", -5, 1},
+		{"tree|1|r1|0|0|0|client.py", 1 << 62, 6},
+	}
+	for _, tt := range tests {
+		var preview protocol.Preview
+		err := client.call(protocol.MethodPreviewGet, protocol.PreviewParams{Ref: tt.ref, ContextLines: tt.contextLines}, &preview)
+		if err != nil || len(preview.Lines) != tt.wantLines {
+			t.Fatalf("preview/get %q with contextLines %d = %d lines, %v; want %d lines", tt.ref, tt.contextLines, len(preview.Lines), err, tt.wantLines)
+		}
+	}
+}
