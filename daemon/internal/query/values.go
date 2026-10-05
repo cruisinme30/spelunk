@@ -42,6 +42,8 @@ func valueCandidates(op operator, fragment string, resolver Resolver, now time.T
 		return messageCandidates(resolver.MessageWords(fragment, maxValueCompletions+1), now)
 	case protocol.OpNameSym:
 		return symbolCandidates(resolver.Symbols(fragment, maxValueCompletions+1))
+	case protocol.OpNameIs:
+		return stateCandidates(fragment, resolver)
 	case protocol.OpNameType, protocol.OpNameCase, protocol.OpNameCount, protocol.OpNameOrder:
 		return fixedCandidates(fixedValues[op.name], fragment)
 	default:
@@ -521,6 +523,63 @@ func changedFiles(files []FileStat, start time.Time) string {
 		return "No files changed"
 	}
 	return plural(changed, "file") + " changed"
+}
+
+// ------------------------------------------------------------ is:
+
+// maxStateNames is how many file names a file state's suggestion lists.
+const maxStateNames = 3
+
+// stateCandidates offers the file states of is:, each with how many files
+// are in it now and, for open and changed, which ones: "client.py, retry.py".
+func stateCandidates(fragment string, resolver Resolver) []valueCandidate {
+	var open, changed, tests []string
+	for _, file := range resolver.Files() {
+		if file.Open {
+			open = append(open, file.Path)
+		}
+		if file.Changed {
+			changed = append(changed, file.Path)
+		}
+		if lang.IsTest(file.Path) {
+			tests = append(tests, file.Path)
+		}
+	}
+	changedNote := plural(len(changed), "file")
+	if !slices.ContainsFunc(resolver.Repos(), func(repo RepoStat) bool { return repo.Git }) {
+		changedNote = "No Git repo"
+	}
+	all := []valueCandidate{
+		{value: StateOpen, detail: "Files open in the editor", context: fileNames(open, "None open"), note: plural(len(open), "file")},
+		{value: StateChanged, detail: "Files with uncommitted changes", context: fileNames(changed, "Edited, added or staged since the last commit"), note: changedNote},
+		{value: StateTest, detail: "Test files", context: "test_*.py, *_test.go, *.spec.ts, tests/ folders", note: plural(len(tests), "file")},
+	}
+	var candidates []valueCandidate
+	for _, candidate := range all {
+		if strings.HasPrefix(candidate.value, fragment) {
+			candidate.group = "value"
+			candidates = append(candidates, candidate)
+		}
+	}
+	return candidates
+}
+
+// fileNames lists the base names of up to maxStateNames paths, sorted, and
+// how many more there are: "client.py, retry.py +2 more"; none when empty.
+func fileNames(paths []string, none string) string {
+	if len(paths) == 0 {
+		return none
+	}
+	names := make([]string, len(paths))
+	for i, p := range paths {
+		names[i] = path.Base(p)
+	}
+	slices.Sort(names)
+	shown := strings.Join(names[:min(len(names), maxStateNames)], ", ")
+	if extra := len(names) - maxStateNames; extra > 0 {
+		shown += fmt.Sprintf(" +%d more", extra)
+	}
+	return shown
 }
 
 // ------------------------------------------------------------ type:, case:, count:, order:

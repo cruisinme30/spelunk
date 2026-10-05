@@ -15,7 +15,7 @@ func (s *Server) parse(_ context.Context, raw json.RawMessage) (any, error) {
 	if err := decode(raw, &params); err != nil {
 		return nil, err
 	}
-	resolver := s.resolver()
+	resolver := s.resolver(params.OpenFiles)
 	parsed := query.Parse(params.Text, resolver)
 	// A query without errors is also planned, so warnings only the planner
 	// can give (such as a history regex that scans every commit) show too.

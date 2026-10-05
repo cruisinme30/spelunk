@@ -171,3 +171,27 @@ func TestAPartBatchIsSentWithoutWaitingForTheSearchToEnd(t *testing.T) {
 		t.Errorf("%d items sent, want 1", got)
 	}
 }
+
+func TestIsOpenFindsTheFilesOpenInTheEditor(t *testing.T) {
+	// @covers op:is
+	dir := t.TempDir()
+	mustWriteFile(t, filepath.Join(dir, "a.txt"), "hit\n")
+	mustWriteFile(t, filepath.Join(dir, "b.txt"), "hit\n")
+	open := []string{filepath.Join(dir, "b.txt")}
+	client := newTestClient(t)
+	batches := collectBatches(client)
+	client.mustInitialize(t, protocol.Root{ID: "r1", Path: dir, Name: "r"})
+	if err := client.call(protocol.MethodSearchStart, protocol.SearchStartParams{SearchID: "s1", Text: "is:open hit", OpenFiles: open}, nil); err != nil {
+		t.Fatal(err)
+	}
+	if items := batches.all(); len(items) != 1 || items[0].Path != "b.txt" {
+		t.Fatalf("is:open hit = %+v, want only b.txt", items)
+	}
+	var parsed protocol.ParseResult
+	if err := client.call(protocol.MethodQueryParse, protocol.ParseParams{Text: "is:o", Cursor: 4, OpenFiles: open}, &parsed); err != nil {
+		t.Fatal(err)
+	}
+	if len(parsed.Completions) != 1 || parsed.Completions[0].Context != "b.txt" || parsed.Completions[0].Note != "1 file" {
+		t.Errorf("is:o completions = %+v, want open with b.txt, 1 file", parsed.Completions)
+	}
+}

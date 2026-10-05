@@ -28,6 +28,9 @@ type Repo struct {
 	// History says when each file last changed in Git; nil outside Git or
 	// before the history index is read.
 	History FileHistory
+	// Open holds the repo-relative paths of its files open in the editor,
+	// for is:open; see WithOpenFiles.
+	Open map[string]bool
 }
 
 // FileHistory is what the working-tree engine needs from a repo's history:
@@ -224,6 +227,8 @@ func docLeaf(p query.Pred, repo *Repo, doc *Doc) bool {
 		return doc.Lang == p.Name
 	case *query.Since:
 		return repo.changedSince(doc, p.After)
+	case *query.Is:
+		return repo.inState(doc.Path, p.State)
 	default:
 		// sym: needs the symbol index; author: and msg: are history-only, and
 		// the parser keeps them out of working-tree plans.

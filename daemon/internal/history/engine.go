@@ -253,6 +253,10 @@ func leafFor(repo *Repo, c *Commit, view *fileView) func(query.Pred) bool {
 			return p.Re.MatchString(view.file.Path)
 		case *query.Lang:
 			return view.file.Path != "" && lang.Detect(view.file.Path, nil) == p.Name
+		case *query.Is:
+			// Only is:test reaches a history plan: open and changed describe
+			// files as they are now, and the parser keeps them out.
+			return p.State == query.StateTest && view.file.Path != "" && lang.IsTest(view.file.Path)
 		default:
 			matched, _ := commitLeaf(repo, c, p)
 			return matched

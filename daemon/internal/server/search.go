@@ -98,18 +98,19 @@ func (s *Server) search(ctx context.Context, raw json.RawMessage) (any, error) {
 		return nil, err
 	}
 	started := time.Now() // wall clock: Options.Now may be frozen
-	parsed := query.Parse(params.Text, s.resolver())
+	parsed := query.Parse(params.Text, s.resolver(params.OpenFiles))
 	plan, _, err := query.NewPlan(parsed, s.Settings(), s.now(), params.Cursor)
 	if err != nil {
 		return nil, rpc.Errorf(protocol.CodeQueryInvalid, "%v", err)
 	}
 	planID := s.plans.remember(plan)
 	batch := &batcher{conn: s.conn, searchID: params.SearchID}
+	repos := trigram.WithOpenFiles(s.index.Repos(), params.OpenFiles)
 	var stats engine.Stats
 	if plan.Mode == protocol.ModeHistory {
 		stats, err = history.Search(ctx, plan, s.index.HistoryRepos(), planID, batch.add)
 	} else {
-		stats, err = trigram.Search(ctx, plan, s.index.Repos(), planID, batch.add)
+		stats, err = trigram.Search(ctx, plan, repos, planID, batch.add)
 	}
 	if err != nil {
 		batch.discard() // no batches may follow the error response
@@ -117,7 +118,7 @@ func (s *Server) search(ctx context.Context, raw json.RawMessage) (any, error) {
 	}
 	batch.flush()
 	if plan.SymbolFilter != nil {
-		if note, ok := s.symbolsAsText(ctx, params.Text, plan.SymbolFilter); ok {
+		if note, ok := s.symbolsAsText(ctx, params.Text, repos, plan.SymbolFilter); ok {
 			stats.Hidden = append(stats.Hidden, note)
 		}
 	}
@@ -133,15 +134,16 @@ func (s *Server) search(ctx context.Context, raw json.RawMessage) (any, error) {
 
 // symbolsAsText counts what the query finds with its sym: names searched as
 // text instead, for the "Search RetryPolicy as text" suggestion: the count
-// is what running the suggestion returns.
-func (s *Server) symbolsAsText(ctx context.Context, text string, filter *query.Filter) (protocol.HiddenNote, bool) {
-	parsed := query.Parse(query.ApplyFix(text, filter.Undo), s.resolver())
+// is what running the suggestion returns. repos are the search's own, with
+// the files open in the editor.
+func (s *Server) symbolsAsText(ctx context.Context, text string, repos []trigram.Repo, filter *query.Filter) (protocol.HiddenNote, bool) {
+	parsed := query.Parse(query.ApplyFix(text, filter.Undo), s.resolver(nil))
 	plan, _, err := query.NewPlan(parsed, s.Settings(), s.now(), "")
 	if err != nil || plan.Mode != protocol.ModeWorkingTree {
 		return protocol.HiddenNote{}, false
 	}
 	plan.Limit = 0 // count only
-	stats, err := trigram.Search(ctx, plan, s.index.Repos(), 0, func(protocol.ResultItem) {})
+	stats, err := trigram.Search(ctx, plan, repos, 0, func(protocol.ResultItem) {})
 	if err != nil {
 		return protocol.HiddenNote{}, false
 	}

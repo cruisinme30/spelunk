@@ -60,6 +60,8 @@ type RepoStat struct {
 	State protocol.IndexState
 	// Progress is how far indexing has got, 0 to 1, while State is indexing.
 	Progress float64
+	// Git is false for a folder outside Git, whose files is:changed never matches.
+	Git bool
 }
 
 // FileStat is one indexed file.
@@ -68,6 +70,8 @@ type FileStat struct {
 	Path    string // slash-separated, relative to the repo root
 	Lang    string // canonical language name, "" if unknown
 	ModTime time.Time
+	Open    bool // open in an editor tab (is:open)
+	Changed bool // has uncommitted changes (is:changed)
 }
 
 // noResolver knows no authors, repos or files.

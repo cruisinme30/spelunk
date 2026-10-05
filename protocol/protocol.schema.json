@@ -66,7 +66,7 @@
     "OpName": {
       "description": "OpName is an operator's name, the part before the colon.",
       "type": "string",
-      "enum": ["f", "repo", "lang", "type", "sym", "author", "msg", "since", "case", "count", "order"]
+      "enum": ["f", "repo", "lang", "type", "sym", "is", "author", "msg", "since", "case", "count", "order"]
     },
     "ResultOrder": {
       "description": "ResultOrder is how current files are sorted: best match first, or by repo, path and line.",
@@ -985,6 +985,13 @@
         },
         "cursor": {
           "type": "integer"
+        },
+        "openFiles": {
+          "description": "the absolute paths of the files open in editor tabs, for is:open.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
         }
       },
       "required": ["text", "cursor"]
@@ -1017,6 +1024,13 @@
         },
         "cursor": {
           "type": "string"
+        },
+        "openFiles": {
+          "description": "the absolute paths of the files open in editor tabs, for is:open.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
         }
       },
       "required": ["searchId", "text"]

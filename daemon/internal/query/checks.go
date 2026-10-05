@@ -182,17 +182,23 @@ func checkOrModes(root *protocol.Node, problems *diagnostics) {
 	})
 }
 
-// reportWorkingTreeOperators reports sym: or order: in a history query.
+// reportWorkingTreeOperators reports sym:, order:, is:open or is:changed
+// in a history query.
 func reportWorkingTreeOperators(src *source, root *protocol.Node, problems *diagnostics) {
 	walk(root, func(node *protocol.Node) {
 		if node.Kind != protocol.NodeKindOp {
 			return
 		}
-		if op, _ := lookupOperator(node.Op); op.scope == scopeWorkingTreeOnly {
+		op, _ := lookupOperator(node.Op)
+		isNow := node.Op == protocol.OpNameIs && currentState(node.Value)
+		if op.scope == scopeWorkingTreeOnly || isNow {
 			written := src.slice(node.Span.Start, node.Span.End)
 			does := "searches current files"
-			if node.Op == protocol.OpNameOrder {
+			switch {
+			case node.Op == protocol.OpNameOrder:
 				does = "sorts current files; commits are always newest first"
+			case isNow:
+				does = "describes files as they are now, not in a commit"
 			}
 			problems.errorf(DiagOpWrongMode, node.Span, []protocol.Fix{removeFix("Remove "+written, src, node.Span)},
 				"%s: %s, but this query searches commits (author:, msg: or type:commit)", node.Op, does)

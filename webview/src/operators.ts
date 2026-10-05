@@ -30,7 +30,7 @@ export interface OperatorGroup {
   entries: OperatorEntry[];
 }
 
-/** Every operator and piece of syntax: 17 entries in five groups. */
+/** Every operator and piece of syntax: 18 entries in five groups. */
 export const OPERATOR_GROUPS: OperatorGroup[] = [
   {
     name: "Matching",
@@ -138,6 +138,15 @@ export const OPERATOR_GROUPS: OperatorGroup[] = [
         description: "Where a class, function or method is defined. Current files only.",
         example: "symbol:RetryPolicy",
       },
+      {
+        operator: "is",
+        label: "is:open|changed|test",
+        insert: "is:",
+        summary: "Files open in the editor, uncommitted, or tests.",
+        description:
+          "Files open in the editor (open), with uncommitted changes (changed), or holding tests (test). Negate it to leave them out: -is:test. In a commit search, is:test keeps the test files' changes; open and changed apply to current files only.",
+        example: "is:test retry",
+      },
     ],
   },
   {
@@ -205,6 +214,7 @@ export const OPERATOR_TONE: Record<OpName, Tone> = {
   lang: "scope",
   type: "scope",
   sym: "scope",
+  is: "scope",
   author: "history",
   msg: "history",
   since: "history",
@@ -219,6 +229,7 @@ const OPERATOR_NAMES: Record<OpName, { full: string; short: string }> = {
   lang: { full: "language", short: "l" },
   type: { full: "type", short: "t" },
   sym: { full: "symbol", short: "s" },
+  is: { full: "is", short: "i" },
   author: { full: "author", short: "a" },
   msg: { full: "message", short: "m" },
   since: { full: "since", short: "d" },

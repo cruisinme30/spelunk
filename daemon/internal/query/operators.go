@@ -46,6 +46,7 @@ var operators = []operator{
 	{name: protocol.OpNameAuthor, full: "author", short: "a", scope: scopeHistoryOnly, summary: "Commits by this person", interpret: asName},
 	{name: protocol.OpNameSince, full: "since", short: "d", summary: "Only changes inside a time window", examples: []string{"30d", "2w", "6m", "1y", "today", "yesterday", "2h"}, interpret: asDuration},
 	{name: protocol.OpNameSym, full: "symbol", short: "s", scope: scopeWorkingTreeOnly, summary: "Symbol definitions", interpret: asText},
+	{name: protocol.OpNameIs, full: "is", short: "i", summary: "Open, changed or test files", examples: []string{StateOpen, StateChanged, StateTest}, interpret: oneOf(StateOpen, StateChanged, StateTest)},
 	{name: protocol.OpNameLang, full: "language", short: "l", summary: "Programming language", examples: []string{"python", "go", "typescript"}, interpret: asLanguage},
 	{name: protocol.OpNameRepo, full: "repo", short: "r", summary: "Repo name, as a regex or a glob", interpret: asPathRegex},
 	{name: protocol.OpNameMsg, full: "message", short: "m", scope: scopeHistoryOnly, summary: "Words in the commit message", interpret: asText},
@@ -53,6 +54,20 @@ var operators = []operator{
 	{name: protocol.OpNameCase, full: "case", short: "c", global: true, summary: "Match case (yes) or ignore it (no)", examples: []string{"yes", "no"}, interpret: oneOf("yes", "no")},
 	{name: protocol.OpNameCount, full: "count", short: "n", global: true, summary: "How many results", examples: []string{"50", "200", "all"}, interpret: asCount},
 	{name: protocol.OpNameOrder, full: "order", short: "o", global: true, scope: scopeWorkingTreeOnly, summary: "Best match first, or by path", examples: []string{"best", "path"}, interpret: oneOf("best", "path")},
+}
+
+// The values of is:, the file states it can match.
+const (
+	StateOpen    = "open"    // open in an editor tab
+	StateChanged = "changed" // uncommitted changes
+	StateTest    = "test"    // holds tests (lang.IsTest)
+)
+
+// currentState reports whether an is: value describes files as they are
+// now (open, changed), which no commit can match. is:test is a rule about
+// paths, so in a history query it picks the commits' test files, like f:.
+func currentState(value string) bool {
+	return value == StateOpen || value == StateChanged
 }
 
 // lookupOperator finds an operator by any of its spellings: f, file.

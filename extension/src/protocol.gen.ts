@@ -45,7 +45,7 @@ export interface Hit {
 }
 
 /** OpName is an operator's name, the part before the colon. */
-export type OpName = "f" | "repo" | "lang" | "type" | "sym" | "author" | "msg" | "since" | "case" | "count" | "order";
+export type OpName = "f" | "repo" | "lang" | "type" | "sym" | "is" | "author" | "msg" | "since" | "case" | "count" | "order";
 
 /** ResultOrder is how current files are sorted: best match first, or by repo, path and line. */
 export type ResultOrder = "best" | "path";
@@ -373,6 +373,8 @@ export interface DidChangeFilesParams {
 export interface ParseParams {
   text: string;
   cursor: number;
+  /** the absolute paths of the files open in editor tabs, for is:open. */
+  openFiles?: string[];
 }
 
 /** ParseResult is the parsed query plus completions at the cursor. */
@@ -386,6 +388,8 @@ export interface SearchStartParams {
   searchId: string;
   text: string;
   cursor?: string;
+  /** the absolute paths of the files open in editor tabs, for is:open. */
+  openFiles?: string[];
 }
 
 /** SearchResult ends a search after its batches. */

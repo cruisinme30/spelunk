@@ -137,6 +137,9 @@ type (
 	}
 	// Message matches a commit's subject and body (msg:).
 	Message struct{ Re *regexp.Regexp }
+	// Is matches files in a state (is:): open in the editor, with uncommitted
+	// changes, or holding tests. State is one of StateOpen, StateChanged, StateTest.
+	Is struct{ State string }
 	// Since matches commits after a time, or files last changed after it.
 	Since struct{ After time.Time }
 )
@@ -152,6 +155,7 @@ func (*Symbol) isPred()  {}
 func (*Author) isPred()  {}
 func (*Message) isPred() {}
 func (*Since) isPred()   {}
+func (*Is) isPred()      {}
 
 func joinPreds(kind string, kids []Pred) string {
 	parts := make([]string, len(kids))
@@ -170,6 +174,7 @@ func (p *Repo) String() string    { return "repo:/" + p.Re.String() + "/" }
 func (p *Lang) String() string    { return "lang:" + p.Name }
 func (p *Symbol) String() string  { return "sym:/" + p.Re.String() + "/" }
 func (p *Message) String() string { return "msg:/" + p.Re.String() + "/" }
+func (p *Is) String() string      { return "is:" + p.State }
 func (p *Since) String() string   { return "since:" + p.After.UTC().Format(time.RFC3339) }
 func (p *Author) String() string {
 	if p.Exact {
@@ -388,6 +393,8 @@ func (l *lowering) lowerOperator(node *protocol.Node) Pred {
 		return &Author{Fragment: strings.ToLower(node.Value), Exact: node.Match == protocol.MatchPhrase}
 	case protocol.OpNameMsg:
 		return &Message{Re: l.regex(node.Value, node.Match)}
+	case protocol.OpNameIs:
+		return &Is{State: node.Value}
 	case protocol.OpNameSince:
 		return &Since{After: since(l.now, node.Value)}
 	default: // case:, count:, type:, order: shape the plan, not the predicate

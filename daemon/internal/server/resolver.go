@@ -7,16 +7,21 @@ import (
 
 	"github.com/cruisinme30/spelunk/daemon/internal/protocol"
 	"github.com/cruisinme30/spelunk/daemon/internal/query"
+	"github.com/cruisinme30/spelunk/daemon/internal/trigram"
 )
 
 // resolver gives the parser and completions the open repos, their
-// indexed files, and their histories' authors and message words.
-func (s *Server) resolver() query.Resolver {
-	return workspaceResolver{server: s}
+// indexed files, and their histories' authors and message words. open are
+// the absolute paths of the files open in the editor, for is: suggestions.
+func (s *Server) resolver(open []string) query.Resolver {
+	return workspaceResolver{server: s, open: open}
 }
 
 // workspaceResolver answers the parser's lookups from the server's state.
-type workspaceResolver struct{ server *Server }
+type workspaceResolver struct {
+	server *Server
+	open   []string
+}
 
 // messageWordsWindow is how far back msg: suggestions look: the words of
 // recent commits are the ones people search for.
@@ -169,18 +174,24 @@ func (r workspaceResolver) Repos() []query.RepoStat {
 		status := statuses[root.ID]
 		repos[i] = query.RepoStat{
 			Name: root.Name, Path: root.Path, Files: fileCounts[root.ID], State: status.Tree, Progress: status.Progress,
+			Git: status.History != protocol.IndexStateOff,
 		}
 	}
 	return repos
 }
 
-// Files lists every file in the published working-tree indexes.
+// Files lists every file in the published working-tree indexes, and which
+// of them are open in the editor or have uncommitted changes.
 func (r workspaceResolver) Files() []query.FileStat {
 	var files []query.FileStat
 	for _, repo := range r.server.index.Repos() {
+		open := trigram.OpenIn(repo.Root, r.open)
 		for i := range repo.Shard.Docs {
 			doc := &repo.Shard.Docs[i]
-			files = append(files, query.FileStat{Repo: repo.Name, Path: doc.Path, Lang: doc.Lang, ModTime: doc.ModTime})
+			files = append(files, query.FileStat{
+				Repo: repo.Name, Path: doc.Path, Lang: doc.Lang, ModTime: doc.ModTime,
+				Open: open[doc.Path], Changed: repo.History != nil && repo.History.Dirty(doc.Path),
+			})
 		}
 	}
 	return files

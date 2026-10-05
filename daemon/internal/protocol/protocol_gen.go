@@ -68,6 +68,7 @@ const (
 	OpNameLang   OpName = "lang"
 	OpNameType   OpName = "type"
 	OpNameSym    OpName = "sym"
+	OpNameIs     OpName = "is"
 	OpNameAuthor OpName = "author"
 	OpNameMsg    OpName = "msg"
 	OpNameSince  OpName = "since"
@@ -708,6 +709,8 @@ func (v DidChangeFilesParams) MarshalJSON() ([]byte, error) {
 type ParseParams struct {
 	Text   string `json:"text"`
 	Cursor int    `json:"cursor"`
+	// OpenFiles is the absolute paths of the files open in editor tabs, for is:open.
+	OpenFiles []string `json:"openFiles,omitempty"`
 }
 
 // ParseResult is the parsed query plus completions at the cursor.
@@ -731,6 +734,8 @@ type SearchStartParams struct {
 	SearchID string `json:"searchId"`
 	Text     string `json:"text"`
 	Cursor   string `json:"cursor,omitempty"`
+	// OpenFiles is the absolute paths of the files open in editor tabs, for is:open.
+	OpenFiles []string `json:"openFiles,omitempty"`
 }
 
 // SearchResult ends a search after its batches.

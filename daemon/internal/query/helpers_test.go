@@ -24,7 +24,7 @@ var testResolver = fakeResolver{
 		{Name: "Marta Ruiz", Emails: []string{"jamarta@libs.example"}, Commits: 12, Repos: []string{"shared-libs"}, LastAt: "2026-08-03T10:00:00Z"},
 	},
 	repos: []RepoStat{
-		{Name: "payments-api", Path: "/work/payments-api", Files: 7, State: protocol.IndexStateReady},
+		{Name: "payments-api", Path: "/work/payments-api", Files: 7, State: protocol.IndexStateReady, Git: true},
 		{Name: "web-checkout", Path: "/work/web-checkout", Files: 3, State: protocol.IndexStateReady},
 		{Name: "shared-libs", Path: "/work/shared-libs", Files: 4, State: protocol.IndexStateIndexing, Progress: 0.64},
 	},
@@ -38,8 +38,8 @@ var testResolver = fakeResolver{
 		{Text: "timeout", Commits: 11, LastAt: fixedNow.AddDate(0, 0, -5)},
 	},
 	files: []FileStat{
-		{Repo: "payments-api", Path: "src/payments/client.py", Lang: "python", ModTime: fixedNow.Add(-20 * time.Minute)},
-		{Repo: "payments-api", Path: "src/payments/retry_policy.py", Lang: "python", ModTime: fixedNow.Add(-3 * time.Hour)},
+		{Repo: "payments-api", Path: "src/payments/client.py", Lang: "python", ModTime: fixedNow.Add(-20 * time.Minute), Open: true, Changed: true},
+		{Repo: "payments-api", Path: "src/payments/retry_policy.py", Lang: "python", ModTime: fixedNow.Add(-3 * time.Hour), Open: true},
 		{Repo: "payments-api", Path: "src/payments/errors.py", Lang: "python", ModTime: fixedNow.AddDate(0, 0, -10)},
 		{Repo: "payments-api", Path: "tests/payments/client_test.py", Lang: "python", ModTime: fixedNow.AddDate(0, -2, 0)},
 		{Repo: "payments-api", Path: "tests/payments/retry_policy_test.py", Lang: "python", ModTime: fixedNow.AddDate(0, -2, 0)},

@@ -102,13 +102,13 @@ test("? in an empty box scrolls the cheat sheet into view when it sits below the
   assert.equal(await page.inputValue(QUERY), "", "the ? isn't typed into the box");
 });
 
-test("an empty box shows recent queries and all 17 operators", async (t) => {
+test("an empty box shows recent queries and all 18 operators", async (t) => {
   // @covers screen:empty-box
   const page = await openPanel(t);
   assert.equal((await sentMessages(page, "ready")).length, 1);
   await restore(page, ["sym:RetryPolicy", "since:2w timeout"]);
   assert.equal(await page.locator('[data-testid="recent"]').count(), 2);
-  assert.equal(await page.locator('[data-testid="sheet-op"]').count(), 17);
+  assert.equal(await page.locator('[data-testid="sheet-op"]').count(), 18);
   // An operator's full and short names share one line.
   const [full, short] = await page.locator('[data-testid="sheet-op"]').first().locator("code").all();
   assert.equal(await short.textContent(), "c:");

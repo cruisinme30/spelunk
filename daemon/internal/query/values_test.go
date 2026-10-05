@@ -128,6 +128,22 @@ func TestLanguageSuggestionsPutTheWorkspacesOwnFirst(t *testing.T) {
 	}
 }
 
+func TestFileStateSuggestionsCountTheirFiles(t *testing.T) {
+	// @covers op:is
+	want := strings.Join([]string{
+		"open | Files open in the editor | client.py, retry_policy.py | 2 files",
+		"changed | Files with uncommitted changes | client.py | 1 file",
+		"test | Test files | test_*.py, *_test.go, *.spec.ts, tests/ folders | 3 files",
+	}, "\n")
+	if got := shown(Complete("is:", len("is:"), testResolver, fixedNow)); got != want {
+		t.Errorf("Complete(is:) =\n%s\nwant\n%s", got, want)
+	}
+	outsideGit := fakeResolver{repos: []RepoStat{{Name: "notes"}}}
+	if got, want := shown(Complete("is:c", len("is:c"), outsideGit, fixedNow)), "changed | Files with uncommitted changes | Edited, added or staged since the last commit | No Git repo"; got != want {
+		t.Errorf("Complete(is:c) outside Git = %q, want %q", got, want)
+	}
+}
+
 func TestFixedValuesExplainThemselves(t *testing.T) {
 	completions := Complete("type:", len("type:"), testResolver, fixedNow)
 	if got, want := shown(completions[:1]), "file | File names only | Paths that match, no code lines | "; got != want {

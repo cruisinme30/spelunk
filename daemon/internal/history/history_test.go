@@ -94,7 +94,7 @@ func TestSkippedFilesAreListedWithoutTheirLines(t *testing.T) {
 }
 
 func TestHistoryQueries(t *testing.T) {
-	// @covers op:author op:msg
+	// @covers op:author op:msg op:is
 	r, _ := paymentsHistory(t)
 	repo := Repo{ID: "r1", Name: "payments-api", Root: r.root, Store: r.ingest()}
 	tests := []struct {
@@ -108,6 +108,8 @@ func TestHistoryQueries(t *testing.T) {
 		{"author:jane timeout", []string{"Raise timeout"}},
 		{`author:jason f:.*test\.py$ timeout`, []string{"Fix flaky checkout test"}},
 		{"type:commit timeout -f:vendor/", []string{"Raise timeout", "Fix flaky checkout test"}},
+		{"author:jason is:test", []string{"Fix flaky checkout test"}},
+		{"type:commit timeout -is:test", []string{"Vendor update", "Raise timeout"}},
 		{"type:commit timeout since:7d", []string{"Vendor update", "Raise timeout"}},
 		{"type:commit max_attempts", []string{"Add retry policy"}},
 		{"author:marta OR msg:flaky", []string{"Vendor update", "Fix flaky checkout test"}},
