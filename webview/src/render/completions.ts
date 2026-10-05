@@ -1,7 +1,7 @@
 // The suggestion list under the query box: operators or
 // values for the word at the cursor, the way out ("search as plain text"),
 // and a glimpse of the results, which keep updating without that word.
-import { codeList, element, highlight, plural, trimIndent } from "../format";
+import { codeLineRow, codeList, element, plural } from "../format";
 import type { Layout } from "../layout";
 import { opNameFor, operatorEntry, toneForLabel } from "../operators";
 import { textTerms } from "../parsedQuery";
@@ -179,13 +179,7 @@ function renderGlimpse(searchText: string, glimpse: ResultsGlimpse): HTMLElement
     ),
     ...glimpse.lines.slice(0, GLIMPSE_LINES).map((item) => {
       if (item.kind !== "line") return null;
-      const shown = trimIndent(item.text, item.hits);
-      return element(
-        "div",
-        { class: "row line" },
-        element("span", { class: "line-number" }, String(item.line)),
-        element("code", { class: "text" }, highlight(shown.text, shown.hits)),
-      );
+      return codeLineRow(item);
     }),
   );
 }

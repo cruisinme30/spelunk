@@ -101,7 +101,7 @@ export function highlight(text: string, hits: (Hit | Range)[]): DocumentFragment
 }
 
 /** Drops a code line's indentation, shifting its hits to match, so result rows line up. */
-export function trimIndent<H extends Range>(text: string, hits: H[]): { text: string; hits: H[] } {
+function trimIndent<H extends Range>(text: string, hits: H[]): { text: string; hits: H[] } {
   const indent = text.length - text.trimStart().length;
   if (indent === 0) return { text, hits };
   return {
@@ -150,6 +150,20 @@ export function scrollIntoContainer(container: HTMLElement, child: HTMLElement, 
 /** "1 file" / "3 files", with thousands separators. */
 export function plural(count: number, one: string, many = one + "s"): string {
   return `${count.toLocaleString("en-US")} ${count === 1 ? one : many}`;
+}
+
+/** A code line as results show it: its number, then its text without the indent, with `hits` marked. */
+export function codeLineRow(
+  line: { line: number; text: string; hits: Hit[] },
+  attributes: Record<string, AttributeValue> = {},
+): HTMLDivElement {
+  const shown = trimIndent(line.text, line.hits);
+  return element(
+    "div",
+    { ...attributes, class: "row line" },
+    element("span", { class: "line-number" }, String(line.line)),
+    element("code", { class: "text" }, highlight(shown.text, shown.hits)),
+  );
 }
 
 /** The first seven characters of a commit sha, as Git shows them. */

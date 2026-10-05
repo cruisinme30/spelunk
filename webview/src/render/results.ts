@@ -2,6 +2,7 @@
 // appended to as batches stream in, plus hidden-result notes and Load more.
 import {
   button,
+  codeLineRow,
   codeList,
   element,
   fileStat,
@@ -10,7 +11,6 @@ import {
   shortSha,
   termClass,
   timeAgo,
-  trimIndent,
 } from "../format";
 import { operatorNodes, textNodes, textTerms } from "../parsedQuery";
 import type { Fix, HiddenNote, ResultItem, SearchDoneMessage } from "../protocol.gen";
@@ -335,15 +335,7 @@ export class ResultsView {
     }
     this.openCodeFile.lineCount++;
     this.openCodeFile.countLabel.textContent = String(this.openCodeFile.lineCount);
-    const shown = trimIndent(item.text, item.hits);
-    group.append(
-      element(
-        "div",
-        { ...this.rowAttributes(item), class: "row line" },
-        element("span", { class: "line-number" }, String(item.line)),
-        element("code", { class: "text" }, highlight(shown.text, shown.hits)),
-      ),
-    );
+    group.append(codeLineRow(item, this.rowAttributes(item)));
     return group;
   }
 
