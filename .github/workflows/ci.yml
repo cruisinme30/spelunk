@@ -19,23 +19,21 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
           go-version-file: daemon/go.mod
           cache-dependency-path: daemon/go.mod
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
-          node-version: 20
+          node-version: 22
 
       - name: Install golangci-lint
-        uses: golangci/golangci-lint-action@v8
-        with:
-          version: v2.5.0
-          working-directory: daemon
-          install-only: true
+        run: |
+          curl -sSfL https://golangci-lint.run/install.sh | sh -s -- -b "$(go env GOPATH)/bin" v2.5.0
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
       - name: Install Node dependencies
         run: npm install --no-audit --no-fund
@@ -51,16 +49,16 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
           go-version-file: daemon/go.mod
           cache-dependency-path: daemon/go.mod
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
-          node-version: 20
+          node-version: 22
 
       - name: Install Node dependencies
         run: npm install --no-audit --no-fund

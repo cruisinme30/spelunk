@@ -373,6 +373,8 @@ interface TestState {
   text: string;
   /** The refs of the current search's results, in order. */
   results: string[];
+  /** The text of the search `results` belongs to, once it finished; undefined while one runs. */
+  searched: string | undefined;
   daemon: DaemonState;
   /** The active editor's file and selection, 1-based; undefined without an editor. */
   editor: { path: string; line: number; column: number; endColumn: number } | undefined;
@@ -384,6 +386,7 @@ function testState(daemon: Daemon, controller: SearchController, panel: SearchPa
     panelOpen: panel.isOpen,
     text: controller.text,
     results: controller.results.map((result) => result.ref),
+    searched: controller.finishedSearchText,
     daemon: daemon.state,
     editor: editor && {
       path: editor.document.uri.fsPath,

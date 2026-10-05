@@ -374,6 +374,15 @@ test("opening a result says which of the results it is, and F4 steps through the
   assert.equal(host.payloads("state.restore").at(-1)?.text, "retry");
 });
 
+test("the finished search's text is known only once its search.done was posted", async () => {
+  const host = recordingUi();
+  const controller = newController(threeResultsBackend(), host.ui);
+  assert.equal(controller.finishedSearchText, undefined);
+  await controller.handle(queryChanged("retry", 1));
+  assert.equal(controller.finishedSearchText, "retry");
+  assert.equal(controller.results.length, 3);
+});
+
 test("with closeOnOpen off, opening a result leaves the panel open", async () => {
   // @covers setting:open.closeOnOpen
   const host = recordingUi();

@@ -118,6 +118,8 @@ export class SearchController {
   private searchesStarted = 0;
   /** Position in `results` for F4 stepping; -1 before the first step. */
   private stepIndex = -1;
+  /** The search whose search.done was posted last. */
+  private finishedSearchId: string | undefined;
   /** Repos whose working-tree index is ready, from the last index/progress. */
   private readyRepos = new Set<string>();
   /** The last index/progress, which a panel opened later needs: the daemon only reports changes. */
@@ -142,6 +144,12 @@ export class SearchController {
   /** The query box text, as last reported by the panel. */
   get text(): string {
     return this.state.text;
+  }
+
+  /** The text of the search whose results `results` holds, once that search has finished. */
+  get finishedSearchText(): string | undefined {
+    const search = this.search;
+    return search && search.id === this.finishedSearchId ? search.text : undefined;
   }
 
   /**
@@ -315,6 +323,7 @@ export class SearchController {
     try {
       const result = await this.backend.request("search/start", params, cancel);
       if (this.search !== search || cancel.cancelled) return;
+      this.finishedSearchId = searchId;
       this.ui.post("search.done", { seq, searchId, ...result });
     } catch (error) {
       if (error instanceof RpcError && error.code === ErrorCodes.RequestCancelled) return;

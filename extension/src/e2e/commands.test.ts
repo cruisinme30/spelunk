@@ -10,6 +10,7 @@ interface TestState {
   panelOpen: boolean;
   text: string;
   results: string[];
+  searched: string | undefined;
   daemon: string;
   editor: { path: string; line: number; column: number; endColumn: number } | undefined;
 }
@@ -56,7 +57,10 @@ async function untilTab(label: string): Promise<void> {
 /** Opens the panel on `query` and waits for its results. */
 async function searchFor(query: string): Promise<TestState> {
   await vscode.commands.executeCommand("unifiedSearch.open", { query });
-  return until(`results for ${query}`, (state) => state.panelOpen && state.text === query && state.results.length > 0);
+  return until(
+    `results for ${query}`,
+    (state) => state.panelOpen && state.searched === query && state.results.length > 0,
+  );
 }
 
 const TESTS: [name: string, run: () => Promise<void>][] = [
