@@ -197,7 +197,10 @@ export class Connection extends EventEmitter {
   }
 
   private write(message: object): void {
-    this.output.write(encodeFrame(JSON.stringify(message)));
+    // A write to a stream that is already destroyed fails only through this callback.
+    this.output.write(encodeFrame(JSON.stringify(message)), (error) => {
+      if (error) this.dispose(error);
+    });
   }
 
   private receive(body: string): void {

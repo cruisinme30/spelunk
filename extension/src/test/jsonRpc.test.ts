@@ -131,6 +131,13 @@ test("the stream ending mid-frame rejects every pending request", async () => {
   await assert.rejects(indexStatus(connection), /connection closed/, "requests after close fail at once");
 });
 
+test("a request written to a destroyed stream rejects instead of hanging", async () => {
+  const { connection, toPeer } = pipedConnection();
+  toPeer.destroy();
+  await assert.rejects(indexStatus(connection));
+  await assert.rejects(indexStatus(connection), /connection closed/);
+});
+
 test("cancelling sends $/cancelRequest only while the request is pending", async () => {
   const { connection, peer, sent } = pipedConnection();
   const answered = new CancelSource();
