@@ -246,6 +246,8 @@ Jason Kim and Marta Ruiz, and one uncommitted edit:
 | 21 | `timeout f:` | [path-values.png](proof/path-values.png) |
 | 22 | `timeout lang:` | [other-values.png](proof/other-values.png) |
 | 23 | `author:jane retry` | [words-in-messages.png](proof/words-in-messages.png) |
+| 24 | `retry` | [ranked-results.png](proof/ranked-results.png) |
+| 25 | `retry order:path` | [path-order.png](proof/path-order.png) |
 
 Mocks 16 (the opened file) and 18 (Settings) are VS Code's own editor and Settings UI, which the tool can't draw
 without VS Code, so they have no screenshot.
