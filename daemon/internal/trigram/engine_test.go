@@ -2,11 +2,13 @@ package trigram
 
 import (
 	"context"
+	"encoding/json"
 	"reflect"
 	"runtime"
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf16"
 
 	"github.com/cruisinme30/unified-search/daemon/internal/protocol"
 )
@@ -303,6 +305,54 @@ func TestGlobPathFilterListsMatchingFilesAndHighlightsTheirNames(t *testing.T) {
 	// "src/client.ts": the highlight covers client.ts, not the slash before it.
 	if want := []protocol.Range{{Start: 4, End: 13}}; !reflect.DeepEqual(items[0].NameHits, want) {
 		t.Errorf("highlight on %s = %v, want %v", items[0].Path, items[0].NameHits, want)
+	}
+}
+
+// shownAsJS is text as the webview gets it: through JSON (which writes
+// each invalid UTF-8 byte as U+FFFD) into a JavaScript string, in UTF-16.
+func shownAsJS(t *testing.T, text string) []uint16 {
+	t.Helper()
+	encoded, err := json.Marshal(text)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var decoded string
+	if err := json.Unmarshal(encoded, &decoded); err != nil {
+		t.Fatal(err)
+	}
+	return utf16.Encode([]rune(decoded))
+}
+
+func TestHitsAreUTF16OffsetsIntoTheShownText(t *testing.T) {
+	lines := []string{
+		"😀 astral needle",
+		"é combining: Needle",
+		"caf\xe9 \xff\xfe invalid bytes needle",
+		"\xe2\x82 truncated sequence needle",
+		"𝒳𝒴 two astral 😀 needle 😀 needle",
+	}
+	repo := repoOf("r", map[string]string{"u.txt": strings.Join(lines, "\n") + "\n"})
+	items, _ := runItems(t, "needle", defaultSettings, "", repo)
+	if len(items) != len(lines) {
+		t.Fatalf("results = %q, want one per line", summarize(items))
+	}
+	for _, item := range items {
+		shown := shownAsJS(t, item.Text)
+		if len(item.Hits) == 0 {
+			t.Errorf("line %d: no hits", item.Line)
+		}
+		for _, hit := range item.Hits {
+			if hit.End > len(shown) {
+				t.Fatalf("line %d: hit %+v past the end of %q", item.Line, hit, item.Text)
+			}
+			if got := string(utf16.Decode(shown[hit.Start:hit.End])); !strings.EqualFold(got, "needle") {
+				t.Errorf("line %d: hit %+v covers %q in the shown text, want needle", item.Line, hit, got)
+			}
+		}
+		ref, _ := ParseRef(item.Ref)
+		if got := string(utf16.Decode(shown[ref.Column : ref.Column+ref.Length])); !strings.EqualFold(got, "needle") {
+			t.Errorf("line %d: ref column %d length %d covers %q, want needle", item.Line, ref.Column, ref.Length, got)
+		}
 	}
 }
 

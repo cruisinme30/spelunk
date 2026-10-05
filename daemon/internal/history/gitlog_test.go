@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math/rand"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -12,6 +13,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/cruisinme30/unified-search/daemon/internal/protocol"
 )
 
 // rawCommit writes a commit object exactly as given (header lines, a blank
@@ -160,6 +163,47 @@ func TestHeadOutsideAWorkTree(t *testing.T) {
 	t.Setenv("PATH", t.TempDir())
 	if _, err := Head(context.Background(), r.root); err == nil || errors.Is(err, ErrNotGit) {
 		t.Errorf("Head without git installed = %v, want an error that isn't ErrNotGit (it may well be a repo)", err)
+	}
+}
+
+func TestADamagedStoreNeverPanicsASearch(t *testing.T) {
+	// @covers failure:index-corrupt
+	r, _ := paymentsHistory(t)
+	path := filepath.Join(t.TempDir(), "repo.history")
+	if err := r.ingest().Save(path); err != nil {
+		t.Fatal(err)
+	}
+	good, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	trials := 2_000
+	if testing.Short() {
+		trials = 200
+	}
+	random := rand.New(rand.NewSource(1))
+	for trial := range trials {
+		data := slices.Clone(good)
+		if trial%2 == 0 {
+			data = data[:random.Intn(len(data))]
+		} else {
+			for range 1 + random.Intn(4) {
+				data[random.Intn(len(data))] = byte(random.Intn(256))
+			}
+		}
+		if err := os.WriteFile(path, data, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		store, err := Load(path)
+		if err != nil {
+			continue
+		}
+		repos := []Repo{{ID: "r", Name: "r", Root: r.root, Store: store}}
+		for _, text := range []string{"type:commit timeout", "author:jane", "msg:retry f:py"} {
+			_, _ = Search(context.Background(), plan(t, text), repos, 1, func(protocol.ResultItem) {})
+		}
+		store.Authors()
+		store.Words(time.Time{})
 	}
 }
 
