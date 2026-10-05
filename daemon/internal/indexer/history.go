@@ -148,6 +148,12 @@ func (ix *Indexer) readHistory(job historyJob) {
 			r.historyMessage = "Not a Git repository: history search is off for this folder."
 		case err != nil:
 			r.historyState, r.historyMessage = protocol.IndexStateError, "History not read: "+err.Error()
+			if job.full {
+				// A full read that failed part way published only its newest
+				// commits, under the HEAD it meant to finish: polling would
+				// take that store for complete and never read the rest.
+				r.history = job.store
+			}
 		default:
 			r.history, r.historyState, r.historyMessage = store, protocol.IndexStateReady, ""
 			if saveErr != nil {
