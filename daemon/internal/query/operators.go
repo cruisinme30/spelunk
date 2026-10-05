@@ -38,9 +38,9 @@ type operator struct {
 	interpret func(value string, form valueForm) (match protocol.Match, problem string)
 }
 
-// operators lists every operator in completion order: most used first, so
-// "si" offers since: before symbol:. A word that is exactly a short name
-// offers that operator first, so "s" offers symbol: before since:.
+// operators lists every operator in completion order, most used first. A
+// word that is exactly a short name offers that operator first, so "s"
+// offers symbol: before since:.
 var operators = []operator{
 	{name: protocol.OpNameF, full: "file", short: "f", summary: "File path, as a regex or a glob", examples: []string{"f:*.py", `f:\.py$`, "f:src/", "f:test"}, interpret: asPathRegex},
 	{name: protocol.OpNameAuthor, full: "author", short: "a", scope: scopeHistoryOnly, summary: "Commits by this person", interpret: asName},
