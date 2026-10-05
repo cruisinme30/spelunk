@@ -12,22 +12,31 @@ removed `timeout` or `retry`. Drop `author:` and the same box searches current f
 ![The search panel showing code matches for retry_policy, with a preview](docs/dev/proof/search-panel-results-and-preview.png)
 
 > **Status: early development, no Marketplace release yet.** Searching current files, definitions and Git history
-> works: file names, code lines, `sym:` definitions and commits, with the whole query language, previews and opening
-> results. See [progress](docs/dev/progress.md).
+> works, with the whole query language, previews and opening results.
 
-## Features (planned for the first release)
+## What it does
 
-- **One query language.** Combine text, `"phrases"`, `/regex/`, `AND`, `OR`, `( )` and `-exclusions` with
-  operators, each with a full name and a one-letter short one: `file:` / `f:`, `repo:` / `r:`, `language:` / `l:`,
+- **One query language.** Combine words, `"phrases"`, `/regex/`, `AND`, `OR`, `( )` and `-exclusions` with
+  operators. Each has a full name and a one-letter short one: `file:` / `f:`, `repo:` / `r:`, `language:` / `l:`,
   `type:` / `t:`, `symbol:` / `s:`, `author:` / `a:`, `message:` / `m:`, `since:` / `d:`, `case:` / `c:`,
   `count:` / `n:`.
-- **Results as you type,** from local indexes: a trigram index of current files, symbols, and a commit index of
-  diffs, messages and authors.
-- **Helpful when you're wrong:** errors with one-key fixes, completions for operators and values (authors, repos,
-  languages), and notes like "3 commits hidden by `-f:vendor/`".
-- **Keyboard first:** ⌘P or ⇧⌘F (the `unifiedSearch.shortcut.preset` setting), ↵ to open at the match, ⌘↵ to
-  open to the side, F4 to step through results.
-- Works the same in desktop VS Code and code-server.
+- **Files or commits from the same box.** A query searches current files, unless it has `author:`, `message:` or
+  `type:commit`; then each result is a commit, and words match the lines it added or removed.
+- **Results as you type,** from local indexes that keep up with saves within a second and new commits within seconds.
+- **Helpful when you're wrong:** errors with one-key fixes, warnings for likely slips such as `daemon|search`,
+  completions for operators and their values, and notes like "3 commits hidden by `-file:vendor/`".
+- **Keyboard first:** ⌘P or ⇧⌘F to open, ↵ to open at the match, ⌘↵ to open to the side, F4 to step through results.
+- Works the same in desktop VS Code and code-server. Nothing leaves your machine.
+
+## Documentation
+
+The [wiki](https://github.com/cruisinme30/unified-search/wiki) has the user guide:
+[Getting Started](https://github.com/cruisinme30/unified-search/wiki/Getting-Started),
+[Query Language](https://github.com/cruisinme30/unified-search/wiki/Query-Language),
+[Using the Panel](https://github.com/cruisinme30/unified-search/wiki/Using-the-Panel),
+[How Searches Behave](https://github.com/cruisinme30/unified-search/wiki/How-Searches-Behave) and
+[Settings and Commands](https://github.com/cruisinme30/unified-search/wiki/Settings-and-Commands). It also explains
+how the pieces fit together, with diagrams and every design mock.
 
 ## Repository layout
 
@@ -40,9 +49,6 @@ removed `timeout` or `retry`. Drop `author:` and the same box searches current f
 | [`docs/`](docs/) | User docs, decision records, and planning docs |
 | [`scripts/`](scripts/) | `test-all.sh`, the spec-coverage check and the panel screenshot tool |
 | [`testdata/`](testdata/) | A fixture workspace whose files match the design mockups |
-
-The [wiki](https://github.com/cruisinme30/unified-search/wiki) explains how the pieces fit together, with diagrams
-and every design mock.
 
 ## Development
 
