@@ -224,6 +224,12 @@ mark {
   font-family: var(--mono);
 }
 
+/* ab reads as a word with a line under it, as VS Code's Match Whole Word does. */
+.toggle.word {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
 .toggle.settings svg {
   display: block;
 }

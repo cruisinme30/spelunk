@@ -6,6 +6,7 @@ export interface Layout {
   shell: HTMLElement;
   input: HTMLInputElement;
   caseButton: HTMLButtonElement;
+  wordButton: HTMLButtonElement;
   regexButton: HTMLButtonElement;
   reposButton: HTMLButtonElement;
   repoMenu: HTMLElement;
@@ -45,21 +46,23 @@ function createQueryInput(): HTMLInputElement {
   });
 }
 
-/** How one of the Aa and .* buttons beside the box reads. */
+/** How one of the Aa, ab and .* buttons beside the box reads. */
 interface ToggleLabels {
   text: string;
   label: string;
   title: string;
   testId: string;
   monospace?: boolean;
+  /** An extra class for the button, such as "word" for ab's underline. */
+  modifier?: string;
 }
 
-function createToggle({ text, label, title, testId, monospace }: ToggleLabels): HTMLButtonElement {
+function createToggle({ text, label, title, testId, monospace, modifier }: ToggleLabels): HTMLButtonElement {
   return element(
     "button",
     {
       type: "button",
-      class: monospace ? "toggle mono" : "toggle",
+      class: ["toggle", monospace ? "mono" : "", modifier ?? ""].filter(Boolean).join(" "),
       "aria-label": label,
       "aria-pressed": "false",
       "data-testid": testId,
@@ -86,14 +89,20 @@ function createSearchIcon(): HTMLElement {
   return element("label", { for: "query", class: "query-icon" }, icon(SEARCH_ICON));
 }
 
-/** Builds the skeleton into `root` and returns its parts. */
-export function createLayout(root: HTMLElement): Layout {
-  const input = createQueryInput();
+/** The Aa, ab and .* buttons, which edit the query text. */
+function createMatchToggles(): Pick<Layout, "caseButton" | "wordButton" | "regexButton"> {
   const caseButton = createToggle({
     text: "Aa",
     label: "Match case",
     title: "Match case (case:yes)",
     testId: "toggle-case",
+  });
+  const wordButton = createToggle({
+    text: "ab",
+    label: "Match whole word",
+    title: "Match whole word (word:yes)",
+    testId: "toggle-word",
+    modifier: "word",
   });
   const regexButton = createToggle({
     text: ".*",
@@ -102,6 +111,13 @@ export function createLayout(root: HTMLElement): Layout {
     testId: "toggle-regex",
     monospace: true,
   });
+  return { caseButton, wordButton, regexButton };
+}
+
+/** Builds the skeleton into `root` and returns its parts. */
+export function createLayout(root: HTMLElement): Layout {
+  const input = createQueryInput();
+  const { caseButton, wordButton, regexButton } = createMatchToggles();
   const reposButton = element(
     "button",
     {
@@ -141,6 +157,7 @@ export function createLayout(root: HTMLElement): Layout {
       "div",
       { class: "tools" },
       caseButton,
+      wordButton,
       regexButton,
       element("span", { class: REPO_MENU_ANCHOR_CLASS }, reposButton, repoMenu),
       settingsButton,
@@ -158,6 +175,7 @@ export function createLayout(root: HTMLElement): Layout {
     shell,
     input,
     caseButton,
+    wordButton,
     regexButton,
     reposButton,
     repoMenu,

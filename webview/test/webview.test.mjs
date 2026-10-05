@@ -102,13 +102,13 @@ test("? in an empty box scrolls the cheat sheet into view when it sits below the
   assert.equal(await page.inputValue(QUERY), "", "the ? isn't typed into the box");
 });
 
-test("an empty box shows recent queries and all 18 operators", async (t) => {
+test("an empty box shows recent queries and all 19 operators", async (t) => {
   // @covers screen:empty-box
   const page = await openPanel(t);
   assert.equal((await sentMessages(page, "ready")).length, 1);
   await restore(page, ["sym:RetryPolicy", "since:2w timeout"]);
   assert.equal(await page.locator('[data-testid="recent"]').count(), 2);
-  assert.equal(await page.locator('[data-testid="sheet-op"]').count(), 18);
+  assert.equal(await page.locator('[data-testid="sheet-op"]').count(), 19);
   // An operator's full and short names share one line.
   const [full, short] = await page.locator('[data-testid="sheet-op"]').first().locator("code").all();
   assert.equal(await short.textContent(), "c:");
@@ -411,6 +411,39 @@ test("Aa and .* reflect the query, and Aa removes case:yes from the text", async
   assert.equal(await page.getAttribute('[data-testid="toggle-regex"]', "aria-pressed"), "true");
   await page.click('[data-testid="toggle-case"]');
   assert.equal(await page.inputValue(QUERY), "/Retry/");
+});
+
+test("ab reflects word:yes and removes it from the text", async (t) => {
+  const page = await openPanel(t);
+  await restore(page);
+  const root = {
+    kind: "and",
+    span: { start: 0, end: 11 },
+    children: [
+      { kind: "op", op: "word", value: "yes", match: "literal", span: { start: 0, end: 5 } },
+      { kind: "text", value: "retry", match: "literal", termIndex: 0, span: { start: 6, end: 11 } },
+    ],
+  };
+  await typeAndParse(
+    page,
+    "w:yes retry",
+    parsedQuery("w:yes retry", root, { globals: { case: null, count: null, type: null, word: "yes" } }),
+  );
+  assert.equal(await page.getAttribute('[data-testid="toggle-word"]', "aria-pressed"), "true");
+  assert.equal(await page.getAttribute('[data-testid="toggle-case"]', "aria-pressed"), "false");
+  await page.click('[data-testid="toggle-word"]');
+  assert.equal(await page.inputValue(QUERY), "retry");
+});
+
+test("a word:yes note offers to match parts of words", async (t) => {
+  const page = await openPanel(t);
+  await restore(page);
+  const seq = await typeAndParse(page, "word:yes retry", parsedQuery("word:yes retry", textNode("retry", 9)));
+  const undo = { title: "Match parts of words", edits: [{ span: { start: 0, end: 9 }, newText: "" }] };
+  await searchDone(page, seq, { hidden: [{ reason: "word", filter: "word:yes", count: 4, unit: "matches", undo }] });
+  const note = page.locator('[data-testid="hidden-notes"] .note');
+  assert.equal(await note.locator("span").first().innerText(), "4 matches hidden by word:yes");
+  assert.equal(await note.locator('[data-testid="show-hidden"]').innerText(), "Match parts of words");
 });
 
 test("hidden-result notes use singular units and name the filter", async (t) => {

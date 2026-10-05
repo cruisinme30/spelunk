@@ -22,9 +22,11 @@ import {
   type Edited,
   isCasePressed,
   isRegexPressed,
+  isWordPressed,
   scopeToRepo,
   toggleCase,
   toggleRegex,
+  toggleWord,
 } from "./queryEdit";
 import {
   type FooterMode,
@@ -185,7 +187,7 @@ export class SearchPanel {
   // ------------------------------------------------------------ user input
 
   private bindEvents(): void {
-    const { input, caseButton, regexButton, reposButton, settingsButton, body } = this.layout;
+    const { input, caseButton, wordButton, regexButton, reposButton, settingsButton, body } = this.layout;
     input.addEventListener("input", () => {
       if (this.editingBox) return;
       this.state.completionsOpen = true;
@@ -208,6 +210,9 @@ export class SearchPanel {
 
     caseButton.addEventListener("click", () => {
       this.editQuery((text) => toggleCase(text, this.state.parsed, this.state.ui.caseSensitive));
+    });
+    wordButton.addEventListener("click", () => {
+      this.editQuery((text) => toggleWord(text, this.state.parsed, this.state.ui.wholeWord));
     });
     regexButton.addEventListener("click", () => {
       this.editQuery((text) => toggleRegex(text, this.state.parsed));
@@ -532,8 +537,9 @@ export class SearchPanel {
     if (!errors && query.root) state.lastGoodText = query.raw;
     if (!errors) state.searchReplaced = true; // the host searches this query instead
 
-    const { caseButton, regexButton, shell, input } = this.layout;
+    const { caseButton, wordButton, regexButton, shell, input } = this.layout;
     caseButton.setAttribute("aria-pressed", String(isCasePressed(query, state.ui.caseSensitive)));
+    wordButton.setAttribute("aria-pressed", String(isWordPressed(query, state.ui.wholeWord)));
     regexButton.setAttribute("aria-pressed", String(isRegexPressed(query)));
     shell.classList.toggle("has-errors", errors);
     input.setAttribute("aria-invalid", String(errors));

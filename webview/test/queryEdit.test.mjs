@@ -1,22 +1,30 @@
-// The pure query edits behind fix-its, completions, the Aa / .* toggles and
+// The pure query edits behind fix-its, completions, the Aa / ab / .* toggles and
 // the repo menu (src/queryEdit.ts), run in Node on edge-case inputs: empty
 // text, spans past either end, overlapping or unsorted edits, and astral
 // characters, which take two UTF-16 code units.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { applyEdits, isRegexPressed, scopeToRepo, toggleCase, toggleRegex } from "./out/queryEdit.mjs";
+import {
+  applyEdits,
+  isRegexPressed,
+  isWordPressed,
+  scopeToRepo,
+  toggleCase,
+  toggleRegex,
+  toggleWord,
+} from "./out/queryEdit.mjs";
 
 /** A text edit replacing start..end. */
 const edit = (start, end, newText) => ({ span: { start, end }, newText });
 
-/** A ParsedQuery for `raw` with `root`; case:yes when `caseValue` says so. */
-const parsed = (raw, root, caseValue = null) => ({
+/** A ParsedQuery for `raw` with `root`; case: and word: as `caseValue` and `wordValue` say. */
+const parsed = (raw, root, caseValue = null, wordValue = null) => ({
   version: 1,
   raw,
   root,
   mode: "workingTree",
   diagnostics: [],
-  globals: { case: caseValue, count: null, type: null },
+  globals: { case: caseValue, count: null, type: null, ...(wordValue ? { word: wordValue } : {}) },
 });
 
 /** A text term spanning `start` to `end` (default: start + value's length). */
@@ -80,6 +88,20 @@ test("Aa removes an explicit case:yes along with one neighbouring space", () => 
   const raw = "x case:yes";
   const query = parsed(raw, { kind: "and", children: [term("x", 0), operator("case", "yes", 2)] }, "yes");
   assert.deepEqual(toggleCase(raw, query, false), { text: "x", cursor: 1 });
+});
+
+test("ab writes word:yes, or word:no when whole words are the default", () => {
+  assert.deepEqual(toggleWord("retry", undefined, false), { text: "word:yes retry", cursor: 9 });
+  assert.deepEqual(toggleWord("retry", undefined, true), { text: "word:no retry", cursor: 8 });
+});
+
+test("ab reflects word: over the setting, and removes or flips it", () => {
+  const raw = "x word:yes";
+  const query = parsed(raw, { kind: "and", children: [term("x", 0), operator("word", "yes", 2)] }, null, "yes");
+  assert.equal(isWordPressed(query, false), true);
+  assert.equal(isWordPressed(parsed("x", term("x", 0)), true), true, "the setting when the query doesn't say");
+  assert.deepEqual(toggleWord(raw, query, false), { text: "x", cursor: 1 });
+  assert.deepEqual(toggleWord(raw, query, true), { text: "x word:no", cursor: 9 });
 });
 
 test(".* on a box with no terms leaves it alone", () => {

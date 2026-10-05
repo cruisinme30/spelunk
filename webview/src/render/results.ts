@@ -43,8 +43,9 @@ const RANK_BADGE: Record<RankReason, string> = {
 
 /** What undoing a filter does, where "Show them" would mislead. */
 const UNDO_LABEL: Partial<Record<HiddenNote["reason"], string>> = {
-  // Undoing case:yes changes how text matches rather than showing hidden rows.
+  // Undoing case:yes or word:yes changes how text matches rather than showing hidden rows.
   case: "Ignore case",
+  word: "Match parts of words",
   type: "Show code too",
 };
 
@@ -221,6 +222,7 @@ export class ResultsView {
     const title = symbols.length > 0 ? `No symbol is named ${symbols.join(" or ")}` : "No results";
     let hint = "Try fewer terms, or check the operators with ?";
     if (notes.some((note) => note.reason === "case")) hint = "case:yes is on, so capital letters have to match.";
+    else if (notes.some((note) => note.reason === "word")) hint = "word:yes is on, so only whole words match.";
     else if (notes.length > 0) hint = "Some results are hidden by filters below.";
     this.list.prepend(
       element(
