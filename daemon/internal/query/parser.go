@@ -415,7 +415,7 @@ func (p *parser) operatorNode(t token) *protocol.Node {
 		p.reportBadValue(op, t, valueSpan, problem)
 		return nil
 	}
-	if op.name == protocol.OpNameSince {
+	if op.name == protocol.OpNameSince || op.name == protocol.OpNameUntil {
 		p.warnIfMonthsMeantAsMinutes(t, valueSpan)
 	}
 	if op.name == protocol.OpNameContent {
@@ -426,8 +426,8 @@ func (p *parser) operatorNode(t token) *protocol.Node {
 	return node
 }
 
-// warnIfMonthsMeantAsMinutes warns about since:30m, which means 30 months,
-// and offers since:30min. It's a warning, so the search still runs.
+// warnIfMonthsMeantAsMinutes warns about since:30m (or until:30m), which
+// means 30 months, and offers since:30min. It's a warning, so the search still runs.
 func (p *parser) warnIfMonthsMeantAsMinutes(t token, valueSpan protocol.Span) {
 	minutes := monthsMeantAsMinutes(t.value)
 	if minutes == "" {
@@ -455,7 +455,7 @@ func (p *parser) reportBadValue(op operator, t token, valueSpan protocol.Span, p
 	switch {
 	case op.name == protocol.OpNameLang:
 		examples = nearestLanguages(t.value)
-	case op.name == protocol.OpNameSince && nearestDate(t.value) != "": // a date that doesn't exist
+	case (op.name == protocol.OpNameSince || op.name == protocol.OpNameUntil) && nearestDate(t.value) != "": // a date that doesn't exist
 		examples = []string{nearestDate(t.value)}
 	}
 	// A quoted or /regex/ value may touch the next word, as in case:/ /y;

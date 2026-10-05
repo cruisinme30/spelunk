@@ -33,6 +33,7 @@ func TestCompletingOperatorsOffersFullNames(t *testing.T) {
 		"s":    "symbol: since:",
 		"f":    "file:",
 		"d":    "since:",
+		"u":    "until:",
 		"n":    "count:",
 		"lang": "language:",
 		"msg":  "message:",

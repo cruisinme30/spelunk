@@ -36,6 +36,8 @@ func TestDiagnostics(t *testing.T) {
 		{"since: a day that doesn't exist offers the month's last", "since:2026-02-30 a", DiagBadValue, "since:2026-02-30", "since:2026-02-28 a"},
 		{"since: a month that doesn't exist offers the nearest", "since:2026-13 a", DiagBadValue, "since:2026-13", "since:2026-12 a"},
 		{"since: a date with a time", "since:2026-09-30T10 a", DiagBadValue, "since:2026-09-30T10", "since:30d a"},
+		{"until: a day that doesn't exist offers the month's last", "until:2026-04-31 a", DiagBadValue, "until:2026-04-31", "until:2026-04-30 a"},
+		{"until: with a bad unit", "until:6x a", DiagBadValue, "until:6x", "until:30d a"},
 		{"count: below one", "count:-1 a", DiagBadValue, "count:-1", "count:50 a"},
 		{"lang: misspelled offers the nearest language", "lang:pyhton a", DiagBadValue, "lang:pyhton", "lang:python a"},
 		{"operator without a value", "author: a", DiagBadValue, "author:", ""},
@@ -109,7 +111,7 @@ func TestTwoProblemsAreReportedInTextOrder(t *testing.T) {
 }
 
 func TestEveryFixProducesAQueryWithoutThatDiagnostic(t *testing.T) {
-	queries := []string{"a ) b", "a () b", "a OR", `x "abc`, "x /abc", "sinse:6m x", "since:6x a", "since:2026-02-30 a", "since:2026-00 a", "lang:pyhton a", "(case:yes a) OR b", "case:yes a case:no", "author:jane sym:Foo"}
+	queries := []string{"a ) b", "a () b", "a OR", `x "abc`, "x /abc", "sinse:6m x", "since:6x a", "since:2026-02-30 a", "since:2026-00 a", "until:2026-02-30 a", "u:6x a", "lang:pyhton a", "(case:yes a) OR b", "case:yes a case:no", "author:jane sym:Foo"}
 	for _, query := range queries {
 		q := Parse(query, testResolver)
 		for _, d := range q.Diagnostics {
@@ -126,7 +128,7 @@ func TestEveryFixProducesAQueryWithoutThatDiagnostic(t *testing.T) {
 }
 
 func TestSinceDatesThatDoNotExistSayWhy(t *testing.T) {
-	// @covers op:since diag:bad_value
+	// @covers op:since op:until diag:bad_value
 	tests := map[string]string{
 		"since:2026-02-30": "2026-02-30 isn't a date: February 2026 has 28 days",
 		"since:2028-02-30": "2028-02-30 isn't a date: February 2028 has 29 days",
@@ -134,6 +136,7 @@ func TestSinceDatesThatDoNotExistSayWhy(t *testing.T) {
 		"since:2026-09-00": "2026-09-00 isn't a date: September 2026 has 30 days",
 		"since:2026-13":    "2026-13 isn't a date: months go from 01 to 12",
 		"since:2026-00-10": "2026-00-10 isn't a date: months go from 01 to 12",
+		"until:2026-02-29": "2026-02-29 isn't a date: February 2026 has 28 days",
 		"since:2026-9":     "since: takes today, yesterday, a date (2026-09-30 or 2026-09), or a number and a unit: min, h, d, w, m (months) or y",
 		`since:"2026-09"`:  "since: takes today, yesterday, a date (2026-09-30 or 2026-09), or a number and a unit: min, h, d, w, m (months) or y",
 	}
@@ -156,6 +159,9 @@ func TestSinceInMonthsThatLooksLikeMinutesWarns(t *testing.T) {
 	}
 	if got := ApplyFix("since:30m timeout", d.Fixes[0]); got != "since:30min timeout" {
 		t.Errorf("fix gives %q, want %q", got, "since:30min timeout")
+	}
+	if q := Parse("until:30m timeout", testResolver); len(q.Diagnostics) != 1 || ApplyFix("until:30m timeout", q.Diagnostics[0].Fixes[0]) != "until:30min timeout" {
+		t.Errorf("Parse(until:30m) diagnostics = %+v, want a warning offering until:30min", q.Diagnostics)
 	}
 	if q := Parse("since:6m timeout", testResolver); len(q.Diagnostics) != 0 {
 		t.Errorf("Parse(since:6m) diagnostics = %+v, want none: six months is plausible", q.Diagnostics)

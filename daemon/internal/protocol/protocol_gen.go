@@ -75,6 +75,7 @@ const (
 	OpNameAuthor  OpName = "author"
 	OpNameMsg     OpName = "msg"
 	OpNameSince   OpName = "since"
+	OpNameUntil   OpName = "until"
 	OpNameCase    OpName = "case"
 	OpNameWord    OpName = "word"
 	OpNameCount   OpName = "count"

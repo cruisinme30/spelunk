@@ -79,6 +79,7 @@
         "author",
         "msg",
         "since",
+        "until",
         "case",
         "word",
         "count",

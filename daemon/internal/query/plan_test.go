@@ -46,6 +46,7 @@ func TestPlanLowersTheQuery(t *testing.T) {
 		{`author:jane msg:"fix flaky" -f:vendor/`, `and(author:~"jane" msg:/(?i)fix flaky/ not(path:/(?i)vendor//))`},
 		{`author:"Jane Doe" x`, `and(author:="jane doe" content#0:/(?i)x/)`},
 		{"repo:web count:20 x", "and(repo:/(?i)web/ content#0:/(?i)x/)"},
+		{"since:2026-09 until:2026-09 x", "and(since:2026-09-01T00:00:00Z not(since:2026-10-01T00:00:00Z) content#0:/(?i)x/)"},
 	}
 	for _, tt := range tests {
 		if got := mustPlan(t, tt.query, defaultSettings).Pred.String(); got != tt.want {
@@ -169,6 +170,70 @@ func TestSinceDatesStartAtLocalMidnight(t *testing.T) {
 	}
 }
 
+func TestUntilKeepsChangesBeforeTheEndOfThePeriodItNames(t *testing.T) {
+	// @covers op:until
+	// Now is 2026-10-03 03:00 in pacific (10:00 UTC).
+	tests := []struct{ query, want string }{
+		{"until:2026-09 x", "2026-10-01T00:00:00-07:00"},
+		{"until:2026-09-30 x", "2026-10-01T00:00:00-07:00"},
+		{"until:2026-12 x", "2027-01-01T00:00:00-07:00"},
+		{"until:2026-12-31 x", "2027-01-01T00:00:00-07:00"},
+		{"until:2024-02 x", "2024-03-01T00:00:00-07:00"},
+		{"until:2024-02-29 x", "2024-03-01T00:00:00-07:00"},
+		{"until:yesterday x", "2026-10-03T00:00:00-07:00"},
+		{"until:today x", "2026-10-04T00:00:00-07:00"},
+		{"until:Today x", "2026-10-04T00:00:00-07:00"},
+		{"until:2w x", "2026-09-19T03:00:00-07:00"},
+		{"until:30min x", "2026-10-03T02:30:00-07:00"},
+		{"until:6m x", "2026-04-03T03:00:00-07:00"},
+	}
+	for _, tt := range tests {
+		if _, negated := mustPlan(t, tt.query, defaultSettings).Pred.Kids[0].(*Not); !negated {
+			t.Errorf("plan(%q) = %s, want until: lowered to not(since:)", tt.query, mustPlan(t, tt.query, defaultSettings).Pred)
+		}
+		if got := windowBound(t, tt.query).In(pacific).Format(time.RFC3339); got != tt.want {
+			t.Errorf("plan(%q) until = %s, want %s", tt.query, got, tt.want)
+		}
+	}
+	// A length of time ends at the instant since: starts.
+	if end, start := windowBound(t, "until:2w x"), windowBound(t, "since:2w x"); !end.Equal(start) {
+		t.Errorf("until:2w ends %s, since:2w starts %s, want the same instant", end, start)
+	}
+}
+
+func TestUntilBeforeSinceWarnsThatNothingCanMatch(t *testing.T) {
+	// @covers op:until diag:bad_value
+	warnings := func(query string) []protocol.Diagnostic {
+		_, warnings, err := NewPlan(mustParseCleanly(t, query), defaultSettings, fixedNow.In(pacific), "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		return warnings
+	}
+	tests := map[string]string{
+		"since:2026-09 until:2026-08 x": "until:2026-08 ends before since:2026-09 starts, so nothing can match both",
+		"until:1y d:1w x":               "until:1y ends before d:1w starts, so nothing can match both",
+		"since:2w until:2w x":           "until:2w ends before since:2w starts, so nothing can match both",
+		"since:today until:yesterday x": "until:yesterday ends before since:today starts, so nothing can match both",
+	}
+	for query, want := range tests {
+		got := warnings(query)
+		if len(got) != 1 || got[0].Code != DiagBadValue || got[0].Severity != protocol.SeverityWarning || got[0].Message != want {
+			t.Errorf("NewPlan(%q) warnings = %+v, want a bad_value warning %q", query, got, want)
+			continue
+		}
+		until := strings.Fields(want)[0]
+		if span := got[0].Span; query[span.Start:span.End] != until {
+			t.Errorf("NewPlan(%q) warning points at %q, want %q", query, query[span.Start:span.End], until)
+		}
+	}
+	for _, quiet := range []string{"since:2026-09 until:2026-09 x", "since:2w until:1w x", "since:today until:today x", "(since:2026-09 OR x) until:2026-08", "until:2026-08 x"} {
+		if got := warnings(quiet); len(got) != 0 {
+			t.Errorf("NewPlan(%q) warnings = %+v, want none", quiet, got)
+		}
+	}
+}
+
 func TestCaseSensitivityComesFromCaseOrTheSetting(t *testing.T) {
 	sensitive, smart := defaultSettings, defaultSettings
 	sensitive.CaseSensitive = protocol.CaseSettingOn
@@ -279,16 +344,17 @@ func TestLimitAndPaging(t *testing.T) {
 }
 
 func TestFiltersThatCanHideResultsCarryAnUndo(t *testing.T) {
-	text := "author:jane (timeout OR retry) -f:vendor/ since:6m -flaky"
+	text := "author:jane (timeout OR retry) -f:vendor/ since:6m -flaky until:1w"
 	plan := mustPlan(t, text, defaultSettings)
 	var got []string
 	for _, f := range plan.Filters {
 		got = append(got, f.Reason+"@"+strconv.Itoa(f.Index)+":"+f.Text+"→"+ApplyFix(text, f.Undo))
 	}
 	want := []string{
-		"pathFilter@2:-f:vendor/→author:jane (timeout OR retry) since:6m -flaky",
-		"since@3:since:6m→author:jane (timeout OR retry) -f:vendor/ -flaky",
-		"not@4:-flaky→author:jane (timeout OR retry) -f:vendor/ since:6m",
+		"pathFilter@2:-f:vendor/→author:jane (timeout OR retry) since:6m -flaky until:1w",
+		"since@3:since:6m→author:jane (timeout OR retry) -f:vendor/ -flaky until:1w",
+		"not@4:-flaky→author:jane (timeout OR retry) -f:vendor/ since:6m until:1w",
+		"since@5:until:1w→author:jane (timeout OR retry) -f:vendor/ since:6m -flaky",
 	}
 	if strings.Join(got, "\n") != strings.Join(want, "\n") {
 		t.Errorf("filters =\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
@@ -462,7 +528,7 @@ func TestHistoryRegexWithoutALiteralWarns(t *testing.T) {
 	if !warn("type:commit /a.b/") {
 		t.Error("type:commit /a.b/: want a history_full_scan warning")
 	}
-	for _, quiet := range []string{"type:commit /timeout.*/", "author:jane /a.b/", "since:2w type:commit /a.b/", "/a.b/"} {
+	for _, quiet := range []string{"type:commit /timeout.*/", "author:jane /a.b/", "since:2w type:commit /a.b/", "until:2w type:commit /a.b/", "/a.b/"} {
 		if warn(quiet) {
 			t.Errorf("%s: want no warning", quiet)
 		}

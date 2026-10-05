@@ -39,6 +39,43 @@ func TestSinceSuggestsWindowsWithTheirStartAndChangedFiles(t *testing.T) {
 	}
 }
 
+func TestUntilSuggestsSincesWindowsWithTheirEnd(t *testing.T) {
+	// @covers op:until
+	text := "timeout until:"
+	want := strings.Join([]string{
+		"[Calendar days] today | Through today | Before tomorrow | 14 files not changed since",
+		"yesterday | Through yesterday | Before today | 12 files not changed since",
+		"[Hours ago] 30min | More than 30 minutes ago | Before 09:30 | 13 files not changed since",
+		"2h | More than 2 hours ago | Before 08:00 | 13 files not changed since",
+		"[Longer ago] 2w | More than 2 weeks ago | Before Sat, Sep 19 | 8 files not changed since",
+		"30d | More than 30 days ago | Before Thu, Sep 3 | 7 files not changed since",
+		"6m | More than 6 months ago | Before Fri, Apr 3 | 4 files not changed since",
+		"1y | More than a year ago | Before Fri, Oct 3, 2025 | 2 files not changed since",
+	}, "\n")
+	if got := shown(Complete(text, len(text), testResolver, fixedNow)); got != want {
+		t.Errorf("Complete(%q) =\n%s\nwant\n%s", text, got, want)
+	}
+	tests := map[string]string{
+		"until:1": "1min | More than a minute ago | Before 09:59 | 14 files not changed since\n" +
+			"1h | More than an hour ago | Before 09:00 | 13 files not changed since\n" +
+			"1d | More than a day ago | Before Fri, Oct 2, 10:00 | 11 files not changed since\n" +
+			"1w | More than a week ago | Before Sat, Sep 26 | 9 files not changed since\n" +
+			"1m | More than a month ago | Before Thu, Sep 3 | 7 files not changed since\n" +
+			"1y | More than a year ago | Before Fri, Oct 3, 2025 | 2 files not changed since",
+		"u:y":          "[Calendar days] yesterday | Through yesterday | Before today | 12 files not changed since",
+		"until:2026-0": "",
+	}
+	for text, want := range tests {
+		if got := shown(Complete(text, len(text), testResolver, fixedNow)); got != want {
+			t.Errorf("Complete(%q) =\n%s\nwant\n%s", text, got, want)
+		}
+	}
+	completions := Complete("until:3", len("until:3"), testResolver, fixedNow)
+	if got := completions[len(completions)-1].Note; got != "Every file changed since" {
+		t.Errorf("until:3y note = %q, want %q", got, "Every file changed since")
+	}
+}
+
 func TestSinceOffersEveryUnitForATypedNumber(t *testing.T) {
 	tests := map[string]string{
 		"since:3":    "3min 3h 3d 3w 3m 3y",

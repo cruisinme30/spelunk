@@ -25,7 +25,7 @@ type valueCandidate struct {
 
 // valueCandidates lists the values of op that match fragment (lowercase),
 // best first: authors, repos, languages and paths found in the workspace,
-// time windows for since:, and the fixed values of type:, case: and count:.
+// time windows for since: and until:, and the fixed values of type:, case: and count:.
 func valueCandidates(op operator, fragment string, resolver Resolver, now time.Time) []valueCandidate {
 	switch op.name {
 	case protocol.OpNameAuthor:
@@ -38,6 +38,8 @@ func valueCandidates(op operator, fragment string, resolver Resolver, now time.T
 		return pathCandidates(fragment, resolver.Files())
 	case protocol.OpNameSince:
 		return sinceCandidates(fragment, resolver.Files(), now)
+	case protocol.OpNameUntil:
+		return untilCandidates(fragment, resolver.Files(), now)
 	case protocol.OpNameMsg:
 		return messageCandidates(resolver.MessageWords(fragment, maxValueCompletions+1), now)
 	case protocol.OpNameSym, protocol.OpNameRef:
@@ -407,13 +409,17 @@ var sinceUnits = []string{"min", "h", "d", "w", "m", "y"}
 // the start of a unit ("3", "45mi").
 var partialDuration = regexp.MustCompile(`^([1-9]\d{0,4})([a-z]*)$`)
 
-func sinceCandidates(fragment string, files []FileStat, now time.Time) []valueCandidate {
-	var picks []sincePick
+// windowPicks offers the since: or until: values that fragment starts.
+// Dates aren't offered; a date being typed (2026-0) matches none.
+func windowPicks(fragment string) []sincePick {
 	if parts := partialDuration.FindStringSubmatch(fragment); parts != nil {
-		picks = sinceUnitPicks(parts[1], parts[2])
-	} else {
-		picks = sinceWindowPicks(fragment)
+		return sinceUnitPicks(parts[1], parts[2])
 	}
+	return sinceWindowPicks(fragment)
+}
+
+func sinceCandidates(fragment string, files []FileStat, now time.Time) []valueCandidate {
+	picks := windowPicks(fragment)
 	candidates := make([]valueCandidate, len(picks))
 	for i, p := range picks {
 		start := since(now, p.value)
@@ -523,6 +529,90 @@ func changedFiles(files []FileStat, start time.Time) string {
 		return "No files changed"
 	}
 	return plural(changed, "file") + " changed"
+}
+
+// ------------------------------------------------------------ until:
+
+// untilSections retitle since:'s groups for until:, whose windows reach
+// back from a time instead of up to now.
+var untilSections = map[string]string{
+	"The last few hours": "Hours ago",
+	"Longer windows":     "Longer ago",
+}
+
+// untilCandidates offers since:'s windows for until:, each saying when it
+// ends and how many files haven't changed since: "More than 2 weeks ago |
+// Before Sat, Sep 19 | 8 files not changed since".
+func untilCandidates(fragment string, files []FileStat, now time.Time) []valueCandidate {
+	picks := windowPicks(fragment)
+	candidates := make([]valueCandidate, len(picks))
+	for i, p := range picks {
+		end := until(now, p.value)
+		section := p.section
+		if retitled, ok := untilSections[section]; ok {
+			section = retitled
+		}
+		candidates[i] = valueCandidate{
+			value:   p.value,
+			detail:  describeUntil(p.value),
+			context: describeEnd(end, now),
+			note:    unchangedFiles(files, end),
+			section: section,
+			group:   "value",
+		}
+	}
+	return candidates
+}
+
+// describeUntil says what an until: value keeps: "Through today", "More
+// than 2 hours ago", "More than a year ago".
+func describeUntil(value string) string {
+	switch strings.ToLower(value) {
+	case sinceToday:
+		return "Through today"
+	case sinceYesterday:
+		return "Through yesterday"
+	}
+	parts := durationPattern.FindStringSubmatch(value)
+	names := windowUnitNames[parts[2]]
+	switch {
+	case parts[1] != "1":
+		return "More than " + parts[1] + " " + names[1] + " ago"
+	case parts[2] == "h":
+		return "More than an hour ago"
+	default:
+		return "More than a " + names[0] + " ago"
+	}
+}
+
+// describeEnd says when an until: window ends, like describeStart:
+// "Before tomorrow", "Before today", "Before 08:00", "Before Sat, Sep 19".
+func describeEnd(end, now time.Time) string {
+	end = end.In(now.Location())
+	midnight := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	switch {
+	case end.Equal(midnight.AddDate(0, 0, 1)):
+		return "Before tomorrow"
+	case end.Equal(midnight):
+		return "Before today"
+	default:
+		return "Before" + strings.TrimPrefix(describeStart(end, now), "Since")
+	}
+}
+
+// unchangedFiles counts the indexed files last modified before end: "8
+// files not changed since".
+func unchangedFiles(files []FileStat, end time.Time) string {
+	unchanged := 0
+	for _, file := range files {
+		if file.ModTime.Before(end) {
+			unchanged++
+		}
+	}
+	if unchanged == 0 {
+		return "Every file changed since"
+	}
+	return plural(unchanged, "file") + " not changed since"
 }
 
 // ------------------------------------------------------------ is:

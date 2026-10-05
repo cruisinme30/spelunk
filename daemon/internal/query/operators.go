@@ -51,6 +51,7 @@ var operators = []operator{
 	{name: protocol.OpNameF, full: "file", short: "f", aliases: []string{"path"}, summary: "File path, as a regex or a glob", examples: []string{"*.py", `\.py$`, "src/", "test"}, interpret: asPathRegex},
 	{name: protocol.OpNameAuthor, full: "author", short: "a", scope: scopeHistoryOnly, summary: "Commits by this person", interpret: asName},
 	{name: protocol.OpNameSince, full: "since", short: "d", summary: "Only changes inside a time window, or from a date on", examples: windowExamples, interpret: asWindow("since")},
+	{name: protocol.OpNameUntil, full: "until", short: "u", summary: "Only changes older than a time window, or up to a date", examples: windowExamples, interpret: asWindow("until")},
 	{name: protocol.OpNameSym, full: "symbol", short: "s", scope: scopeWorkingTreeOnly, summary: "Symbol definitions", interpret: asText},
 	{name: protocol.OpNameKind, full: "kind", short: "k", scope: scopeWorkingTreeOnly, summary: "Only definitions of one kind", examples: SymbolKinds, interpret: oneOf(SymbolKinds...)},
 	{name: protocol.OpNameRef, full: "ref", short: "x", scope: scopeWorkingTreeOnly, summary: "Whole-word uses of a name, without its definitions", interpret: asReference},

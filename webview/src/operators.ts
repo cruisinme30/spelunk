@@ -260,6 +260,7 @@ export const OPERATOR_TONE: Record<OpName, Tone> = {
   author: "history",
   msg: "history",
   since: "history",
+  until: "history",
   count: "output",
   order: "output",
 };
@@ -281,6 +282,7 @@ const OPERATOR_NAMES: Record<OpName, { full: string; short: string; aliases?: st
   author: { full: "author", short: "a" },
   msg: { full: "message", short: "m" },
   since: { full: "since", short: "d" },
+  until: { full: "until", short: "u" },
   case: { full: "case", short: "c" },
   word: { full: "word", short: "w" },
   count: { full: "count", short: "n" },

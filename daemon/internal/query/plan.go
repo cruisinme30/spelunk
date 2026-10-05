@@ -286,7 +286,37 @@ func NewPlan(q protocol.ParsedQuery, settings protocol.Settings, now time.Time, 
 		plan.CaseFilter = &Filter{Reason: "case", Index: -1, Text: "case:smart", Undo: insertFix("Ignore case", 0, "case:no ")}
 	}
 	plan.SymbolFilter = symbolFilter(q.Root, src)
-	return plan, historyScanWarnings(plan), nil
+	return plan, append(historyScanWarnings(plan), emptyWindowWarnings(q.Root, src, now)...), nil
+}
+
+// emptyWindowWarnings warns when a top-level until: ends before a
+// top-level since: starts, so no change can be inside both. It's a
+// warning, so the search still runs (and finds nothing).
+func emptyWindowWarnings(root *protocol.Node, src *source, now time.Time) []protocol.Diagnostic {
+	var sinces, untils []*protocol.Node
+	for _, node := range topLevel(root) {
+		switch {
+		case node.Kind != protocol.NodeKindOp:
+		case node.Op == protocol.OpNameSince:
+			sinces = append(sinces, node)
+		case node.Op == protocol.OpNameUntil:
+			untils = append(untils, node)
+		}
+	}
+	var problems diagnostics
+	for _, u := range untils {
+		end := until(now, u.Value)
+		for _, s := range sinces {
+			if end.After(since(now, s.Value)) {
+				continue
+			}
+			problems.add(protocol.SeverityWarning, DiagBadValue, u.Span, fmt.Sprintf(
+				"%s ends before %s starts, so nothing can match both",
+				src.slice(u.Span.Start, u.Span.End), src.slice(s.Span.Start, s.Span.End)))
+			break
+		}
+	}
+	return problems.list
 }
 
 // textTermCount counts the query's text terms. ref: terms are numbered
@@ -529,6 +559,9 @@ func (l *lowering) lowerOperator(node *protocol.Node) Pred {
 		return &Is{State: node.Value}
 	case protocol.OpNameSince:
 		return &Since{After: since(l.now, node.Value)}
+	case protocol.OpNameUntil:
+		// Changes up to the end are those not since it, so engines need no until:.
+		return &Not{Kid: &Since{After: until(l.now, node.Value)}}
 	default: // case:, word:, count:, type:, order: shape the plan, not the predicate
 		return nil
 	}
@@ -590,6 +623,27 @@ func since(now time.Time, value string) time.Time {
 	}
 }
 
+// until returns when the period named by an until: value ends: until:
+// keeps the changes before it. A day or a month ends at the midnight after
+// it, so until:2026-09 and until:2026-09-30 end when October 1 starts;
+// until:today ends at the coming midnight and until:yesterday at the last
+// one. A length of time ends where since: would start (until:2w keeps what
+// is older than two weeks). value must be one the parser accepted.
+func until(now time.Time, value string) time.Time {
+	start := since(now, value)
+	switch {
+	case strings.EqualFold(value, sinceToday), strings.EqualFold(value, sinceYesterday):
+		return start.AddDate(0, 0, 1)
+	case datePattern.MatchString(value):
+		if _, _, _, hasDay := dateParts(value); hasDay {
+			return start.AddDate(0, 0, 1)
+		}
+		return start.AddDate(0, 1, 0)
+	default:
+		return start
+	}
+}
+
 // filterReason says whether a top-level conjunct can hide results, and
 // how the hidden-results note describes it ("" if it can't). A positive f:
 // is the search's scope rather than a filter: the panel explains the scope
@@ -600,8 +654,8 @@ func filterReason(node *protocol.Node) string {
 		return "pathFilter"
 	case node.Kind == protocol.NodeKindNot:
 		return "not"
-	case node.Kind == protocol.NodeKindOp && node.Op == protocol.OpNameSince:
-		return "since"
+	case node.Kind == protocol.NodeKindOp && (node.Op == protocol.OpNameSince || node.Op == protocol.OpNameUntil):
+		return "since" // until: is a time window too, so its note reads like since:'s
 	case node.Kind == protocol.NodeKindOp && node.Op == protocol.OpNameKind:
 		return "kind"
 	default:
@@ -707,12 +761,17 @@ func historyScanWarnings(plan *Plan) []protocol.Diagnostic {
 	return problems.list
 }
 
-// narrowsHistory reports whether a top-level author:, since: or f: limits the commits to scan.
+// narrowsHistory reports whether a top-level author:, since:, until: or f:
+// limits the commits to scan.
 func narrowsHistory(p *And) bool {
 	for _, kid := range p.Kids {
-		switch kid.(type) {
+		switch kid := kid.(type) {
 		case *Author, *Since, *Path:
 			return true
+		case *Not: // until: is lowered to not(since:)
+			if _, ok := kid.Kid.(*Since); ok {
+				return true
+			}
 		}
 	}
 	return false

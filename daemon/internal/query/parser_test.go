@@ -68,7 +68,7 @@ func TestSyntax(t *testing.T) {
 }
 
 func TestOperators(t *testing.T) {
-	// @covers op:f op:repo op:lang op:type op:sym op:author op:msg op:since op:case op:word op:count
+	// @covers op:f op:repo op:lang op:type op:sym op:author op:msg op:since op:until op:case op:word op:count
 	tests := []struct {
 		name, query, want string
 	}{
@@ -88,6 +88,7 @@ func TestOperators(t *testing.T) {
 		{"msg: regex", "msg:/fix(ed)?/", "msg=fix(ed)?/regex"},
 		{"since: days, weeks, months, years", "since:30d since:2w since:6m since:1y x", "and(since=30d/literal since=2w/literal since=6m/literal since=1y/literal literal:x)"},
 		{"since: a day and a month", "since:2026-09-30 since:2026-09 since:2024-02-29 x", "and(since=2026-09-30/literal since=2026-09/literal since=2024-02-29/literal literal:x)"},
+		{"until: takes since:'s values", "until:2026-09-30 until:2026-09 until:2w until:today until:yesterday x", "and(until=2026-09-30/literal until=2026-09/literal until=2w/literal until=today/literal until=yesterday/literal literal:x)"},
 		{"since: minutes, hours, today and yesterday", "since:45min since:3h since:today since:yesterday x", "and(since=45min/literal since=3h/literal since=today/literal since=yesterday/literal literal:x)"},
 		{"case: yes", "case:yes x", "and(case=yes/literal literal:x)"},
 		{"count: number", "count:20 x", "and(count=20/literal literal:x)"},
@@ -104,6 +105,7 @@ func TestOperators(t *testing.T) {
 		{"a", "author", "jane", "author=jane/literal"},
 		{"m", "message", "fix", "msg=fix/literal"},
 		{"d", "since", "2w", "since=2w/literal"},
+		{"u", "until", "2w", "until=2w/literal"},
 		{"c", "case", "yes", "case=yes/literal"},
 		{"w", "word", "yes", "word=yes/literal"},
 		{"n", "count", "all", "count=all/literal"},
