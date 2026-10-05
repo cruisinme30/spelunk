@@ -108,6 +108,19 @@ interface RunningSearch {
   cancel: CancelSource;
 }
 
+/** Messages from the help and welcome pages, which extension.ts handles. */
+type OtherPageMessage = Extract<
+  WebviewMessage,
+  { type: "help.try" | "welcome.choose" | "welcome.shortcut" | "welcome.start" }
+>;
+const OTHER_PAGE_MESSAGES: ReadonlySet<WebviewMessage["type"]> = new Set<OtherPageMessage["type"]>([
+  "help.try",
+  "welcome.choose",
+  "welcome.shortcut",
+  "welcome.start",
+]);
+const fromOtherPage = (message: WebviewMessage): message is OtherPageMessage => OTHER_PAGE_MESSAGES.has(message.type);
+
 /** Turns panel messages into daemon calls; one per window. */
 export class SearchController {
   /** Openable results of the current search, for F4 / Shift+F4. */
@@ -170,6 +183,7 @@ export class SearchController {
 
   /** Handles one message from the search panel. */
   async handle(message: WebviewMessage): Promise<void> {
+    if (fromOtherPage(message)) return;
     switch (message.type) {
       case "ready": {
         // A new webview counts seq from zero again, so a search still running
@@ -198,13 +212,6 @@ export class SearchController {
       case "panel.close": {
         this.rememberQuery();
         this.ui.hidePanel();
-        return;
-      }
-      case "help.try":
-      case "welcome.choose":
-      case "welcome.shortcut":
-      case "welcome.start": {
-        // sent by the help and welcome pages, which extension.ts handles
         return;
       }
       case "help.open": {
