@@ -10,17 +10,21 @@ const here = dirname(fileURLToPath(import.meta.url));
 const webview = join(here, "..", "webview");
 const tests = process.argv.includes("--tests");
 const endToEnd = process.argv.includes("--e2e");
-
-await build({
-  entryPoints: [join(here, "src/extension.ts")],
+/** How the extension host and its tests are bundled: CommonJS for Node, with vscode left to the host. */
+const nodeBundle = {
   bundle: true,
   platform: "node",
   format: "cjs",
   target: "node18",
   external: ["vscode"],
+  logLevel: "warning",
+};
+
+await build({
+  ...nodeBundle,
+  entryPoints: [join(here, "src/extension.ts")],
   outfile: join(here, "dist/extension.js"),
   sourcemap: true,
-  logLevel: "warning",
 });
 
 if (existsSync(join(webview, "src/main.ts"))) {
@@ -53,26 +57,16 @@ if (tests) {
     .filter((file) => file.endsWith(".test.ts"))
     .map((file) => join(testDirectory, file));
   await build({
+    ...nodeBundle,
     entryPoints: entries,
-    bundle: true,
-    platform: "node",
-    format: "cjs",
-    target: "node18",
-    external: ["vscode"],
     outdir: join(here, "dist-test"),
-    logLevel: "warning",
   });
 }
 
 if (endToEnd) {
   await build({
+    ...nodeBundle,
     entryPoints: [join(here, "src/e2e/commands.test.ts")],
-    bundle: true,
-    platform: "node",
-    format: "cjs",
-    target: "node18",
-    external: ["vscode"],
     outfile: join(here, "dist-e2e/index.js"),
-    logLevel: "warning",
   });
 }
