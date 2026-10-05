@@ -45,7 +45,7 @@ function nonNullAlternatives(node) {
 /** A union of objects told apart by their `kind` property. */
 function isKindUnion(node) {
   const variants = node.oneOf ?? [];
-  return variants.length > 1 && variants.every((v) => v.type === "object" && v.properties?.kind);
+  return variants.length > 1 && variants.every((variant) => variant.type === "object" && variant.properties?.kind);
 }
 
 const pascalCase = (text) =>
@@ -117,7 +117,9 @@ function generateTypeScript() {
       lines.push(body.startsWith("{") ? `export interface ${name} ${body}` : `export type ${name} = ${body};`);
     } else if (isKindUnion(node)) {
       lines.push(
-        `export type ${name} =\n` + node.oneOf.map((v) => `  | ${tsObjectLiteral(v, "      ")}`).join("\n") + ";",
+        `export type ${name} =\n` +
+          node.oneOf.map((variant) => `  | ${tsObjectLiteral(variant, "      ")}`).join("\n") +
+          ";",
       );
     } else {
       lines.push(`export type ${name} = ${tsType(node)};`);
