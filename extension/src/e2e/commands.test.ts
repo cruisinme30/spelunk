@@ -4,16 +4,7 @@
 // rejects, and VS Code exits with an error.
 import assert from "node:assert/strict";
 import * as vscode from "vscode";
-
-/** What the extension's unifiedSearch._testState command returns (UNIFIED_SEARCH_TEST=1). */
-interface TestState {
-  panelOpen: boolean;
-  text: string;
-  results: string[];
-  searched: string | undefined;
-  daemon: string;
-  editor: { path: string; line: number; column: number; endColumn: number } | undefined;
-}
+import type { TestState } from "../extension";
 
 /** How long a step may take: the first search waits for the fixture workspace to be indexed. */
 const TIMEOUT_MS = 30_000;
@@ -30,28 +21,28 @@ async function testState(): Promise<TestState> {
   return state;
 }
 
-/** Polls the extension's state until `done` holds, failing after TIMEOUT_MS. */
-async function until(what: string, done: (state: TestState) => boolean): Promise<TestState> {
+/** Reads a value until `done` holds for it, failing after TIMEOUT_MS. */
+async function poll<T>(what: string, read: () => T | Promise<T>, done: (value: T) => boolean): Promise<T> {
   const deadline = Date.now() + TIMEOUT_MS;
   for (;;) {
-    const state = await testState();
-    if (done(state)) return state;
-    if (Date.now() > deadline) assert.fail(`timed out waiting for ${what}: ${JSON.stringify(state)}`);
+    const value = await read();
+    if (done(value)) return value;
+    if (Date.now() > deadline) assert.fail(`timed out waiting for ${what}: ${JSON.stringify(value)}`);
     await sleep(POLL_MS);
   }
 }
+
+/** Polls the extension's state until `done` holds. */
+const until = (what: string, done: (state: TestState) => boolean) => poll(what, testState, done);
 
 /** Whether an editor tab with this label is open. */
 function hasTab(label: string): boolean {
   return vscode.window.tabGroups.all.some((group) => group.tabs.some((tab) => tab.label === label));
 }
 
+/** Waits until an editor tab with this label is open. */
 async function untilTab(label: string): Promise<void> {
-  const deadline = Date.now() + TIMEOUT_MS;
-  while (!hasTab(label)) {
-    if (Date.now() > deadline) assert.fail(`no tab named ${label}`);
-    await sleep(POLL_MS);
-  }
+  await poll(`a tab named ${label}`, () => hasTab(label), Boolean);
 }
 
 /** Opens the panel on `query` and waits for its results. */

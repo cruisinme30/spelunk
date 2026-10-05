@@ -374,7 +374,7 @@ function registerCommands(
 }
 
 /** What the unifiedSearch._testState command returns. */
-interface TestState {
+export interface TestState {
   panelOpen: boolean;
   text: string;
   /** The refs of the current search's results, in order. */
