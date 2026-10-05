@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
@@ -224,9 +225,27 @@ func withDefaults(settings protocol.Settings) protocol.Settings {
 	return settings
 }
 
+// usableRoots keeps the roots a ref can name: an ID that is set, unique
+// and free of the ref separator "|", and an absolute path (a relative one
+// would resolve against the daemon's working directory). Folders that do
+// not exist are kept, so their status can say so.
+func usableRoots(roots []protocol.Root) []protocol.Root {
+	usable := make([]protocol.Root, 0, len(roots))
+	seen := map[string]bool{}
+	for _, root := range roots {
+		if root.ID == "" || strings.Contains(root.ID, "|") || seen[root.ID] || !filepath.IsAbs(root.Path) {
+			continue
+		}
+		seen[root.ID] = true
+		usable = append(usable, root)
+	}
+	return usable
+}
+
 // applyRoots stores the workspace roots and passes them to the indexer,
 // which starts indexing new roots and drops removed ones.
 func (s *Server) applyRoots(roots []protocol.Root) {
+	roots = usableRoots(roots)
 	s.mu.Lock()
 	s.roots = slices.Clone(roots)
 	s.mu.Unlock()

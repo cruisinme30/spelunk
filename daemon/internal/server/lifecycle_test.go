@@ -2,6 +2,7 @@ package server
 
 import (
 	"encoding/json"
+	"path/filepath"
 	"testing"
 
 	"github.com/cruisinme30/unified-search/daemon/internal/protocol"
@@ -67,5 +68,35 @@ func TestInitializeWithoutSettingsKeepsTheDefaults(t *testing.T) {
 	got, want := client.server.Settings(), DefaultSettings()
 	if got.Location != want.Location || !got.Symbols || got.DefaultCount != want.DefaultCount {
 		t.Fatalf("Settings() after initialize without settings = %+v, want the defaults", got)
+	}
+}
+
+func TestRootsARefCannotNameAreDropped(t *testing.T) {
+	// @covers rpc:workspace/setRoots
+	dir := t.TempDir()
+	mustWriteFile(t, filepath.Join(dir, "a.txt"), "hello world\n")
+	client := newTestClient(t)
+	batches := collectBatches(client)
+	client.mustInitialize(t,
+		protocol.Root{ID: "r1", Path: dir, Name: "a"},
+		protocol.Root{ID: "r1", Path: dir, Name: "same id again"},
+		protocol.Root{ID: "", Path: dir, Name: "no id"},
+		protocol.Root{ID: "a|b", Path: dir, Name: "separator in id"},
+		protocol.Root{ID: "rel", Path: "relative/dir", Name: "relative"},
+	)
+	roots := client.server.Roots()
+	if len(roots) != 1 || roots[0].Name != "a" {
+		t.Fatalf("Roots() = %+v, want only the first r1, named a", roots)
+	}
+	var result protocol.SearchResult
+	if err := client.call(protocol.MethodSearchStart, protocol.SearchStartParams{SearchID: "s", Text: "hello"}, &result); err != nil {
+		t.Fatal(err)
+	}
+	items := batches.all()
+	if result.Total != 1 || len(items) != 1 {
+		t.Fatalf("search hello: total %d, %d items; want each file once", result.Total, len(items))
+	}
+	if err := client.call(protocol.MethodPreviewGet, protocol.PreviewParams{Ref: items[0].Ref, ContextLines: 1}, nil); err != nil {
+		t.Fatalf("preview of the only result: %v", err)
 	}
 }
