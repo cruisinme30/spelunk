@@ -251,6 +251,7 @@ Jason Kim and Marta Ruiz, and one uncommitted edit:
 | 26 | `retry is:test` | [test-files.png](proof/test-files.png) |
 | 27 | `author:jane is:test retry` | [test-history.png](proof/test-history.png) |
 | 28 | `word:yes retry` | [whole-words.png](proof/whole-words.png) |
+| 29 | `case:smart Retry` | [smart-case.png](proof/smart-case.png) |
 
 Mocks 16 (the opened file) and 18 (Settings) are VS Code's own editor and Settings UI, which the tool can't draw
 without VS Code, so they have no screenshot.

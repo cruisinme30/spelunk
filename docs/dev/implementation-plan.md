@@ -133,7 +133,7 @@ bare     = 1*( any char except space, "(", ")", '"' ) ;
 | (none) | Literal, phrase or regex | File names and lines; in history, changed lines or the commit subject and body | Both |
 | `since:` | `<n>d`, `<n>w`, `<n>m` or `<n>y` | Commit date in history; last change time on current files | Both |
 | `type:` | `file`, `code` or `commit` | Which result kinds are returned | Both |
-| `case:` | `yes` or `no` | Case handling for every text match in the query | Both |
+| `case:` | `yes`, `no` or `smart` (match case only when the query has a capital letter) | Case handling for every text match in the query | Both |
 | `count:` | Positive integer or `all` | Result limit | Both |
 
 ### Rules the parser enforces
@@ -153,7 +153,7 @@ type ParsedQuery = {
   version: 1;
   raw: string;
   root: Node | null;                 // null when the box is empty
-  globals: { case: "yes" | "no" | null; count: number | "all" | null;
+  globals: { case: "yes" | "no" | "smart" | null; count: number | "all" | null;
              type: "file" | "code" | "commit" | null };
   mode: "workingTree" | "history";
   diagnostics: Diagnostic[];         // empty means the query can run
@@ -467,7 +467,7 @@ sync and per-workspace overrides. The extension builds no settings screen of its
 | Key | Type | Default | Scope |
 | --- | --- | --- | --- |
 | `spelunk.shortcut.preset` | `"quickOpen"` \| `"findInFiles"` \| `"none"` | `"quickOpen"` | application |
-| `spelunk.caseSensitive` | boolean | `false` | resource |
+| `spelunk.caseSensitive` | `"off"` \| `"on"` \| `"smart"` | `"off"` | resource |
 | `spelunk.defaultCount` | integer, 1–50000 | `500` | resource |
 | `spelunk.typingDelayMs` | integer, 0–1000 | `120` | application |
 | `spelunk.open.trigger` | `"doubleClick"` \| `"singleClick"` | `"doubleClick"` | application |

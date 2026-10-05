@@ -14,6 +14,10 @@ All notable changes to this project are documented here. The format follows
   **ab** button between **Aa** and **.\*** adds and removes it, the `spelunk.wholeWord` setting makes it the
   default, and `word:no` turns it off for one query. A note says how many matches were only parts of words, with
   **Match parts of words** to show them.
+- `case:smart` matches case only when the query has a capital letter: `retry` finds `Retry`, but `RetryPolicy`
+  doesn't find `retrypolicy`. `spelunk.caseSensitive` is now `off`, `on` or `smart` (still `off` by default); a saved
+  `true` or `false` becomes `on` or `off`. Under smart case **Aa** carries a dot and shows which way the query's
+  capitals sent it, and a note says what matching case hid, with **Ignore case**.
 
 ### Fixed
 

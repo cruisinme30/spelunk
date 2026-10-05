@@ -414,6 +414,7 @@ test("Aa and .* reflect the query, and Aa removes case:yes from the text", async
 });
 
 test("under smart case, Aa has a dot, follows the query's capitals, and writes the opposite case:", async (t) => {
+  // @covers screen:smart-case
   const page = await openPanel(t);
   await restore(page, [], { caseSensitive: "smart" });
   const button = page.locator('[data-testid="toggle-case"]');

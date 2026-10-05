@@ -32,7 +32,7 @@ one-letter short name that mean the same: `file:` and `f:`, `author:` and `a:`.
 | `timeout OR time_out`, `( … )` | Match either; group terms |
 | `-vendor`, `-file:vendor/` | Exclude a word or an operator |
 | `"exact phrase"`, `/Retry(Policy\|Config)/` | Match a phrase or a regular expression |
-| `case:yes` | Match case exactly (case-insensitive by default) |
+| `case:yes`, `case:smart` | Match case exactly, or only when the query has a capital letter (case-insensitive by default) |
 | `file:*.go`, `f:_test\.py$` | Keep files whose path matches a glob or a regex |
 | `repo:web`, `language:python` | Keep one repo or one language |
 | `type:file` | Show file names only |
@@ -57,7 +57,7 @@ In an empty box, the recent queries are on the left: remove one with its ×, or 
 Search for "Spelunk" in Settings. The most useful ones:
 
 - `spelunk.shortcut.preset`: which key opens the panel.
-- `spelunk.caseSensitive`: match case by default.
+- `spelunk.caseSensitive`: `off`, `on`, or `smart` to match case only when the query has a capital letter.
 - `spelunk.index.exclude`: glob patterns never indexed (by default `vendor`, `node_modules` and `*.min.js`).
   History keeps these files' line counts but not their lines.
 - `spelunk.index.historyDepth`: how much Git history to index: `6m`, `2y` (the default) or `all`.
