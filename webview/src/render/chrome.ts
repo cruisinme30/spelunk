@@ -1,24 +1,12 @@
 // The panel chrome around the results: index status, health and indexing
 // banners, query diagnostics, parsed-query chips and the key
 // hints footer.
-import { clamp, element, percent, plural, termClass } from "../format";
+import { clamp, element, isIndexing, percent, plural, progressBar, termClass } from "../format";
 import type { Layout } from "../layout";
 import { fullName, OPERATOR_TONE } from "../operators";
 import { scopedRepo } from "../parsedQuery";
-import type {
-  BannerMsg as BannerMessage,
-  Diagnostic,
-  Fix,
-  IndexState,
-  Mode,
-  Node as QueryNode,
-  RepoStatus,
-} from "../protocol.gen";
+import type { BannerMsg as BannerMessage, Diagnostic, Fix, Mode, Node as QueryNode, RepoStatus } from "../protocol.gen";
 import { hasErrors, type ViewState } from "../state";
-
-function isIndexing(state: IndexState): boolean {
-  return state === "indexing" || state === "queued";
-}
 
 /** How the index is doing overall: the status dot's color class and the words beside it. */
 interface IndexHealth {
@@ -96,18 +84,7 @@ function renderIndexingBanner(repo: RepoStatus): HTMLElement | null {
   const phase = repo.tree === "indexing" ? "files" : repo.history === "indexing" ? "history" : "";
   if (!phase) return null;
   const percentDone = percent(repo.progress);
-  const bar = element(
-    "span",
-    {
-      class: "progress",
-      role: "progressbar",
-      "aria-valuenow": percentDone,
-      "aria-valuemin": 0,
-      "aria-valuemax": 100,
-      "aria-label": `${repo.name} ${phase} indexing`,
-    },
-    element("span", { style: `width:${percentDone}%` }),
-  );
+  const bar = progressBar(percentDone, `${repo.name} ${phase} indexing`);
   const note = repo.message ?? "Results from this repo may be incomplete. Search keeps working while it finishes.";
   return element(
     "div",

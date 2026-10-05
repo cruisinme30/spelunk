@@ -1,6 +1,6 @@
 // The result list: sections for file names, definitions, code and commits,
 // appended to as batches stream in, plus hidden-result notes and Load more.
-import { element, fileStat, highlight, plural, shortSha, termClass, timeAgo, trimIndent } from "../format";
+import { codeList, element, fileStat, highlight, plural, shortSha, termClass, timeAgo, trimIndent } from "../format";
 import { operatorNodes, textNodes, textTerms } from "../parsedQuery";
 import type { Fix, HiddenNote, ResultItem, SearchDoneMsg as SearchDoneMessage } from "../protocol.gen";
 import { repoName, type ViewState } from "../state";
@@ -383,9 +383,7 @@ export class ResultsView {
 
 /** "Only files whose full path matches .*test\.py$ are searched.", above the code section. */
 function pathScopeNote(scope: string[]): HTMLElement {
-  const patterns = scope.flatMap((pattern, index) =>
-    index > 0 ? [" and ", element("code", {}, pattern)] : [element("code", {}, pattern)],
-  );
+  const patterns = codeList(scope);
   return element(
     "div",
     { class: "scope muted", "data-testid": "path-scope" },

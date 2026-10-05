@@ -1,6 +1,7 @@
 // DOM and text helpers shared by the renderers: an element builder, match
-// highlighting, relative times, plurals and small numeric helpers.
-import type { Hit, Range } from "./protocol.gen";
+// highlighting, progress bars, relative times, plurals and small numeric
+// helpers.
+import type { Hit, IndexState, Range } from "./protocol.gen";
 
 /** Distinct highlight colors for text terms (main.css defines term-color-0 to -3); term N uses color N mod this. */
 const TERM_COLOR_COUNT = 4;
@@ -168,5 +169,33 @@ export function fileStat(path: string, added: number, removed: number): HTMLElem
     element("span", { class: "add" }, `+${added}`),
     " ",
     element("span", { class: "del" }, `−${removed}`),
+  );
+}
+
+/** Whether an index is being built or waits its turn. */
+export function isIndexing(state: IndexState): boolean {
+  return state === "indexing" || state === "queued";
+}
+
+/** A progress bar filled to `percentDone` (0..100). */
+export function progressBar(percentDone: number, label?: string): HTMLElement {
+  return element(
+    "span",
+    {
+      class: "progress",
+      role: "progressbar",
+      "aria-valuenow": percentDone,
+      "aria-valuemin": 0,
+      "aria-valuemax": 100,
+      ...(label === undefined ? {} : { "aria-label": label }),
+    },
+    element("span", { style: `width:${percentDone}%` }),
+  );
+}
+
+/** Words as code, joined with "and": <code>a</code> and <code>b</code>. */
+export function codeList(words: string[]): (Node | string)[] {
+  return words.flatMap((word, index) =>
+    index > 0 ? [" and ", element("code", {}, word)] : [element("code", {}, word)],
   );
 }

@@ -1,7 +1,7 @@
 // The suggestion list under the query box: operators or
 // values for the word at the cursor, the way out ("search as plain text"),
 // and a glimpse of the results, which keep updating without that word.
-import { element, highlight, plural, trimIndent } from "../format";
+import { codeList, element, highlight, plural, trimIndent } from "../format";
 import type { Layout } from "../layout";
 import { opNameFor, operatorEntry, toneForLabel } from "../operators";
 import { textTerms } from "../parsedQuery";
@@ -148,9 +148,7 @@ function exampleValues(entryLabel: string): string[] {
 function renderSearchAsTyped(state: ViewState, handlers: CompletionHandlers): HTMLElement {
   const terms = textTerms(state.parsed);
   const words = terms.length > 0 ? terms : [state.parsed?.raw ?? ""];
-  const phrase = words.flatMap((word, index) =>
-    index ? [" and ", element("code", {}, word)] : [element("code", {}, word)],
-  );
+  const phrase = codeList(words);
   const row = element(
     "div",
     { class: "completion search-as-typed", role: "option", "data-testid": "search-as-typed" },

@@ -2,9 +2,9 @@
 // shown once after installing and by Unified Search: Show Welcome. It asks
 // for the search shortcut and how much to index, and shows each repo's
 // indexing while it runs.
-import { element, percent } from "./format";
+import { element, isIndexing, percent, progressBar } from "./format";
 import { onHostMessage, send } from "./host";
-import type { IndexState, RepoStatus, WelcomeStateMsg as WelcomeState } from "./protocol.gen";
+import type { RepoStatus, WelcomeStateMsg as WelcomeState } from "./protocol.gen";
 
 /** The three shortcut choices, in the order the page lists them. */
 type ShortcutChoice = WelcomeState["preset"] | "custom";
@@ -72,10 +72,6 @@ interface PageState {
 
 const state: PageState = { settings: undefined, repos: [] };
 
-function isBusy(index: IndexState): boolean {
-  return index === "indexing" || index === "queued";
-}
-
 /** One repo's row: its state, and what it is doing or waiting for. */
 function repoRow(repo: RepoStatus, index: number): HTMLElement {
   const before = state.repos[index - 1];
@@ -91,20 +87,10 @@ function repoRow(repo: RepoStatus, index: number): HTMLElement {
     detail = element(
       "span",
       { class: "repo-progress" },
-      element(
-        "span",
-        {
-          class: "progress",
-          role: "progressbar",
-          "aria-valuenow": percentDone,
-          "aria-valuemin": 0,
-          "aria-valuemax": 100,
-        },
-        element("span", { style: `width:${percentDone}%` }),
-      ),
+      progressBar(percentDone),
       element("span", { class: "muted" }, `${phase} ${percentDone}%`),
     );
-  } else if (isBusy(repo.tree) || isBusy(repo.history)) {
+  } else if (isIndexing(repo.tree) || isIndexing(repo.history)) {
     word = "Queued";
     detail = before ? `Starts when ${before.name} finishes` : "Starts in a moment";
   } else if (repo.history === "off") {
