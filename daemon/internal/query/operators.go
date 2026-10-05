@@ -200,9 +200,20 @@ var datePattern = regexp.MustCompile(`^(\d{4})-(\d{2})(?:-(\d{2}))?$`)
 
 // The since: and until: values that name a day rather than a length of time.
 const (
-	sinceToday     = "today"
-	sinceYesterday = "yesterday"
+	windowToday     = "today"
+	windowYesterday = "yesterday"
 )
+
+// isWindowOp reports whether name is since: or until:, which take the same
+// time windows.
+func isWindowOp(name protocol.OpName) bool {
+	return name == protocol.OpNameSince || name == protocol.OpNameUntil
+}
+
+// midnight is when now's day started, in now's time zone.
+func midnight(now time.Time) time.Time {
+	return time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+}
 
 // windowExamples are the valid since: and until: values offered as fixes
 // for a bad one, the first one first.
@@ -215,7 +226,7 @@ func asWindow(name string) func(string, valueForm) (protocol.Match, string) {
 		day := strings.ToLower(value)
 		switch {
 		case form != formBare:
-		case day == sinceToday || day == sinceYesterday || durationPattern.MatchString(value):
+		case day == windowToday || day == windowYesterday || durationPattern.MatchString(value):
 			return protocol.MatchLiteral, ""
 		case datePattern.MatchString(value):
 			return protocol.MatchLiteral, dateProblem(value)

@@ -594,12 +594,11 @@ func (l *lowering) compile(pattern string) *regexp.Regexp {
 // a month (2026-09) at the midnight its first day starts, in now's time
 // zone. value must be one the parser accepted (see asWindow).
 func since(now time.Time, value string) time.Time {
-	midnight := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
 	switch strings.ToLower(value) {
-	case sinceToday:
-		return midnight
-	case sinceYesterday:
-		return midnight.AddDate(0, 0, -1)
+	case windowToday:
+		return midnight(now)
+	case windowYesterday:
+		return midnight(now).AddDate(0, 0, -1)
 	}
 	if datePattern.MatchString(value) {
 		year, month, day, _ := dateParts(value)
@@ -632,7 +631,7 @@ func since(now time.Time, value string) time.Time {
 func until(now time.Time, value string) time.Time {
 	start := since(now, value)
 	switch {
-	case strings.EqualFold(value, sinceToday), strings.EqualFold(value, sinceYesterday):
+	case strings.EqualFold(value, windowToday), strings.EqualFold(value, windowYesterday):
 		return start.AddDate(0, 0, 1)
 	case datePattern.MatchString(value):
 		if _, _, _, hasDay := dateParts(value); hasDay {
@@ -654,7 +653,7 @@ func filterReason(node *protocol.Node) string {
 		return "pathFilter"
 	case node.Kind == protocol.NodeKindNot:
 		return "not"
-	case node.Kind == protocol.NodeKindOp && (node.Op == protocol.OpNameSince || node.Op == protocol.OpNameUntil):
+	case node.Kind == protocol.NodeKindOp && isWindowOp(node.Op):
 		return "since" // until: is a time window too, so its note reads like since:'s
 	case node.Kind == protocol.NodeKindOp && node.Op == protocol.OpNameKind:
 		return "kind"

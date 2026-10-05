@@ -388,12 +388,12 @@ func summarizeRepos(repos []string) string {
 	return fmt.Sprintf("%d repos", len(repos))
 }
 
-// ------------------------------------------------------------ since:
+// ------------------------------------------------------------ since: and until:
 
-// sinceWindows are the time windows since: offers, in groups.
-var sinceWindows = []struct{ value, section string }{
-	{sinceToday, "Calendar days"},
-	{sinceYesterday, ""},
+// windowPresets are the time windows since: and until: offer, in groups.
+var windowPresets = []struct{ value, section string }{
+	{windowToday, "Calendar days"},
+	{windowYesterday, ""},
 	{"30min", "The last few hours"},
 	{"2h", ""},
 	{"2w", "Longer windows"},
@@ -402,20 +402,20 @@ var sinceWindows = []struct{ value, section string }{
 	{"1y", ""},
 }
 
-// sinceUnits are durationPattern's units, shortest first.
-var sinceUnits = []string{"min", "h", "d", "w", "m", "y"}
+// windowUnits are durationPattern's units, shortest first.
+var windowUnits = []string{"min", "h", "d", "w", "m", "y"}
 
-// partialDuration is a since: value being typed: a number, perhaps with
+// partialDuration is a since: or until: value being typed: a number, perhaps with
 // the start of a unit ("3", "45mi").
 var partialDuration = regexp.MustCompile(`^([1-9]\d{0,4})([a-z]*)$`)
 
 // windowPicks offers the since: or until: values that fragment starts.
 // Dates aren't offered; a date being typed (2026-0) matches none.
-func windowPicks(fragment string) []sincePick {
+func windowPicks(fragment string) []windowPick {
 	if parts := partialDuration.FindStringSubmatch(fragment); parts != nil {
-		return sinceUnitPicks(parts[1], parts[2])
+		return windowUnitPicks(parts[1], parts[2])
 	}
-	return sinceWindowPicks(fragment)
+	return windowPresetPicks(fragment)
 }
 
 func sinceCandidates(fragment string, files []FileStat, now time.Time) []valueCandidate {
@@ -435,27 +435,27 @@ func sinceCandidates(fragment string, files []FileStat, now time.Time) []valueCa
 	return candidates
 }
 
-// sincePick is a since: value to offer, with the heading it starts, if any.
-type sincePick struct{ value, section string }
+// windowPick is a since: or until: value to offer, with the heading it starts, if any.
+type windowPick struct{ value, section string }
 
-// sinceUnitPicks offers a typed number with each unit its typed letters
+// windowUnitPicks offers a typed number with each unit its typed letters
 // start: 3 → 3min, 3h … 3y; 45mi → 45min.
-func sinceUnitPicks(number, unitStart string) []sincePick {
-	var picks []sincePick
-	for _, unit := range sinceUnits {
+func windowUnitPicks(number, unitStart string) []windowPick {
+	var picks []windowPick
+	for _, unit := range windowUnits {
 		if strings.HasPrefix(unit, unitStart) {
-			picks = append(picks, sincePick{value: number + unit})
+			picks = append(picks, windowPick{value: number + unit})
 		}
 	}
 	return picks
 }
 
-// sinceWindowPicks offers the windows fragment starts, each group's
+// windowPresetPicks offers the windows fragment starts, each group's
 // heading on the first of its windows that is offered.
-func sinceWindowPicks(fragment string) []sincePick {
-	var picks []sincePick
+func windowPresetPicks(fragment string) []windowPick {
+	var picks []windowPick
 	section, shown := "", ""
-	for _, window := range sinceWindows {
+	for _, window := range windowPresets {
 		if window.section != "" {
 			section = window.section
 		}
@@ -466,7 +466,7 @@ func sinceWindowPicks(fragment string) []sincePick {
 		if section != shown {
 			heading, shown = section, section
 		}
-		picks = append(picks, sincePick{window.value, heading})
+		picks = append(picks, windowPick{window.value, heading})
 	}
 	return picks
 }
@@ -484,9 +484,9 @@ var windowUnitNames = map[string][2]string{
 // describeWindow says what a since: value covers: "Last 2 hours", "Today".
 func describeWindow(value string) string {
 	switch strings.ToLower(value) {
-	case sinceToday:
+	case windowToday:
 		return "Today"
-	case sinceYesterday:
+	case windowYesterday:
 		return "Yesterday and today"
 	}
 	parts := durationPattern.FindStringSubmatch(value)
@@ -568,9 +568,9 @@ func untilCandidates(fragment string, files []FileStat, now time.Time) []valueCa
 // than 2 hours ago", "More than a year ago".
 func describeUntil(value string) string {
 	switch strings.ToLower(value) {
-	case sinceToday:
+	case windowToday:
 		return "Through today"
-	case sinceYesterday:
+	case windowYesterday:
 		return "Through yesterday"
 	}
 	parts := durationPattern.FindStringSubmatch(value)
@@ -589,11 +589,11 @@ func describeUntil(value string) string {
 // "Before tomorrow", "Before today", "Before 08:00", "Before Sat, Sep 19".
 func describeEnd(end, now time.Time) string {
 	end = end.In(now.Location())
-	midnight := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	today := midnight(now)
 	switch {
-	case end.Equal(midnight.AddDate(0, 0, 1)):
+	case end.Equal(today.AddDate(0, 0, 1)):
 		return "Before tomorrow"
-	case end.Equal(midnight):
+	case end.Equal(today):
 		return "Before today"
 	default:
 		return "Before" + strings.TrimPrefix(describeStart(end, now), "Since")

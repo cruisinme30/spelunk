@@ -415,7 +415,7 @@ func (p *parser) operatorNode(t token) *protocol.Node {
 		p.reportBadValue(op, t, valueSpan, problem)
 		return nil
 	}
-	if op.name == protocol.OpNameSince || op.name == protocol.OpNameUntil {
+	if isWindowOp(op.name) {
 		p.warnIfMonthsMeantAsMinutes(t, valueSpan)
 	}
 	if op.name == protocol.OpNameContent {
@@ -455,7 +455,7 @@ func (p *parser) reportBadValue(op operator, t token, valueSpan protocol.Span, p
 	switch {
 	case op.name == protocol.OpNameLang:
 		examples = nearestLanguages(t.value)
-	case (op.name == protocol.OpNameSince || op.name == protocol.OpNameUntil) && nearestDate(t.value) != "": // a date that doesn't exist
+	case isWindowOp(op.name) && nearestDate(t.value) != "": // a date that doesn't exist
 		examples = []string{nearestDate(t.value)}
 	}
 	// A quoted or /regex/ value may touch the next word, as in case:/ /y;
