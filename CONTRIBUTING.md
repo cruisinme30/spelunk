@@ -175,8 +175,10 @@ work, whichever side it starts from:
 
 The wiki is its own repo (`spelunk.wiki.git`); commit and push its change alongside the code's. The presubmit
 runs `scripts/checkWikiSync.mjs`, which fails when a clone next to this one disagrees with `docs/dev/mocks.md` (screen
-numbers, ids, milestones, sections, images, canvas link) or has changes that aren't pushed. `specCoverage.mjs` reads
-the screen ids from `docs/dev/mocks.md`, so a new mock needs a test.
+numbers, ids, milestones, sections, images, canvas link), when a screen the panel draws has no `docs/dev/proof/`
+screenshot on its wiki section, when a page shows an image that isn't committed under that exact name, or when the
+wiki has changes that aren't pushed. `specCoverage.mjs` reads the screen ids from `docs/dev/mocks.md`, so a new
+mock needs a test.
 
 ## Docs
 

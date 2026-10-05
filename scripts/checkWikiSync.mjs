@@ -2,8 +2,12 @@
 // Checks the wiki still matches the repo's mock table (docs/dev/mocks.md):
 // the same screens with the same numbers, ids and milestones on the Screens
 // page, a section for each screen on its group page, an image for each canvas
-// board (or one per variant), and the same design-canvas link. It also fails
-// while the wiki has uncommitted or unpushed changes, which GitHub can't see.
+// board (or one per variant), and the same design-canvas link. Every screen
+// the panel draws needs a built screenshot from docs/dev/proof/ in its section,
+// and its Built column must say so. Every image a page shows must be committed
+// under that exact name, since GitHub's paths are case-sensitive and the Mac's
+// aren't. It also fails while the wiki has uncommitted or unpushed changes,
+// which GitHub can't see.
 //
 // The wiki is its own git repo, so this looks for a clone next to this one
 // (../<this folder>.wiki, e.g. ../spelunk.wiki) or at $SPELUNK_WIKI. Without a clone it
@@ -20,9 +24,12 @@ import { screenRows } from "./mockTable.mjs";
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const wiki = process.env.SPELUNK_WIKI ?? join(root, "..", `${basename(root)}.wiki`);
 const problems = [];
+/** Screens with no built screenshot: they're VS Code's own UI, which scripts/screenshotPanel.mjs can't draw. */
+const vsCodeUi = "VS Code's own UI";
 
 if (existsSync(join(wiki, "Screens.md"))) {
   checkScreens();
+  checkImages();
   checkWikiPushed();
   for (const problem of problems) console.log(`  ${problem}`);
   console.log(problems.length > 0 ? `${String(problems.length)} wiki problem(s)` : "Wiki matches the mocks.");
@@ -64,6 +71,40 @@ function checkScreens() {
   const canvas = /https:\/\/claude\.ai\/artifact\/\w+/.exec(mocksText)?.[0];
   if (!canvas || !screensText.includes(canvas))
     problems.push(`Screens.md doesn't link the canvas in mocks.md (${String(canvas)})`);
+}
+
+/**
+ * Checks each screen's built screenshot against its Built column, and that
+ * every image the pages show is a committed file: images/ in the wiki, and
+ * docs/dev/proof/ in this repo, which the pages load from GitHub.
+ */
+function checkImages() {
+  const sections = new Map();
+  const wikiFiles = new Set(git("ls-files").split("\n"));
+  const proofFiles = new Set(
+    execFileSync("git", ["-C", root, "ls-files", "docs/dev/proof"], { encoding: "utf8" }).trim().split("\n"),
+  );
+  for (const name of readdirSync(wiki).filter((file) => file.endsWith(".md"))) {
+    const text = readFileSync(join(wiki, name), "utf8");
+    for (const [, number, body] of text.matchAll(/^## (\d+) [^\n]*\n([\s\S]*?)(?=^## |(?![\s\S]))/gm))
+      sections.set(number, body);
+    for (const [, path] of text.matchAll(/(?:src|href)="(images\/[^"]+)"|\]\((images\/[^)\s]+)\)/g)) {
+      if (path && !wikiFiles.has(path)) problems.push(`${name} shows ${path}, which isn't committed to the wiki`);
+    }
+    for (const [path] of text.matchAll(/docs\/dev\/proof\/[\w.-]+/g)) {
+      if (!proofFiles.has(path)) problems.push(`${name} shows ${path}, which isn't committed to this repo`);
+    }
+  }
+  for (const row of screenRows(readFileSync(join(wiki, "Screens.md"), "utf8"))) {
+    const id = row["Screen id"];
+    const built = /docs\/dev\/proof\//.test(sections.get(row["#"]) ?? "");
+    if (row.Built === vsCodeUi) {
+      if (built) problems.push(`${id}: Screens.md says ${vsCodeUi}, but its section has a built screenshot`);
+    } else if (!built) {
+      problems.push(`${id} has no built screenshot from docs/dev/proof/ (or mark it "${vsCodeUi}" in Screens.md)`);
+    } else if (!row.Built.includes("✓"))
+      problems.push(`${id} has a built screenshot, but Screens.md's Built column isn't ✓`);
+  }
 }
 
 /** Flags wiki edits that GitHub can't see yet. */
