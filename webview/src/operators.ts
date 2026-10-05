@@ -148,8 +148,8 @@ export const OPERATOR_GROUPS: OperatorGroup[] = [
         operator: "author",
         label: "author:",
         insert: "author:",
-        summary: "Commits by this person. Searches diffs.",
-        description: "Commits by this person. Text matches inside their diffs.",
+        summary: "Commits by this person. Searches diffs and messages.",
+        description: "Commits by this person. Text matches their diffs or messages.",
         example: "author:jane timeout",
       },
       {
