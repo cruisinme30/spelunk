@@ -102,9 +102,16 @@ var jsRules = []rule{
 		jsIdent+`\s*(?:<[^>]*>)?\([^)]*\)\s*(?::[^{]+)?\{\s*$`),
 }
 
-// javaLikeRules serve Java and C#.
+// javaLikeRules serve Java and C#. A method has a return type: words
+// such as Map<String, Integer> separated by whitespace. A constructor has
+// none, so it must look like a definition: a capitalized name, closed
+// parameters and nothing after them but throws, a C# ": base(…)" or "{".
+// (The return type used to be any run of type characters including spaces,
+// so a deeper-indented call such as "    retry(a," read as a method whose
+// return type was the indent, while a tab-indented one didn't.)
 var javaLikeRules = []rule{
 	define(iface, `^\s*`+modifiers+`(?:@)?interface\s+`+ident),
 	define(class, `^\s*`+modifiers+`(?:class|enum|record|struct)\s+`+ident),
-	define(method, `^\s+`+modifiers+`(?:<[^>]*>\s*)?[\w.<>\[\],? ]+\s+`+ident+`\s*\([^;]*$`),
+	define(method, `^\s+`+modifiers+`(?:<[^>]*>\s*)?[\w.<>\[\],?]+(?:\s+[\w.<>\[\],?]+)*\s+`+ident+`\s*\([^;]*$`),
+	define(method, `^\s+`+modifiers+`(?P<name>[A-Z]\w*)\s*\([^;]*\)\s*(?:(?:throws\b|:)[^;]*)?\{?\s*$`),
 }

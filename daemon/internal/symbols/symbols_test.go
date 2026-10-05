@@ -123,3 +123,22 @@ func TestExtractSkipsMinifiedLines(t *testing.T) {
 		t.Errorf("a line over %d bytes = %q, want no symbols", maxLineBytes, got)
 	}
 }
+
+func TestJavaMethodsDependOnTheLineNotItsIndent(t *testing.T) {
+	tests := []struct {
+		name, source string
+		want         []string
+	}{
+		{"space-indented method", "    long nextDelay(int attempt) {\n", []string{"1 method nextDelay"}},
+		{"tab-indented method", "\tlong nextDelay(int attempt) {\n", []string{"1 method nextDelay"}},
+		{"generic return type with a space", "    Map<String, Integer> counts() {\n", []string{"1 method counts"}},
+		{"package-private constructor", "    RetryPolicy(int maxAttempts) {\n", []string{"1 method RetryPolicy"}},
+		{"tab-indented constructor that throws", "\tRetryPolicy(int maxAttempts) throws IOException {\n", []string{"1 method RetryPolicy"}},
+		{"deeply indented call continued on the next line", "        retry(attempt,\n", nil},
+	}
+	for _, tt := range tests {
+		if got := found("java", tt.source); !reflect.DeepEqual(got, tt.want) {
+			t.Errorf("%s: found(java, %q) = %q, want %q", tt.name, tt.source, got, tt.want)
+		}
+	}
+}
