@@ -38,3 +38,37 @@ export function openWebviewPanel(
   );
   return panel;
 }
+
+/** A page's editor tab; at most one is open. Subclasses say what to do with the page's messages. */
+export abstract class SingletonPanel implements vscode.Disposable {
+  protected panel: vscode.WebviewPanel | undefined;
+
+  /** `page` says which page the tab shows. */
+  constructor(
+    private readonly extensionUri: vscode.Uri,
+    private readonly page: WebviewPanelPage,
+  ) {}
+
+  /** Opens the page, or reveals the open one. */
+  show(): void {
+    if (this.panel) {
+      this.panel.reveal();
+      return;
+    }
+    const panel = openWebviewPanel(this.extensionUri, this.page, (message) => {
+      this.onMessage(message);
+    });
+    this.panel = panel;
+    panel.onDidDispose(() => {
+      this.panel = undefined;
+    });
+  }
+
+  /** Closes the tab when the extension deactivates. */
+  dispose(): void {
+    this.panel?.dispose();
+  }
+
+  /** Hears each valid message the page posts. */
+  protected abstract onMessage(message: WebviewMessage): void;
+}

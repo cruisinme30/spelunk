@@ -4,7 +4,7 @@
 import type * as vscode from "vscode";
 import { MESSAGE_VERSION, type WebviewMessage } from "./webviewMessages";
 import type { HostToWebview, IndexStatusResult, WelcomeStateMessage as WelcomeState } from "./protocol.gen";
-import { openWebviewPanel } from "./webviewPanel";
+import { SingletonPanel } from "./webviewPanel";
 
 /** The globalState key set once the welcome page has been shown. */
 export const WELCOMED_KEY = "spelunk.welcomed";
@@ -16,34 +16,19 @@ export interface WelcomeSources {
 }
 
 /** The welcome page's editor tab; at most one is open. */
-export class WelcomePanel implements vscode.Disposable {
-  private panel: vscode.WebviewPanel | undefined;
-
-  /** `onMessage` hears the page's choices and buttons. */
+export class WelcomePanel extends SingletonPanel {
+  /** `handle` hears the page's choices and buttons. */
   constructor(
-    private readonly extensionUri: vscode.Uri,
+    extensionUri: vscode.Uri,
     private readonly sources: WelcomeSources,
-    private readonly onMessage: (message: WebviewMessage) => void,
-  ) {}
+    private readonly handle: (message: WebviewMessage) => void,
+  ) {
+    super(extensionUri, { viewType: "spelunk.welcome", title: "Welcome · Spelunk", script: "welcome.js" });
+  }
 
-  /** Opens the page, or reveals the open one. */
-  show(): void {
-    if (this.panel) {
-      this.panel.reveal();
-      return;
-    }
-    const panel = openWebviewPanel(
-      this.extensionUri,
-      { viewType: "spelunk.welcome", title: "Welcome · Spelunk", script: "welcome.js" },
-      (message) => {
-        if (message.type === "ready") void this.sendState();
-        else this.onMessage(message);
-      },
-    );
-    this.panel = panel;
-    panel.onDidDispose(() => {
-      this.panel = undefined;
-    });
+  protected onMessage(message: WebviewMessage): void {
+    if (message.type === "ready") void this.sendState();
+    else this.handle(message);
   }
 
   /** Sends the settings again, after they changed. */
@@ -54,11 +39,6 @@ export class WelcomePanel implements vscode.Disposable {
   /** Forwards indexing progress while the page is open. */
   indexStatus(status: IndexStatusResult): void {
     this.post("index.status", status);
-  }
-
-  /** Closes the page. */
-  dispose(): void {
-    this.panel?.dispose();
   }
 
   private async sendState(): Promise<void> {
