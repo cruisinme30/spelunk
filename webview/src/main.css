@@ -54,7 +54,9 @@
   --hole-line-3: #d3bcff;
 }
 
-body.vscode-light {
+/* Light themes, high contrast light among them (VS Code gives it vscode-high-contrast-light, not vscode-light). */
+body.vscode-light,
+body.vscode-high-contrast-light {
   --star: #a06b00;
   --tone-match: #6a3fb5;
   --tone-scope: #1f5fa8;
@@ -875,6 +877,24 @@ ins {
   background: var(--sel);
   color: var(--sel-fg);
   box-shadow: inset 2px 0 0 var(--focus);
+}
+
+/*
+ * High contrast themes leave the list's selection and hover backgrounds unset and mark the selected row with an
+ * outline instead, as VS Code's own lists do.
+ */
+body.vscode-high-contrast,
+body.vscode-high-contrast-light {
+  --sel: var(--vscode-list-activeSelectionBackground, transparent);
+  --hover: var(--vscode-list-hoverBackground, transparent);
+}
+
+body.vscode-high-contrast .row.selected,
+body.vscode-high-contrast .completion.selected,
+body.vscode-high-contrast-light .row.selected,
+body.vscode-high-contrast-light .completion.selected {
+  outline: 1px dashed var(--vscode-list-focusOutline, var(--vscode-contrastActiveBorder, var(--focus)));
+  outline-offset: -1px;
 }
 
 .row.stale {

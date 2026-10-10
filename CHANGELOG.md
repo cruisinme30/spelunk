@@ -86,6 +86,9 @@ All notable changes to this project are documented here. The format follows
   every row. The list now lays out only the rows near the view, ↑↓ go straight to the next row, and Replace redraws
   only the lines it changed, the ones out of sight as they come into view. At 50,000 results a batch takes 4 ms
   instead of 65, ↑↓ under a millisecond instead of 12, and a Replace preview 24–53 ms instead of over a second.
+- Under the High Contrast Light theme, operator names, chips and highlights used the dark theme’s pale colors (1.7:1
+  on white); they now use the light theme’s, and under either high contrast theme the selected result and suggestion
+  are outlined, as in VS Code’s own lists.
 
 ## [1.1.0] - 2026-10-05
 

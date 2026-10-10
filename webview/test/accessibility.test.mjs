@@ -111,3 +111,54 @@ test("the repo menu takes the focus, moves with ↑↓, and Esc closes it back t
   await page.keyboard.press("Tab"); // leaving the menu closes it
   assert.equal(await page.isVisible('[data-testid="repo-menu"]'), false);
 });
+
+/** WCAG's relative luminance of a CSS color, as computed styles give it ("rgb(…)"). */
+function luminance(color) {
+  const [red, green, blue] = color
+    .match(/[\d.]+/g)
+    .slice(0, 3)
+    .map((value) => {
+      const channel = Number(value) / 255;
+      return channel <= 0.039_28 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+    });
+  return 0.2126 * red + 0.7152 * green + 0.0722 * blue;
+}
+
+/** WCAG's contrast ratio of two CSS colors. */
+function contrast(foreground, background) {
+  const [lighter, darker] = [luminance(foreground), luminance(background)].sort((a, b) => b - a);
+  return (lighter + 0.05) / (darker + 0.05);
+}
+
+test("under a high contrast light theme the operator colors stay readable and the selected row is outlined", async (t) => {
+  const page = await openPanel(t);
+  // What VS Code gives a webview under High Contrast Light.
+  await page.evaluate(() => {
+    document.body.className = "vscode-high-contrast vscode-high-contrast-light";
+    const colors = {
+      "--vscode-editor-background": "#ffffff",
+      "--vscode-quickInput-background": "#ffffff",
+      "--vscode-editorWidget-background": "#ffffff",
+      "--vscode-foreground": "#292929",
+      "--vscode-contrastActiveBorder": "#006bbd",
+    };
+    for (const [name, value] of Object.entries(colors)) document.documentElement.style.setProperty(name, value);
+  });
+  await restore(page);
+  const tones = await page.$$eval(".sheet .card-title", (titles) =>
+    titles.map((title) => [title.className, getComputedStyle(title).color]),
+  );
+  assert.ok(tones.length > 0);
+  for (const [name, color] of tones) {
+    const ratio = contrast(color, "rgb(255, 255, 255)");
+    assert.ok(ratio >= 4.5, `${name}: ${ratio.toFixed(2)}:1 on white`);
+  }
+
+  const seq = await typeAndParse(page, "retry", parsedQuery("retry", textNode("retry", 0)));
+  await fromHost(page, "search.batch", { seq, searchId: "s1", items: [CODE_LINE_RESULT] });
+  const row = await page.$eval('[data-ref="l1"]', (element) => {
+    const style = getComputedStyle(element);
+    return { outline: style.outlineStyle, background: style.backgroundColor };
+  });
+  assert.deepEqual(row, { outline: "dashed", background: "rgba(0, 0, 0, 0)" });
+});
