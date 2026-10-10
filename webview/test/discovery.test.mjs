@@ -260,7 +260,7 @@ test("the help page lists every operator with an example, and Try runs it", asyn
   // @covers screen:help-page
   const page = await openHelp(t);
   assert.equal(await page.locator('[data-testid="operator-row"]').count(), 24);
-  assert.equal(await page.locator('[data-testid="example"]').count(), 5);
+  assert.equal(await page.locator('[data-testid="example"]').count(), 6);
   // Each operator reads by its full name, with its short name beside it.
   assert.deepEqual(await page.locator('[data-testid="short-name"]').allTextContents(), [
     "c:",

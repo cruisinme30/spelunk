@@ -35,6 +35,7 @@ export const EXAMPLES: Example[] = [
   { title: "Python files with “retry” in the name", query: "type:file lang:python retry" },
   { title: "Flaky-test fixes in the checkout repo", query: 'msg:"fix flaky" repo:web' },
   { title: "Timeouts outside vendored code, either spelling", query: "(timeout OR time_out) -f:vendor/" },
+  { title: "Retry loops whose next line is a try:", query: String.raw`/for attempt in .*:\n\s*try:/` },
 ];
 
 /** The keyboard and mouse table. */

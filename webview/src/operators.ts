@@ -64,8 +64,8 @@ export const OPERATOR_GROUPS: OperatorGroup[] = [
       {
         label: "/regex/",
         insert: "//",
-        summary: "Text term as a regular expression.",
-        description: "Treat the text as a regular expression.",
+        summary: String.raw`Text term as a regular expression; one with \n spans lines.`,
+        description: String.raw`Treat the text as a regular expression. One with \n in it matches across lines of current files, so /except\n\s*raise/ finds an except followed by a raise on the next line.`,
         example: "/Retry(Policy|Config)/",
       },
     ],
