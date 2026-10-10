@@ -1,0 +1,5 @@
+# Who reviews changes to payments-api
+*               @acme/platform
+/src/payments/  @acme/payments-core
+/tests/         @acme/payments-core @jane
+/scripts/

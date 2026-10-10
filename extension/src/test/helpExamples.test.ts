@@ -34,7 +34,7 @@ test("every help example parses without diagnostics and finds results", { skip }
   try {
     await untilIndexed(daemon);
     const examples = allExamples();
-    assert.equal(examples.length, 28, "23 operator rows and 5 worked examples");
+    assert.equal(examples.length, 29, "24 operator rows and 5 worked examples");
     const withoutResults: string[] = [];
     for (const [index, text] of examples.entries()) {
       const { query } = await daemon.request("query/parse", { text, cursor: text.length });
