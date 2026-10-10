@@ -6,6 +6,7 @@ import (
 	"math"
 	"path/filepath"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/cruisinme30/spelunk/daemon/internal/engine"
@@ -36,6 +37,7 @@ type Doc struct {
 
 // Shard is the immutable index of one repo's current files.
 type Shard struct {
+	// Docs are the files, in ascending path order (see PathsUnder).
 	Docs    []Doc
 	BuiltAt time.Time
 	// postings maps a trigram to the ascending ids (indexes into Docs) of
@@ -87,7 +89,7 @@ type BuildOptions struct {
 	MaxFileBytes int64
 }
 
-// Build reads files from root and indexes them. A file that changed since
+// Build reads files from root, which are in path order, and indexes them. A file that changed since
 // it was listed is read as it is now; one that is gone, or is now a
 // symlink, a FIFO or another special file, binary or too big, is left out.
 func Build(ctx context.Context, root string, files []File, opts BuildOptions) (*Shard, error) {
@@ -199,6 +201,18 @@ func candidates(postings map[uint32][]uint32, literal string, caseSensitive bool
 	return result
 }
 
+// PathsUnder returns the paths of the docs inside folder, a
+// slash-separated path relative to the repo root, in path order. They are
+// next to each other in Docs, so it takes a binary search and a doc each.
+func (s *Shard) PathsUnder(folder string) []string {
+	prefix := folder + "/"
+	var paths []string
+	for i := sort.Search(len(s.Docs), func(i int) bool { return s.Docs[i].Path >= prefix }); i < len(s.Docs) && strings.HasPrefix(s.Docs[i].Path, prefix); i++ {
+		paths = append(paths, s.Docs[i].Path)
+	}
+	return paths
+}
+
 // savedShard is the on-disk form of a Shard.
 type savedShard struct {
 	Version  int
@@ -235,12 +249,15 @@ func Load(path string) (*Shard, error) {
 }
 
 // check reports what makes a decoded shard unsafe to search: a doc path
-// outside the repo, or a posting list that names a doc that doesn't exist
+// outside the repo or out of path order, or a posting list that names a doc that doesn't exist
 // or isn't in ascending order. A damaged file can decode without error.
 func (s *savedShard) check() error {
 	for i := range s.Docs {
 		if !filepath.IsLocal(filepath.FromSlash(s.Docs[i].Path)) {
 			return fmt.Errorf("doc %d has path %q", i, s.Docs[i].Path)
+		}
+		if i > 0 && s.Docs[i-1].Path >= s.Docs[i].Path {
+			return fmt.Errorf("doc %d (%q) is out of path order", i, s.Docs[i].Path)
 		}
 	}
 	for key, list := range s.Postings {

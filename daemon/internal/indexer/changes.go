@@ -126,9 +126,9 @@ func (ix *Indexer) reread(id string, paths []string) {
 		ix.mu.Unlock()
 		return
 	}
-	root, settings, inGit, nested := r.root, ix.settings, r.history != nil, ix.nestedRoots(r.root.Path)
-	masked := withFilesUnder(paths, r.shard)
+	root, settings, inGit, nested, shard := r.root, ix.settings, r.history != nil, ix.nestedRoots(r.root.Path), r.shard
 	ix.mu.Unlock()
+	masked := withFilesUnder(paths, shard) // the shard is immutable: no lock needed
 
 	ctx := ix.life
 	walk := walkOptions(settings, nested)
@@ -185,19 +185,16 @@ func changesOwners(paths, locations []string) bool {
 }
 
 // withFilesUnder adds to paths the shard's files under any of them, for a
-// folder that was deleted or renamed.
+// folder that was deleted or renamed, each path once. Each path costs a
+// binary search of the shard and its own files: a checkout's thousands of
+// changed paths in a large repo don't each scan every file.
 func withFilesUnder(paths []string, shard *trigram.Shard) []string {
 	all := slices.Clone(paths)
-	if shard == nil {
-		return all
-	}
-	for _, path := range paths {
-		prefix := path + "/"
-		for i := range shard.Docs {
-			if strings.HasPrefix(shard.Docs[i].Path, prefix) {
-				all = append(all, shard.Docs[i].Path)
-			}
+	if shard != nil {
+		for _, path := range paths {
+			all = append(all, shard.PathsUnder(path)...)
 		}
 	}
-	return all
+	slices.Sort(all)
+	return slices.Compact(all)
 }
