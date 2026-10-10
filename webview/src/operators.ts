@@ -74,7 +74,7 @@ export const OPERATOR_GROUPS: OperatorGroup[] = [
         insert: 'struct:""',
         summary: "Code shaped like a template; each :[hole] takes any code.",
         description:
-          "Find code by its shape. The template is code with holes: backoff(:[call], tries=:[n]) finds every call of backoff with a tries= argument last, however it is laid out over lines, and a hole takes whole arguments, brackets and all. Spaces don't matter except between words, and code in comments and strings, read by each file's language, never matches. A name used twice must take the same code, so if :[x] == :[x] finds a value compared with itself; :[_] takes anything. Current files only, and replace can't change it.",
+          "Find code by its shape. The template is code with holes: backoff(:[call], tries=:[n]) finds every call of backoff with a tries= argument last, however it is laid out over lines, and a hole takes whole arguments, brackets and all. Spaces don't matter except between words, and code in comments and strings, read by each file's language, never matches. A name used twice must take the same code, so if :[x] == :[x] { finds a value compared with itself; :[_] takes anything. Current files only, and replace can't change it.",
         example: 'struct:"backoff(:[call], tries=:[n])"',
       },
     ],
