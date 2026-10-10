@@ -178,10 +178,12 @@ func Search(ctx context.Context, plan *query.Plan, repos []Repo, planID int, emi
 		s.sendHeld()
 	}
 	if plan.CaseFilter != nil {
-		s.hiddenByCase = engine.CountIgnoringCase(ctx, plan, repos, Search) - s.counted
+		count, complete := engine.CountIgnoringCase(ctx, plan, repos, Search)
+		s.hiddenByCase = engine.HiddenBy(count, complete, s.counted, s.truncated || s.incomplete)
 	}
 	if plan.WordFilter != nil {
-		s.hiddenByWord = engine.CountPartialWords(ctx, plan, repos, Search) - s.counted
+		count, complete := engine.CountPartialWords(ctx, plan, repos, Search)
+		s.hiddenByWord = engine.HiddenBy(count, complete, s.counted, s.truncated || s.incomplete)
 	}
 	if errors.Is(ctx.Err(), context.Canceled) {
 		return engine.Stats{}, context.Cause(ctx)

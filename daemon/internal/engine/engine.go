@@ -59,34 +59,50 @@ func (s *Stats) AddHidden(plan *query.Plan, hidden Hidden, unit, typeUnit string
 // SearchFunc is an engine's Search.
 type SearchFunc[R any] func(ctx context.Context, plan *query.Plan, repos []R, planID int, emit func(protocol.ResultItem)) (Stats, error)
 
+// The Count functions count the results search finds for a plan relaxed
+// in one way, so an engine can say how many results that one filter hid:
+// the count, less the results the plan itself found. complete is false
+// when the count stopped short, out of time (the search's own budget,
+// whatever of it is left) or at query.MaxResults, or failed: the
+// difference would then be a guess, so no note is shown.
+
 // CountIgnoringCase counts the results search finds for plan without its
-// case:yes, or 0 if that search fails.
-func CountIgnoringCase[R any](ctx context.Context, plan *query.Plan, repos []R, search SearchFunc[R]) int {
+// case:yes (see the Count functions).
+func CountIgnoringCase[R any](ctx context.Context, plan *query.Plan, repos []R, search SearchFunc[R]) (count int, complete bool) {
 	return countAll(ctx, plan.IgnoringCase(), repos, search)
 }
 
 // CountPartialWords counts the results search finds for plan without its
-// word:yes, or 0 if that search fails.
-func CountPartialWords[R any](ctx context.Context, plan *query.Plan, repos []R, search SearchFunc[R]) int {
+// word:yes (see the Count functions).
+func CountPartialWords[R any](ctx context.Context, plan *query.Plan, repos []R, search SearchFunc[R]) (count int, complete bool) {
 	return countAll(ctx, plan.MatchingPartialWords(), repos, search)
 }
 
 // CountOnEitherSide counts the commits search finds for plan with its text
 // terms on both sides of diffs and in messages, as without type:added or
-// type:removed, or 0 if that search fails.
-func CountOnEitherSide[R any](ctx context.Context, plan *query.Plan, repos []R, search SearchFunc[R]) int {
+// type:removed (see the Count functions).
+func CountOnEitherSide[R any](ctx context.Context, plan *query.Plan, repos []R, search SearchFunc[R]) (count int, complete bool) {
 	return countAll(ctx, plan.OnEitherSide(), repos, search)
 }
 
-// countAll counts every result search finds for a relaxed copy of a plan,
-// or 0 if that search fails.
-func countAll[R any](ctx context.Context, relaxed *query.Plan, repos []R, search SearchFunc[R]) int {
+// countAll counts every result search finds for a relaxed copy of a plan.
+func countAll[R any](ctx context.Context, relaxed *query.Plan, repos []R, search SearchFunc[R]) (count int, complete bool) {
 	relaxed.Offset, relaxed.Limit = 0, 0 // count only
 	stats, err := search(ctx, relaxed, repos, 0, func(protocol.ResultItem) {})
-	if err != nil {
+	if err != nil || stats.Truncated {
+		return 0, false
+	}
+	return stats.Total, true
+}
+
+// HiddenBy is how many results a filter hid: count, from one of the Count
+// functions, less counted, what the search found. It is 0 when either
+// count is incomplete: the search's own (truncated), or the relaxed one.
+func HiddenBy(count int, complete bool, counted int, truncated bool) int {
+	if !complete || truncated {
 		return 0
 	}
-	return stats.Total
+	return max(count-counted, 0)
 }
 
 // AllIDs returns the ids 0 to n-1: every doc or commit, when narrowing

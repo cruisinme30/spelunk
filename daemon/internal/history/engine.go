@@ -43,13 +43,16 @@ func Search(ctx context.Context, plan *query.Plan, repos []Repo, planID int, emi
 	}
 	s.searchNewestFirst(repos)
 	if plan.CaseFilter != nil {
-		s.hiddenByCase = engine.CountIgnoringCase(ctx, plan, repos, Search) - s.counted
+		count, complete := engine.CountIgnoringCase(ctx, plan, repos, Search)
+		s.hiddenByCase = engine.HiddenBy(count, complete, s.counted, s.truncated)
 	}
 	if plan.WordFilter != nil {
-		s.hiddenByWord = engine.CountPartialWords(ctx, plan, repos, Search) - s.counted
+		count, complete := engine.CountPartialWords(ctx, plan, repos, Search)
+		s.hiddenByWord = engine.HiddenBy(count, complete, s.counted, s.truncated)
 	}
 	if plan.DiffSide != "" && plan.TypeFilter != nil {
-		s.hiddenBySide = engine.CountOnEitherSide(ctx, plan, repos, Search) - s.counted
+		count, complete := engine.CountOnEitherSide(ctx, plan, repos, Search)
+		s.hiddenBySide = engine.HiddenBy(count, complete, s.counted, s.truncated)
 	}
 	if errors.Is(ctx.Err(), context.Canceled) {
 		return engine.Stats{}, context.Cause(ctx)
