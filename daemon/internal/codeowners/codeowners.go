@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"errors"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -57,27 +58,64 @@ type Rule struct {
 // locations (slash-separated, relative to root; nil for DefaultLocations)
 // that holds a file. It returns nil when there is none, or when that file
 // can't be read or is too big for GitHub. A location outside root is
-// skipped.
+// skipped, and so is one reached through a symlink, which could point
+// anywhere (/dev/zero, say), or that isn't a regular file.
 func Load(root string, locations []string) *File {
 	for _, location := range LocationsOr(locations) {
 		if !filepath.IsLocal(filepath.FromSlash(location)) {
 			continue
 		}
-		full := filepath.Join(root, filepath.FromSlash(location))
-		info, err := os.Stat(full)
+		info, err := lstatEach(root, location)
 		switch {
-		case errors.Is(err, fs.ErrNotExist), err == nil && info.IsDir():
+		case errors.Is(err, fs.ErrNotExist), err == nil && !info.Mode().IsRegular():
 			continue
 		case err != nil || info.Size() > maxFileBytes:
 			return nil
 		}
-		content, err := os.ReadFile(full) //nolint:gosec // G304: a local path inside a workspace folder the user opened
+		content, err := readAtMost(filepath.Join(root, filepath.FromSlash(location)), maxFileBytes)
 		if err != nil {
 			return nil
 		}
 		return Parse(location, content)
 	}
 	return nil
+}
+
+// lstatEach stats each element of the slash-separated location under
+// root without following links, and returns the last one's info. A
+// symlink anywhere on the way counts as no file there.
+func lstatEach(root, location string) (fs.FileInfo, error) {
+	var info fs.FileInfo
+	path := root
+	for _, element := range strings.Split(location, "/") {
+		path = filepath.Join(path, element)
+		var err error
+		if info, err = os.Lstat(path); err != nil {
+			return nil, err
+		}
+		if info.Mode()&fs.ModeSymlink != 0 {
+			return nil, fs.ErrNotExist
+		}
+	}
+	return info, nil
+}
+
+// readAtMost reads the regular file at path, failing if it is not one
+// (it may have changed since it was checked) or holds more than limit bytes.
+func readAtMost(path string, limit int64) ([]byte, error) {
+	f, err := os.Open(path) //nolint:gosec // G304: a local path inside a workspace folder the user opened
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close() //nolint:errcheck // read-only
+	if info, err := f.Stat(); err != nil || !info.Mode().IsRegular() {
+		return nil, errors.New("not a regular file")
+	}
+	content, err := io.ReadAll(io.LimitReader(f, limit+1))
+	if err == nil && int64(len(content)) > limit {
+		err = errors.New("too big")
+	}
+	return content, err
 }
 
 // Parse reads a CODEOWNERS file's content; path is where it is (see File.Path).

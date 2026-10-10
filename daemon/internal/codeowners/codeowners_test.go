@@ -230,6 +230,22 @@ func TestLoadUsesTheFirstLocationGitHubFinds(t *testing.T) {
 			t.Errorf("Load = %+v, want CODEOWNERS", file)
 		}
 	})
+	t.Run("a_link_is_skipped", func(t *testing.T) {
+		// A link could point anywhere: /dev/zero, or a folder outside the repo.
+		outside := t.TempDir()
+		write(t, outside, "CODEOWNERS", "* @outside\n")
+		root := t.TempDir()
+		write(t, root, "CODEOWNERS", "* @root\n")
+		if err := os.Symlink(filepath.Join(outside, "CODEOWNERS"), filepath.Join(root, "docs")); err != nil {
+			t.Skip("can't make links here:", err)
+		}
+		if err := os.Symlink(outside, filepath.Join(root, ".github")); err != nil {
+			t.Fatal(err)
+		}
+		if file := Load(root, []string{".github/CODEOWNERS", "docs", "CODEOWNERS"}); file == nil || file.Path != "CODEOWNERS" {
+			t.Errorf("Load = %+v, want CODEOWNERS, past the links", file)
+		}
+	})
 	t.Run("too_big", func(t *testing.T) {
 		root := t.TempDir()
 		write(t, root, "CODEOWNERS", "* @a\n"+strings.Repeat("#", maxFileBytes))
