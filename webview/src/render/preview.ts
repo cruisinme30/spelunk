@@ -83,7 +83,7 @@ function renderFilePreview(
         element("span", { class: "muted" }, repo ? `${repo} / ` : ""),
         preview.path,
       ),
-      element("span", { class: "muted" }, `line ${preview.focusLine}`),
+      element("span", { class: "muted" }, focusLabel(preview)),
       actions,
     ),
   );
@@ -94,7 +94,9 @@ function renderFilePreview(
   for (const [index, text] of preview.lines.entries()) {
     const lineNumber = preview.firstLine + index;
     const classes = ["code-line"];
-    if (lineNumber === preview.focusLine) classes.push("focus");
+    if (lineNumber >= preview.focusLine && lineNumber <= (preview.focusEndLine ?? preview.focusLine)) {
+      classes.push("focus");
+    }
     if (dirtyLines.has(lineNumber)) classes.push("dirty");
     code.append(
       element(
@@ -116,6 +118,13 @@ function renderFilePreview(
     const names = preview.symbols.slice(0, MAX_OUTLINE_SYMBOLS).map((symbol) => element("code", {}, symbol.name));
     container.append(element("div", { class: "outline muted" }, "In this file: ", ...names));
   }
+}
+
+/** "line 14", or "lines 29–30" for a match that spans lines. */
+function focusLabel({ focusLine, focusEndLine }: FilePreview): string {
+  return focusEndLine !== undefined && focusEndLine > focusLine
+    ? `lines ${focusLine}–${focusEndLine}`
+    : `line ${focusLine}`;
 }
 
 /** "Owned by @acme/payments-core @jane · .github/CODEOWNERS line 4", under a file preview's header. */

@@ -181,22 +181,82 @@ export function plural(count: number, one: string, many = one + "s"): string {
 }
 
 /**
+ * A code result's lines: its first, and when its match spans lines, the
+ * lines it runs onto (`spanLines`) and the line it ends on (`endLine`).
+ */
+export interface CodeLines {
+  line: number;
+  text: string;
+  hits: Hit[];
+  spanLines?: { text: string; hits: Hit[] }[];
+  endLine?: number;
+}
+
+/**
  * A code line as results show it: its number, then its text without the
  * indent, with `hits` marked, or shown replaced with `replacements` (see
- * highlight).
+ * highlight). A match that spans lines shows each of its lines this way in
+ * one row (see spanRow).
  */
 export function codeLineRow(
-  line: { line: number; text: string; hits: Hit[] },
+  line: CodeLines,
   attributes: Record<string, AttributeValue> = {},
   replacements?: readonly string[],
   indent?: number,
 ): HTMLDivElement {
+  if (line.spanLines && line.spanLines.length > 0) return spanRow(line, line.spanLines, attributes, indent);
   return element(
     "div",
     { ...attributes, class: "row line" },
     element("span", { class: "line-number" }, String(line.line)),
     element("code", { class: "text" }, codeLineText(line, replacements, indent)),
   );
+}
+
+/**
+ * One row for a match that spans lines: each of its lines under its number,
+ * all without the indentation they share (or at most `indent`), so they keep
+ * their places relative to each other, and "⋯ 14 more lines, to line 25"
+ * when the match runs past the lines the result carries. Replace never
+ * changes such a match, so it is always shown marked.
+ */
+function spanRow(
+  line: CodeLines,
+  spanLines: NonNullable<CodeLines["spanLines"]>,
+  attributes: Record<string, AttributeValue>,
+  indent?: number,
+): HTMLDivElement {
+  const lines = [{ text: line.text, hits: line.hits }, ...spanLines];
+  const shared = Math.min(...lines.filter((shown) => shown.text.trim() !== "").map((shown) => indentOf(shown.text)));
+  const drop = indent ?? shared;
+  const row = element("div", { ...attributes, class: "row line span" });
+  for (const [index, shown] of lines.entries()) {
+    row.append(
+      element(
+        "div",
+        { class: "span-line" },
+        element("span", { class: "line-number" }, String(line.line + index)),
+        element("code", { class: "text" }, codeLineText(shown, undefined, drop)),
+      ),
+    );
+  }
+  const lastShown = line.line + lines.length - 1;
+  if (line.endLine !== undefined && line.endLine > lastShown) {
+    row.append(
+      element(
+        "div",
+        { class: "span-line span-more", "data-testid": "span-more" },
+        element("span", { class: "line-number" }, "⋯"),
+        element("span", { class: "text" }, `${plural(line.endLine - lastShown, "more line")}, to line ${line.endLine}`),
+      ),
+    );
+  }
+  return row;
+}
+
+/** The last line of a code result: where its match ends when it spans lines. */
+export function lastLineOf(line: CodeLines): number {
+  return line.spanLines && line.spanLines.length > 0 ? (line.endLine ?? line.line + line.spanLines.length) : line.line;
 }
 
 /**

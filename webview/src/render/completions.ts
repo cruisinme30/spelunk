@@ -187,7 +187,8 @@ function renderGlimpse(searchText: string, glimpse: ResultsGlimpse): HTMLElement
     ),
     ...glimpse.lines.slice(0, GLIMPSE_LINES).map((item) => {
       if (item.kind !== "line") return null;
-      return codeLineRow(item);
+      // The glimpse is a few lines tall: a match that spans lines shows its first.
+      return codeLineRow({ line: item.line, text: item.text, hits: item.hits });
     }),
   );
 }

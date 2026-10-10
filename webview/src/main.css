@@ -885,6 +885,41 @@ ins {
   font-size: 12.5px;
 }
 
+/*
+ * A match that spans lines: one row holding each of its lines, with a bar
+ * beside them that reads as one bracket around the match.
+ */
+.row.line.span {
+  position: relative;
+  flex-flow: column nowrap;
+  align-items: stretch;
+  gap: 0;
+  padding-block: 4px;
+}
+
+.row.line.span::before {
+  content: "";
+  position: absolute;
+  top: 7px;
+  bottom: 7px;
+  left: 14px;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--term-color-0);
+}
+
+.span-line {
+  display: flex;
+  align-items: center;
+  gap: 4px 10px;
+  min-height: 20px;
+}
+
+.span-more .text {
+  color: var(--muted);
+  font-size: 12px;
+}
+
 /* The Context buttons in the Code title: how many lines show around each match. */
 .section-title .title-end {
   display: inline-flex;

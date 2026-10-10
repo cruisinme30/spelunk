@@ -78,19 +78,21 @@ test("markup in results, previews, notes and banners shows as text and never run
   const items = [
     { ...FILE_NAME_RESULT, path: MARKUP, nameHits: [{ start: 1, end: 4 }], lastCommit: { author: MARKUP, at: MARKUP } },
     codeLine("l1", MARKUP, [{ start: 0, end: 5, termIndex: 0 }], { path: MARKUP }),
+    codeLine("l2", MARKUP, [], { line: 3, spanLines: [{ text: MARKUP, hits: [{ start: 2, end: 6 }] }], endLine: 40 }),
     { kind: "symbol", ref: "s1", repoId: "r1", path: MARKUP, line: 1, name: MARKUP, symbolKind: "class", hits: [] },
     commit,
   ];
   await fromHost(page, "search.batch", { seq, searchId: "s1", items });
   const undo = { title: MARKUP, edits: [] };
   const hidden = [{ reason: "pathFilter", filter: MARKUP, count: 2, unit: "files", undo }];
-  await searchDone(page, seq, { total: 4, hidden });
+  await searchDone(page, seq, { total: 5, hidden });
   const lines = [MARKUP, MARKUP];
   const filePreview = { kind: "file", path: MARKUP, firstLine: 1, lines, focusLine: 1, hits: [], dirtyLines: [] };
   await fromHost(page, "preview.result", { ref: "f1", preview: { ...filePreview, symbols: [{ name: MARKUP }] } });
 
   assert.equal(await markupTookEffect(page), false);
   assert.equal(await page.locator('[data-ref="l1"] code.text').textContent(), MARKUP);
+  assert.deepEqual(await page.locator('[data-ref="l2"] code.text').allTextContents(), [MARKUP, MARKUP]);
   assert.equal(await page.locator('[data-ref="c1"] .subject').textContent(), MARKUP);
   assert.match(await page.locator('[data-testid="preview"]').textContent(), /<img src=x onerror=/);
   assert.match(await page.locator('[data-testid="banner"]').textContent(), /<\/script>&amp;/);

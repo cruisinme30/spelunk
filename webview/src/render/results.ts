@@ -9,6 +9,7 @@ import {
   fileStat,
   highlight,
   indentOf,
+  lastLineOf,
   plural,
   shortSha,
   termClass,
@@ -108,7 +109,7 @@ interface OpenCodeFile {
  * or overlap, so no line is shown twice.
  */
 interface CodeBlock {
-  /** The line of its last match. */
+  /** The last line of its last match. */
   matchLine: number;
   /** The context lines shown after that match, which the next match may take over. */
   trailing: { line: number; row: HTMLElement }[];
@@ -217,7 +218,8 @@ export class ResultsView {
   /** Redraws the code lines' text: replaced as the Replace row's preview shows, or marked again. */
   showReplacements(): void {
     for (const item of this.items) {
-      if (item.kind !== "line") continue;
+      // A match that spans lines is never replaced, so it stays marked.
+      if (item.kind !== "line" || (item.spanLines?.length ?? 0) > 0) continue;
       const text = this.list.querySelector(`#${rowId(item.ref)} .text`);
       text?.replaceChildren(codeLineText(item, this.handlers.replacementsFor(item), this.indentByRef.get(item.ref)));
     }
@@ -430,11 +432,13 @@ export class ResultsView {
    * Appends a code result with the dimmed lines around it. When the file's
    * last run of lines reaches this match's context, the two join: lines
    * already shown aren't repeated, and context the last match showed past
-   * this one makes way for it. Otherwise "⋯" marks the lines skipped.
+   * this one makes way for it. Otherwise "⋯" marks the lines skipped. A
+   * match that spans lines has its context after its last line.
    */
   private appendWithContext(group: HTMLElement, item: ItemOf<"line">, file: OpenCodeFile): void {
     const before = item.contextBefore ?? [];
     const after = item.contextAfter ?? [];
+    const lastLine = lastLineOf(item);
     const firstLine = item.line - before.length;
     let block = file.block && item.line > file.block.matchLine ? file.block : undefined;
     let lastShown = 0;
@@ -447,8 +451,7 @@ export class ResultsView {
     if (file.block && !block) group.append(contextGap());
     if (!block) {
       lastShown = 0;
-      const lines = [...before, item.text, ...after].filter((text) => text.trim() !== "");
-      block = { matchLine: item.line, trailing: [], indent: Math.min(...lines.map((text) => indentOf(text))) };
+      block = { matchLine: item.line, trailing: [], indent: sharedIndent(item, before, after) };
     }
     const { indent } = block;
     for (const [index, text] of before.entries()) {
@@ -457,11 +460,11 @@ export class ResultsView {
     }
     this.indentByRef.set(item.ref, indent);
     group.append(codeLineRow(item, this.rowAttributes(item), this.handlers.replacementsFor(item), indent));
-    block.matchLine = item.line;
+    block.matchLine = lastLine;
     block.trailing = after.map((text, index) => {
-      const row = contextRow(item.line + 1 + index, text, indent);
+      const row = contextRow(lastLine + 1 + index, text, indent);
       group.append(row);
-      return { line: item.line + 1 + index, row };
+      return { line: lastLine + 1 + index, row };
     });
     file.block = block;
   }
@@ -571,6 +574,13 @@ function ownerBadge(owners: string[] | undefined): HTMLElement | null {
     { class: "badge owner", title: `Owned by ${owners?.join(", ")}`, "data-testid": "owner" },
     label,
   );
+}
+
+/** The indentation a code result's lines and the context around them share; blank lines don't count. */
+function sharedIndent(item: ItemOf<"line">, before: string[], after: string[]): number {
+  const spanned = (item.spanLines ?? []).map((line) => line.text);
+  const lines = [...before, item.text, ...spanned, ...after].filter((text) => text.trim() !== "");
+  return Math.min(...lines.map((text) => indentOf(text)));
 }
 
 /**
