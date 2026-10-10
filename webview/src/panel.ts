@@ -587,6 +587,7 @@ export class SearchPanel {
     // Named once its results show: a query whose results never came isn't the one on screen.
     if (!errors && state.parsed?.root) state.lastGoodText = state.parsed.raw;
     this.results = new ResultsView(this.layout.body, state, handlers, errors ? [] : pathScope(state.parsed));
+    this.selection.watchPane(this.results.preview);
     this.results.showLastGood(errors ? state.lastGoodText : undefined);
     this.replace.refresh(); // a new search: preview replacing its matches
     return this.results;

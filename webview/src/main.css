@@ -785,10 +785,10 @@ ins {
   display: flex;
 }
 
+/* The results and the preview side by side, the preview a little wider; at 640px or less the preview hides (below). */
 .split {
   flex: 1;
   display: flex;
-  flex-wrap: wrap;
   gap: 1px;
   background: var(--line);
   min-height: 0;
@@ -798,7 +798,7 @@ ins {
 }
 
 #results {
-  flex: 1 1 360px;
+  flex: 1 1 0;
   min-width: 0;
   background: var(--panel);
   overflow: auto;
@@ -807,7 +807,7 @@ ins {
 }
 
 #preview {
-  flex: 1.3 1 420px;
+  flex: 1.3 1 0;
   min-width: 0;
   background: var(--panel-2);
   overflow: auto;

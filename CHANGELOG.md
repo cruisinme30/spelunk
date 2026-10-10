@@ -75,6 +75,9 @@ All notable changes to this project are documented here. The format follows
   open; the row now previews again once the replace finishes.
 - After a click on a result, ↑ ↓, ↵ and Esc did nothing until you clicked back into the box; the box now keeps the
   keys.
+- Between 641 and about 795 px wide, the preview wrapped below the results and was cut off out of sight; it now sits
+  beside them at every width above 640 px. At 640 px or less, where it hides, the panel no longer asks for previews
+  nobody sees.
 
 ## [1.1.0] - 2026-10-05
 

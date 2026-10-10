@@ -1,5 +1,6 @@
 // Which result is selected: ↑↓ and clicks move it, the selected row is
-// highlighted and scrolled into view, and the host is asked for its preview.
+// highlighted and scrolled into view, and the host is asked for its preview
+// while the preview pane shows.
 import { clamp, scrollIntoContainer } from "./format";
 import { send } from "./host";
 import type { ResultsView } from "./render/results";
@@ -19,12 +20,20 @@ interface SelectionHooks {
 /** The selected result of the panel's results: one per panel. */
 export class ResultSelection {
   private previewTimer: ReturnType<typeof setTimeout> | undefined;
+  /** The result whose preview was last asked for, so a pane that shows again asks only once. */
+  private previewed: string | undefined;
+  /** Notices the preview pane showing again (a narrow panel hides it), to ask for the preview it missed. */
+  private readonly paneWatcher: ResizeObserver;
 
   /** Keeps the selection in `state.selectedRef`. */
   constructor(
     private readonly state: ViewState,
     private readonly hooks: SelectionHooks,
-  ) {}
+  ) {
+    this.paneWatcher = new ResizeObserver(() => {
+      this.requestPreview();
+    });
+  }
 
   /** Highlights a row and asks the host for its preview. */
   select(ref: string): void {
@@ -44,8 +53,28 @@ export class ResultSelection {
     this.hooks.onSelected();
     clearTimeout(this.previewTimer);
     this.previewTimer = setTimeout(() => {
-      send("result.select", { ref });
+      this.requestPreview();
     }, PREVIEW_DEBOUNCE_MS);
+  }
+
+  /** Watches the preview pane of a new search's results, which have no preview asked for yet. */
+  watchPane(pane: HTMLElement): void {
+    this.paneWatcher.disconnect();
+    this.previewed = undefined;
+    this.paneWatcher.observe(pane);
+  }
+
+  /**
+   * Asks the host for the selected result's preview, unless the pane is
+   * hidden (a panel 640px wide or less has no room for it): reading files
+   * nobody sees would only slow the host. It asks once the pane shows.
+   */
+  private requestPreview(): void {
+    const ref = this.state.selectedRef;
+    const pane = this.hooks.results()?.preview;
+    if (!ref || ref === this.previewed || !pane || pane.getClientRects().length === 0) return;
+    this.previewed = ref;
+    send("result.select", { ref });
   }
 
   /** Results don't wrap: ↓ on the last row stays there. */

@@ -13,6 +13,7 @@ import {
   parsedQuery,
   QUERY,
   restore,
+  sentMessages,
   textNode,
   typeAndParse,
   useBrowser,
@@ -41,7 +42,8 @@ test("in a short panel the query box stays in sight and the results keep some ro
   const items = Array.from({ length: 30 }, (_, index) => ({ ...CODE_LINE_RESULT, ref: `l${index}`, line: index + 1 }));
   await fromHost(page, "search.batch", { seq, searchId: "s1", items });
   for (let step = 0; step < 20; step++) await page.keyboard.press("ArrowDown");
-  await waitForSent(page, "result.select", { ref: "l20" });
+  // 360px leaves no room for the preview, so the selection shows on the row alone.
+  assert.equal(await page.getAttribute('[data-ref="l20"]', "aria-selected"), "true");
   const box = await page.locator(QUERY).boundingBox();
   assert.ok(box && box.y >= 0 && box.y + box.height <= 260, `query box at ${JSON.stringify(box)}`);
   assert.ok((await page.locator("#body").boundingBox()).height >= 120);
@@ -87,6 +89,31 @@ test("a result line, path or name wider than the panel never pushes the preview 
     );
     assert.ok(preview.right - preview.left > 300, `${item.kind}: preview ${preview.right - preview.left}px wide`);
   }
+});
+
+test("the preview sits beside the results down to 641px, and below that hides and isn't asked for", async (t) => {
+  const page = await openPanel(t);
+  await page.setViewportSize({ width: 600, height: 600 });
+  await restore(page);
+  const seq = await typeAndParse(page, "retry", parsedQuery("retry", textNode("retry", 0)));
+  const items = Array.from({ length: 40 }, (_, index) => ({ ...CODE_LINE_RESULT, ref: `l${index}`, line: index + 1 }));
+  await fromHost(page, "search.batch", { seq, searchId: "s1", items });
+  await page.keyboard.press("ArrowDown");
+  await page.waitForTimeout(100); // past the preview's debounce
+  assert.deepEqual(await sentMessages(page, "result.select"), [], "no preview asked for while it can't show");
+
+  // Wide enough again: the selected result's preview is asked for once, and shows beside the results.
+  for (const width of [641, 720, 1200]) {
+    await page.setViewportSize({ width, height: 600 });
+    await waitForSent(page, "result.select", { ref: "l1" });
+    const body = await page.locator("#body").boundingBox();
+    const results = await page.locator("#results").boundingBox();
+    const preview = await page.locator("#preview").boundingBox();
+    assert.ok(preview.x >= results.x + results.width, `${width}px: preview beside the results`);
+    assert.ok(preview.y + preview.height <= body.y + body.height + 1, `${width}px: preview inside the panel`);
+    assert.ok(preview.width > results.width, `${width}px: preview the wider of the two`);
+  }
+  assert.equal((await sentMessages(page, "result.select")).length, 1);
 });
 
 /** How far the page is wider than its window, in pixels (0 when it fits). */
