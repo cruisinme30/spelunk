@@ -89,6 +89,10 @@ export class ReplaceBox {
   private seq = 0;
   /** The query the preview is for. */
   private text = "";
+  /** The replacement the preview is for, which Replace all applies. */
+  private replacement = "";
+  /** A refresh asked for while Replace all ran, which would have dropped its answer; it runs after. */
+  private refreshAfterApply = false;
   private plan: ReplacePlan | undefined;
   /** Each previewed line's replacements, in text order, by lineKey. */
   private readonly byLine = new Map<string, string[]>();
@@ -161,6 +165,10 @@ export class ReplaceBox {
   refresh(): void {
     if (!this.isOpen) return;
     clearTimeout(this.timer);
+    if (this.applying) {
+      this.refreshAfterApply = true;
+      return;
+    }
     this.seq++;
     this.applying = false;
     this.clearPlan();
@@ -170,8 +178,9 @@ export class ReplaceBox {
       this.show("Type a search to replace its matches.");
     } else {
       this.text = text;
+      this.replacement = this.row.input.value;
       this.show("Finding matches…");
-      send("replace.preview", { seq: this.seq, text, replacement: this.row.input.value });
+      send("replace.preview", { seq: this.seq, text, replacement: this.replacement });
     }
     this.hooks.onPreviewChanged();
   }
@@ -210,6 +219,15 @@ export class ReplaceBox {
   onDone(done: ReplaceDoneMessage): void {
     if (done.seq !== this.seq) return;
     this.applying = false;
+    if (this.refreshAfterApply) {
+      this.refreshAfterApply = false;
+      // A new search, or a replacement typed meanwhile, needs a new preview; what was replaced still shows.
+      if (this.hooks.searchedText() !== this.text || this.row.input.value !== this.replacement) {
+        queueMicrotask(() => {
+          this.refresh();
+        });
+      }
+    }
     if (done.error !== undefined) {
       this.show(sentence(done.error), this.plan !== undefined);
       return;
@@ -245,10 +263,16 @@ export class ReplaceBox {
   private apply(): void {
     const plan = this.plan;
     if (!plan || this.applying) return;
+    clearTimeout(this.timer);
+    // Typed since the preview: apply only what a preview showed, so show the new one first.
+    if (this.row.input.value !== this.replacement) {
+      this.refresh();
+      return;
+    }
     this.applying = true;
     this.seq++;
     this.show(`Replacing ${plural(plan.matches, "match", "matches")}…`);
-    send("replace.apply", { seq: this.seq, text: this.text, replacement: this.row.input.value, matches: plan.matches });
+    send("replace.apply", { seq: this.seq, text: this.text, replacement: this.replacement, matches: plan.matches });
   }
 
   private clearPlan(): void {

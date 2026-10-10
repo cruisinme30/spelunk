@@ -115,3 +115,17 @@ test("Esc closes the Replace row, drops its preview and gives the query box the 
   await page.keyboard.press("Meta+Alt+KeyF");
   assert.equal(await page.isVisible(ROW), true);
 });
+
+test("⌘↵ right after typing a new replacement previews it rather than applying text the rows never showed", async (t) => {
+  const { page, request } = await previewReplace(t, "backoff");
+  await fromHost(page, "replace.plan", { seq: request.seq, plan: planFor("backoff") });
+  // Typed and applied before the typing delay asks for the new preview.
+  await page.evaluate((selector) => {
+    const input = document.querySelector(selector);
+    input.value = "backoffs";
+    input.dispatchEvent(new Event("input"));
+    input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", metaKey: true, ctrlKey: true }));
+  }, REPLACEMENT);
+  assert.equal((await sentMessages(page, "replace.apply")).length, 0);
+  assert.equal((await lastSent(page, "replace.preview")).replacement, "backoffs");
+});
