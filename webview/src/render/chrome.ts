@@ -133,13 +133,15 @@ function renderDiagnostic(raw: string, diagnostic: Diagnostic, onFix: (fix: Fix)
   // A span outside the text marks its end, rather than breaking the caret's " ".repeat.
   const start = clamp(Math.trunc(diagnostic.span.start) || 0, 0, raw.length);
   const end = clamp(Math.trunc(diagnostic.span.end) || 0, start, raw.length);
-  const offending = raw.slice(start, Math.max(end, start + 1)) || " ";
+  // An empty span marks the character at it, which the rest then starts after.
+  const markedEnd = Math.max(end, Math.min(start + 1, raw.length));
+  const offending = raw.slice(start, markedEnd) || " ";
   const snippet = element(
     "code",
     { class: "snippet" },
     raw.slice(0, start),
     element("span", { class: "bad" }, offending),
-    raw.slice(end),
+    raw.slice(markedEnd),
   );
   const caret = element("code", { class: "caret" }, " ".repeat(start) + "^");
   const fixes = diagnostic.fixes.map((fix, index) =>

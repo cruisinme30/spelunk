@@ -540,6 +540,19 @@ test("⌘. applies the first fix as a text edit followed by query.changed", asyn
   assert.equal((await lastSent(page, "query.changed")).text, "since:6m");
 });
 
+test("a diagnostic with an empty span marks the character at it once", async (t) => {
+  const page = await openPanel(t);
+  await restore(page);
+  const warning = { severity: "warning", code: "history_full_scan", message: "Reads all history", fixes: [] };
+  await typeAndParse(
+    page,
+    "retry",
+    parsedQuery("retry", textNode("retry", 0), { diagnostics: [{ ...warning, span: { start: 2, end: 2 } }] }),
+  );
+  assert.equal(await page.textContent('[data-testid="diagnostics"] .snippet'), "retry");
+  assert.equal(await page.textContent('[data-testid="diagnostics"] .bad'), "t");
+});
+
 test("Aa and .* reflect the query, and Aa removes case:yes from the text", async (t) => {
   const page = await openPanel(t);
   await restore(page);
