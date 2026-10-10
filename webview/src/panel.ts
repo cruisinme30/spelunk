@@ -4,7 +4,7 @@
 // The panel is a pure view: it never parses. Fix-its, completions, the Aa / ab / .*
 // toggles, the repo menu and the facet row all edit the query text, then send an
 // ordinary query.changed.
-import { clamp, element, plural, scrollIntoContainer, wrapIndex } from "./format";
+import { element, plural, wrapIndex } from "./format";
 import { type HostMessage, loadDraft, loadRecentWidth, onHostMessage, saveDraft, send } from "./host";
 import { EmptyBox } from "./emptyBox";
 import { createLayout, type Layout } from "./layout";
@@ -47,12 +47,11 @@ import { RepoMenu } from "./render/repoMenu";
 import { previewOf, renderPreview } from "./render/preview";
 import { ResultsView } from "./render/results";
 import { ReplaceBox } from "./replace";
+import { ResultSelection } from "./resultSelection";
 import { createViewState, hasErrors, type ViewState } from "./state";
 
 /** Cheat-sheet snippets that put the cursor between a pair: "|", /|/, (|). */
 const PAIRED_SNIPPETS = new Set(['""', "//", "()", 'struct:""']);
-/** Holding ↓ shouldn't request a preview for every row it passes. */
-const PREVIEW_DEBOUNCE_MS = 30;
 
 /** The search panel's controller in the webview: one per page. */
 export class SearchPanel {
@@ -61,10 +60,10 @@ export class SearchPanel {
   private readonly emptyBox: EmptyBox;
   private readonly replace: ReplaceBox;
   private readonly repoMenu: RepoMenu;
+  private readonly selection: ResultSelection;
   private readonly summary = element("span", { class: "summary", "data-testid": "summary" });
   private results: ResultsView | undefined;
   private debounceTimer: ReturnType<typeof setTimeout> | undefined;
-  private previewTimer: ReturnType<typeof setTimeout> | undefined;
   /** Set while the panel itself edits the box, so its input event isn't taken for typing. */
   private editingBox = false;
 
@@ -81,6 +80,12 @@ export class SearchPanel {
       },
       onFocusChanged: () => {
         this.renderFooter();
+      },
+    });
+    this.selection = new ResultSelection(this.state, {
+      results: () => this.results,
+      onSelected: () => {
+        this.pointAtActiveOption();
       },
     });
     this.repoMenu = new RepoMenu(this.layout, {
@@ -259,7 +264,7 @@ export class SearchPanel {
     body.addEventListener("click", (event) => {
       const ref = rowReference(event);
       if (!ref) return;
-      this.select(ref);
+      this.selection.select(ref);
       if (this.state.ui.openTrigger === "singleClick") this.open(ref, event);
     });
     body.addEventListener("dblclick", (event) => {
@@ -371,7 +376,7 @@ export class SearchPanel {
       this.state.completionIndex = wrapIndex(this.state.completionIndex, step, this.state.completions.length);
       this.renderCompletions();
     } else if (this.layout.input.value) {
-      this.moveResultSelection(step);
+      this.selection.move(step);
     } else {
       this.emptyBox.moveSelection(step);
     }
@@ -382,37 +387,6 @@ export class SearchPanel {
     if (this.completionsVisible && !modifier) this.searchAsTyped();
     else if (!this.layout.input.value) this.emptyBox.runSelected();
     else if (this.state.selectedRef) this.open(this.state.selectedRef, event);
-  }
-
-  /** Results don't wrap: ↓ on the last row stays there. */
-  private moveResultSelection(step: 1 | -1): void {
-    const rows = this.results?.rows() ?? [];
-    if (rows.length === 0) return;
-    const current = rows.findIndex((row) => row.dataset["ref"] === this.state.selectedRef);
-    const next = current === -1 ? 0 : clamp(current + step, 0, rows.length - 1);
-    const ref = rows[next]?.dataset["ref"];
-    if (ref) this.select(ref);
-  }
-
-  /** Highlights a row and asks the host for its preview. */
-  private select(ref: string): void {
-    if (this.state.selectedRef === ref) return;
-    // Only the two rows that change: holding ↓ through thousands of results stays smooth.
-    const previous = this.state.selectedRef ? this.results?.rowFor(this.state.selectedRef) : undefined;
-    previous?.classList.remove("selected");
-    previous?.setAttribute("aria-selected", "false");
-    this.state.selectedRef = ref;
-    const row = this.results?.rowFor(ref);
-    if (row && this.results) {
-      row.classList.add("selected");
-      row.setAttribute("aria-selected", "true");
-      scrollIntoContainer(this.results.list, row, "nearest");
-    }
-    this.pointAtActiveOption();
-    clearTimeout(this.previewTimer);
-    this.previewTimer = setTimeout(() => {
-      send("result.select", { ref });
-    }, PREVIEW_DEBOUNCE_MS);
   }
 
   // ------------------------------------------------------------ host messages
@@ -487,7 +461,7 @@ export class SearchPanel {
     if (!this.isCurrent(seq, searchId)) return;
     this.resultsFor(searchId).append(items);
     this.renderSummary();
-    this.selectFirstRow();
+    this.selection.selectFirst();
     if (this.completionsVisible) this.renderCompletions(); // the results glimpse
   }
 
@@ -603,12 +577,6 @@ export class SearchPanel {
     this.results.showLastGood(errors ? state.lastGoodText : undefined);
     this.replace.refresh(); // a new search: preview replacing its matches
     return this.results;
-  }
-
-  private selectFirstRow(): void {
-    if (this.state.selectedRef) return;
-    const first = this.results?.rows()[0]?.dataset["ref"];
-    if (first) this.select(first);
   }
 
   private onSearchDone(done: SearchDoneMessage): void {
