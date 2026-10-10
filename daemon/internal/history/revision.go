@@ -175,10 +175,11 @@ func ReadBlobs(ctx context.Context, root string, files []TreeFile, each func(Tre
 	}
 	waitErr := cmd.Wait()
 	switch {
+	case ctx.Err() != nil:
+		// Killing git for ctx cuts its output short: say why, not how.
+		return ctx.Err()
 	case readErr != nil:
 		return readErr
-	case ctx.Err() != nil:
-		return ctx.Err()
 	case waitErr != nil:
 		return fmt.Errorf("git cat-file: %w: %s", waitErr, strings.TrimSpace(stderr.String()))
 	}
@@ -194,12 +195,19 @@ func readBatch(r *bufio.Reader, files []TreeFile, each func(TreeFile, []byte) er
 			return fmt.Errorf("git cat-file: %w", err)
 		}
 		fields := strings.Fields(header)
-		if len(fields) != 3 || fields[1] != "blob" {
-			continue // missing, or not a blob: nothing follows the header
+		if len(fields) != 3 {
+			continue // missing: nothing follows the header
 		}
 		size, err := strconv.Atoi(fields[2])
 		if err != nil || size < 0 {
 			return fmt.Errorf("git cat-file: bad header %q", header)
+		}
+		if fields[1] != "blob" {
+			// Not a file's content; skip it and its trailing newline.
+			if _, err := r.Discard(size + 1); err != nil {
+				return fmt.Errorf("git cat-file: %w", err)
+			}
+			continue
 		}
 		content := make([]byte, size+1) // the content and its trailing newline
 		if _, err := io.ReadFull(r, content); err != nil {

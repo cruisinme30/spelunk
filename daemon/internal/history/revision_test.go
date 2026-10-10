@@ -196,6 +196,41 @@ func TestReadBlobsSkipsAMissingObject(t *testing.T) {
 	}
 }
 
+// An object that isn't a file, such as a commit, is skipped whole, so the
+// files after it still read as themselves.
+func TestReadBlobsSkipsObjectsOtherThanFiles(t *testing.T) {
+	r, first, _, _ := revisionRepo(t)
+	ctx := context.Background()
+	files, _ := ListTree(ctx, r.root, first)
+	files = append([]TreeFile{{Path: "commit", OID: first}}, files...)
+	var got []string
+	if err := ReadBlobs(ctx, r.root, files, func(file TreeFile, content []byte) error {
+		got = append(got, file.Path+"="+string(content))
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 3 || got[0] != "README.md=payments\n" {
+		t.Errorf("ReadBlobs read %q, want the three files from README.md on", got)
+	}
+}
+
+// A read cancelled part way says it was cancelled, not that git's output
+// was cut short.
+func TestReadBlobsSaysWhenItWasCancelled(t *testing.T) {
+	r, first, _, _ := revisionRepo(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	files, _ := ListTree(ctx, r.root, first)
+	err := ReadBlobs(ctx, r.root, files, func(TreeFile, []byte) error {
+		cancel()
+		return nil
+	})
+	if !errors.Is(err, context.Canceled) {
+		t.Errorf("ReadBlobs = %v, want context.Canceled", err)
+	}
+}
+
 func TestReadFileAtReadsOneFileAsItWas(t *testing.T) {
 	r, first, second, third := revisionRepo(t)
 	ctx := context.Background()
