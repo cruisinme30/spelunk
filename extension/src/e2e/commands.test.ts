@@ -5,6 +5,7 @@
 import assert from "node:assert/strict";
 import * as vscode from "vscode";
 import type { TestState } from "../extension";
+import { MESSAGE_VERSION } from "../webviewMessages";
 import { setTimeout as sleep } from "node:timers/promises";
 
 /** How long a step may take: the first search waits for the fixture workspace to be indexed. */
@@ -98,6 +99,28 @@ const TESTS: [name: string, run: () => Promise<void>][] = [
       await vscode.commands.executeCommand("workbench.action.acceptSelectedQuickOpenItem");
       await picked;
       await searchFor("retry");
+    },
+  ],
+  [
+    "The panel's Context buttons save the setting, and the results gain context lines",
+    async () => {
+      // @covers setting:results.contextLines msg:context.set
+      const config = () => vscode.workspace.getConfiguration("spelunk");
+      const before = await searchFor("type:code timeout");
+      assert.equal(before.withContext, 0, "no context lines by default");
+      await vscode.commands.executeCommand("spelunk._testPanelMessage", {
+        v: MESSAGE_VERSION,
+        type: "context.set",
+        payload: { lines: 2 },
+      });
+      await poll(
+        "the setting to be saved",
+        () => config().get("results.contextLines"),
+        (lines) => lines === 2,
+      );
+      await until("results with context lines", (state) => state.withContext > 0);
+      await config().update("results.contextLines", undefined, vscode.ConfigurationTarget.Global);
+      await until("results without them again", (state) => state.results.length > 0 && state.withContext === 0);
     },
   ],
   [

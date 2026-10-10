@@ -34,7 +34,7 @@ import {
   uiSettings,
   welcomeSettings,
 } from "./settings";
-import { messageGuard, type WebviewMessage } from "./webviewMessages";
+import { messageGuard, parseWebviewMessage, type WebviewMessage } from "./webviewMessages";
 import { WELCOMED_KEY, WelcomePanel } from "./welcomePanel";
 
 /** The globalState key that keeps the query and recent queries across sessions. */
@@ -469,9 +469,14 @@ function registerCommands(
     "spelunk.restartDaemon": () => daemon.restart(),
     "spelunk.rebuildIndex": () => pickAndRebuildIndex(daemon),
   };
-  // Test builds only: lets end-to-end tests read what the panel and editor show.
+  // Test builds only: lets end-to-end tests read what the panel and editor show, and act as the panel.
   if (process.env["SPELUNK_TEST"]) {
     commands["spelunk._testState"] = () => testState(daemon, controller, panel);
+    commands["spelunk._testPanelMessage"] = async (raw) => {
+      const message = parseWebviewMessage(raw);
+      if (!message) throw new Error(`not a panel message: ${JSON.stringify(raw)}`);
+      await controller.handle(message);
+    };
   }
   return Object.entries(commands).map(([id, run]) => vscode.commands.registerCommand(id, run));
 }
@@ -482,6 +487,8 @@ export interface TestState {
   text: string;
   /** The refs of the current search's results, in order. */
   results: string[];
+  /** How many of those results carry context lines. */
+  withContext: number;
   /** The text of the search `results` belongs to, once it finished; undefined while one runs. */
   searched: string | undefined;
   daemon: DaemonState;
@@ -495,6 +502,7 @@ function testState(daemon: Daemon, controller: SearchController, panel: SearchPa
     panelOpen: panel.isOpen,
     text: controller.text,
     results: controller.results.map((result) => result.ref),
+    withContext: controller.results.filter((result) => result.kind === "line" && result.contextAfter?.length).length,
     searched: controller.finishedSearchText,
     daemon: daemon.state,
     editor: editor && {
