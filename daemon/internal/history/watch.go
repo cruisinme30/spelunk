@@ -19,8 +19,8 @@ func NewCommits(old, next *Store) []Commit {
 	if old == nil || next == nil || old.Head == next.Head {
 		return nil
 	}
-	if movedForward(old, next) {
-		return append([]Commit(nil), next.segments[0].commits...)
+	if next.from == old.Head {
+		return next.newest(next.fresh)
 	}
 	known := map[string]bool{}
 	var newest Commit
@@ -43,18 +43,16 @@ func NewCommits(old, next *Store) []Commit {
 	return fresh
 }
 
-// movedForward reports whether next is old with one new segment on top,
-// which is how Update records commits read after old's HEAD.
-func movedForward(old, next *Store) bool {
-	if len(next.segments) != len(old.segments)+1 {
-		return false
-	}
-	for i, seg := range old.segments {
-		if next.segments[i+1] != seg {
-			return false
+// newest returns the store's n newest commits, newest first.
+func (s *Store) newest(n int) []Commit {
+	commits := make([]Commit, 0, n)
+	for _, seg := range s.segments {
+		if len(commits) == n {
+			break
 		}
+		commits = append(commits, seg.commits[:min(n-len(commits), len(seg.commits))]...)
 	}
-	return true
+	return commits
 }
 
 // StoreOf returns a store holding only commits, newest first, so a history

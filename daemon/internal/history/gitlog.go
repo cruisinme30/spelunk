@@ -70,6 +70,9 @@ type Options struct {
 	// as index.exclude leaves files out of the working-tree index. Commits
 	// still list the file and count its lines, so f: finds them.
 	Skip func(path string) bool
+	// Key names the settings these options came from. A store remembers
+	// it, so a saved store read under other settings can be read again.
+	Key string
 }
 
 // ErrNotGit means the folder is not inside a Git working tree.

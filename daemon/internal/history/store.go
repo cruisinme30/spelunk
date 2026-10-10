@@ -14,7 +14,7 @@ import (
 
 // storeFormatVersion changes whenever the saved layout does; a store written
 // by another version is read again from Git rather than migrated.
-const storeFormatVersion = 4
+const storeFormatVersion = 5
 
 // Segment sizes: the first segment is small, so the newest commits are
 // searchable within seconds; later ones are larger, so there are few.
@@ -31,12 +31,18 @@ type Store struct {
 	Head string
 	// Since is where the history window starts (zero: all of it).
 	Since time.Time
+	// Key names the settings the store was read under (Options.Key).
+	Key string
 	// segments hold the commits, newest first.
 	segments []*segment
 	// touches maps each path to the newest commit that changed it.
 	touches map[string]Touch
 	// dirty holds the paths with uncommitted changes.
 	dirty map[string]bool
+	// from is the Head of the store Update moved forward from, and fresh
+	// how many of the newest commits it read on top of that store.
+	from  string
+	fresh int
 }
 
 // Touch is the newest commit that changed a file.
@@ -161,7 +167,7 @@ func Ingest(ctx context.Context, root string, opts Options, progress func(float6
 	if err != nil {
 		return nil, err
 	}
-	b := &builder{store: &Store{Head: head, Since: opts.Since, touches: map[string]Touch{}}}
+	b := &builder{store: &Store{Head: head, Since: opts.Since, Key: opts.Key, touches: map[string]Touch{}}}
 	if head != "" {
 		if err := b.read(ctx, root, head, opts, progress, publish); err != nil {
 			return nil, err
@@ -192,15 +198,16 @@ func (b *builder) read(ctx context.Context, root, revisions string, opts Options
 // along its first-parent line, only the new commits are read, as a new
 // newest segment; otherwise (a rebase, a reset, another branch, or a merge
 // that brought the old HEAD in from the side), all of it is read again.
-// Either way the uncommitted paths are read again. opts should be the ones
-// the store was read with.
+// Either way the uncommitted paths are read again, and commits made before
+// the window opts sets, which moves on with time, are dropped. opts should
+// be the ones the store was read with.
 func Update(ctx context.Context, root string, store *Store, opts Options) (*Store, error) {
 	head, err := Head(ctx, root)
 	if err != nil {
 		return nil, err
 	}
 	if head == store.Head {
-		return store.WithDirty(UncommittedPaths(ctx, root)), nil
+		return store.since(opts.Since).WithDirty(UncommittedPaths(ctx, root)), nil
 	}
 	if store.Head == "" || !onFirstParentLine(ctx, root, store.Head) {
 		return Ingest(ctx, root, opts, nil, nil)
@@ -212,14 +219,83 @@ func Update(ctx context.Context, root string, store *Store, opts Options) (*Stor
 	}); err != nil {
 		return nil, err
 	}
-	next := &Store{Head: head, Since: store.Since, touches: maps.Clone(store.touches)}
+	next := &Store{Head: head, Since: store.Since, Key: store.Key, touches: maps.Clone(store.touches), from: store.Head, fresh: len(newer)}
 	for i := len(newer) - 1; i >= 0; i-- { // oldest first, so the newest touch wins
 		for _, file := range newer[i].Files {
 			next.touches[file.Path] = touchOf(&newer[i])
 		}
 	}
-	next.segments = append([]*segment{newSegment(newer)}, store.segments...)
-	return next.WithDirty(UncommittedPaths(ctx, root)), nil
+	next.segments = mergeNewest(append([]*segment{newSegment(newer)}, store.segments...))
+	return next.since(opts.Since).WithDirty(UncommittedPaths(ctx, root)), nil
+}
+
+// mergeNewest merges the newest segment into the one before it while it
+// holds at least half as many commits, up to segmentCommits, as a binary
+// counter carries. Each update adds a small segment, often of one commit,
+// and every search narrows every segment, so a day of commits would
+// otherwise leave hundreds of them; this keeps a few, and re-indexes each
+// commit about log2(segmentCommits) times over its life.
+func mergeNewest(segments []*segment) []*segment {
+	for len(segments) > 1 {
+		newest, older := segments[0], segments[1]
+		if 2*len(newest.commits) < len(older.commits) || len(newest.commits)+len(older.commits) > segmentCommits {
+			break
+		}
+		merged := newSegment(slices.Concat(newest.commits, older.commits))
+		segments = append([]*segment{merged}, segments[2:]...)
+	}
+	return segments
+}
+
+// since returns the store without the commits made before start (by
+// committer date, as git log --since reads them), and without the touches
+// they alone made. A zero start, or a store with nothing that old, is
+// returned as it is.
+func (s *Store) since(start time.Time) *Store {
+	if start.IsZero() || !s.holdsCommitsBefore(start) {
+		return s
+	}
+	next := *s
+	next.Since = start
+	next.segments = nil
+	for _, seg := range s.segments {
+		kept := slices.DeleteFunc(slices.Clone(seg.commits), func(c Commit) bool { return c.Committed.Before(start) })
+		switch {
+		case len(kept) == len(seg.commits):
+			next.segments = append(next.segments, seg)
+		case len(kept) > 0:
+			next.segments = append(next.segments, newSegment(kept))
+		}
+	}
+	// Each path's touch is its newest commit, so a touch whose commit is
+	// gone is a path no kept commit changed.
+	next.touches = maps.Clone(s.touches)
+	kept := map[string]bool{}
+	for _, seg := range next.segments {
+		for i := range seg.commits {
+			kept[seg.commits[i].SHA] = true
+		}
+	}
+	maps.DeleteFunc(next.touches, func(_ string, touch Touch) bool { return !kept[touch.SHA] })
+	next.fresh = 0
+	for i, newest := 0, s.newest(s.fresh); i < len(newest); i++ {
+		if kept[newest[i].SHA] {
+			next.fresh++
+		}
+	}
+	return &next
+}
+
+// holdsCommitsBefore reports whether any commit was made before start.
+func (s *Store) holdsCommitsBefore(start time.Time) bool {
+	for _, seg := range s.segments {
+		for i := range seg.commits {
+			if seg.commits[i].Committed.Before(start) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // UncommittedPaths lists root's files that differ from HEAD: modified,
@@ -251,12 +327,13 @@ type savedStore struct {
 	Version int
 	Head    string
 	Since   time.Time
+	Key     string
 	Commits []Commit
 }
 
 // Save writes the store to path atomically (see trigram.SaveGob).
 func (s *Store) Save(path string) error {
-	saved := savedStore{Version: storeFormatVersion, Head: s.Head, Since: s.Since}
+	saved := savedStore{Version: storeFormatVersion, Head: s.Head, Since: s.Since, Key: s.Key}
 	for _, seg := range s.segments {
 		saved.Commits = append(saved.Commits, seg.commits...)
 	}
@@ -276,7 +353,7 @@ func Load(path string) (*Store, error) {
 	if saved.Version != storeFormatVersion {
 		return nil, errStaleFormat
 	}
-	b := &builder{store: &Store{Head: saved.Head, Since: saved.Since, touches: map[string]Touch{}}}
+	b := &builder{store: &Store{Head: saved.Head, Since: saved.Since, Key: saved.Key, touches: map[string]Touch{}}}
 	for i := range saved.Commits {
 		b.add(saved.Commits[i])
 	}

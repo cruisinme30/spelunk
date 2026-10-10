@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/cruisinme30/spelunk/daemon/internal/engine"
 	"github.com/cruisinme30/spelunk/daemon/internal/protocol"
@@ -563,5 +565,78 @@ func TestIsGeneratedAndIsVendoredInHistory(t *testing.T) {
 		if !reflect.DeepEqual(got, tt.want) {
 			t.Errorf("%s = %q, want %q", tt.query, got, tt.want)
 		}
+	}
+}
+
+// Each update adds a segment of the commits it read, often one; the small
+// ones merge, so a day of commits leaves a few segments, not one apiece,
+// and every commit stays searchable and announced once.
+func TestUpdatesMergeTheirSmallSegments(t *testing.T) {
+	r, _ := paymentsHistory(t)
+	store := r.ingest()
+	const commits = 64
+	for i := range commits {
+		subject := fmt.Sprintf("Tune retry %d", i)
+		r.commit("Jason Kim <jason@checkout.example>", subject, day(0).Add(time.Duration(i)*time.Minute), map[string]string{"src/retry.py": subject + "\n"})
+		next := r.update(store)
+		if got := subjectsOf(NewCommits(store, next)); !slices.Equal(got, []string{subject}) {
+			t.Fatalf("NewCommits after %q = %q, want just it", subject, got)
+		}
+		store = next
+	}
+	if store.Commits() != 4+commits {
+		t.Errorf("%d commits, want %d", store.Commits(), 4+commits)
+	}
+	if len(store.segments) > 8 {
+		t.Errorf("%d segments after %d one-commit updates, want a few", len(store.segments), commits)
+	}
+	repo := Repo{ID: "r1", Name: "payments-api", Root: r.root, Store: store}
+	if got, _ := runSearch(t, `msg:"Tune retry 7" count:100`, repo); !slices.Equal(got, []string{"Tune retry 7"}) {
+		t.Errorf(`msg:"Tune retry 7" = %q`, got)
+	}
+	if got, _ := runSearch(t, "msg:flaky", repo); !slices.Equal(got, []string{"Fix flaky checkout test"}) {
+		t.Errorf("msg:flaky = %q, want the ingested commit still found", got)
+	}
+}
+
+// The history window moves on with time: an update drops the commits made
+// before it, and the newest-commit facts only they gave, as a fresh read
+// under the same window would.
+func TestUpdateDropsCommitsOlderThanTheWindow(t *testing.T) {
+	r, _ := paymentsHistory(t)
+	store, err := Ingest(context.Background(), r.root, Options{Since: day(50)}, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	later := Options{Since: day(5)}
+	unmoved, err := Update(context.Background(), r.root, store, later)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r.commit("Jason Kim <jason@checkout.example>", "Retry on 503", day(0), map[string]string{"src/retry.py": "retry_on = [503]\n"})
+	moved, err := Update(context.Background(), r.root, store, later)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want, err := Ingest(context.Background(), r.root, later, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name, got := range map[string]*Store{"with HEAD unmoved": unmoved, "with a new commit": moved} {
+		if _, ok := got.LastCommit("tests/checkout_test.py"); ok {
+			t.Errorf("%s: tests/checkout_test.py keeps the touch of a commit before the window", name)
+		}
+		if _, ok := got.LastCommit("src/retry.py"); !ok {
+			t.Errorf("%s: src/retry.py lost its touch, made in the window", name)
+		}
+	}
+	if got, want := subjectsOf(moved.newest(moved.Commits())), subjectsOf(want.newest(want.Commits())); !slices.Equal(got, want) {
+		t.Errorf("after the window moved: %q, want %q as a fresh read has", got, want)
+	}
+	if got := subjectsOf(NewCommits(store, moved)); !slices.Equal(got, []string{"Retry on 503"}) {
+		t.Errorf("NewCommits = %q, want the new commit alone", got)
+	}
+	if unmoved.Commits() != 2 {
+		t.Errorf("with HEAD unmoved: %d commits, want the 2 made in the window", unmoved.Commits())
 	}
 }
