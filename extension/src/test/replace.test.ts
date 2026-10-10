@@ -9,7 +9,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { SearchController, type STOP_WATCHING, type Ui } from "../controller";
 import type { HostToWebview, ReplacePlan, UiSettings } from "../protocol.gen";
-import { checkReplace, type DocumentLines, type LineEdit, OPEN_AT_ONCE } from "../replaceEdits";
+import { checkReplace, type DocumentLines, fileIdentity, type LineEdit, OPEN_AT_ONCE } from "../replaceEdits";
 import { makeRoot } from "../roots";
 import { MESSAGE_VERSION } from "../webviewMessages";
 import { newTestDaemon, SKIP_WITHOUT_DAEMON as skip, untilIndexed } from "./realDaemon";
@@ -66,6 +66,53 @@ test("a replace keeps the files that still read as indexed and skips the rest wh
   assert.deepEqual(unreadable.skipped, ["a.py", "b.py"]);
   const tooShort = await checkReplace(PLAN, () => Promise.resolve(documentOf("Retry")));
   assert.deepEqual(tooShort.skipped, ["a.py"], "a.py has no line 2 any more");
+});
+
+test("a file the plan lists twice, under nested workspace folders, is edited once", async () => {
+  const twice: ReplacePlan = {
+    matches: 3,
+    truncated: false,
+    files: [
+      PLAN.files[0] ?? assert.fail(),
+      { ...(PLAN.files[0] ?? assert.fail()), repoId: "inner", path: "a.py", file: "/work/./a.py" },
+      PLAN.files[1] ?? assert.fail(),
+    ],
+  };
+  const documents: Record<string, DocumentLines> = {
+    "/work/a.py": documentOf("import x\nx = Retry()\n"),
+    "/work/b.py": documentOf("Retry\n"),
+  };
+  const opened: string[] = [];
+  const checked = await checkReplace(twice, (file) => {
+    opened.push(file);
+    return Promise.resolve(documents[file]);
+  });
+  assert.deepEqual(checked, {
+    edits: [
+      { file: "/work/a.py", line: 1, start: 4, end: 9, newText: "Backoff" },
+      { file: "/work/b.py", line: 0, start: 0, end: 5, newText: "Backoff" },
+    ],
+    files: ["/work/a.py", "/work/b.py"],
+    skipped: [],
+  });
+  assert.deepEqual(opened, ["/work/a.py", "/work/b.py"], "each file is read once");
+});
+
+test("a file whose plan entries would overlap is skipped whole", async () => {
+  const [a] = PLAN.files;
+  assert.ok(a);
+  const clashing: ReplacePlan = {
+    matches: 2,
+    truncated: false,
+    files: [a, { ...a, lines: [{ line: 2, text: "x = Retry()", edits: [{ start: 6, end: 9, newText: "X" }] }] }],
+  };
+  const checked = await checkReplace(clashing, () => Promise.resolve(documentOf("import x\nx = Retry()\n")));
+  assert.deepEqual(checked, { edits: [], files: [], skipped: ["a.py"] });
+});
+
+test("a file's identity is its absolute path as a URI spells it", () => {
+  assert.equal(fileIdentity("/work/sub/../a.py"), "/work/a.py");
+  assert.equal(fileIdentity("a.py"), fileIdentity(join(process.cwd(), "a.py")), "relative paths resolve");
 });
 
 /** A Ui whose documents are the files on disk and whose edits are written back to them. */
