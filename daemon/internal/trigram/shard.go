@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 	"time"
@@ -89,32 +90,91 @@ type BuildOptions struct {
 	MaxFileBytes int64
 }
 
-// Build reads files from root, which are in path order, and indexes them. A file that changed since
-// it was listed is read as it is now; one that is gone, or is now a
-// symlink, a FIFO or another special file, binary or too big, is left out.
+// Build reads files from root, which are in path order, and indexes them
+// in that order. A file that changed since it was listed is read as it is
+// now; one that is gone, or is now a symlink, a FIFO or another special
+// file, binary or too big, is left out. Files are read buildWorkers at a
+// time, since reading, decoding and finding definitions wait on the disk
+// and run apart; they are indexed one by one, in order, so the shard is
+// the same however the reads interleave.
 func Build(ctx context.Context, root string, files []File, opts BuildOptions) (*Shard, error) {
 	if int64(len(files)) >= maxDocs {
 		return nil, fmt.Errorf("%d files is more than one index can hold (%d)", len(files), maxDocs)
 	}
 	s := &Shard{BuiltAt: time.Now(), postings: map[uint32][]uint32{}}
-	for i, file := range files {
+	reads := readDocs(ctx, root, files, opts)
+	i := 0
+	for read := range reads {
+		<-read.done
 		if ctx.Err() != nil {
-			return nil, ctx.Err()
+			continue // let the reads already started finish before returning
 		}
 		if opts.Progress != nil && i%progressEvery == 0 {
 			opts.Progress(float64(i) / float64(len(files)))
 		}
-		content, info, err := readText(filepath.Join(root, filepath.FromSlash(file.Path)), opts.MaxFileBytes)
-		if err != nil {
-			continue // deleted or replaced since it was listed
+		i++
+		if read.ok {
+			s.add(read.doc)
 		}
-		doc := Doc{Path: file.Path, Lang: lang.Detect(file.Path, content), ModTime: info.ModTime(), Content: content}
-		if opts.Symbols {
-			doc.Symbols = symbols.Extract(doc.Lang, content)
-		}
-		s.add(doc)
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
 	}
 	return s, nil
+}
+
+// buildWorkers is how many files Build reads at once, and readAhead how
+// many it may have read, or be reading, ahead of the one it indexes.
+var (
+	buildWorkers = min(runtime.GOMAXPROCS(0), 8)
+	readAhead    = 4 * buildWorkers
+)
+
+// docRead is one file Build reads: done closes once doc and ok are set.
+type docRead struct {
+	doc  Doc
+	ok   bool
+	done chan struct{}
+}
+
+// readDocs reads files buildWorkers at a time and sends each one's read,
+// in the files' order, as soon as it starts; the receiver waits on its
+// done. It stops starting reads when ctx ends, and closes the channel
+// once it has sent every read it started.
+func readDocs(ctx context.Context, root string, files []File, opts BuildOptions) <-chan *docRead {
+	reads := make(chan *docRead, readAhead)
+	go func() {
+		defer close(reads)
+		workers := make(chan struct{}, buildWorkers)
+		for _, file := range files {
+			if ctx.Err() != nil {
+				return
+			}
+			read := &docRead{done: make(chan struct{})}
+			reads <- read // waits while readAhead reads are ahead of the indexing
+			workers <- struct{}{}
+			go func() {
+				defer func() { <-workers }()
+				defer close(read.done)
+				read.doc, read.ok = readDoc(root, file.Path, opts)
+			}()
+		}
+	}()
+	return reads
+}
+
+// readDoc reads the file at path (relative to root) as Build indexes it;
+// ok is false when the file is left out (see Build).
+func readDoc(root, path string, opts BuildOptions) (Doc, bool) {
+	content, info, err := readText(filepath.Join(root, filepath.FromSlash(path)), opts.MaxFileBytes)
+	if err != nil {
+		return Doc{}, false // deleted or replaced since it was listed, binary, or too big
+	}
+	doc := Doc{Path: path, Lang: lang.Detect(path, content), ModTime: info.ModTime(), Content: content}
+	if opts.Symbols {
+		doc.Symbols = symbols.Extract(doc.Lang, content)
+	}
+	return doc, true
 }
 
 // DocFromBlob makes the doc of a file read from somewhere other than disk,

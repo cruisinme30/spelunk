@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"io"
 	"io/fs"
 	"os"
 	"os/exec"
@@ -47,9 +46,10 @@ type File struct {
 // ListFiles returns the files under root to index, sorted by path. In a Git
 // repo, Git decides what .gitignore excludes (unless IncludeIgnored), and
 // the files of nested repos and submodules are listed by their own Git;
-// elsewhere every file is listed. .git itself is never listed. Binary and
-// oversized files are left out, and so is anything that isn't a regular
-// file: symlinks, FIFOs, sockets and devices.
+// elsewhere every file is listed. .git itself is never listed. Oversized
+// files are left out, and so is anything that isn't a regular file:
+// symlinks, FIFOs, sockets and devices. Binary files are listed: Build
+// leaves them out as it reads them, so no file is opened twice.
 func ListFiles(ctx context.Context, root string, opts WalkOptions) ([]File, error) {
 	paths, err := candidatePaths(ctx, root, opts.IncludeIgnored)
 	if err != nil {
@@ -74,7 +74,7 @@ func ListFiles(ctx context.Context, root string, opts WalkOptions) ([]File, erro
 			// Git lists a submodule or a nested repo as one entry.
 			paths = append(paths, nestedRepoPaths(ctx, root, path)...)
 			continue
-		case !indexable(full, info, opts):
+		case !indexable(info, opts):
 			continue
 		}
 		files = append(files, File{Path: path})
@@ -83,10 +83,11 @@ func ListFiles(ctx context.Context, root string, opts WalkOptions) ([]File, erro
 	return files, nil
 }
 
-// indexable reports whether the file at full, which info describes, is one
-// to index: a regular file, not too big, and not binary.
-func indexable(full string, info os.FileInfo, opts WalkOptions) bool {
-	return info.Mode().IsRegular() && (opts.MaxFileBytes <= 0 || info.Size() <= opts.MaxFileBytes) && !isBinaryFile(full)
+// indexable reports whether a file that info describes is one to read for
+// the index: a regular file, not too big. Whether it is binary is only
+// known once it is read (see Build).
+func indexable(info os.FileInfo, opts WalkOptions) bool {
+	return info.Mode().IsRegular() && (opts.MaxFileBytes <= 0 || info.Size() <= opts.MaxFileBytes)
 }
 
 // nestedRepoPaths lists the files of the Git repo at dir (relative to
@@ -116,8 +117,8 @@ func hasGitDir(dir string) bool {
 }
 
 // SelectFiles returns which of paths (slash-separated, relative to root)
-// ListFiles would index now: files that exist and are not excluded,
-// ignored by Git, binary or too big. A path that is a folder stands for
+// ListFiles would list now: files that exist and are not excluded,
+// ignored by Git or too big. A path that is a folder stands for
 // the files inside it, as when a folder is created, copied in or renamed
 // and the editor reports only the folder. It is how files saved since the
 // last build are re-read without listing the whole repo.
@@ -147,7 +148,7 @@ func SelectFiles(ctx context.Context, root string, paths []string, opts WalkOpti
 		}
 		full := filepath.Join(root, filepath.FromSlash(path))
 		info, err := os.Lstat(full)
-		if err != nil || !indexable(full, info, opts) {
+		if err != nil || !indexable(info, opts) {
 			continue
 		}
 		files = append(files, File{Path: path})
@@ -349,20 +350,6 @@ func walkAllFiles(ctx context.Context, root string) ([]string, error) {
 		return nil
 	})
 	return paths, err
-}
-
-// isBinaryFile reports whether the file at path looks binary; unreadable
-// files, and anything that is no longer a regular file, count as binary,
-// so they are skipped.
-func isBinaryFile(path string) bool {
-	f, _, err := openRegular(path)
-	if err != nil {
-		return true
-	}
-	defer closeReadOnly(f)
-	head := make([]byte, binarySniffBytes)
-	n, _ := io.ReadFull(f, head)
-	return isBinary(head[:n])
 }
 
 // isBinary reports whether a file's first bytes contain a NUL, unless they

@@ -40,10 +40,22 @@ func TestListFilesOutsideGit(t *testing.T) {
 		t.Fatal(err)
 	}
 	// No Git: .gitignore is not applied. big.txt is over the size limit,
-	// logo.png is binary, vendor/ is excluded.
-	want := []string{".gitignore", "build/out.txt", "main.go", "src/lib/util.go"}
+	// vendor/ is excluded. logo.png is listed, unread: Build reads it once,
+	// and leaves it out as binary.
+	want := []string{".gitignore", "build/out.txt", "logo.png", "main.go", "src/lib/util.go"}
 	if got := paths(files); !reflect.DeepEqual(got, want) {
 		t.Errorf("ListFiles = %q, want %q", got, want)
+	}
+	shard, err := Build(context.Background(), root, files, BuildOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var built []string
+	for _, doc := range shard.Docs {
+		built = append(built, doc.Path)
+	}
+	if text := slices.DeleteFunc(want, func(path string) bool { return path == "logo.png" }); !reflect.DeepEqual(built, text) {
+		t.Errorf("Build docs = %q, want %q", built, text)
 	}
 }
 
@@ -61,7 +73,7 @@ func TestListFilesInGitRespectsGitignore(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []string{".gitignore", "big.txt", "main.go", "src/lib/util.go"}
+	want := []string{".gitignore", "big.txt", "logo.png", "main.go", "src/lib/util.go"}
 	if got := paths(files); !reflect.DeepEqual(got, want) {
 		t.Errorf("ListFiles = %q, want %q (build/ is ignored)", got, want)
 	}
@@ -71,7 +83,7 @@ func TestListFilesInGitRespectsGitignore(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want = []string{".gitignore", "big.txt", "build/out.txt", "main.go", "src/lib/util.go"}
+	want = []string{".gitignore", "big.txt", "build/out.txt", "logo.png", "main.go", "src/lib/util.go"}
 	if got := paths(files); !reflect.DeepEqual(got, want) {
 		t.Errorf("ListFiles with IncludeIgnored = %q, want %q", got, want)
 	}
