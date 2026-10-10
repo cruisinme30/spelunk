@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 )
@@ -116,21 +117,30 @@ func hasGitDir(dir string) bool {
 
 // SelectFiles returns which of paths (slash-separated, relative to root)
 // ListFiles would index now: files that exist and are not excluded,
-// ignored by Git, binary or too big. It is how files saved since the last
-// build are re-read without listing the whole repo.
+// ignored by Git, binary or too big. A path that is a folder stands for
+// the files inside it, as when a folder is created, copied in or renamed
+// and the editor reports only the folder. It is how files saved since the
+// last build are re-read without listing the whole repo.
 func SelectFiles(ctx context.Context, root string, paths []string, opts WalkOptions) []File {
 	local := make([]string, 0, len(paths))
+	linked := map[string]bool{} // by folder: whether a link is on the way to it
 	for _, path := range paths {
-		if filepath.IsLocal(filepath.FromSlash(path)) && !opts.leavesOut(path) {
-			local = append(local, path)
+		if !filepath.IsLocal(filepath.FromSlash(path)) || opts.leavesOut(path) {
+			continue
 		}
+		if !throughLink(root, path, linked) && isFolder(root, path) {
+			local = append(local, filesInFolder(ctx, root, path, opts)...)
+			continue
+		}
+		local = append(local, path)
 	}
+	slices.Sort(local)
+	local = slices.Compact(local)
 	ignored := map[string]bool{}
 	if !opts.IncludeIgnored {
 		ignored = gitIgnored(ctx, root, local)
 	}
 	var files []File
-	linked := map[string]bool{} // by folder: whether a link is on the way to it
 	for _, path := range local {
 		if ignored[path] || throughLink(root, parentDir(path), linked) {
 			continue
@@ -144,6 +154,42 @@ func SelectFiles(ctx context.Context, root string, paths []string, opts WalkOpti
 	}
 	sort.Slice(files, func(i, j int) bool { return files[i].Path < files[j].Path })
 	return files
+}
+
+// isFolder reports whether path (slash-separated, relative to root) is a
+// folder, not a link to one.
+func isFolder(root, path string) bool {
+	info, err := os.Lstat(filepath.Join(root, filepath.FromSlash(path)))
+	return err == nil && info.IsDir()
+}
+
+// filesInFolder lists the files under folder (slash-separated, relative
+// to root), as paths relative to root, that ListFiles could index: it
+// never goes into .git, a symlink or a nested root, nor lists what the
+// settings exclude. SelectFiles then leaves out what Git ignores.
+func filesInFolder(ctx context.Context, root, folder string, opts WalkOptions) []string {
+	var paths []string
+	_ = filepath.WalkDir(filepath.Join(root, filepath.FromSlash(folder)), func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return nil //nolint:nilerr // an unreadable entry is skipped, as ListFiles skips it
+		}
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		relative, err := filepath.Rel(root, path)
+		if err != nil {
+			return nil //nolint:nilerr // can't happen: WalkDir stays under root
+		}
+		relative = filepath.ToSlash(relative)
+		switch {
+		case entry.IsDir() && (entry.Name() == ".git" || relative != folder && opts.leavesOut(relative)):
+			return filepath.SkipDir
+		case entry.Type().IsRegular() && !opts.leavesOut(relative):
+			paths = append(paths, relative)
+		}
+		return nil
+	})
+	return paths
 }
 
 // throughLink reports whether reaching dir (slash-separated, relative to

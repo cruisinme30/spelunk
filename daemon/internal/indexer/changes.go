@@ -117,8 +117,9 @@ func (ix *Indexer) changedPaths(changes []protocol.FileChange) map[string][]stri
 	return byRepo
 }
 
-// reread re-reads paths of one repo into its overlay. A deleted folder
-// arrives as one path, so the shard's files under it are masked too.
+// reread re-reads paths of one repo into its overlay. A folder that is
+// deleted, created or renamed arrives as one path, so the indexed files
+// under it are masked too, and the files now in it are read.
 func (ix *Indexer) reread(id string, paths []string) {
 	ix.mu.Lock()
 	r, ok := ix.repos[id]
@@ -126,13 +127,19 @@ func (ix *Indexer) reread(id string, paths []string) {
 		ix.mu.Unlock()
 		return
 	}
-	root, settings, inGit, nested, shard := r.root, ix.settings, r.history != nil, ix.nestedRoots(r.root.Path), r.shard
+	root, settings, inGit, nested := r.root, ix.settings, r.history != nil, ix.nestedRoots(r.root.Path)
+	shards := []*trigram.Shard{r.shard, r.overlay.shard}
 	ix.mu.Unlock()
-	masked := withFilesUnder(paths, shard) // the shard is immutable: no lock needed
+	masked := withFilesUnder(paths, shards...) // shards are immutable: no lock needed
 
 	ctx := ix.life
 	walk := walkOptions(settings, nested)
 	files := trigram.SelectFiles(ctx, root.Path, masked, walk)
+	for _, file := range files {
+		// A folder's path stands for the files read from it, which the
+		// overlay must remember as re-read too (see overlay.since).
+		masked = append(masked, file.Path)
+	}
 	read, err := trigram.Build(ctx, root.Path, files, trigram.BuildOptions{Symbols: settings.Symbols, MaxFileBytes: walk.MaxFileBytes})
 	if err != nil {
 		return
@@ -184,13 +191,17 @@ func changesOwners(paths, locations []string) bool {
 	return false
 }
 
-// withFilesUnder adds to paths the shard's files under any of them, for a
-// folder that was deleted or renamed, each path once. Each path costs a
-// binary search of the shard and its own files: a checkout's thousands of
-// changed paths in a large repo don't each scan every file.
-func withFilesUnder(paths []string, shard *trigram.Shard) []string {
+// withFilesUnder adds to paths the files of shards (the built shard and
+// the overlay; either may be nil) under any of them, for a folder that was
+// deleted or renamed, each path once. Each path costs a binary search of
+// a shard and its own files: a checkout's thousands of changed paths in a
+// large repo don't each scan every file.
+func withFilesUnder(paths []string, shards ...*trigram.Shard) []string {
 	all := slices.Clone(paths)
-	if shard != nil {
+	for _, shard := range shards {
+		if shard == nil {
+			continue
+		}
 		for _, path := range paths {
 			all = append(all, shard.PathsUnder(path)...)
 		}
