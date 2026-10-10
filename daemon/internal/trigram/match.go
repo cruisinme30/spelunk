@@ -15,11 +15,19 @@ type byteHit struct {
 	termIndex  int
 }
 
-// matchedLine is a line with one or more matches.
+// matchedLine is a line with one or more matches, or the first line of a
+// match that spans lines (see span.go) with the lines it runs onto.
 type matchedLine struct {
 	number int // 1-based
 	text   string
 	hits   []byteHit
+	// spanned holds the lines after number that a match spanning lines runs
+	// onto, each with its part of the match: at most maxSpanLines of them,
+	// so a longer match ends past the last. Nil for a match within a line.
+	spanned []spanLine
+	// For a match that spans lines, where it starts in text and where it
+	// ends in line endLine, both in UTF-16 units. endLine is 0 otherwise.
+	startColumn, endLine, endColumn int
 }
 
 // lineMatcher finds, and remembers, which lines each term matches in one file.
@@ -27,6 +35,13 @@ type lineMatcher struct {
 	content []byte
 	terms   termCache
 	cache   map[*query.Content][]matchedLine
+	// lf is content with each "\r\n" as "\n", made the first time a term
+	// that spans lines needs it.
+	lf []byte
+	// perLine keeps every term to one line at a time, even one that spans
+	// lines: a history search matches a commit's changed lines, which are
+	// not one text.
+	perLine bool
 	// definitions returns the file's definitions, which ref: terms skip.
 	// It is nil for texts that aren't files, such as commits.
 	definitions func() []symbols.Symbol
@@ -61,6 +76,9 @@ type termFacts struct {
 	// whole file would read ^ as the start of the file, not of a line, so
 	// anchored terms are matched line by line.
 	anchored bool
+	// multiline means the term is a regex with \n, matched against the
+	// whole text (see span.go).
+	multiline bool
 	// literal finds where the term may match, when hasLiteral.
 	literal    literalFinder
 	hasLiteral bool
@@ -70,7 +88,7 @@ type termFacts struct {
 func (c termCache) facts(term *query.Content) *termFacts {
 	facts, ok := c[term]
 	if !ok {
-		facts = &termFacts{anchored: hasAnchors(term.Re)}
+		facts = &termFacts{anchored: hasAnchors(term.Re), multiline: term.Multiline}
 		facts.literal, facts.hasLiteral = newLiteralFinder(term)
 		c[term] = facts
 	}
@@ -100,15 +118,19 @@ func hasAnchors(re *regexp.Regexp) bool {
 }
 
 // matches returns the lines term matches. Matching is per line, as in
-// ripgrep: a match never spans a newline, and ^ and $ anchor lines.
+// ripgrep: a match never spans a newline, and ^ and $ anchor lines. Only a
+// regex with \n in it matches across lines (see span.go).
 func (m *lineMatcher) matches(term *query.Content) []matchedLine {
 	if found, ok := m.cache[term]; ok {
 		return found
 	}
 	var found []matchedLine
-	if !m.terms.facts(term).anchored {
+	switch facts := m.terms.facts(term); {
+	case facts.multiline && !m.perLine:
+		found = m.matchAcrossLines(term)
+	case !facts.anchored:
 		found = m.scanForLines(term)
-	} else {
+	default:
 		found = m.everyLine(term)
 	}
 	if term.Reference && m.definitions != nil {
@@ -242,28 +264,18 @@ func nonEmptyHits(locs [][]int, termIndex int) []byteHit {
 	return hits
 }
 
-// lines merges the matched lines of several terms, in line order.
+// lines merges the matched lines of several terms, in line order: the
+// matches on one line become one result, and so do matches whose lines
+// overlap when one of them spans lines.
 func (m *lineMatcher) lines(terms []*query.Content) []matchedLine {
-	byNumber := map[int]*matchedLine{}
-	var order []int
+	var found []matchedLine
 	for _, term := range terms {
-		for _, line := range m.matches(term) {
-			if merged, ok := byNumber[line.number]; ok {
-				merged.hits = append(merged.hits, line.hits...)
-				continue
-			}
-			copied := line
-			copied.hits = append([]byteHit(nil), line.hits...)
-			byNumber[line.number] = &copied
-			order = append(order, line.number)
-		}
+		found = append(found, m.matches(term)...)
 	}
-	slices.Sort(order)
-	merged := make([]matchedLine, len(order))
-	for i, number := range order {
-		line := byNumber[number]
-		sortHits(line.hits)
-		merged[i] = *line
+	slices.SortStableFunc(found, func(a, b matchedLine) int { return a.number - b.number })
+	merged := joinLines(found)
+	for i := range merged {
+		merged[i].sortHits()
 	}
 	return merged
 }

@@ -103,7 +103,7 @@ func TestPreviewOfCRLFFileHasNoCarriageReturns(t *testing.T) {
 func TestMalformedOrForeignRefsAreStale(t *testing.T) {
 	client := newTestClient(t)
 	client.mustInitialize(t, protocol.Root{ID: "r1", Path: t.TempDir(), Name: "r"})
-	for _, ref := range []string{"", "line|r1|1|0|1|a.txt", "tree|1|other-root|1|0|1|a.txt"} {
+	for _, ref := range []string{"", "line|r1|1|0|1|a.txt", "tree|1|other-root|1|0|1|0|0|a.txt"} {
 		err := client.call(protocol.MethodPreviewGet, protocol.PreviewParams{Ref: ref, ContextLines: 1}, nil)
 		wantRPCCode(t, "preview/get "+ref, err, protocol.CodeRefStale)
 	}
@@ -262,5 +262,50 @@ func TestOwnerReadsTheReposCodeOwnersFile(t *testing.T) {
 	}
 	if d := parsed.Query.Diagnostics; len(d) != 1 || d[0].Severity != protocol.SeverityWarning || len(d[0].Fixes) != 1 || d[0].Fixes[0].Title != "Use owner:@jane" {
 		t.Errorf("owner:@jame diagnostics = %+v, want a warning offering owner:@jane", d)
+	}
+}
+
+// A regex with \n finds a match across lines over JSON-RPC: the result
+// carries the lines it spans, the preview marks them, and opening it
+// selects the whole match, in a file whose lines end in "\r\n".
+func TestAMatchAcrossLinesRoundTrips(t *testing.T) {
+	// @covers syntax:regex rpc:open/resolve
+	dir := t.TempDir()
+	mustWriteFile(t, filepath.Join(dir, "client.py"), "class Client:\r\n    def __init__(self):\r\n        self.retry_policy = RetryPolicy(\r\n            max_attempts=3)\r\n")
+	client := newTestClient(t)
+	batches := collectBatches(client)
+	client.mustInitialize(t, protocol.Root{ID: "r1", Path: dir, Name: "payments-api"})
+
+	var result protocol.SearchResult
+	if err := client.call(protocol.MethodSearchStart, protocol.SearchStartParams{SearchID: "s1", Text: `/RetryPolicy\(\n\s*max_attempts/`}, &result); err != nil {
+		t.Fatal(err)
+	}
+	items := batches.all()
+	if result.Total != 1 || len(items) != 1 {
+		t.Fatalf("total %d, %d items; want 1 and 1", result.Total, len(items))
+	}
+	item := items[0]
+	wantSpan := []protocol.SpanLine{{Text: "            max_attempts=3)", Hits: []protocol.Hit{{Start: 0, End: 24}}}}
+	if item.Line != 3 || item.EndLine != 4 || !slices.EqualFunc(item.SpanLines, wantSpan, func(a, b protocol.SpanLine) bool {
+		return a.Text == b.Text && slices.Equal(a.Hits, b.Hits)
+	}) || item.Hits[0] != (protocol.Hit{Start: 28, End: 40}) {
+		t.Fatalf("result = line %d to %d, hits %+v, span %+v", item.Line, item.EndLine, item.Hits, item.SpanLines)
+	}
+
+	var preview protocol.Preview
+	if err := client.call(protocol.MethodPreviewGet, protocol.PreviewParams{Ref: item.Ref, ContextLines: 1}, &preview); err != nil {
+		t.Fatal(err)
+	}
+	if preview.FocusLine != 3 || preview.FocusEndLine != 4 || len(preview.Hits) != 2 || preview.Hits[1].Line != 4 {
+		t.Fatalf("preview = focus %d to %d, hits %+v; want 3 to 4 marked on both", preview.FocusLine, preview.FocusEndLine, preview.Hits)
+	}
+
+	var target protocol.OpenTarget
+	if err := client.call(protocol.MethodOpenResolve, protocol.OpenResolveParams{Ref: item.Ref}, &target); err != nil {
+		t.Fatal(err)
+	}
+	want := protocol.OpenTarget{Path: filepath.Join(dir, "client.py"), Line: 3, Column: 29, Length: 12, EndLine: 4, EndColumn: 25}
+	if target != want {
+		t.Fatalf("open/resolve = %+v, want %+v", target, want)
 	}
 }

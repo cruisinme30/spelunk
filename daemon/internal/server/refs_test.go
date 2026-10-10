@@ -31,14 +31,14 @@ func TestForgedRefsCannotReachOutsideTheirFolder(t *testing.T) {
 	client := newTestClient(t)
 	client.mustInitialize(t, protocol.Root{ID: "r1", Path: dir, Name: "r"})
 	for _, ref := range []string{
-		"tree|1|r1|1|0|1|../../../../../../etc/passwd",
-		"tree|1|r1|1|0|1|/etc/passwd",
-		"tree|1|r1|1|0|1|link.txt",
-		"tree|1|r1|1|0|1|linkedDir/secret.txt",
-		"tree|1|r1|1|0|0|.",
-		"tree|1|r2|1|0|0|client.py",
+		"tree|1|r1|1|0|1|0|0|../../../../../../etc/passwd",
+		"tree|1|r1|1|0|1|0|0|/etc/passwd",
+		"tree|1|r1|1|0|1|0|0|link.txt",
+		"tree|1|r1|1|0|1|0|0|linkedDir/secret.txt",
+		"tree|1|r1|1|0|0|0|0|.",
+		"tree|1|r2|1|0|0|0|0|client.py",
 		"hist|1|r1|--output=x",
-		"garbage", "", "tree||||||",
+		"garbage", "", "tree||||||0|0|",
 	} {
 		var preview protocol.Preview
 		err := client.call(protocol.MethodPreviewGet, protocol.PreviewParams{Ref: ref, ContextLines: 2}, &preview)
@@ -59,11 +59,11 @@ func TestPreviewClampsContextLines(t *testing.T) {
 		contextLines int
 		wantLines    int
 	}{
-		{"tree|1|r1|5|0|0|client.py", -5, 1},
-		{"tree|1|r1|5|0|0|client.py", -1 << 40, 1},
-		{"tree|1|r1|5|0|0|client.py", 1 << 62, 6}, // the whole file, with its final empty line
-		{"tree|1|r1|0|0|0|client.py", -5, 1},
-		{"tree|1|r1|0|0|0|client.py", 1 << 62, 6},
+		{"tree|1|r1|5|0|0|0|0|client.py", -5, 1},
+		{"tree|1|r1|5|0|0|0|0|client.py", -1 << 40, 1},
+		{"tree|1|r1|5|0|0|0|0|client.py", 1 << 62, 6}, // the whole file, with its final empty line
+		{"tree|1|r1|0|0|0|0|0|client.py", -5, 1},
+		{"tree|1|r1|0|0|0|0|0|client.py", 1 << 62, 6},
 	}
 	for _, tt := range tests {
 		var preview protocol.Preview

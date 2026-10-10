@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/cruisinme30/spelunk/daemon/internal/lang"
@@ -15,11 +16,17 @@ import (
 // ErrStale means the file or line behind a ref is gone.
 var ErrStale = errors.New("result no longer exists")
 
+// maxPreviewSpanLines is how many lines after its first a preview shows of
+// a match that spans lines; a longer one is shown from its start.
+const maxPreviewSpanLines = 200
+
 // Preview returns the lines around a result, read from disk so they match
 // what opening the file shows. With the plan that produced the result, it
 // highlights every term that made the file match, in the term's color;
-// without it (the plan was forgotten), only the result's own match. A file
-// that is gone, or is no longer a regular text file, is ErrStale.
+// without it (the plan was forgotten), only the result's own match. A
+// match that spans lines is shown whole (up to maxPreviewSpanLines more
+// lines), with the lines around it. A file that is gone, or is no longer a
+// regular text file, is ErrStale.
 func Preview(repo *Repo, ref Ref, plan *query.Plan, contextLines int) (protocol.Preview, error) {
 	content, info, err := readText(filepath.Join(repo.Root, filepath.FromSlash(ref.Path)), 0)
 	if err != nil {
@@ -33,8 +40,12 @@ func Preview(repo *Repo, ref Ref, plan *query.Plan, contextLines int) (protocol.
 	if focus > len(lines) {
 		return protocol.Preview{}, ErrStale
 	}
+	focusEnd := focus
+	if ref.Spans() {
+		focusEnd = min(ref.EndLine, focus+maxPreviewSpanLines, len(lines))
+	}
 	first := max(1, focus-contextLines)
-	last := min(len(lines), focus+contextLines)
+	last := min(len(lines), focusEnd+contextLines)
 	if ref.IsFile() {
 		last = min(len(lines), 1+2*contextLines) // the top of the file
 	}
@@ -47,6 +58,9 @@ func Preview(repo *Repo, ref Ref, plan *query.Plan, contextLines int) (protocol.
 		doc := &Doc{Path: ref.Path, Lang: language, ModTime: info.ModTime(), Content: content}
 		terms = query.Contributing(plan.Pred, contentLeaf(repo, doc, newFileMatcher(doc, termCache{})))
 	}
+	// A term that spans lines is matched against the whole file; the others
+	// line by line, as markLine does.
+	terms, acrossLines := splitAcrossLines(terms, content, first, last)
 	hits := []protocol.LineHits{}
 	shown := make([]string, 0, last-first+1)
 	for number := first; number <= last; number++ {
@@ -55,17 +69,21 @@ func Preview(repo *Repo, ref Ref, plan *query.Plan, contextLines int) (protocol.
 		if number == ref.Line {
 			own = &ref
 		}
-		text, ranges := markLine(line, terms, own)
+		text, ranges := markLine(line, terms, acrossLines[number], own)
 		shown = append(shown, text)
 		if len(ranges) > 0 {
 			hits = append(hits, protocol.LineHits{Line: number, Ranges: ranges})
 		}
 	}
-	return protocol.Preview{
+	preview := protocol.Preview{
 		Kind: protocol.PreviewKindFile, Path: ref.Path, FirstLine: first, Lines: shown,
 		FocusLine: focus, Hits: hits, DirtyLines: []int{}, Symbols: outline(symbols.Extract(language, content), focus),
 		Ownership: ownership(repo, ref.Path),
-	}, nil
+	}
+	if ref.Spans() && len(lines) > focus {
+		preview.FocusEndLine = min(ref.EndLine, len(lines))
+	}
+	return preview, nil
 }
 
 // ownership says who owns the file at path and which CODEOWNERS line says
@@ -101,8 +119,9 @@ func outline(found []symbols.Symbol, focus int) []protocol.OutlineSymbol {
 }
 
 // OpenTarget returns where opening a result goes: the line and column of
-// its first match, or the top of the file for a file-name result. It
-// returns ErrStale if the file is gone.
+// its first match (to where it ends, for a match that spans lines), or the
+// top of the file for a file-name result. It returns ErrStale if the file
+// is gone.
 func OpenTarget(repo *Repo, ref Ref) (protocol.OpenTarget, error) {
 	full := filepath.Join(repo.Root, filepath.FromSlash(ref.Path))
 	if _, err := os.Stat(full); err != nil {
@@ -112,6 +131,9 @@ func OpenTarget(repo *Repo, ref Ref) (protocol.OpenTarget, error) {
 	if !ref.IsFile() {
 		// OpenTarget.Column is 1-based, like VS Code's UI; refs are 0-based.
 		target.Line, target.Column, target.Length = ref.Line, ref.Column+1, ref.Length
+		if ref.Spans() {
+			target.EndLine, target.EndColumn = ref.EndLine, ref.EndColumn+1
+		}
 	}
 	return target, nil
 }
@@ -136,18 +158,19 @@ const maxPreviewLineRunes = 2_000
 // marked by start, in UTF-16 offsets into the text returned. The history
 // engine shows diff lines with it too.
 func PreviewLine(line string, terms []*query.Content) (string, []protocol.Hit) {
-	text, hits := markLine(line, terms, nil)
+	text, hits := markLine(line, terms, nil, nil)
 	if hits == nil {
 		hits = []protocol.Hit{}
 	}
 	return text, hits
 }
 
-// markLine is PreviewLine for a working-tree preview: when terms mark
-// nothing on the result's own line (own, nil on other lines), its ref's
-// match is marked instead.
-func markLine(line string, terms []*query.Content, own *Ref) (string, []protocol.Hit) {
-	var hits []byteHit
+// markLine is PreviewLine for a working-tree preview: marked are terms'
+// matches in the line and the parts of matches across lines already found
+// on it, and when those mark nothing on the result's own line (own, nil on
+// other lines), its ref's match instead.
+func markLine(line string, terms []*query.Content, acrossLines []byteHit, own *Ref) (string, []protocol.Hit) {
+	hits := slices.Clone(acrossLines)
 	for _, term := range terms {
 		hits = append(hits, lineHits(term, func(n int) [][]int { return term.FindAllStringIndex(line, n) })...)
 	}

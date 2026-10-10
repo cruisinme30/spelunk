@@ -49,7 +49,7 @@ func TestContextAroundTakesUpToNLinesEachSide(t *testing.T) {
 		{7, 2, nil, nil},
 	}
 	for _, tt := range tests {
-		before, after := contextAround(content, starts, tt.number, tt.n)
+		before, after := contextAround(content, starts, tt.number, tt.number, tt.n)
 		if !reflect.DeepEqual(before, tt.before) || !reflect.DeepEqual(after, tt.after) {
 			t.Errorf("contextAround(line %d, n %d) = %q, %q; want %q, %q", tt.number, tt.n, before, after, tt.before, tt.after)
 		}
@@ -58,7 +58,7 @@ func TestContextAroundTakesUpToNLinesEachSide(t *testing.T) {
 
 func TestContextLinesDropLineEndsAndKeepBlankLines(t *testing.T) {
 	content := []byte("a\r\n\r\nmatch\r\n\r\nz")
-	before, after := contextAround(content, lineStarts(content), 3, 2)
+	before, after := contextAround(content, lineStarts(content), 3, 3, 2)
 	if want := []string{"a", ""}; !reflect.DeepEqual(before, want) {
 		t.Errorf("before = %q, want %q", before, want)
 	}
@@ -70,7 +70,7 @@ func TestContextLinesDropLineEndsAndKeepBlankLines(t *testing.T) {
 func TestLongContextLinesAreClippedFromTheirStart(t *testing.T) {
 	long := strings.Repeat("é", 1000)
 	content := []byte(long + "\nmatch\n")
-	before, _ := contextAround(content, lineStarts(content), 2, 1)
+	before, _ := contextAround(content, lineStarts(content), 2, 2, 1)
 	if len(before) != 1 {
 		t.Fatalf("before = %d lines, want 1", len(before))
 	}

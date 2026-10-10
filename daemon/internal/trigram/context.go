@@ -20,20 +20,22 @@ func lineStarts(content []byte) []int {
 	}
 }
 
-// contextAround returns the lines around line number (1-based) of content
-// that a code result shows dimmed: up to n before it, top first, and up to
-// n after it, fewer at the ends of the file. starts is lineStarts(content).
+// contextAround returns the lines around a match on lines number to last
+// (1-based; the same line unless the match spans lines) of content that a
+// code result shows dimmed: up to n before the first, top first, and up to
+// n after the last, fewer at the ends of the file. starts is
+// lineStarts(content).
 // Long lines are clipped from their start, as a result's line would be
 // without a match.
-func contextAround(content []byte, starts []int, number, n int) (before, after []string) {
-	at := number - 1
-	if at < 0 || at >= len(starts) {
+func contextAround(content []byte, starts []int, number, last, n int) (before, after []string) {
+	at, end := number-1, last-1
+	if at < 0 || at >= len(starts) || end < at || end >= len(starts) {
 		return nil, nil
 	}
 	for i := max(at-n, 0); i < at; i++ {
 		before = append(before, lineText(content, starts, i))
 	}
-	for i := at + 1; i <= min(at+n, len(starts)-1); i++ {
+	for i := end + 1; i <= min(end+n, len(starts)-1); i++ {
 		after = append(after, lineText(content, starts, i))
 	}
 	return before, after

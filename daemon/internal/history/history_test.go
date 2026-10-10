@@ -473,7 +473,7 @@ func TestAuthorsAndWordsSummarizeTheHistory(t *testing.T) {
 }
 
 func TestParseRefRejectsWhatItDidNotWrite(t *testing.T) {
-	for _, text := range []string{"hist|1|r1|--upload-pack=x", "hist|1|r1|abc", "tree|1|r1|0|0|0|a.go", "hist|x|r1|abcdef0"} {
+	for _, text := range []string{"hist|1|r1|--upload-pack=x", "hist|1|r1|abc", "tree|1|r1|0|0|0|0|0|a.go", "hist|x|r1|abcdef0"} {
 		if _, ok := ParseRef(text); ok {
 			t.Errorf("ParseRef(%q) accepted it", text)
 		}

@@ -436,7 +436,7 @@ func (s *searcher) addCodeLines(repos []Repo) {
 				if starts == nil {
 					starts = lineStarts(c.doc.Content)
 				}
-				item.ContextBefore, item.ContextAfter = contextAround(c.doc.Content, starts, line.number, s.plan.ContextLines)
+				item.ContextBefore, item.ContextAfter = contextAround(c.doc.Content, starts, line.number, line.last(), s.plan.ContextLines)
 			}
 			quality := 0
 			if s.holding {
@@ -607,18 +607,33 @@ func narrowShard(shard *Shard, p query.Pred, caseSensitive bool) []uint32 {
 	})
 }
 
-// lineResult builds a code result, clipping very long lines around the match.
+// lineResult builds a code result, clipping very long lines around the
+// match. A match that spans lines carries the lines it runs onto, and its
+// ref runs to where it ends.
 func (s *searcher) lineResult(repo *Repo, doc *Doc, line matchedLine) protocol.ResultItem {
 	text, hits := clipLine(line.text, line.hits)
-	first := line.hits[0]
-	ref := Ref{
-		PlanID: s.planID, RepoID: repo.ID, Path: doc.Path, Line: line.number,
-		Column: utf16Len(line.text[:first.start]), Length: utf16Len(line.text[first.start:first.end]),
+	ref := Ref{PlanID: s.planID, RepoID: repo.ID, Path: doc.Path, Line: line.number}
+	if line.spans() {
+		ref.Column = line.startColumn
+		ref.Length = utf16Len(line.text) - ref.Column // the rest of the first line
+		ref.EndLine, ref.EndColumn = line.endLine, line.endColumn
+	} else {
+		first := line.hits[0]
+		ref.Column, ref.Length = utf16Len(line.text[:first.start]), utf16Len(line.text[first.start:first.end])
 	}
-	return protocol.ResultItem{
+	item := protocol.ResultItem{
 		Kind: query.KindLine, Ref: ref.String(), RepoID: repo.ID, Path: doc.Path,
 		Line: line.number, Text: text, Hits: hits,
 	}
+	if line.spans() {
+		item.EndLine = line.endLine
+		item.SpanLines = make([]protocol.SpanLine, len(line.spanned))
+		for i, later := range line.spanned {
+			shown, laterHits := clipLine(later.text, later.hits)
+			item.SpanLines[i] = protocol.SpanLine{Text: shown, Hits: laterHits}
+		}
+	}
+	return item
 }
 
 // byteHit is a match in a line, in byte offsets.

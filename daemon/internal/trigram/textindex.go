@@ -35,7 +35,9 @@ func NewLineFinder() *LineFinder { return &LineFinder{terms: termCache{}} }
 
 // Lines returns the 1-based numbers of the lines of text that term matches.
 func (f *LineFinder) Lines(text []byte, term *query.Content) []int {
-	matched := newLineMatcher(text, f.terms).matches(term)
+	m := newLineMatcher(text, f.terms)
+	m.perLine = true // a commit's changed lines aren't one text
+	matched := m.matches(term)
 	numbers := make([]int, len(matched))
 	for i, line := range matched {
 		numbers[i] = line.number
