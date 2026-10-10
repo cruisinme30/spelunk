@@ -55,7 +55,7 @@ var operators = []operator{
 	{name: protocol.OpNameSym, full: "symbol", short: "s", scope: scopeWorkingTreeOnly, summary: "Symbol definitions", interpret: asText},
 	{name: protocol.OpNameKind, full: "kind", short: "k", scope: scopeWorkingTreeOnly, summary: "Only definitions of one kind", examples: SymbolKinds, interpret: oneOf(SymbolKinds...)},
 	{name: protocol.OpNameRef, full: "ref", short: "x", scope: scopeWorkingTreeOnly, summary: "Whole-word uses of a name, without its definitions", interpret: asReference},
-	{name: protocol.OpNameIs, full: "is", short: "i", summary: "Open, changed or test files", examples: []string{StateOpen, StateChanged, StateTest}, interpret: oneOf(StateOpen, StateChanged, StateTest)},
+	{name: protocol.OpNameIs, full: "is", short: "i", summary: "Open, changed, test, generated or vendored files", examples: []string{StateOpen, StateChanged, StateTest, StateGenerated, StateVendored}, interpret: oneOf(StateOpen, StateChanged, StateTest, StateGenerated, StateVendored)},
 	{name: protocol.OpNameContent, full: "content", summary: "Text inside files only, never file names", examples: []string{"retry", `"read timeout"`, "/Retry(Policy)?/"}, interpret: asText},
 	{name: protocol.OpNameLang, full: "language", short: "l", summary: "Programming language", examples: []string{"python", "go", "typescript"}, interpret: asLanguage},
 	{name: protocol.OpNameRepo, full: "repo", short: "r", summary: "Repo name, as a regex or a glob", interpret: asPathRegex},
@@ -69,9 +69,11 @@ var operators = []operator{
 
 // The values of is:, the file states it can match.
 const (
-	StateOpen    = "open"    // open in an editor tab
-	StateChanged = "changed" // uncommitted changes
-	StateTest    = "test"    // holds tests (lang.IsTest)
+	StateOpen      = "open"      // open in an editor tab
+	StateChanged   = "changed"   // uncommitted changes
+	StateTest      = "test"      // holds tests (lang.IsTest)
+	StateGenerated = "generated" // written by a tool (lang.IsGenerated)
+	StateVendored  = "vendored"  // someone else's code, or a build's (lang.IsVendored)
 )
 
 // The values of type: that search commits for lines on one side of their
@@ -91,8 +93,11 @@ func historyType(value string) bool {
 var SymbolKinds = fixedValueNames(protocol.OpNameKind)
 
 // currentState reports whether an is: value describes files as they are
-// now (open, changed), which no commit can match. is:test is a rule about
-// paths, so in a history query it picks the commits' test files, like f:.
+// now (open, changed), which no commit can match. is:test and is:vendored
+// are rules about paths, so in a history query they pick the commits' test
+// or vendored files, like f:; is:generated picks the files named like
+// generated code (lang.IsGeneratedName), since a commit's files have no
+// header to read.
 func currentState(value string) bool {
 	return value == StateOpen || value == StateChanged
 }

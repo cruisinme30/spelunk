@@ -232,7 +232,7 @@ func docLeaf(p query.Pred, repo *Repo, doc *Doc) bool {
 	case *query.Since:
 		return repo.changedSince(doc, p.After)
 	case *query.Is:
-		return repo.inState(doc.Path, p.State)
+		return repo.inState(doc, p.State)
 	default:
 		// sym: needs the symbol index; author: and msg: are history-only, and
 		// the parser keeps them out of working-tree plans.

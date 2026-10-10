@@ -36,17 +36,21 @@ func OpenIn(root string, open []string) map[string]bool {
 	return inside
 }
 
-// inState reports whether the file at path is in the state an is: value
-// names: open in the editor, with uncommitted changes (never outside Git),
-// or holding tests.
-func (r *Repo) inState(path, state string) bool {
+// inState reports whether a file is in the state an is: value names: open
+// in the editor, with uncommitted changes (never outside Git), holding
+// tests, written by a tool, or vendored.
+func (r *Repo) inState(doc *Doc, state string) bool {
 	switch state {
 	case query.StateOpen:
-		return r.Open[path]
+		return r.Open[doc.Path]
 	case query.StateChanged:
-		return r.History != nil && r.History.Dirty(path)
+		return r.History != nil && r.History.Dirty(doc.Path)
 	case query.StateTest:
-		return lang.IsTest(path)
+		return lang.IsTest(doc.Path)
+	case query.StateGenerated:
+		return lang.IsGenerated(doc.Path, doc.Content)
+	case query.StateVendored:
+		return lang.IsVendored(doc.Path)
 	default:
 		return false
 	}

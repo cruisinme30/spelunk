@@ -178,7 +178,8 @@ type (
 	// Message matches a commit's subject and body (msg:).
 	Message struct{ Re *regexp.Regexp }
 	// Is matches files in a state (is:): open in the editor, with uncommitted
-	// changes, or holding tests. State is one of StateOpen, StateChanged, StateTest.
+	// changes, holding tests, written by a tool, or vendored. State is one of
+	// StateOpen, StateChanged, StateTest, StateGenerated, StateVendored.
 	Is struct{ State string }
 	// Since matches commits after a time, or files last changed after it.
 	Since struct{ After time.Time }

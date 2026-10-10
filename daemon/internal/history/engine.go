@@ -312,13 +312,29 @@ func leafFor(repo *Repo, c *Commit, view *fileView) func(query.Pred) bool {
 		case *query.Lang:
 			return view.file.Path != "" && lang.Detect(view.file.Path, nil) == p.Name
 		case *query.Is:
-			// Only is:test reaches a history plan: open and changed describe
-			// files as they are now, and the parser keeps them out.
-			return p.State == query.StateTest && view.file.Path != "" && lang.IsTest(view.file.Path)
+			// open and changed describe files as they are now, and the parser
+			// keeps them out of history plans.
+			return view.file.Path != "" && inCommitState(view.file.Path, p.State)
 		default:
 			matched, _ := commitLeaf(repo, c, p)
 			return matched
 		}
+	}
+}
+
+// inCommitState reports whether a commit's file is in the state an is:
+// value names. Only path rules apply: a commit's file has no header to read,
+// so is:generated goes by the file's name alone.
+func inCommitState(path, state string) bool {
+	switch state {
+	case query.StateTest:
+		return lang.IsTest(path)
+	case query.StateGenerated:
+		return lang.IsGeneratedName(path)
+	case query.StateVendored:
+		return lang.IsVendored(path)
+	default:
+		return false
 	}
 }
 
