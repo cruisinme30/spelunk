@@ -25,6 +25,18 @@ type Resolver interface {
 	// Symbols returns up to limit definition names that contain fragment
 	// (lowercase), best first.
 	Symbols(fragment string, limit int) []SymbolStat
+	// Owners returns every owner the open repos' CODEOWNERS files give
+	// files to, most files first.
+	Owners() []OwnerStat
+}
+
+// OwnerStat is one owner in CODEOWNERS files, as it is written there
+// (@acme/payments-core, @jane, jane@example.com), and how many indexed
+// files it owns.
+type OwnerStat struct {
+	Name  string
+	Files int
+	Repos []string
 }
 
 // SymbolStat is one definition name and where it is defined.
@@ -62,6 +74,11 @@ type RepoStat struct {
 	Progress float64
 	// Git is false for a folder outside Git, whose files is:changed never matches.
 	Git bool
+	// CodeOwners is where its CODEOWNERS file is (.github/CODEOWNERS), or ""
+	// when it has none, so owner: matches none of its files.
+	CodeOwners string
+	// Unowned is how many of its indexed files CODEOWNERS gives no owner (owner:none).
+	Unowned int
 }
 
 // FileStat is one indexed file.
@@ -94,6 +111,9 @@ func (noResolver) MessageWords(string, int) []WordStat { return nil }
 
 // Symbols knows no definitions.
 func (noResolver) Symbols(string, int) []SymbolStat { return nil }
+
+// Owners knows no CODEOWNERS files.
+func (noResolver) Owners() []OwnerStat { return nil }
 
 // repoNames lists the display names of the open repos.
 func repoNames(resolver Resolver) []string {

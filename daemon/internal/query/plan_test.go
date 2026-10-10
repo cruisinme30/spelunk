@@ -48,7 +48,7 @@ func TestPlanLowersTheQuery(t *testing.T) {
 		{`author:"Jane Doe" x`, `and(author:="jane doe" content#0:/(?i)x/)`},
 		{"repo:web count:20 x", "and(repo:/(?i)web/ content#0:/(?i)x/)"},
 		{"since:2026-09 until:2026-09 x", "and(since:2026-09-01T00:00:00Z not(since:2026-10-01T00:00:00Z) content#0:/(?i)x/)"},
-		{`owner:@acme/payments -owner:none owner:"jane" x`, "and(owner:@acme/payments not(owner:none) owner:jane content#0:/(?i)x/)"},
+		{`owner:@acme/payments-core -owner:none owner:"jane" x`, "and(owner:@acme/payments-core not(owner:none) owner:jane content#0:/(?i)x/)"},
 	}
 	for _, tt := range tests {
 		if got := mustPlan(t, tt.query, defaultSettings).Pred.String(); got != tt.want {

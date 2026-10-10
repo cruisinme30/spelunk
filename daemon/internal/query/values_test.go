@@ -249,3 +249,41 @@ func TestSymbolSuggestionsNameTheDefinitions(t *testing.T) {
 		t.Errorf("Complete(ref:retry) =\n%s\nwant the same names as sym:\n%s", got, want)
 	}
 }
+
+func TestOwnerSuggestionsListTheCodeOwnersOwners(t *testing.T) {
+	// @covers op:owner screen:owner-filter
+	want := strings.Join([]string{
+		"@acme/payments-core | Team | 5 files | payments-api",
+		"@jane | Person | 2 files | payments-api",
+		"@acme/platform | Team | 1 file | payments-api",
+		"none | Files no CODEOWNERS line gives an owner | 1 file | payments-api",
+	}, "\n")
+	if got := shown(Complete("owner:", len("owner:"), testResolver, fixedNow)); got != want {
+		t.Errorf("Complete(owner:) =\n%s\nwant\n%s", got, want)
+	}
+	// What's typed narrows them, with or without its @.
+	want = "@acme/payments-core | Team | 5 files | payments-api"
+	for _, text := range []string{"owner:@acme/pay", "owner:pay", "-owner:PAY"} {
+		if got := shown(Complete(text, len(text), testResolver, fixedNow)); got != want {
+			t.Errorf("Complete(%s) = %q, want %q", text, got, want)
+		}
+	}
+	if got := shown(Complete("owner:no", len("owner:no"), testResolver, fixedNow)); !strings.HasPrefix(got, "none |") {
+		t.Errorf("Complete(owner:no) = %q, want none", got)
+	}
+}
+
+func TestOwnerSuggestionsNeedACodeOwnersFile(t *testing.T) {
+	// @covers op:owner
+	resolver := fakeResolver{repos: []RepoStat{{Name: "web-checkout", Files: 3}}}
+	if got := Complete("owner:", len("owner:"), resolver, fixedNow); len(got) != 0 {
+		t.Errorf("Complete(owner:) without CODEOWNERS = %+v, want nothing to offer", got)
+	}
+	email := fakeResolver{
+		repos:  []RepoStat{{Name: "docs", CodeOwners: "CODEOWNERS"}},
+		owners: []OwnerStat{{Name: "writers@acme.example", Files: 2, Repos: []string{"docs"}}},
+	}
+	if got, want := shown(Complete("owner:wri", len("owner:wri"), email, fixedNow)), "writers@acme.example | Email | 2 files | docs"; got != want {
+		t.Errorf("Complete(owner:wri) = %q, want %q", got, want)
+	}
+}

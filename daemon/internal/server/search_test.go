@@ -3,10 +3,12 @@ package server
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 	"time"
 
 	"github.com/cruisinme30/spelunk/daemon/internal/protocol"
+	"github.com/cruisinme30/spelunk/daemon/internal/testutil"
 )
 
 // kelvinSign is U+212A KELVIN SIGN. It looks like K and lowercases to an
@@ -216,5 +218,49 @@ func TestIsGeneratedReadsTheIndexedHeaders(t *testing.T) {
 	}
 	if len(parsed.Completions) != 1 || parsed.Completions[0].Note != "1 file" {
 		t.Errorf("is:g completions = %+v, want generated, 1 file: schema.py by its header", parsed.Completions)
+	}
+}
+
+func TestOwnerReadsTheReposCodeOwnersFile(t *testing.T) {
+	// @covers op:owner screen:owner-filter
+	dir := testutil.WriteTree(t, map[string]string{
+		".github/CODEOWNERS":    "* @acme/platform\n/src/payments/ @acme/payments-core @jane\n/src/legacy/\n",
+		"src/payments/retry.py": "hit\n",
+		"src/search/retry.py":   "hit\n",
+		"src/legacy/retry.py":   "hit\n",
+	})
+	client := newTestClient(t)
+	batches := collectBatches(client)
+	client.mustInitialize(t, protocol.Root{ID: "r1", Path: dir, Name: "payments-api"})
+	var result protocol.SearchResult
+	if err := client.call(protocol.MethodSearchStart, protocol.SearchStartParams{SearchID: "s1", Text: "content:hit owner:payments-core"}, &result); err != nil {
+		t.Fatal(err)
+	}
+	if items := batches.all(); len(items) != 1 || items[0].Path != "src/payments/retry.py" {
+		t.Fatalf("content:hit owner:payments-core = %+v, want only src/payments/retry.py", items)
+	}
+	if len(result.Hidden) != 1 || result.Hidden[0].Reason != "owner" || result.Hidden[0].Count != 2 {
+		t.Errorf("hidden = %+v, want 2 matches hidden by owner:payments-core", result.Hidden)
+	}
+
+	var parsed protocol.ParseResult
+	if err := client.call(protocol.MethodQueryParse, protocol.ParseParams{Text: "owner:", Cursor: 6}, &parsed); err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for _, c := range parsed.Completions {
+		got = append(got, c.Label+" "+c.Context)
+	}
+	// .github/CODEOWNERS is indexed and owned by the default too.
+	want := []string{"@acme/platform 2 files", "@acme/payments-core 1 file", "@jane 1 file", "none 1 file"}
+	if !slices.Equal(got, want) {
+		t.Errorf("owner: completions = %q, want %q", got, want)
+	}
+
+	if err := client.call(protocol.MethodQueryParse, protocol.ParseParams{Text: "hit owner:@jame", Cursor: 15}, &parsed); err != nil {
+		t.Fatal(err)
+	}
+	if d := parsed.Query.Diagnostics; len(d) != 1 || d[0].Severity != protocol.SeverityWarning || len(d[0].Fixes) != 1 || d[0].Fixes[0].Title != "Use owner:@jane" {
+		t.Errorf("owner:@jame diagnostics = %+v, want a warning offering owner:@jane", d)
 	}
 }

@@ -3,6 +3,7 @@ package query
 import (
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -246,5 +247,58 @@ func TestReplacingAValueKeepsItApartFromTheNextWord(t *testing.T) {
 	q := Parse("case:/ /y", testResolver)
 	if got := ApplyFix(q.Raw, q.Diagnostics[0].Fixes[0]); got != "case:yes y" {
 		t.Errorf("first fix of %q gives %q, want %q", q.Raw, got, "case:yes y")
+	}
+}
+
+func TestOwnerWarnsWhenItCanMatchNothing(t *testing.T) {
+	// @covers op:owner screen:owner-filter
+	tests := []struct {
+		name, text, message string
+		fixed               []string
+	}{
+		{"an owner no CODEOWNERS file names, with the nearest offered", "retry owner:@acme/payment-core",
+			"No CODEOWNERS file names @acme/payment-core, so owner:@acme/payment-core matches nothing",
+			[]string{"retry owner:@acme/payments-core"}},
+		{"a person's name a letter off", "owner:jame x", "No CODEOWNERS file names jame, so owner:jame matches nothing",
+			[]string{"owner:@jane x"}},
+		{"a team's name alone, a letter off", "owner:platforms x", "No CODEOWNERS file names platforms, so owner:platforms matches nothing",
+			[]string{"owner:@acme/platform x"}},
+		{"nothing near", "owner:@zz x", "No CODEOWNERS file names @zz, so owner:@zz matches nothing", nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			q := Parse(tt.text, testResolver)
+			if len(q.Diagnostics) != 1 || q.Diagnostics[0].Severity != protocol.SeverityWarning || q.Diagnostics[0].Message != tt.message {
+				t.Fatalf("diagnostics = %+v, want one warning %q", q.Diagnostics, tt.message)
+			}
+			var fixed []string
+			for _, fix := range q.Diagnostics[0].Fixes {
+				fixed = append(fixed, ApplyFix(tt.text, fix))
+			}
+			if !slices.Equal(fixed, tt.fixed) {
+				t.Errorf("fixes give %q, want %q", fixed, tt.fixed)
+			}
+		})
+	}
+	for _, text := range []string{"owner:@acme/payments-core x", "owner:payments-core x", "owner:JANE x", "owner:none x", "-owner:@jane x"} {
+		if q := Parse(text, testResolver); len(q.Diagnostics) != 0 {
+			t.Errorf("Parse(%q) diagnostics = %+v, want none: CODEOWNERS names that owner", text, q.Diagnostics)
+		}
+	}
+}
+
+func TestOwnerWarnsWhenNoRepoHasCodeOwners(t *testing.T) {
+	// @covers op:owner
+	resolver := fakeResolver{repos: []RepoStat{{Name: "web-checkout"}, {Name: "shared-libs"}}}
+	for _, text := range []string{"owner:@jane x", "owner:none x"} {
+		q := Parse(text, resolver)
+		want := "No open repo has a CODEOWNERS file (in .github/, the root or docs/), so owner: matches nothing"
+		if len(q.Diagnostics) != 1 || q.Diagnostics[0].Severity != protocol.SeverityWarning || q.Diagnostics[0].Message != want {
+			t.Errorf("Parse(%q) diagnostics = %+v, want one warning %q", text, q.Diagnostics, want)
+		}
+	}
+	// Before the repos are known (no resolver), there's nothing to say.
+	if q := Parse("owner:@jane x", nil); len(q.Diagnostics) != 0 {
+		t.Errorf("Parse without a resolver diagnostics = %+v, want none", q.Diagnostics)
 	}
 }

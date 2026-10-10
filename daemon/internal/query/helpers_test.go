@@ -24,13 +24,18 @@ var testResolver = fakeResolver{
 		{Name: "Marta Ruiz", Emails: []string{"jamarta@libs.example"}, Commits: 12, Repos: []string{"shared-libs"}, LastAt: "2026-08-03T10:00:00Z"},
 	},
 	repos: []RepoStat{
-		{Name: "payments-api", Path: "/work/payments-api", Files: 7, State: protocol.IndexStateReady, Git: true},
+		{Name: "payments-api", Path: "/work/payments-api", Files: 7, State: protocol.IndexStateReady, Git: true, CodeOwners: ".github/CODEOWNERS", Unowned: 1},
 		{Name: "web-checkout", Path: "/work/web-checkout", Files: 3, State: protocol.IndexStateReady},
 		{Name: "shared-libs", Path: "/work/shared-libs", Files: 4, State: protocol.IndexStateIndexing, Progress: 0.64},
 	},
 	symbols: []SymbolStat{
 		{Name: "RetryPolicy", Kind: protocol.SymbolKindClass, Definitions: 2, Repos: []string{"payments-api", "web-checkout"}},
 		{Name: "RetryPolicyConfig", Kind: protocol.SymbolKindClass, Definitions: 1, Repos: []string{"shared-libs"}},
+	},
+	owners: []OwnerStat{
+		{Name: "@acme/payments-core", Files: 5, Repos: []string{"payments-api"}},
+		{Name: "@jane", Files: 2, Repos: []string{"payments-api"}},
+		{Name: "@acme/platform", Files: 1, Repos: []string{"payments-api"}},
 	},
 	words: []WordStat{
 		{Text: "fix flaky", Commits: 12, LastAt: fixedNow.AddDate(0, 0, -2)},
@@ -62,6 +67,7 @@ type fakeResolver struct {
 	files   []FileStat
 	words   []WordStat
 	symbols []SymbolStat
+	owners  []OwnerStat
 }
 
 // Authors returns up to limit authors whose name or email contains fragment.
@@ -103,6 +109,9 @@ func (r fakeResolver) Symbols(fragment string, limit int) []SymbolStat {
 	}
 	return found
 }
+
+// Owners returns every owner.
+func (r fakeResolver) Owners() []OwnerStat { return r.owners }
 
 // codes lists the codes of diagnostics, in order.
 func codes(diagnostics []protocol.Diagnostic) []string {

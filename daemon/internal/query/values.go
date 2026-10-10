@@ -47,6 +47,8 @@ func valueCandidates(op operator, fragment string, resolver Resolver, now time.T
 		return symbolCandidates(resolver.Symbols(fragment, maxValueCompletions+1))
 	case protocol.OpNameIs:
 		return stateCandidates(fragment, resolver)
+	case protocol.OpNameOwner:
+		return ownerCandidates(fragment, resolver)
 	case protocol.OpNameType, protocol.OpNameKind, protocol.OpNameCase, protocol.OpNameWord, protocol.OpNameCount, protocol.OpNameOrder:
 		return fixedCandidates(fixedValues[op.name], fragment)
 	default:
@@ -661,6 +663,52 @@ func stateCandidates(fragment string, resolver Resolver) []valueCandidate {
 		}
 	}
 	return candidates
+}
+
+// ------------------------------------------------------------ owner:
+
+// ownerCandidates offers the owners the open repos' CODEOWNERS files name,
+// most files first, then none: "Team · 4 files · payments-api". It offers
+// nothing when no open repo has a CODEOWNERS file.
+func ownerCandidates(fragment string, resolver Resolver) []valueCandidate {
+	fragment = strings.TrimPrefix(fragment, "@")
+	var candidates []valueCandidate
+	for _, owner := range resolver.Owners() {
+		if !strings.Contains(strings.ToLower(owner.Name), fragment) {
+			continue
+		}
+		candidates = append(candidates, valueCandidate{
+			value: owner.Name, detail: ownerKind(owner.Name), context: plural(owner.Files, "file"),
+			note: summarizeRepos(owner.Repos), group: "value",
+		})
+	}
+	unowned, withFile := 0, []string{}
+	for _, repo := range resolver.Repos() {
+		if repo.CodeOwners != "" {
+			unowned += repo.Unowned
+			withFile = append(withFile, repo.Name)
+		}
+	}
+	if len(withFile) > 0 && strings.HasPrefix(OwnerNone, fragment) {
+		candidates = append(candidates, valueCandidate{
+			value: OwnerNone, detail: "Files no CODEOWNERS line gives an owner", context: plural(unowned, "file"),
+			note: summarizeRepos(withFile), group: "value",
+		})
+	}
+	return candidates
+}
+
+// ownerKind says what a CODEOWNERS owner is: a team (@org/team), a person
+// (@user) or an email.
+func ownerKind(owner string) string {
+	switch {
+	case !strings.HasPrefix(owner, "@"):
+		return "Email"
+	case strings.Contains(owner, "/"):
+		return "Team"
+	default:
+		return "Person"
+	}
 }
 
 // fileNames lists the base names of up to maxStateNames paths, sorted, and

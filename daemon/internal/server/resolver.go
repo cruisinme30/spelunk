@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/cruisinme30/spelunk/daemon/internal/codeowners"
 	"github.com/cruisinme30/spelunk/daemon/internal/lang"
 	"github.com/cruisinme30/spelunk/daemon/internal/protocol"
 	"github.com/cruisinme30/spelunk/daemon/internal/query"
@@ -161,9 +162,19 @@ func (r workspaceResolver) symbolsContaining(fragment string) []query.SymbolStat
 
 // Repos describes the open workspace roots with their index state.
 func (r workspaceResolver) Repos() []query.RepoStat {
-	fileCounts := map[string]int{}
+	fileCounts, unowned := map[string]int{}, map[string]int{}
+	codeOwners := map[string]*codeowners.File{}
 	for _, repo := range r.server.index.Repos() {
 		fileCounts[repo.ID] = len(repo.Shard.Docs)
+		if repo.Owners == nil {
+			continue
+		}
+		codeOwners[repo.ID] = repo.Owners
+		for i := range repo.Shard.Docs {
+			if len(repo.Owners.Owners(repo.Shard.Docs[i].Path)) == 0 {
+				unowned[repo.ID]++
+			}
+		}
 	}
 	statuses := map[string]protocol.RepoStatus{}
 	for _, status := range r.server.index.Status() {
@@ -177,8 +188,45 @@ func (r workspaceResolver) Repos() []query.RepoStat {
 			Name: root.Name, Path: root.Path, Files: fileCounts[root.ID], State: status.Tree, Progress: status.Progress,
 			Git: status.History != protocol.IndexStateOff,
 		}
+		if owners := codeOwners[root.ID]; owners != nil {
+			repos[i].CodeOwners, repos[i].Unowned = owners.Path, unowned[root.ID]
+		}
 	}
 	return repos
+}
+
+// Owners counts the files each owner has in the published working-tree
+// indexes, by their repos' CODEOWNERS files, most files first. An owner is
+// one however its CODEOWNERS files spell its case.
+func (r workspaceResolver) Owners() []query.OwnerStat {
+	byName := map[string]*query.OwnerStat{}
+	var order []*query.OwnerStat
+	for _, repo := range r.server.index.Repos() {
+		if repo.Owners == nil {
+			continue
+		}
+		for i := range repo.Shard.Docs {
+			for _, owner := range repo.Owners.Owners(repo.Shard.Docs[i].Path) {
+				key := strings.ToLower(owner)
+				stat, ok := byName[key]
+				if !ok {
+					stat = &query.OwnerStat{Name: owner}
+					byName[key] = stat
+					order = append(order, stat)
+				}
+				stat.Files++
+				if !slices.Contains(stat.Repos, repo.Name) {
+					stat.Repos = append(stat.Repos, repo.Name)
+				}
+			}
+		}
+	}
+	owners := make([]query.OwnerStat, len(order))
+	for i, stat := range order {
+		owners[i] = *stat
+	}
+	slices.SortStableFunc(owners, func(a, b query.OwnerStat) int { return b.Files - a.Files })
+	return owners
 }
 
 // Files lists every file in the published working-tree indexes, and which

@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/cruisinme30/spelunk/daemon/internal/codeowners"
 	"github.com/cruisinme30/spelunk/daemon/internal/protocol"
 )
 
@@ -418,6 +419,9 @@ func (p *parser) operatorNode(t token) *protocol.Node {
 	if isWindowOp(op.name) {
 		p.warnIfMonthsMeantAsMinutes(t, valueSpan)
 	}
+	if op.name == protocol.OpNameOwner {
+		p.warnIfNoSuchOwner(t, valueSpan)
+	}
 	if op.name == protocol.OpNameContent {
 		return p.contentNode(t, match)
 	}
@@ -436,6 +440,59 @@ func (p *parser) warnIfMonthsMeantAsMinutes(t token, valueSpan protocol.Span) {
 	p.problems.add(protocol.SeverityWarning, DiagBadValue, p.span(t),
 		fmt.Sprintf("%[1]s:%[2]s means %[3]s months; for minutes write %[1]s:%[4]s", t.name, t.value, strings.TrimSuffix(t.value, "m"), minutes),
 		replaceFix("Use "+t.name+":"+minutes, valueSpan, minutes))
+}
+
+// warnIfNoSuchOwner warns about an owner: that can match nothing: no open
+// repo has a CODEOWNERS file, or none of them names that owner, in which
+// case the nearest owners are offered. They're warnings, so the search
+// still runs (and finds nothing), and owner:none needs only a file.
+func (p *parser) warnIfNoSuchOwner(t token, valueSpan protocol.Span) {
+	repos := p.resolver.Repos()
+	if !slices.ContainsFunc(repos, func(repo RepoStat) bool { return repo.CodeOwners != "" }) {
+		if len(repos) > 0 {
+			p.problems.add(protocol.SeverityWarning, DiagBadValue, p.span(t),
+				"No open repo has a CODEOWNERS file (in .github/, the root or docs/), so owner: matches nothing")
+		}
+		return
+	}
+	if strings.EqualFold(t.value, OwnerNone) {
+		return
+	}
+	owners := p.resolver.Owners()
+	if slices.ContainsFunc(owners, func(owner OwnerStat) bool { return codeowners.SameOwner(owner.Name, t.value) }) {
+		return
+	}
+	var fixes []protocol.Fix
+	for _, owner := range nearestOwners(t.value, owners) {
+		fixes = append(fixes, replaceFix("Use "+t.name+":"+owner, valueSpan, owner))
+	}
+	p.problems.add(protocol.SeverityWarning, DiagBadValue, p.span(t),
+		fmt.Sprintf("No CODEOWNERS file names %s, so %s:%s matches nothing", t.value, t.name, t.value), fixes...)
+}
+
+// nearestOwners suggests up to three owners for a mistyped owner: value,
+// comparing handles and team names without their @.
+func nearestOwners(value string, owners []OwnerStat) []string {
+	const limit = 3
+	byKey := map[string]string{}
+	var keys []string
+	for _, owner := range owners {
+		handle := strings.TrimPrefix(strings.ToLower(owner.Name), "@")
+		_, team, _ := strings.Cut(handle, "/")
+		for _, key := range []string{handle, team} {
+			if _, ok := byKey[key]; key != "" && !ok {
+				byKey[key] = owner.Name
+				keys = append(keys, key)
+			}
+		}
+	}
+	var found []string
+	for _, key := range nearest(strings.TrimPrefix(strings.ToLower(value), "@"), keys) {
+		if owner := byKey[key]; !slices.Contains(found, owner) && len(found) < limit {
+			found = append(found, owner)
+		}
+	}
+	return found
 }
 
 func (p *parser) reportUnknownOperator(t token) {
