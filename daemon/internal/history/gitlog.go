@@ -136,11 +136,22 @@ func Head(ctx context.Context, root string) (string, error) {
 	return strings.TrimSpace(string(out)), nil
 }
 
-// isAncestor reports whether commit old is on HEAD's history, so the
-// commits after it are all that changed.
-func isAncestor(ctx context.Context, root, old string) bool {
-	_, err := git(ctx, root, "merge-base", "--is-ancestor", old, "HEAD")
-	return err == nil
+// onFirstParentLine reports whether commit old is on HEAD's first-parent
+// line, the one the store reads, so the first-parent commits after it are
+// all that changed. Being HEAD's ancestor isn't enough: merged in as a
+// second parent (checking out main after it merged your branch), old lies
+// beside that line, and the commits after it would mix two branches.
+func onFirstParentLine(ctx context.Context, root, old string) bool {
+	out, err := git(ctx, root, "rev-list", "--first-parent", old+"..HEAD")
+	if err != nil {
+		return false
+	}
+	shas := strings.Fields(string(out))
+	if len(shas) == 0 {
+		return false
+	}
+	parent, err := git(ctx, root, "rev-parse", "--verify", "--quiet", shas[len(shas)-1]+"^1")
+	return err == nil && strings.TrimSpace(string(parent)) == old
 }
 
 // countCommits counts the first-parent commits readLog would read, for

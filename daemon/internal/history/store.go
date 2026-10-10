@@ -201,8 +201,9 @@ func (b *builder) read(ctx context.Context, root, revisions string, opts Options
 }
 
 // Update brings store up to date with root's HEAD. When HEAD moved forward,
-// only the new commits are read, as a new newest segment; when history was
-// rewritten (a rebase, a reset, another branch), all of it is read again.
+// along its first-parent line, only the new commits are read, as a new
+// newest segment; otherwise (a rebase, a reset, another branch, or a merge
+// that brought the old HEAD in from the side), all of it is read again.
 // Either way the uncommitted paths are read again. opts should be the ones
 // the store was read with.
 func Update(ctx context.Context, root string, store *Store, opts Options) (*Store, error) {
@@ -213,7 +214,7 @@ func Update(ctx context.Context, root string, store *Store, opts Options) (*Stor
 	if head == store.Head {
 		return store.withDirty(uncommittedPaths(ctx, root)), nil
 	}
-	if store.Head == "" || !isAncestor(ctx, root, store.Head) {
+	if store.Head == "" || !onFirstParentLine(ctx, root, store.Head) {
 		return Ingest(ctx, root, opts, nil, nil)
 	}
 	var newer []Commit

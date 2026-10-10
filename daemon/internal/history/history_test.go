@@ -404,6 +404,31 @@ func TestUpdateReadsNewCommitsOrRereadsRewrittenHistory(t *testing.T) {
 	}
 }
 
+// Checking out main after it merged your branch moves HEAD forward, but
+// the branch's commits aren't on main's first-parent line: the store is
+// read again rather than mixing the two.
+func TestUpdateAfterAMergeOfYourBranchReadsMainsLine(t *testing.T) {
+	r, _ := paymentsHistory(t)
+	r.git("checkout", "--quiet", "-b", "feature")
+	r.commit("Jane Doe <jane@payments.example>", "Feature work", day(1), map[string]string{"src/feature.py": "x = 1\n"})
+	onFeature, err := Update(context.Background(), r.root, r.ingest(), Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	r.git("checkout", "--quiet", "-")
+	r.commit("Jason Kim <jason@checkout.example>", "Main work", day(0), map[string]string{"src/main.py": "y = 1\n"})
+	r.gitWithEnv([]string{"GIT_AUTHOR_NAME=Jason Kim", "GIT_AUTHOR_EMAIL=jason@checkout.example"},
+		"merge", "--quiet", "--no-ff", "-m", "Merge feature", "feature")
+	updated, err := Update(context.Background(), r.root, onFeature, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := r.ingest(); updated.Commits() != want.Commits() || updated.Head != want.Head {
+		t.Errorf("after the merge: %d commits up to %s, want %d up to %s as a fresh read has",
+			updated.Commits(), updated.Head, want.Commits(), want.Head)
+	}
+}
+
 func TestStoreKnowsEachFilesNewestCommitAndUncommittedEdits(t *testing.T) {
 	r, shas := paymentsHistory(t)
 	r.write("src/retry.py", "edited\n")
