@@ -164,6 +164,8 @@ All notable changes to this project are documented here. The format follows
   first. A highlight cut by the path’s ellipsis no longer leaves a stray bar of color after it.
 - A commit’s body line ran past the edge of the results column and was cut off there; it now ends in an ellipsis
   inside its row, like other rows.
+- A long path pushed a code group’s repo name onto two lines (“payments-” / “api”), and the preview’s title wrapped
+  beside the revision chip; both keep to one line now, and the path is what gives way.
 
 ### Security
 

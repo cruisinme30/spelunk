@@ -912,9 +912,12 @@ body.vscode-high-contrast-light .completion.selected {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.row .path {
+/* A file group's badges, repo and count keep their words whole; the path before them gives way. */
+.group > :not(.path) {
+  flex: none;
   white-space: nowrap;
 }
 
@@ -1379,12 +1382,14 @@ mark.hole {
   gap: 8px;
 }
 
+/* One line, cut with an ellipsis; the chips and buttons after it wrap below it before it shrinks past 12em. */
 .preview-title {
-  flex: 1;
+  flex: 1 1 12em;
   min-width: 0;
   font-weight: 500;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .actions {

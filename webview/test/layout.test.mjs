@@ -236,3 +236,47 @@ test("the help page's operator table keeps Try buttons and examples readable at 
     assert.equal(await horizontalOverflow(help), 0, `help at ${width}px`);
   }
 });
+
+test("a file group's header and the preview's title stay on one line, cutting the path, not the repo", async (t) => {
+  const page = await openPanel(t);
+  await page.setViewportSize({ width: 700, height: 500 });
+  await restore(page);
+  await fromHost(page, "index.status", {
+    repos: [{ repoId: "r1", name: "payments-api", tree: "ready", history: "ready" }],
+  });
+  const seq = await typeAndParse(page, "retry_policy", parsedQuery("retry_policy", textNode("retry_policy", 0)));
+  const path = `tests/payments/${"integration/".repeat(3)}retry_policy_test.py`;
+  await fromHost(page, "search.batch", {
+    seq,
+    searchId: "s1",
+    items: [{ ...CODE_LINE_RESULT, path, rankReason: "test", owners: ["@acme/payments-core"] }],
+  });
+  await waitForSent(page, "result.select", { ref: "l1" });
+  await fromHost(page, "preview.result", {
+    ref: "l1",
+    preview: {
+      kind: "file",
+      path,
+      firstLine: 42,
+      lines: ["self.retry_policy = RetryPolicy()"],
+      focusLine: 42,
+      hits: [],
+      dirtyLines: [],
+    },
+  });
+  // How many lines a node's text is laid out on.
+  const lines = (selector) =>
+    page.locator(selector).evaluate((node) => {
+      const range = document.createRange();
+      range.selectNodeContents(node);
+      return new Set([...range.getClientRects()].map((rect) => Math.round(rect.top))).size;
+    });
+  for (const selector of ['[data-testid="code-group"] .repo', '[data-testid="code-group"] .path', ".preview-title"]) {
+    assert.equal(await lines(selector), 1, `${selector} keeps to one line`);
+  }
+  assert.equal(await page.locator('[data-testid="code-group"] .repo').innerText(), "payments-api");
+  const cut = await page
+    .locator('[data-testid="code-group"] .path')
+    .evaluate((node) => node.scrollWidth > node.clientWidth);
+  assert.ok(cut, "the path gives way, with an ellipsis");
+});
