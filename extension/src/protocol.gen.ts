@@ -175,9 +175,9 @@ export interface Root {
 
 /** Settings are the spelunk.* settings the daemon needs. */
 export interface Settings {
-  /** the spelunk.caseSensitive setting: how a query without case: treats capital letters. */
+  /** the spelunk.search.caseSensitive setting: how a query without case: treats capital letters. */
   caseSensitive: CaseSetting;
-  /** the spelunk.wholeWord setting: match text terms only as whole words unless the query says word:no. */
+  /** the spelunk.search.wholeWord setting: match text terms only as whole words unless the query says word:no. */
   wholeWord: boolean;
   defaultCount: number;
   historyDepth: "6m" | "2y" | "all";
@@ -186,7 +186,7 @@ export interface Settings {
   includeIgnored: boolean;
   maxFileSizeKB: number;
   location: string;
-  /** the spelunk.order setting: how a query without order: sorts current files. Absent means best. */
+  /** the spelunk.results.order setting: how a query without order: sorts current files. Absent means best. */
   order?: ResultOrder;
   /** the spelunk.results.contextLines setting: how many lines each code result shows before and after its match, 0 to 3. Absent means 0. */
   contextLines?: number;

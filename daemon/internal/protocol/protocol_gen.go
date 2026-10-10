@@ -329,9 +329,9 @@ type Root struct {
 
 // Settings are the spelunk.* settings the daemon needs.
 type Settings struct {
-	// CaseSensitive is the spelunk.caseSensitive setting: how a query without case: treats capital letters.
+	// CaseSensitive is the spelunk.search.caseSensitive setting: how a query without case: treats capital letters.
 	CaseSensitive CaseSetting `json:"caseSensitive"`
-	// WholeWord is the spelunk.wholeWord setting: match text terms only as whole words unless the query says word:no.
+	// WholeWord is the spelunk.search.wholeWord setting: match text terms only as whole words unless the query says word:no.
 	WholeWord      bool     `json:"wholeWord"`
 	DefaultCount   int      `json:"defaultCount"`
 	HistoryDepth   string   `json:"historyDepth"`
@@ -340,7 +340,7 @@ type Settings struct {
 	IncludeIgnored bool     `json:"includeIgnored"`
 	MaxFileSizeKB  int      `json:"maxFileSizeKB"`
 	Location       string   `json:"location"`
-	// Order is the spelunk.order setting: how a query without order: sorts current files. Absent means best.
+	// Order is the spelunk.results.order setting: how a query without order: sorts current files. Absent means best.
 	Order ResultOrder `json:"order,omitempty"`
 	// ContextLines is the spelunk.results.contextLines setting: how many lines each code result shows before and after its match, 0 to 3. Absent means 0.
 	ContextLines int `json:"contextLines,omitempty"`

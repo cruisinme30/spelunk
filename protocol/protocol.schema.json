@@ -426,11 +426,11 @@
       "type": "object",
       "properties": {
         "caseSensitive": {
-          "description": "the spelunk.caseSensitive setting: how a query without case: treats capital letters.",
+          "description": "the spelunk.search.caseSensitive setting: how a query without case: treats capital letters.",
           "$ref": "#/$defs/CaseSetting"
         },
         "wholeWord": {
-          "description": "the spelunk.wholeWord setting: match text terms only as whole words unless the query says word:no.",
+          "description": "the spelunk.search.wholeWord setting: match text terms only as whole words unless the query says word:no.",
           "type": "boolean"
         },
         "defaultCount": {
@@ -458,7 +458,7 @@
           "type": "string"
         },
         "order": {
-          "description": "the spelunk.order setting: how a query without order: sorts current files. Absent means best.",
+          "description": "the spelunk.results.order setting: how a query without order: sorts current files. Absent means best.",
           "$ref": "#/$defs/ResultOrder"
         },
         "contextLines": {
