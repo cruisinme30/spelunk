@@ -31,6 +31,9 @@ type Server struct {
 	tags      tagCache
 	revisions revisionCache
 	ownership ownershipCache
+	// events queues the notifications whose work the indexer does
+	// (see indexEvents), so the read loop never waits for it.
+	events indexEvents
 	// life ends when the daemon stops (stopWork): work that outlives any
 	// one request, such as running the watched queries, derives from it.
 	life     context.Context
@@ -62,6 +65,8 @@ func New(conn *rpc.Conn, opts Options) *Server {
 	s.tags.now = time.Now // wall clock: SPELUNK_NOW may be frozen
 	s.life, s.stopLife = context.WithCancel(context.Background())
 	s.index = indexer.New(s.settings, s.notifyIndexStatus)
+	s.events.wake = make(chan struct{}, 1)
+	go s.applyIndexEvents(s.life)
 	conn.Handle(protocol.MethodShutdown, s.shutdown) // answered again after shutdown, as LSP allows
 	conn.OnNotify(protocol.MethodExit, func(json.RawMessage) { s.exit() })
 	s.handle(protocol.MethodInitialize, s.initialize)
@@ -192,20 +197,22 @@ func (s *Server) shutdown(_ context.Context, _ json.RawMessage) (any, error) {
 	return protocol.Empty{}, nil
 }
 
-// setRoots handles workspace/setRoots.
+// setRoots handles workspace/setRoots, queueing the new roots for the
+// indexer (see indexEvents).
 func (s *Server) setRoots(raw json.RawMessage) {
 	var params protocol.SetRootsParams
 	if decode(raw, &params) == nil {
-		s.applyRoots(params.Roots)
+		s.events.add(indexEvent{roots: params.Roots, isRoots: true})
 	}
 }
 
 // didChangeFiles handles workspace/didChangeFiles: the editor saw files
-// saved, created or deleted, and the indexer re-reads them.
+// saved, created or deleted, and the indexer re-reads them, after the
+// events queued before (see indexEvents).
 func (s *Server) didChangeFiles(raw json.RawMessage) {
 	var params protocol.DidChangeFilesParams
 	if decode(raw, &params) == nil {
-		s.index.FilesChanged(params.Changes)
+		s.events.add(indexEvent{changes: params.Changes})
 	}
 }
 
