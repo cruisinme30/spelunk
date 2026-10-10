@@ -88,8 +88,8 @@ export interface Ui {
   restartDaemon(): void;
   setContext(key: string, value: boolean): void;
   saveState(state: PersistedState): void;
-  /** Saves the pinned queries to spelunk.ui.pinnedQueries. */
-  savePinned(pinned: PinnedQuery[]): void;
+  /** Saves the pinned queries to spelunk.ui.pinnedQueries; resolves once the setting says so, and never rejects. */
+  savePinned(pinned: PinnedQuery[]): Promise<void>;
   /** Saves spelunk.results.contextLines; the settings change then runs the query again. */
   saveContextLines(lines: number): void;
   /** Says which result is open, `position` of `total` (1-based), once one was opened from search or F4. */
@@ -180,6 +180,8 @@ export class SearchController {
   private replacedFiles: string[] = [];
   /** Whether each query text searches history (and so can be watched), as the daemon parsed it. */
   private readonly searchesHistoryByText = new Map<string, boolean>();
+  /** The last change to the pinned list; the next waits for it, so neither overwrites the other. */
+  private pinnedUpdate: Promise<void> = Promise.resolve();
 
   /** What query watches found that hasn't been looked at. */
   private readonly watches: UnseenWatches;
@@ -299,11 +301,11 @@ export class SearchController {
         return;
       }
       case "pinned.save": {
-        this.pin(message.payload);
+        await this.pin(message.payload);
         return;
       }
       case "pinned.remove": {
-        this.unpin(message.payload.query);
+        await this.unpin(message.payload.query);
         return;
       }
       case "pinned.watch": {
@@ -362,15 +364,16 @@ export class SearchController {
    * Pins a query at the end of the pinned list, or renames it if it is
    * pinned already, keeping its watch. A blank name is none.
    */
-  private pin({ query, name }: PinnedQuery): void {
-    const pinned = this.options.pinnedQueries();
-    const index = pinned.findIndex((kept) => kept.query === query.trim());
-    const entry = pinnedEntry(query, name, pinned[index]?.watch);
-    if (!entry) return;
-    if (index === -1) pinned.push(entry);
-    else if (pinned[index]?.name === entry.name) return;
-    else pinned[index] = entry;
-    this.ui.savePinned(pinned);
+  private pin({ query, name }: PinnedQuery): Promise<void> {
+    return this.updatePinned((pinned) => {
+      const index = pinned.findIndex((kept) => kept.query === query.trim());
+      const entry = pinnedEntry(query, name, pinned[index]?.watch);
+      if (!entry) return;
+      if (index === -1) pinned.push(entry);
+      else if (pinned[index]?.name === entry.name) return;
+      else pinned[index] = entry;
+      return pinned;
+    });
   }
 
   /**
@@ -379,13 +382,14 @@ export class SearchController {
    */
   private async setWatch(query: string, watch: boolean): Promise<void> {
     if (watch && !(await this.searchesHistory(query))) return;
-    const pinned = this.options.pinnedQueries();
-    const index = pinned.findIndex((entry) => entry.query === query);
-    const entry = pinned[index];
-    if (!entry || (entry.watch ?? false) === watch) return;
-    pinned[index] = pinnedEntry(entry.query, entry.name, watch) ?? entry;
-    this.watches.keepOnly(watchedOf(pinned));
-    this.ui.savePinned(pinned);
+    await this.updatePinned((pinned) => {
+      const index = pinned.findIndex((entry) => entry.query === query);
+      const entry = pinned[index];
+      if (!entry || (entry.watch ?? false) === watch) return;
+      pinned[index] = pinnedEntry(entry.query, entry.name, watch) ?? entry;
+      this.watches.keepOnly(watchedOf(pinned));
+      return pinned;
+    });
   }
 
   /** Saves spelunk.results.contextLines, unless it already says `lines`. */
@@ -394,12 +398,29 @@ export class SearchController {
   }
 
   /** Unpins a query, forgetting what its watch found. */
-  private unpin(query: string): void {
-    const pinned = this.options.pinnedQueries();
-    const kept = pinned.filter((entry) => entry.query !== query);
-    if (kept.length === pinned.length) return;
-    this.watches.keepOnly(watchedOf(kept));
-    this.ui.savePinned(kept);
+  private unpin(query: string): Promise<void> {
+    return this.updatePinned((pinned) => {
+      const kept = pinned.filter((entry) => entry.query !== query);
+      if (kept.length === pinned.length) return;
+      this.watches.keepOnly(watchedOf(kept));
+      return kept;
+    });
+  }
+
+  /**
+   * Changes the pinned list and saves it. Changes run one at a time, each
+   * reading the list the one before saved: panel messages aren't awaited
+   * one by one, so two changes reading the list at once would each save
+   * their own copy, and the second would undo the first. `change` returns
+   * the new list, or undefined to leave it as it is.
+   */
+  private updatePinned(change: (pinned: PinnedQuery[]) => PinnedQuery[] | undefined): Promise<void> {
+    const update = this.pinnedUpdate.then(async () => {
+      const pinned = change(this.options.pinnedQueries());
+      if (pinned) await this.ui.savePinned(pinned);
+    });
+    this.pinnedUpdate = update.catch(() => {}); // the caller hears of a failure; the next change still runs
+    return update;
   }
 
   /** Tells the panel which pinned queries can be watched and what each watch found. */

@@ -358,9 +358,7 @@ function createUi({ panel, daemon, documents, openedStatus, globalState, logErro
     saveContextLines: (lines) => {
       saveContextLines(lines).catch(logError("settings"));
     },
-    savePinned: (pinned) => {
-      savePinned(pinned).catch(logError("settings"));
-    },
+    savePinned: (pinned) => savePinned(pinned).catch(logError("settings")),
     showOpened: (position, total) => {
       openedStatus.text = `$(search) Opened from search · result ${position} of ${total}`;
       openedStatus.show();

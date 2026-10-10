@@ -78,7 +78,7 @@ function recordingUi() {
     restartDaemon: () => {},
     setContext: (key, value) => void (contextKeys[key] = value),
     saveState: () => {},
-    savePinned: () => {},
+    savePinned: () => Promise.resolve(),
     saveContextLines: () => {},
     showOpened: (position, total) => void shown.push(`${position} of ${total}`),
     readDocument: () => Promise.resolve(undefined as DocumentLines | undefined),
@@ -349,6 +349,7 @@ test("pinning adds a query at the end, renames it when pinned already, and unpin
     savePinned: (list: PinnedQuery[]) => {
       saves.push(list);
       pinned = list;
+      return Promise.resolve();
     },
   };
   const controller = newController(parseOnlyBackend().backend, ui, { pinnedQueries: () => structuredClone(pinned) });
@@ -371,6 +372,36 @@ test("pinning adds a query at the end, renames it when pinned already, and unpin
 
   controller.restore();
   assert.deepEqual(host.payloads("state.restore").at(-1)?.pinned, [{ query: "sym:RetryPolicy" }]);
+});
+
+test("changes to the pinned list made at once each keep the others", async () => {
+  // @covers msg:pinned.save msg:pinned.watch msg:pinned.remove setting:ui.pinnedQueries
+  let pinned: PinnedQuery[] = [{ query: "msg:revert" }, { query: "author:jason" }, { query: "sym:RetryPolicy" }];
+  const host = recordingUi();
+  // Like a settings write: the list changes a turn after it is saved.
+  const ui: Ui = {
+    ...host.ui,
+    savePinned: async (list) => {
+      await nextTurn();
+      pinned = list;
+    },
+  };
+  const { backend } = watchBackend();
+  const controller = newController(backend, ui, { pinnedQueries: () => structuredClone(pinned) });
+  const watch = (query: string) =>
+    controller.handle({ v: MESSAGE_VERSION, type: "pinned.watch", payload: { query, watch: true } });
+
+  await Promise.all([
+    watch("msg:revert"),
+    watch("author:jason"),
+    controller.handle({ v: MESSAGE_VERSION, type: "pinned.save", payload: { query: "since:2w timeout" } }),
+    controller.handle({ v: MESSAGE_VERSION, type: "pinned.remove", payload: { query: "sym:RetryPolicy" } }),
+  ]);
+  assert.deepEqual(pinned, [
+    { query: "msg:revert", watch: true },
+    { query: "author:jason", watch: true },
+    { query: "since:2w timeout" },
+  ]);
 });
 
 test("the Context buttons save spelunk.results.contextLines when it changes", async () => {
@@ -881,7 +912,7 @@ test("Show opens the watched query, and Stop watching unwatches it and forgets w
     ...host.ui,
     showWatchMatch: () => Promise.resolve(answer),
     showQuery: (query) => void shown.push(query),
-    savePinned: (list) => void (pinned = list),
+    savePinned: (list) => ((pinned = list), Promise.resolve()),
   };
   const { backend, fire } = watchBackend();
   const controller = newController(backend, ui, { pinnedQueries: () => structuredClone(pinned) });
@@ -932,7 +963,7 @@ test("only a pinned query that searches history can be watched, and renaming kee
   let pinned: PinnedQuery[] = [{ query: "sym:RetryPolicy" }, { query: "msg:revert" }];
   const saves: PinnedQuery[][] = [];
   const host = recordingUi();
-  const ui: Ui = { ...host.ui, savePinned: (list) => void (saves.push(list), (pinned = list)) };
+  const ui: Ui = { ...host.ui, savePinned: (list) => (saves.push(list), (pinned = list), Promise.resolve()) };
   const { backend } = watchBackend();
   const controller = newController(backend, ui, { pinnedQueries: () => structuredClone(pinned) });
   const watch = (query: string, on: boolean) =>

@@ -83,7 +83,7 @@ function diskUi() {
     setContext: () => {},
     saveState: () => {},
     showOpened: () => {},
-    savePinned: () => {},
+    savePinned: () => Promise.resolve(),
     saveContextLines: () => {},
     readDocument: (file) => Promise.resolve(documentOf(readFileSync(file, "utf8"))),
     applyEdits: (edits, label) => {
