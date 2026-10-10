@@ -301,6 +301,8 @@ type Settings struct {
 	Location       string   `json:"location"`
 	// Order is the spelunk.order setting: how a query without order: sorts current files. Absent means best.
 	Order ResultOrder `json:"order,omitempty"`
+	// ContextLines is the spelunk.results.contextLines setting: how many lines each code result shows before and after its match, 0 to 3. Absent means 0.
+	ContextLines int `json:"contextLines,omitempty"`
 }
 
 // MarshalJSON emits [] rather than null for required arrays.
@@ -349,29 +351,31 @@ const (
 
 // ResultItem is one search result: a file name, a code line, a symbol or a commit.
 type ResultItem struct {
-	Kind         string       `json:"kind,omitempty"`
-	Ref          string       `json:"ref,omitempty"`
-	RepoID       string       `json:"repoId,omitempty"`
-	Path         string       `json:"path,omitempty"`
-	NameHits     []Range      `json:"nameHits,omitempty"`
-	LastCommit   *LastCommit  `json:"lastCommit,omitempty"`
-	Dirty        bool         `json:"dirty,omitempty"`
-	RankReason   RankReason   `json:"rankReason,omitempty"`
-	Line         int          `json:"line,omitempty"`
-	Text         string       `json:"text,omitempty"`
-	Hits         []Hit        `json:"hits,omitempty"`
-	Name         string       `json:"name,omitempty"`
-	SymbolKind   SymbolKind   `json:"symbolKind,omitempty"`
-	SHA          string       `json:"sha,omitempty"`
-	Subject      string       `json:"subject,omitempty"`
-	Author       Person       `json:"author,omitempty"`
-	At           string       `json:"at,omitempty"`
-	Files        []FileStat   `json:"files,omitempty"`
-	DiffHits     int          `json:"diffHits,omitempty"`
-	MatchedTerms []int        `json:"matchedTerms,omitempty"`
-	SubjectHits  []Range      `json:"subjectHits,omitempty"`
-	InMessage    bool         `json:"inMessage,omitempty"`
-	BodyLine     *MessageLine `json:"bodyLine,omitempty"`
+	Kind          string       `json:"kind,omitempty"`
+	Ref           string       `json:"ref,omitempty"`
+	RepoID        string       `json:"repoId,omitempty"`
+	Path          string       `json:"path,omitempty"`
+	NameHits      []Range      `json:"nameHits,omitempty"`
+	LastCommit    *LastCommit  `json:"lastCommit,omitempty"`
+	Dirty         bool         `json:"dirty,omitempty"`
+	RankReason    RankReason   `json:"rankReason,omitempty"`
+	Line          int          `json:"line,omitempty"`
+	Text          string       `json:"text,omitempty"`
+	Hits          []Hit        `json:"hits,omitempty"`
+	ContextBefore []string     `json:"contextBefore,omitempty"`
+	ContextAfter  []string     `json:"contextAfter,omitempty"`
+	Name          string       `json:"name,omitempty"`
+	SymbolKind    SymbolKind   `json:"symbolKind,omitempty"`
+	SHA           string       `json:"sha,omitempty"`
+	Subject       string       `json:"subject,omitempty"`
+	Author        Person       `json:"author,omitempty"`
+	At            string       `json:"at,omitempty"`
+	Files         []FileStat   `json:"files,omitempty"`
+	DiffHits      int          `json:"diffHits,omitempty"`
+	MatchedTerms  []int        `json:"matchedTerms,omitempty"`
+	SubjectHits   []Range      `json:"subjectHits,omitempty"`
+	InMessage     bool         `json:"inMessage,omitempty"`
+	BodyLine      *MessageLine `json:"bodyLine,omitempty"`
 }
 
 // ResultItem kinds: the values of ResultItem.Kind.
@@ -415,6 +419,12 @@ func (v ResultItem) MarshalJSON() ([]byte, error) {
 		}
 		if v.RankReason != "" {
 			fields["rankReason"] = v.RankReason
+		}
+		if len(v.ContextBefore) > 0 {
+			fields["contextBefore"] = v.ContextBefore
+		}
+		if len(v.ContextAfter) > 0 {
+			fields["contextAfter"] = v.ContextAfter
 		}
 	case "symbol":
 		fields["ref"] = v.Ref
@@ -1129,6 +1139,7 @@ type UiSettings struct {
 	CaseSensitive   CaseSetting `json:"caseSensitive"`
 	WholeWord       bool        `json:"wholeWord"`
 	Order           ResultOrder `json:"order"`
+	ContextLines    int         `json:"contextLines"`
 }
 
 // ReplacePlanMessage is the preview of a replace: the edits it would make, or why it can't.

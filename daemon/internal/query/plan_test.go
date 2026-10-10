@@ -303,6 +303,17 @@ func TestOrderComesFromOrderOrTheSetting(t *testing.T) {
 	}
 }
 
+func TestContextLinesComeFromTheSettingClamped(t *testing.T) {
+	// @covers setting:results.contextLines
+	for setting, want := range map[int]int{0: 0, 1: 1, 3: 3, 4: MaxContextLines, 1000: MaxContextLines, -2: 0} {
+		settings := defaultSettings
+		settings.ContextLines = setting
+		if got := mustPlan(t, "x", settings).ContextLines; got != want {
+			t.Errorf("plan with contextLines %d: ContextLines = %d, want %d", setting, got, want)
+		}
+	}
+}
+
 func TestResultKinds(t *testing.T) {
 	tests := map[string]string{
 		"retry":                       "file,line",

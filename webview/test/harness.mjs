@@ -17,6 +17,7 @@ export const UI_SETTINGS = {
   caseSensitive: "off",
   wholeWord: false,
   order: "best",
+  contextLines: 0,
 };
 
 /** The query box. */

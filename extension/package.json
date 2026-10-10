@@ -177,6 +177,14 @@
           "scope": "resource",
           "description": "How results from current files are sorted when the query has no order: operator. Commits are always newest first."
         },
+        "spelunk.results.contextLines": {
+          "type": "integer",
+          "default": 0,
+          "minimum": 0,
+          "maximum": 3,
+          "scope": "resource",
+          "description": "Lines to show above and below each code match in the results, from 0 to 3."
+        },
         "spelunk.typingDelayMs": {
           "type": "integer",
           "default": 120,

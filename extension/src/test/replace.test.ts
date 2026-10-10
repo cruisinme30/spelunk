@@ -22,6 +22,7 @@ const UI_SETTINGS: UiSettings = {
   caseSensitive: "off",
   wholeWord: false,
   order: "best",
+  contextLines: 0,
 };
 
 /** A document holding `text`. */

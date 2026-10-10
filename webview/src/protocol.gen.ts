@@ -167,6 +167,8 @@ export interface Settings {
   location: string;
   /** the spelunk.order setting: how a query without order: sorts current files. Absent means best. */
   order?: ResultOrder;
+  /** the spelunk.results.contextLines setting: how many lines each code result shows before and after its match, 0 to 3. Absent means 0. */
+  contextLines?: number;
 }
 
 /** LastCommit is the newest commit that touched a file. */
@@ -214,6 +216,10 @@ export type ResultItem =
       text: string;
       hits: Hit[];
       rankReason?: RankReason;
+      /** The lines just above the match, top first, when the contextLines setting asks for them; fewer near the start of the file. */
+      contextBefore?: string[];
+      /** The lines just below the match, when the contextLines setting asks for them; fewer near the end of the file. */
+      contextAfter?: string[];
     }
   | {
       kind: "symbol";
@@ -644,6 +650,7 @@ export interface UiSettings {
   caseSensitive: CaseSetting;
   wholeWord: boolean;
   order: ResultOrder;
+  contextLines: number;
 }
 
 /** ReplacePlanMessage is the preview of a replace: the edits it would make, or why it can't. */

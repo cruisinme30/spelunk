@@ -16,6 +16,10 @@ import (
 // MaxResults is the hard cap on one search's results, even with count:all.
 const MaxResults = 50_000
 
+// MaxContextLines is the most lines a code result shows on each side of its
+// match.
+const MaxContextLines = 3
+
 // ResultKind is a kind of search result.
 type ResultKind = string
 
@@ -48,6 +52,9 @@ type Plan struct {
 	Limit int
 	// Offset is where this page starts (from the Load more cursor).
 	Offset int
+	// ContextLines is how many lines each code result carries before and
+	// after its match: the contextLines setting, 0 to MaxContextLines.
+	ContextLines int
 	// Filters are the top-level conjuncts that can hide results; engines
 	// count what each one hid ("3 commits hidden by -f:vendor/").
 	Filters []Filter
@@ -254,6 +261,7 @@ func NewPlan(q protocol.ParsedQuery, settings protocol.Settings, now time.Time, 
 		WholeWord:     settings.WholeWord,
 		Limit:         pageSize(q.Globals.Count, settings.DefaultCount),
 		Offset:        offset,
+		ContextLines:  min(max(settings.ContextLines, 0), MaxContextLines),
 		Pred:          &And{},
 	}
 	if t := q.Globals.Type; t != nil && (*t == TypeAdded || *t == TypeRemoved) {

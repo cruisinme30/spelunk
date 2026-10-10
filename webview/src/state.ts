@@ -80,6 +80,7 @@ const DEFAULT_UI_SETTINGS: UiSettings = {
   caseSensitive: "off",
   wholeWord: false,
   order: "best",
+  contextLines: 0,
 };
 
 /** The state of a panel that has just opened: an empty box and no results. */

@@ -43,6 +43,7 @@ const TEST_UI_SETTINGS: UiSettings = {
   caseSensitive: "off",
   wholeWord: false,
   order: "best",
+  contextLines: 0,
 };
 
 /** What search/start answers in the scripted backends: no results. */

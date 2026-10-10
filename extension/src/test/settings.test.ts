@@ -33,6 +33,25 @@ test("the order setting reaches both the daemon and the panel", () => {
   assert.equal(uiSettings(config).order, "path");
 });
 
+test("the context lines setting reaches both the daemon and the panel, clamped to 0..3", () => {
+  // @covers setting:results.contextLines
+  const lines = (value: unknown) => {
+    const config = configWith({ "results.contextLines": value });
+    const forDaemon = daemonSettings(config, "/home/u").contextLines;
+    assert.equal(uiSettings(config).contextLines, forDaemon, "the panel and the daemon agree");
+    return forDaemon;
+  };
+  assert.equal(daemonSettings(configWith({}), "/home/u").contextLines, 0, "off by default");
+  assert.equal(uiSettings(configWith({})).contextLines, 0);
+  assert.equal(lines(2), 2);
+  assert.equal(lines(3), 3);
+  assert.equal(lines(9), 3, "at most 3");
+  assert.equal(lines(-1), 0);
+  assert.equal(lines(1.6), 2, "rounded");
+  assert.equal(lines("2"), 0, "not a number");
+  assert.equal(lines(Number.NaN), 0);
+});
+
 /** The index location the daemon gets for an index.location setting, with /home/u as home. */
 const location = (value: string) => daemonSettings(configWith({ "index.location": value }), "/home/u").location;
 
@@ -80,6 +99,7 @@ test("settings of the wrong type or out of range fall back to defaults the daemo
     "index.location": 42,
     "index.historyDepth": ["all"],
     order: "random",
+    "results.contextLines": "two",
   });
   assert.deepEqual(daemonSettings(wrong, "/home/u"), {
     caseSensitive: "off",
@@ -92,6 +112,7 @@ test("settings of the wrong type or out of range fall back to defaults the daemo
     maxFileSizeKB: 2,
     location: "/home/u/.spelunk/index",
     order: "best",
+    contextLines: 0,
   });
   const extremes = daemonSettings(
     configWith({
@@ -121,6 +142,7 @@ test("panel settings of the wrong type fall back to their defaults", () => {
     "ui.recentQueries": "many",
     "open.closeOnOpen": "false",
     order: 1,
+    "results.contextLines": true,
   });
   assert.deepEqual(uiSettings(wrong), {
     typingDelayMs: 120,
@@ -130,6 +152,7 @@ test("panel settings of the wrong type fall back to their defaults", () => {
     caseSensitive: "off",
     wholeWord: false,
     order: "best",
+    contextLines: 0,
   });
   assert.equal(recentQueriesLimit(wrong), 20, "not NaN, which would empty the recent list");
   assert.equal(closeOnOpen(wrong), true);

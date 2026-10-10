@@ -31,6 +31,7 @@ const DEFAULTS = {
   recentQueries: 20,
   shortcutPreset: "quickOpen",
   order: "best",
+  contextLines: 0,
 } as const;
 
 /** The hard cap on results per page; the daemon enforces the same limit. */
@@ -39,6 +40,8 @@ const MAX_TYPING_DELAY_MS = 1000;
 /** The daemon reads maxFileSizeKB into an int; this keeps it well inside one (1 GiB). */
 const MAX_FILE_SIZE_KB = 1024 * 1024;
 const MAX_RECENT_QUERIES = 100;
+/** The most context lines a code result shows on each side of its match. */
+const MAX_CONTEXT_LINES = 3;
 /** The index.historyDepth values. */
 export const HISTORY_DEPTHS: readonly Settings["historyDepth"][] = ["6m", "2y", "all"];
 const OPEN_TRIGGERS: readonly UiSettings["openTrigger"][] = ["doubleClick", "singleClick"];
@@ -116,7 +119,14 @@ export function daemonSettings(config: ConfigReader, home: string): Settings {
       home,
     ),
     order: oneOf(read("order", DEFAULTS.order), ORDERS, DEFAULTS.order),
+    contextLines: contextLines(config),
   };
+}
+
+/** spelunk.results.contextLines, clamped to 0..3. */
+function contextLines(config: ConfigReader): number {
+  const value = config.get<unknown>("results.contextLines", DEFAULTS.contextLines);
+  return clamp(value, 0, MAX_CONTEXT_LINES, DEFAULTS.contextLines);
 }
 
 /** The settings the webview needs. */
@@ -130,6 +140,7 @@ export function uiSettings(config: ConfigReader): UiSettings {
     caseSensitive: caseSetting(read("caseSensitive", DEFAULTS.caseSensitive)),
     wholeWord: boolean(read("wholeWord", DEFAULTS.wholeWord), DEFAULTS.wholeWord),
     order: oneOf(read("order", DEFAULTS.order), ORDERS, DEFAULTS.order),
+    contextLines: contextLines(config),
   };
 }
 
