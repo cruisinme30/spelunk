@@ -31,6 +31,10 @@ type Server struct {
 	tags      tagCache
 	revisions revisionCache
 	ownership ownershipCache
+	// life ends when the daemon stops (stopWork): work that outlives any
+	// one request, such as running the watched queries, derives from it.
+	life     context.Context
+	stopLife context.CancelFunc
 
 	mu                sync.RWMutex
 	roots             []protocol.Root
@@ -56,6 +60,7 @@ func New(conn *rpc.Conn, opts Options) *Server {
 		s.now = time.Now
 	}
 	s.tags.now = time.Now // wall clock: SPELUNK_NOW may be frozen
+	s.life, s.stopLife = context.WithCancel(context.Background())
 	s.index = indexer.New(s.settings, s.notifyIndexStatus)
 	conn.Handle(protocol.MethodShutdown, s.shutdown) // answered again after shutdown, as LSP allows
 	conn.OnNotify(protocol.MethodExit, func(json.RawMessage) { s.exit() })
@@ -102,8 +107,15 @@ func (s *Server) shuttingDown() bool {
 // daemon ending without a shutdown request (stdin closed, a signal) does
 // not leave a build half-written. Safe to call more than once.
 func (s *Server) Close() {
-	s.index.Close(shutdownGrace)
+	s.stopWork()
+}
+
+// stopWork stops the work running outside requests: watched queries,
+// revision reads, and index work, which it waits up to shutdownGrace for.
+func (s *Server) stopWork() {
+	s.stopLife()
 	s.revisions.keep(nil)
+	s.index.Close(shutdownGrace)
 }
 
 // DefaultSettings mirrors the defaults declared in extension/package.json.
@@ -176,8 +188,7 @@ func (s *Server) shutdown(_ context.Context, _ json.RawMessage) (any, error) {
 	s.mu.Lock()
 	s.shutdownRequested = true
 	s.mu.Unlock()
-	s.index.Close(shutdownGrace)
-	s.revisions.keep(nil)
+	s.stopWork()
 	return protocol.Empty{}, nil
 }
 

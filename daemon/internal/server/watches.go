@@ -57,7 +57,7 @@ func (s *Server) announceWatches(repo history.Repo, commits []history.Commit) {
 	if len(watches) == 0 || s.shuttingDown() {
 		return
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), query.DefaultTimeLimit)
+	ctx, cancel := context.WithTimeout(s.life, query.DefaultTimeLimit)
 	defer cancel()
 	commits = othersCommits(commits, history.UserEmail(ctx, repo.Root))
 	if len(commits) == 0 {
@@ -65,7 +65,10 @@ func (s *Server) announceWatches(repo history.Repo, commits []history.Commit) {
 	}
 	fresh := history.Repo{ID: repo.ID, Name: repo.Name, Root: repo.Root, Store: history.StoreOf(repo.Store.Head, commits)}
 	for _, text := range watches {
-		if matched, ok := s.watchMatches(text, fresh); ok {
+		if s.life.Err() != nil { // the daemon is stopping
+			return
+		}
+		if matched, ok := s.watchMatches(s.life, text, fresh); ok {
 			_ = s.conn.Notify(protocol.MethodWatchMatched, matched)
 		}
 	}
@@ -85,13 +88,13 @@ func othersCommits(commits []history.Commit, email string) []history.Commit {
 // watchMatches runs one watched query over repo's commits. ok is false when
 // the query doesn't search history, has errors, or matched nothing.
 // Each query has its own time limit, so slow ones don't starve the rest.
-func (s *Server) watchMatches(text string, repo history.Repo) (protocol.WatchMatchedParams, bool) {
+func (s *Server) watchMatches(ctx context.Context, text string, repo history.Repo) (protocol.WatchMatchedParams, bool) {
 	plan, _, err := query.NewPlan(query.Parse(text, s.resolver(nil)), s.Settings(), s.now(), "")
 	if err != nil || plan.Mode != protocol.ModeHistory {
 		return protocol.WatchMatchedParams{}, false
 	}
 	var commits []protocol.WatchCommit
-	stats, err := history.Search(context.Background(), plan, []history.Repo{repo}, 0, func(item protocol.ResultItem) {
+	stats, err := history.Search(ctx, plan, []history.Repo{repo}, 0, func(item protocol.ResultItem) {
 		commits = append(commits, protocol.WatchCommit{SHA: item.SHA, Subject: item.Subject, Author: item.Author.Name})
 	})
 	if err != nil || stats.Total == 0 {

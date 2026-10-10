@@ -142,15 +142,20 @@ func TestWatchMatchesCountsEveryMatchAndHonoursTheFilters(t *testing.T) {
 	client := newTestClient(t)
 	repo := history.Repo{ID: "r1", Name: "payments-api", Root: root, Store: store}
 
-	match, ok := client.server.watchMatches("msg:revert f:payments/ count:1", repo)
+	match, ok := client.server.watchMatches(context.Background(), "msg:revert f:payments/ count:1", repo)
 	if !ok || match.Total != 2 || !slices.Equal(subjectsOf(match), []string{"Revert ledger rounding"}) {
 		t.Errorf("msg:revert f:payments/ count:1 = %+v, %v; want 2 in total, the newest listed", match, ok)
 	}
-	if _, ok := client.server.watchMatches("msg:revert repo:web-app", repo); ok {
+	if _, ok := client.server.watchMatches(context.Background(), "msg:revert repo:web-app", repo); ok {
 		t.Error("a watch whose repo: leaves this repo out matched")
 	}
-	if _, ok := client.server.watchMatches("retry", repo); ok {
+	if _, ok := client.server.watchMatches(context.Background(), "retry", repo); ok {
 		t.Error("a query over current files matched as a watch")
+	}
+	// Once the daemon stops, a watch still running stops too.
+	client.server.Close()
+	if _, ok := client.server.watchMatches(client.server.life, "msg:revert", repo); ok {
+		t.Error("a watch ran on after the daemon stopped")
 	}
 }
 
