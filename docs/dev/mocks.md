@@ -45,4 +45,4 @@ covered.
 | 35 | `kind:` keeps one kind of definition; `ref:` finds a name's uses | `symbol-kinds` | `SymbolKinds` | 1.1 |
 | 36 | Context lines: a few lines around each code match, merged when they touch | `context-lines` | `ContextLines` | 1.2 |
 | 37 | `-is:generated` / `-is:vendored` leave tool-written and third-party files out | `generated-vendored` | `GeneratedVendored` | 1.2 |
-| 38 | Query watches: a bell on a pinned history query; new matching commits get a count, a notification and a New tag | `query-watches` | `QueryWatches`, `WatchResults` | 1.2 |
+| 38 | Query watches: a bell on a pinned history query; new matching commits get a count, a notification and a New tag | `query-watches` | `QueryWatches` | 1.2 |
