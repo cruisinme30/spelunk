@@ -580,7 +580,7 @@ view keep them while focused (or, for a peek, open). An extension's keybinding o
 "Choose my own" sets the preset to `none` and opens Keyboard Shortcuts filtered to `spelunk.open`. Bindings the
 user sets there always override the extension's.
 
-**Context keys the extension sets:** `spelunk.panelOpen` and `spelunk.hasResults`, through `setContext`.
+**Context keys the extension sets:** `spelunk.hasResults`, through `setContext`, for F4 and ⇧F4.
 
 ## Errors, limits and performance budgets
 

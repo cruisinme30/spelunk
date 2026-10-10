@@ -18,7 +18,7 @@ export class SearchPanel implements vscode.Disposable {
   private pendingMessages: QueuedMessage[] = [];
   private ready = false;
 
-  /** `onOpenChanged` hears when the panel opens or closes, for the panelOpen context key. */
+  /** `onOpenChanged` hears when the panel opens or closes. */
   constructor(
     private readonly extensionUri: vscode.Uri,
     private readonly onMessage: (message: WebviewMessage) => void,

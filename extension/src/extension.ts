@@ -96,7 +96,6 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi {
     context.extensionUri,
     (message) => void controller.handle(message).catch(logError("panel")),
     (open) => {
-      setContext("spelunk.panelOpen", open);
       if (open) openedStatus.hide();
     },
   );
