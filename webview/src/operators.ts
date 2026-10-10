@@ -178,7 +178,7 @@ export const OPERATOR_GROUPS: OperatorGroup[] = [
       },
       {
         operator: "is",
-        label: "is:open|changed|test|generated|vendored",
+        label: "is:open|test|generated|vendored",
         insert: "is:",
         summary: "Files open in the editor, uncommitted, tests, generated or vendored.",
         description:
