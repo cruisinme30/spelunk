@@ -65,6 +65,10 @@ All notable changes to this project are documented here. The format follows
 - protoc's Python output (`*_pb2.py`) and any header that says `DO NOT EDIT` beside the word "generated" now count as
   generated code, so best-match ranking puts those files last too.
 
+### Fixed
+
+- A code line, path or name wider than the results no longer pushes the preview off the side of the panel.
+
 ## [1.1.0] - 2026-10-05
 
 ### Added

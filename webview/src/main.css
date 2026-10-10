@@ -792,6 +792,9 @@ ins {
   gap: 1px;
   background: var(--line);
   min-height: 0;
+
+  /* A flex item is otherwise as wide as its widest line: one long code line would push the preview off the panel. */
+  min-width: 0;
 }
 
 #results {

@@ -48,6 +48,47 @@ test("in a short panel the query box stays in sight and the results keep some ro
   assert.deepEqual(pageErrors(page), []);
 });
 
+/** The left and right edges of the element `selector` matches, in pixels. */
+const edges = (page, selector) =>
+  page.evaluate((wanted) => {
+    const { left, right } = document.querySelector(wanted).getBoundingClientRect();
+    return { left: Math.round(left), right: Math.round(right) };
+  }, selector);
+
+test("a result line, path or name wider than the panel never pushes the preview off it", async (t) => {
+  const minified = "retry;var a=function(){return{a:1,b:2}};".repeat(8);
+  const long = `src/${"generated_".repeat(30)}client.py`;
+  const items = [
+    { ...CODE_LINE_RESULT, text: minified, hits: [{ start: 0, end: 5, termIndex: 0 }] },
+    { ...CODE_LINE_RESULT, ref: "l2", path: long },
+    { kind: "file", ref: "f1", repoId: "r1", path: long, nameHits: [], dirty: false },
+    {
+      kind: "symbol",
+      ref: "s1",
+      repoId: "r1",
+      path: "a.py",
+      line: 1,
+      name: "retry".repeat(60),
+      symbolKind: "function",
+      hits: [],
+    },
+  ];
+  for (const item of items) {
+    const page = await openPanel(t);
+    await page.setViewportSize({ width: 1200, height: 600 });
+    await restore(page);
+    const seq = await typeAndParse(page, "retry", parsedQuery("retry", textNode("retry", 0)));
+    await fromHost(page, "search.batch", { seq, searchId: "s1", items: [item] });
+    const body = await edges(page, "#body");
+    const preview = await edges(page, "#preview");
+    assert.ok(
+      preview.right <= body.right,
+      `${item.kind}: preview spans ${preview.left}..${preview.right} in ${body.right}`,
+    );
+    assert.ok(preview.right - preview.left > 300, `${item.kind}: preview ${preview.right - preview.left}px wide`);
+  }
+});
+
 /** How far the page is wider than its window, in pixels (0 when it fits). */
 const horizontalOverflow = (page) =>
   page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
