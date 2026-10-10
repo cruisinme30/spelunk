@@ -45,7 +45,7 @@ jobs:
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
       - name: Install Node dependencies
-        run: npm install --no-audit --no-fund
+        run: npm ci --no-audit --no-fund
 
       - name: Install Chromium for the webview tests
         run: npx playwright install --with-deps chromium
@@ -70,7 +70,7 @@ jobs:
           node-version: 22
 
       - name: Install Node dependencies
-        run: npm install --no-audit --no-fund
+        run: npm ci --no-audit --no-fund
 
       - name: Build the daemon and the extension
         run: |
