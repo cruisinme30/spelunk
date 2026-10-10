@@ -153,12 +153,13 @@ Never edit `*.gen.ts` or `*_gen.go`. Change `protocol/protocol.schema.json`, the
 
 1. Move the **Unreleased** entries of `CHANGELOG.md` under a new version heading, and set the same version in
    `extension/package.json`.
-2. Push a tag `v<version>`. The Release workflow (`.github/workflows/release.yml`) runs only then. It checks the
-   tag matches, requires a test for every spec id (`specCoverage.mjs --strict`), benchmarks searches and index
-   builds on Prometheus against the budgets of the implementation plan (`scripts/checkBudgets.mjs`), packages a
-   `.vsix` per platform, and attaches them to a GitHub release.
+2. Push a tag `v<version>`. The Release workflow (`.github/workflows/release.yml`) runs only then. It runs CI on the
+   tag, checks the tag matches, requires a test for every spec id (`specCoverage.mjs --strict`), benchmarks searches
+   and index builds on Prometheus against the budgets of the implementation plan (`scripts/checkBudgets.mjs`),
+   packages a `.vsix` per platform, and attaches them to a GitHub release.
 3. With the repository secrets `VSCE_PAT` (VS Code Marketplace) and `OVSX_PAT` (Open VSX) set, it also publishes
-   them; without them, those steps are skipped. Nothing is published unless every check passed.
+   them; without them, those steps are skipped. Nothing is published unless every check passed, and only those two
+   steps see the tokens. A run that failed part way can be re-run: it uploads the packages to the release it made.
 
 ## Keeping code, wiki and mocks in sync
 
