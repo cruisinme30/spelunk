@@ -248,29 +248,30 @@ function moveSettingsSoon(onError: (error: unknown) => void): void {
 
 /**
  * Moves each value saved under a setting's old key (MOVED_SETTINGS) to its
- * new key, in the user's, the workspace's and each folder's settings, and
- * removes the old key there. A value already under the new key wins. No
- * setting takes a folder's value, and one only the user's settings may hold
- * (USER_ONLY_SETTINGS) takes no workspace value either: there the old key is
- * only removed. A move that fails is reported and the others go on.
+ * new key, in the user's and the workspace's settings, and removes the old
+ * key there. A value already under the new key wins. One only the user's
+ * settings may hold (USER_ONLY_SETTINGS) takes no workspace value: there the
+ * old key is only removed. A move that fails is reported and the others go on.
+ *
+ * Folders' settings need no pass of their own. In a single-folder window the
+ * folder's .vscode/settings.json is the workspace's settings, moved above.
+ * In a multi-root workspace a folder's settings hold only resource-scoped
+ * settings: VS Code ignores the old (window-scoped) keys there, leaves them
+ * out of inspect(), and refuses to write them, so they stay as they are, for
+ * when that folder opens on its own.
  */
 async function moveSettings(onError: (error: unknown) => void): Promise<void> {
   const targets = vscode.ConfigurationTarget;
-  const scopes = [undefined, ...(vscode.workspace.workspaceFolders ?? []).map((folder) => folder.uri)];
-  for (const scope of scopes) {
-    const config = vscode.workspace.getConfiguration("spelunk", scope);
-    for (const [oldKey, newKey] of Object.entries(MOVED_SETTINGS)) {
-      const old = config.inspect(oldKey);
-      const now = config.inspect(newKey);
-      const values = scope
-        ? ([[old?.workspaceFolderValue, now?.workspaceFolderValue, targets.WorkspaceFolder]] as const)
-        : ([
-            [old?.globalValue, now?.globalValue, targets.Global],
-            [old?.workspaceValue, now?.workspaceValue, targets.Workspace],
-          ] as const);
-      for (const [saved, current, target] of values) {
-        if (saved !== undefined) await moveSetting(config, [oldKey, newKey], [saved, current], target).catch(onError);
-      }
+  const config = vscode.workspace.getConfiguration("spelunk");
+  for (const [oldKey, newKey] of Object.entries(MOVED_SETTINGS)) {
+    const old = config.inspect(oldKey);
+    const now = config.inspect(newKey);
+    const values = [
+      [old?.globalValue, now?.globalValue, targets.Global],
+      [old?.workspaceValue, now?.workspaceValue, targets.Workspace],
+    ] as const;
+    for (const [saved, current, target] of values) {
+      if (saved !== undefined) await moveSetting(config, [oldKey, newKey], [saved, current], target).catch(onError);
     }
   }
 }
@@ -284,7 +285,7 @@ async function moveSetting(
 ): Promise<void> {
   const moved = movedValue(oldKey, saved, current);
   const targets = vscode.ConfigurationTarget;
-  const takesIt = target === targets.Global || (target === targets.Workspace && !USER_ONLY_SETTINGS.has(newKey));
+  const takesIt = target === targets.Global || !USER_ONLY_SETTINGS.has(newKey);
   if (moved !== undefined && takesIt) await config.update(newKey, moved, target);
   await config.update(oldKey, undefined, target);
 }
