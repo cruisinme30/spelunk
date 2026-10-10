@@ -37,14 +37,17 @@ words:
   - Gourav
   - Mittal
   # Tools, libraries and formats
+  - cacheinfo
   - chromium
   - codegen
   - conftest
+  - creatordate
   - diataxis
   - Diátaxis
   - ebnf
   - fsnotify
   - gitignore
+  - gitlink
   - gofmt
   - goimports
   - golangci
