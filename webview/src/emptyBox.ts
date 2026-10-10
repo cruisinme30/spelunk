@@ -6,6 +6,7 @@ import { clamp, wrapIndex } from "./format";
 import { saveRecentWidth, send } from "./host";
 import type { Layout } from "./layout";
 import { addPin, forgetQuery, namePin, watchPin } from "./pinnedQueries";
+import type { EmptyBoxRow } from "./render/chrome";
 import type { EmptyStateHandlers } from "./render/emptyState";
 import { emptyBoxQueries, type ViewState } from "./state";
 
@@ -17,6 +18,8 @@ interface EmptyBoxPanel {
   insertAtCursor(snippet: string): void;
   /** Draws the empty box again. */
   showEmptyState(): void;
+  /** Draws the key hints again, for the newly selected row. */
+  renderFooter(): void;
 }
 
 /** The empty box's queries: one per panel. */
@@ -95,6 +98,16 @@ export class EmptyBox {
     return true;
   }
 
+  /** The selected row, for the key hints: a pin, and what ⌥W would do on it; undefined when there are no rows. */
+  selectedRow(): EmptyBoxRow | undefined {
+    const query = emptyBoxQueries(this.state)[this.state.recentIndex];
+    if (query === undefined) return undefined;
+    const pin = this.state.pinned.find((entry) => entry.query === query);
+    if (!pin) return { pinned: false };
+    if (pin.watch) return { pinned: true, watch: "stop" };
+    return this.state.watchable.has(query) ? { pinned: true, watch: "start" } : { pinned: true };
+  }
+
   /** ↑↓ on an empty box move through its queries. */
   moveSelection(step: 1 | -1): void {
     const rows = [...this.layout.body.querySelectorAll<HTMLElement>("[data-recent]")];
@@ -104,6 +117,7 @@ export class EmptyBox {
     // The box keeps the focus, so nothing else tells a screen reader which query ↵ would run.
     const query = rows[this.state.recentIndex]?.dataset["recent"];
     if (query !== undefined) this.layout.announcer.textContent = query;
+    this.panel.renderFooter();
   }
 
   /** Unpins a query, or takes a recent one off the list; the selection stays on the same row, now the next query. */

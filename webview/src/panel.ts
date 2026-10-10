@@ -660,8 +660,11 @@ export class SearchPanel {
     });
   }
 
-  private renderFooter(): void {
-    renderFooter(this.layout, this.footerMode(), this.state.parsed?.mode === "history");
+  /** The key hints for what the panel shows now. */
+  renderFooter(): void {
+    const mode = this.footerMode();
+    const emptyRow = mode === "empty" ? this.emptyBox.selectedRow() : undefined;
+    renderFooter(this.layout, mode, this.state.parsed?.mode === "history", emptyRow);
   }
 
   /** What the panel shows right now, which picks the key hints. */

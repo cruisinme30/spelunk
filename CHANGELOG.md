@@ -17,6 +17,8 @@ All notable changes to this project are documented here. The format follows
 - The preview of a file without an owner read “No owner in   .github/CODEOWNERS line 5”, with a wide gap and no
   separator; it now reads “No owner · .github/CODEOWNERS line 5 names none”, or “No owner · no line of CODEOWNERS
   matches this file”.
+- The empty box’s key hints offered **⌥W watch** whatever row was selected; they now offer it only on a pin that can
+  be watched (or **stop watching** on a watched one), and say **unpin** and **run pinned query** on a pin.
 
 ### Added
 

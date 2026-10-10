@@ -104,12 +104,20 @@ test("the bell starts and stops a watch at once, and stopping drops the count", 
 test("⌥W watches or stops watching the selected pin, and does nothing on a recent query", async (t) => {
   // @covers screen:query-watches
   const page = await panelWithPins(t, []);
+  // The key hints offer ⌥W only where it does something, and say what.
+  const keys = () => page.locator('[data-testid="keys"]').innerText();
+  assert.match(await keys(), /⌥W\s*stop watching/);
   await page.keyboard.press("Alt+KeyW"); // the first row: Payments reverts, watched
   await page.keyboard.press("ArrowDown");
+  assert.match(await keys(), /⌥W\s*watch/);
   await page.keyboard.press("Alt+KeyW"); // Flaky payment tests, watchable
   await page.keyboard.press("ArrowDown");
+  assert.doesNotMatch(await keys(), /⌥W/, "Retry policy can't be watched");
+  assert.match(await keys(), /↵\s*run pinned query\s*⇧⌫\s*unpin/);
   await page.keyboard.press("Alt+KeyW"); // Retry policy: can't
   await page.keyboard.press("ArrowDown");
+  assert.doesNotMatch(await keys(), /⌥W/, "a recent query isn't watched");
+  assert.match(await keys(), /↵\s*run recent query\s*⇧⌫\s*remove/);
   await page.keyboard.press("Alt+KeyW"); // a recent query
   assert.deepEqual(
     (await sentMessages(page, "pinned.watch")).map((message) => message.payload),
@@ -119,7 +127,6 @@ test("⌥W watches or stops watching the selected pin, and does nothing on a rec
     ],
   );
   assert.equal(await page.inputValue(QUERY), "", "⌥W types nothing");
-  assert.match(await page.locator('[data-testid="keys"]').innerText(), /⌥W\s*watch/);
 });
 
 /** A commit result; `overrides` replaces any field. */

@@ -304,16 +304,31 @@ const hintAtEnd = (key: string, what: string) =>
 /** What the panel shows, which decides the key hints. */
 export type FooterMode = "empty" | "errors" | "results" | "operators" | "values" | "replace";
 
-/** Key hints along the bottom, which change with what the panel shows. */
-export function renderFooter(layout: Layout, mode: FooterMode, isHistory: boolean): void {
-  const hints: Record<FooterMode, HTMLElement[]> = {
-    empty: [
+/** The empty box's selected row, which decides its key hints: a pin, and whether ⌥W would start or stop its watch. */
+export interface EmptyBoxRow {
+  pinned: boolean;
+  /** What ⌥W does on it; undefined on a recent query, or a pin that can't be watched. */
+  watch?: "start" | "stop";
+}
+
+/** The empty box's key hints: only the keys that do something on the selected row. */
+function emptyBoxHints(row: EmptyBoxRow | undefined): HTMLElement[] {
+  const hints: HTMLElement[] = [];
+  if (row) {
+    hints.push(
       hint("↑↓", "move"),
-      hint("↵", "run recent query"),
-      hint("⇧⌫", "remove"),
-      hint("⌥W", "watch"),
-      hintAtEnd("?", "opens this sheet anytime"),
-    ],
+      hint("↵", row.pinned ? "run pinned query" : "run recent query"),
+      hint("⇧⌫", row.pinned ? "unpin" : "remove"),
+    );
+  }
+  if (row?.watch) hints.push(hint("⌥W", row.watch === "start" ? "watch" : "stop watching"));
+  return [...hints, hintAtEnd("?", "opens this sheet anytime")];
+}
+
+/** Key hints along the bottom, which change with what the panel shows; `emptyRow` is the empty box's selected row. */
+export function renderFooter(layout: Layout, mode: FooterMode, isHistory: boolean, emptyRow?: EmptyBoxRow): void {
+  const hints: Record<FooterMode, HTMLElement[]> = {
+    empty: emptyBoxHints(emptyRow),
     errors: [hint("⌘.", "apply first fix"), hint("Tab", "complete operator"), hintAtEnd("?", "all operators")],
     operators: [
       hint("↑↓", "pick"),
