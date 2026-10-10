@@ -3,6 +3,7 @@ package trigram
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"io/fs"
 	"os"
@@ -114,8 +115,9 @@ func SelectFiles(ctx context.Context, root string, paths []string, opts WalkOpti
 		ignored = gitIgnored(ctx, root, local)
 	}
 	var files []File
+	linked := map[string]bool{} // by folder: whether a link is on the way to it
 	for _, path := range local {
-		if ignored[path] {
+		if ignored[path] || throughLink(root, parentDir(path), linked) {
 			continue
 		}
 		full := filepath.Join(root, filepath.FromSlash(path))
@@ -127,6 +129,22 @@ func SelectFiles(ctx context.Context, root string, paths []string, opts WalkOpti
 	}
 	sort.Slice(files, func(i, j int) bool { return files[i].Path < files[j].Path })
 	return files
+}
+
+// throughLink reports whether reaching dir (slash-separated, relative to
+// root) follows a symlink: ListFiles never goes through one, and it could
+// lead outside the repo. known caches the answer for each folder.
+func throughLink(root, dir string, known map[string]bool) bool {
+	if dir == "." {
+		return false
+	}
+	if linked, ok := known[dir]; ok {
+		return linked
+	}
+	info, err := os.Lstat(filepath.Join(root, filepath.FromSlash(dir)))
+	linked := err != nil || info.Mode()&os.ModeSymlink != 0 || throughLink(root, parentDir(dir), known)
+	known[dir] = linked
+	return linked
 }
 
 // gitIgnored returns which of paths .gitignore excludes; none outside Git.
@@ -150,15 +168,36 @@ func gitIgnored(ctx context.Context, root string, paths []string) map[string]boo
 			relative[i] = strings.TrimPrefix(path, prefix)
 		}
 		dir := filepath.Join(root, filepath.FromSlash(repo))
-		//nolint:gosec // G204: dir is a folder inside the root being indexed; the paths go to git on stdin
-		cmd := exec.CommandContext(ctx, "git", "-C", dir, "check-ignore", "-z", "--stdin")
-		cmd.Stdin = strings.NewReader(strings.Join(relative, "\x00") + "\x00")
-		out, _ := cmd.Output() // exit status 1 means "none ignored"; outside Git there is no output
+		out, failed := checkIgnore(ctx, dir, relative)
+		if failed && len(relative) > 1 {
+			// One path Git can't answer for fails the whole batch, and
+			// would let every other ignored file in: ask for each alone.
+			out = nil
+			for _, path := range relative {
+				one, _ := checkIgnore(ctx, dir, []string{path})
+				out = append(out, one...)
+			}
+		}
 		for _, path := range nulSeparated(out) {
 			ignored[prefix+path] = true
 		}
 	}
 	return ignored
+}
+
+// checkIgnore runs git check-ignore in dir over paths. failed is true when
+// Git couldn't answer (exit status 128) in a repo: not when it found
+// nothing ignored (exit status 1), or when dir is outside Git.
+func checkIgnore(ctx context.Context, dir string, paths []string) (out []byte, failed bool) {
+	//nolint:gosec // G204: dir is a folder inside the root being indexed; the paths go to git on stdin
+	cmd := exec.CommandContext(ctx, "git", "-C", dir, "check-ignore", "-z", "--stdin")
+	cmd.Stdin = strings.NewReader(strings.Join(paths, "\x00") + "\x00")
+	var stderr strings.Builder
+	cmd.Stderr = &stderr
+	out, err := cmd.Output()
+	var exit *exec.ExitError
+	failed = errors.As(err, &exit) && exit.ExitCode() > 1 && !strings.Contains(stderr.String(), "not a git repository")
+	return out, failed
 }
 
 // parentDir is the folder of a slash-separated relative path, "." at the top.

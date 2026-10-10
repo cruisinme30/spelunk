@@ -163,3 +163,19 @@ func TestListFilesIncludesNestedReposAndSubmodules(t *testing.T) {
 		t.Errorf("SelectFiles = %q, want %q: a path in a submodule must not stop Git answering for the rest", paths(selected), want)
 	}
 }
+
+// A saved file reached through a linked folder isn't re-read: listing
+// never goes through a link, which could lead outside the repo, and a
+// path Git refuses to answer for doesn't let the batch's ignored files in.
+func TestSelectFilesSkipsPathsThroughALink(t *testing.T) {
+	outside := testutil.WriteTree(t, map[string]string{"secret.go": "package secret\n"})
+	root := testutil.WriteTree(t, map[string]string{"main.go": "package main\n", ".gitignore": "*.log\n", "debug.log": "log\n"})
+	if err := os.Symlink(outside, filepath.Join(root, "link")); err != nil {
+		t.Skip("can't make links here:", err)
+	}
+	gitIn(t, root, "init", "-q")
+	selected := SelectFiles(context.Background(), root, []string{"link/secret.go", "main.go", "debug.log"}, WalkOptions{})
+	if want := []string{"main.go"}; !reflect.DeepEqual(paths(selected), want) {
+		t.Errorf("SelectFiles = %q, want %q", paths(selected), want)
+	}
+}
