@@ -1548,12 +1548,13 @@ pre.body {
   color: var(--tone-scope);
 }
 
-.recent-action:disabled {
+.recent-action[aria-disabled="true"] {
   cursor: not-allowed;
 }
 
-.recent-row.selected .recent-action:disabled,
-.recent-row:hover .recent-action:disabled {
+.recent-row.selected .recent-action[aria-disabled="true"],
+.recent-row:hover .recent-action[aria-disabled="true"],
+.recent-action[aria-disabled="true"]:focus-visible {
   opacity: 0.45;
 }
 

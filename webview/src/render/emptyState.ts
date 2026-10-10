@@ -217,8 +217,10 @@ function unseenBadge(state: ViewState, query: string): HTMLElement | null {
 
 /**
  * A pinned query's bell: stops a watch, starts one on a query that searches
- * history, and on any other query only says why it can't. A watched bell
- * always shows; the others show like the row's other buttons.
+ * history, and on any other query only says why it can't. That one is
+ * aria-disabled rather than disabled, so it still takes focus and its
+ * tooltip still shows. A watched bell always shows; the others show like
+ * the row's other buttons.
  */
 function watchAction({ query, name, watch }: PinnedQuery, state: ViewState, handlers: EmptyStateHandlers): HTMLElement {
   const label = name ?? query;
@@ -248,7 +250,7 @@ function watchAction({ query, name, watch }: PinnedQuery, state: ViewState, hand
       },
       () => {},
     );
-    cannot.disabled = true;
+    cannot.setAttribute("aria-disabled", "true");
     return cannot;
   }
   const start = rowAction(

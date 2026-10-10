@@ -66,8 +66,13 @@ test("a watched pin shows its bell and how many new commits matched; others offe
   assert.equal(await watchable.evaluate((node) => getComputedStyle(node).opacity), "0", "shown on hover only");
 
   const cannot = bell(page, "sym:RetryPolicy");
-  assert.ok(await cannot.isDisabled(), "a query over current files can't be watched");
+  assert.equal(await cannot.getAttribute("aria-disabled"), "true", "a query over current files can't be watched");
   assert.match(await cannot.getAttribute("title"), /Only history queries can be watched/);
+  await cannot.focus();
+  assert.ok(
+    await cannot.evaluate((node) => document.activeElement === node),
+    "it still takes focus, so its tooltip can be read",
+  );
   assert.equal(await page.locator('[data-testid="recent"] [data-testid="pinned-watch"]').count(), 0);
   assert.deepEqual(pageErrors(page), []);
 });
@@ -91,7 +96,7 @@ test("the bell starts and stops a watch at once, and stopping drops the count", 
       { query: String.raw`author:jane f:.*test\.py$ timeout`, watch: true },
       { query: "msg:revert f:payments/", watch: false },
     ],
-    "the disabled bell sends nothing",
+    "the bell that can't watch sends nothing",
   );
   assert.equal((await sentMessages(page, "query.changed")).length, 0, "watching doesn't run the query");
 });
