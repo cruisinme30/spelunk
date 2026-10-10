@@ -312,6 +312,37 @@ test("recent queries are deduplicated, newest first, and capped", () => {
   assert.deepEqual(host.payloads("state.restore").at(-1)?.recent, ["c", "a"]);
 });
 
+test("lowering the recent-query limit drops the queries past it, and 0 drops them all", () => {
+  // @covers setting:ui.recentQueries
+  const host = recordingUi();
+  const saved: PersistedState[] = [];
+  const ui = { ...host.ui, saveState: (state: PersistedState) => saved.push(structuredClone(state)) };
+  let limit = 20;
+  const controller = newController(
+    parseOnlyBackend().backend,
+    ui,
+    { recentLimit: () => limit },
+    {
+      text: "",
+      recent: ["a", "b", "c"],
+    },
+  );
+  controller.restore();
+  assert.deepEqual(host.payloads("state.restore").at(-1)?.recent, ["a", "b", "c"]);
+  assert.equal(saved.length, 0, "nothing to drop, nothing saved");
+  limit = 2;
+  controller.settingsChanged();
+  assert.deepEqual(host.payloads("state.restore").at(-1)?.recent, ["a", "b"]);
+  limit = 0;
+  controller.restore();
+  assert.deepEqual(host.payloads("state.restore").at(-1)?.recent, []);
+  assert.deepEqual(
+    saved.map((state) => state.recent),
+    [["a", "b"], []],
+    "the shorter list is saved, so a reload keeps it",
+  );
+});
+
 test("a settings change sends the settings and pins, but not the box's text, which lags the typing", async () => {
   const host = recordingUi();
   const controller = newController(parseOnlyBackend().backend, host.ui, { pinnedQueries: () => [{ query: "retry" }] });

@@ -249,6 +249,7 @@ export class SearchController {
    */
   restore(query?: string): void {
     if (query !== undefined) this.state.text = query;
+    this.keepRecentLimit();
     this.ui.post("state.restore", {
       text: this.state.text,
       recent: this.state.recent,
@@ -265,6 +266,7 @@ export class SearchController {
    * typing delay, and sending it would undo the newest keystrokes.
    */
   settingsChanged(): void {
+    this.keepRecentLimit();
     this.ui.post("state.restore", {
       recent: this.state.recent,
       pinned: this.options.pinnedQueries(),
@@ -389,6 +391,15 @@ export class SearchController {
     const limit = this.options.recentLimit();
     if (!text || text.length > MAX_REMEMBERED_QUERY_LENGTH || !(limit > 0)) return;
     this.state.recent = [text, ...this.state.recent.filter((query) => query !== text)].slice(0, limit);
+    this.ui.saveState(this.state);
+  }
+
+  /** Drops the recent queries past spelunk.ui.recentQueries, after it was lowered (0 keeps none). */
+  private keepRecentLimit(): void {
+    const limit = this.options.recentLimit();
+    const kept = limit > 0 ? this.state.recent.slice(0, limit) : [];
+    if (kept.length === this.state.recent.length) return;
+    this.state.recent = kept;
     this.ui.saveState(this.state);
   }
 
