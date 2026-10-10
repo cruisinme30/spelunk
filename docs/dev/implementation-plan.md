@@ -143,6 +143,7 @@ bare     = 1*( any char except space, "(", ")", '"' ) ;
 | `type:` | `file`, `code`, `commit`, `added` or `removed` | Which result kinds are returned; `added` and `removed` search only that side of each commit's diff | Both |
 | `case:` | `yes`, `no` or `smart` (match case only when the query has a capital letter) | Case handling for every text match in the query | Both |
 | `count:` | Positive integer or `all` | Result limit | Both |
+| `at:` | A tag, branch or commit (`v1.0.0`, `main`, `3f9c2e1`, `HEAD~10`), or `until:`'s values for a time (the newest first-parent commit made by then); never `-`-led, `:`, `..` or a regex | Every repo's files as they were at that commit, read from `git ls-tree` and `git cat-file` into a shard kept for the next search (the two newest), with the index's exclude and size settings. Results carry the commit in their refs and say whether their file was `deleted` or `changed` since. A repo without the revision, or outside Git, is left out and says why | Working tree only |
 
 ### Rules the parser enforces
 
@@ -153,6 +154,9 @@ bare     = 1*( any char except space, "(", ")", '"' ) ;
 3. An OR whose branches would need different modes is an error, because one result list cannot mix commits and lines.
 4. `sym:`, `kind:` and `ref:` in a history query are errors. `since:` works in both modes with the meaning shown above.
 5. A query with no positive terms, such as `-timeout` alone, is an error.
+6. `at:` is global, like `case:`, and only for files: in a history query it is an error. Beside it, `is:open`,
+   `is:changed`, `since:`, `until:` and `owner:`, which describe files as they are now or when they changed, are
+   errors (`op_with_at`).
 
 ### Parsed query (the AST)
 
@@ -162,7 +166,8 @@ type ParsedQuery = {
   raw: string;
   root: Node | null;                 // null when the box is empty
   globals: { case: "yes" | "no" | "smart" | null; count: number | "all" | null;
-             type: "file" | "code" | "commit" | "added" | "removed" | null };
+             type: "file" | "code" | "commit" | "added" | "removed" | null;
+             at?: string };          // at:'s value as written: the revision whose files the query searches
   mode: "workingTree" | "history";
   diagnostics: Diagnostic[];         // empty means the query can run
 };
@@ -195,6 +200,7 @@ drives labels such as "→ Jane Doe" in the chip row.
 | `global_misplaced` | `(case:yes a) OR b` | Move it to the top level |
 | `mixed_mode_or` | `author:jane OR f:x` | None; explain the rule |
 | `op_wrong_mode` | `author:jane sym:Foo` | Remove the operator |
+| `op_with_at` | `at:v1.0.0 since:30d retry` | Remove the operator |
 | `invalid_regex` | `/Retry(/` | None; show the RE2 error |
 | `no_positive_term` | `-timeout` | None |
 | `pipe_in_word` (warning) | `daemon\|search` | `daemon OR search` or `/daemon\|search/` |
@@ -214,7 +220,7 @@ increases with each keystroke. Any response carrying an older `seq` than the new
 | --- | --- | --- |
 | `query.changed` | `{ text, cursor, seq }` | Calls `query/parse`. If the query has no errors, cancels the running search and starts `search/start` |
 | `result.select` | `{ ref }` | Calls `preview/get` and returns the preview |
-| `result.open` | `{ ref, where: "current" \| "side" }` | Opens the file at the line, or the commit diff, and hides the panel if `closeOnOpen` is on |
+| `result.open` | `{ ref, where: "current" \| "side" \| "compare" }` | Opens the file at the line, or the commit diff, and hides the panel if `closeOnOpen` is on; a file at a revision opens read-only, and `compare` diffs it against the file now |
 | `results.more` | `{ searchId, cursor }` | Calls `search/start` with the cursor to load the next page |
 | `panel.close` | `{}` | Hides the panel and keeps the last query and results |
 | `help.open` / `settings.open` | `{}` | Opens the help tab, or Settings filtered to `@ext:spelunk` |
@@ -232,7 +238,7 @@ Debouncing lives in the webview, using `typingDelayMs`. Applying a fix-it, accep
 | --- | --- | --- |
 | `parse.result` | `{ seq, query: ParsedQuery, completions: Completion[] }` | Chip row, error panel, autocomplete, Aa and `.*` toggle state |
 | `search.batch` | `{ seq, searchId, items: ResultItem[] }` | Appends results as they stream in |
-| `search.done` | `{ seq, searchId, total, truncated, nextCursor?, hidden: HiddenNote[], facets?: Facet[], ms, newCommits?: string[] }` | Counts, "Load more", the "N hidden by …" notes, the facets above the results, and the commits a watch found since the query last ran, tagged New |
+| `search.done` | `{ seq, searchId, total, truncated, nextCursor?, hidden: HiddenNote[], facets?: Facet[], revisions?: RevisionInfo[], ms, newCommits?: string[] }` | Counts, "Load more", the "N hidden by …" notes, the facets above the results, the commit each repo read for `at:` (or why it has none), and the commits a watch found since the query last ran, tagged New |
 | `preview.result` | `{ ref, preview: Preview }` | Right-hand pane |
 | `index.status` | `{ repos: RepoStatus[] }` | Header dot, indexing banner (mock 14) |
 | `state.restore` | `{ text, recent: string[], pinned: PinnedQuery[], settings? }` | Reopening the panel where you left it, and settings changes |
@@ -264,11 +270,12 @@ framing. There is no network port. The host spawns one daemon per VS Code window
 | `settings/update` | notification | `{ settings: Settings }` | — |
 | `watch/set` | notification | `{ queries: string[] }`: the watched pinned queries | — |
 | `query/parse` | request | `{ text, cursor }` | `{ query: ParsedQuery, completions: Completion[] }` |
-| `search/start` | request | `{ searchId, text, cursor? }` | `{ total, truncated, nextCursor?, hidden: HiddenNote[], facets?: Facet[], ms }` |
+| `search/start` | request | `{ searchId, text, cursor? }` | `{ total, truncated, nextCursor?, hidden: HiddenNote[], facets?: Facet[], revisions?: { repoId, sha?, date?, problem? }[], ms }` |
 | `search/batch` | notification, daemon → host | `{ searchId, items: ResultItem[] }` | — |
 | `$/cancelRequest` | notification | `{ id }` | — |
 | `preview/get` | request | `{ ref, contextLines }` | `Preview` |
-| `open/resolve` | request | `{ ref }` | `{ path, line, column, length, endLine?, endColumn? }` or `{ repoId, sha, path }` |
+| `open/resolve` | request | `{ ref }` | `{ path, line, column, length, endLine?, endColumn? }`, plus `revision` and `revisionLabel` for a file at a revision, or `{ repoId, sha, path }` |
+| `revision/text` | request | `{ ref }` of a result at a revision | `{ text }`: the file's whole text then, for the read-only editor |
 | `index/status` | request | `{}` | `{ repos: RepoStatus[] }` |
 | `index/progress` | notification, daemon → host | `{ repos: RepoStatus[] }` | — |
 | `watch/matched` | notification, daemon → host | `{ query, repoId, repoName, total, commits: { sha, subject, author }[] }` | — |
@@ -285,7 +292,8 @@ type Root = { id: string; path: string; name: string };   // id = first 12 hex o
 
 type ResultItem =
   | { kind: "file"; ref: string; repoId: string; path: string; nameHits: Range[];
-      lastCommit?: { sha: string; author: string; at: string }; dirty: boolean }
+      lastCommit?: { sha: string; author: string; at: string }; dirty: boolean;
+      sinceRevision?: "changed" | "deleted" }   // at: how the file differs now (also on line and symbol results)
   | { kind: "line"; ref: string; repoId: string; path: string; line: number;
       text: string; hits: Hit[];
       spanLines?: { text: string; hits: Hit[] }[]; endLine?: number   // a match across lines: up to 10 more lines

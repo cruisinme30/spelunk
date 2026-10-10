@@ -21,7 +21,7 @@ removed `timeout` or `retry`. Drop `author:` and the same box searches current f
   operators. Each has a full name and a one-letter short one: `file:` / `f:`, `repo:` / `r:`, `language:` / `l:`,
   `type:` / `t:`, `symbol:` / `s:`, `kind:` / `k:`, `ref:` / `x:`, `is:` / `i:`, `author:` / `a:`, `message:` / `m:`,
   `since:` / `d:`, `until:` / `u:`, `case:` / `c:`, `word:` / `w:`, `count:` / `n:`, `order:` / `o:`, plus
-  `content:`, `owner:` and `struct:`, and `path:` for `file:`. `is:open`, `is:changed`, `is:test`, `is:generated`
+  `content:`, `owner:`, `struct:` and `at:`, and `path:` for `file:`. `is:open`, `is:changed`, `is:test`, `is:generated`
   and `is:vendored` keep the files open in the editor, the uncommitted ones, the tests, the ones a tool wrote or the
   ones copied in, so
   `-is:generated -is:vendored` keeps a replace to code you wrote, `word:yes` matches whole words only, `case:smart`
@@ -40,7 +40,7 @@ removed `timeout` or `retry`. Drop `author:` and the same box searches current f
 - **Files or commits from the same box.** A query searches current files, unless it has `author:`, `message:` or
   `type:commit`; then each result is a commit, and words match the lines it added or removed or its message.
   `type:added` and `type:removed` match only the lines commits added, or removed: who introduced a call, and when it
-  went away.
+  went away. `at:v1.0.0` searches the files as they were at a tag, branch, commit or time instead of today's.
 - **Results as you type,** from local indexes that keep up with saves within a second and new commits within seconds.
 - **Helpful when you're wrong:** errors with one-key fixes, warnings for likely slips such as `daemon|search`,
   completions for operators and their values, and notes like "3 commits hidden by `-file:vendor/`".

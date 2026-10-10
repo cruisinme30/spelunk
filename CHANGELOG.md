@@ -43,6 +43,14 @@ All notable changes to this project are documented here. The format follows
   with a chip for what each hole took; the preview marks the same and opening it selects the whole match. Current
   files only, and Replace explains it can't change a template.
 
+- `at:` searches the files as they were at a tag, a branch or a commit (`at:v1.0.0 retry_after`, `at:HEAD~10`), or
+  at a time (`at:6m`, `at:2026-01-31`: the newest commit by then), read from Git in each repo without indexing it.
+  Everything that searches current files works there, ranking and `sym:` included; results say which files were
+  deleted or changed since, the mode chip names the commit read and its date, and a repo without the revision says
+  why. A result opens read-only as the file was, and **Compare with now** shows what changed since as a diff. Typing
+  `at:` lists the repos' tags, newest first, then times. `is:open`, `is:changed`, `since:`, `until:` and `owner:`
+  describe files as they are now, so they can't go with it, and Replace changes current files only.
+
 ### Changed
 
 - protoc's Python output (`*_pb2.py`) and any header that says `DO NOT EDIT` beside the word "generated" now count as

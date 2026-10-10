@@ -261,6 +261,7 @@ Jason Kim and Marta Ruiz, and one uncommitted edit:
 | 36 | `type:code f:http/ retry` with `--setting results.contextLines=2` | [context-lines.png](proof/context-lines.png) |
 | 37 | `RetryPolicy -is:generated -is:vendored`, replaced with `BackoffPolicy`, and `RetryPolicy -is:`, over the workspace plus a protoc `retry_pb2.py`, a `third_party/` copy and a `dist/` bundle | [generated-vendored.png](proof/generated-vendored.png), [generated-vendored-values.png](proof/generated-vendored-values.png) |
 | 38 | An empty box with a watched pin, then `msg:revert f:payments/`, after two new reverts by others (`--new-commit`) | [query-watches.png](proof/query-watches.png), [query-watches-results.png](proof/query-watches-results.png) |
+| 41 | `at:v1.0.0 retry_after` with `--select 1`, and `retry_after at:`, over a copy of the workspace whose payments-api is tagged v1.0.0 and later deleted `backoff.py` and changed `client.py`, whose web-checkout has no such tag, and whose shared-libs isn't a Git repository | [past-revision.png](proof/past-revision.png), [past-revision-values.png](proof/past-revision-values.png) |
 | 42 | `retry owner:payments-core` with `--key Escape --select 2`, `retry owner:`, and `retry owner:payment-core`, over the workspace, whose payments-api has a `.github/CODEOWNERS` | [owner-filter.png](proof/owner-filter.png), [owner-values.png](proof/owner-values.png), [owner-warning.png](proof/owner-warning.png) |
 
 Mocks 16 (the opened file) and 18 (Settings) are VS Code's own editor and Settings UI, which the tool can't draw
@@ -386,3 +387,40 @@ says why it can't change a template, and no template can hold a search.
 - End to end in VS Code: "Opening a struct: match selects all of it" in `extension/src/e2e/commands.test.ts`.
 - Built: `docs/dev/proof/structural-search.png`, from
   `node scripts/screenshotPanel.mjs --query 'struct:"backoff(:[call], tries=:[n])"'`.
+
+## Past revisions (1.2)
+
+Mock 41 (`past-revision`). Exit gate: `at:` names a tag, branch, commit or time, and the whole query searches each
+repo's files as they were then, read from Git without an index, with everything that searches current files (text,
+regex, `f:`, `sym:`, `struct:`, ranking, facets, context lines) working there. Results carry the commit in their refs
+and say whether their file was deleted or changed since; the mode chip names the commit read and its date; a repo
+without the revision, or outside Git, is left out and says why. The preview reads the file from the commit, opening a
+result shows it read-only, and Compare with now diffs it against the file now. History queries, operators about files
+as they are now, and Replace refuse it in words.
+
+- Git: `daemon/internal/history/revision_test.go` (tags, branches, shas, `HEAD~1`; names that aren't commits, option
+  lookalikes and a blob; a folder outside Git; the newest commit by a time; regular files under a root, without
+  symlinks and submodules; batched blob reads in order, a missing object, stopping on an error; one file at a commit;
+  tags newest first).
+- Query: `daemon/internal/query/revision_test.go` (the global and its mode, revision names and times as values, what
+  isn't one, once at the top level, the history error, `op_with_at` for `is:open`, `is:changed`, `since:`, `until:`
+  and `owner:`, the planned time, and tag-then-time suggestions).
+- Files at a commit: `daemon/internal/trigram/revision_test.go` (refs at a commit, deleted and changed since for
+  lines, file names and definitions, the overlay's current text, blobs read as Build reads files, the preview and open
+  target), and full-sha refs in `ref_test.go`.
+- Over JSON-RPC: `daemon/internal/server/revisions_test.go` (a deleted file found, the commit each repo read, times
+  picking the newest commit by then, repos without the revision or outside Git, preview, open and `revision/text` of a
+  deleted file, stale refs, the kept shards, `index.exclude`, the replace refusal, tag suggestions, and no owners at a
+  revision).
+- Host: the real-daemon test in `extension/src/test/controller.test.ts` (`search.done`'s revisions, `compare`, the
+  open target and `revision/text`) and `revisionPath.test.ts` (document names and the diff's title).
+- Panel: `webview/test/pastRevision.test.mjs` (the mode chip before and after the search, several commits, a typed
+  sha, the badges, repos without the revision, the read-only preview and Compare with now, on and off).
+- End to end in VS Code: "Opening a result at a revision shows the file as it was, read-only, or compared with the
+  file now" in `extension/src/e2e/commands.test.ts`.
+- Cost: nothing is indexed ahead of time. The first search of a revision reads its files with one `git ls-tree` and
+  one `git cat-file --batch` and indexes them in memory (this repo's 364 files at `HEAD~30`: under 0.1 s of Git);
+  later searches of it reuse that shard, and the two newest are kept. It hasn't been timed on a large repo yet.
+- Built: `docs/dev/proof/past-revision.png` and `docs/dev/proof/past-revision-values.png`, from
+  `node scripts/screenshotPanel.mjs --workspace <the tagged copy> --query 'at:v1.0.0 retry_after' --select 1` and
+  `--query 'retry_after at:'`.
