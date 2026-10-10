@@ -80,6 +80,9 @@ test("the chip counts the commits when the repos read different ones, and doesn'
     revisions: [{ repoId: "r1", sha: SHA, date: "2026-03-14T09:00:00Z" }],
   });
   assert.equal(await mode(typed.page).textContent(), "At 3f9c2e1 · 14 Mar 2026");
+  // A tag that happens to begin the sha isn't one.
+  const tag = await searchedAt(t, "3", [], { revisions: [{ repoId: "r1", sha: SHA, date: "2026-03-14T09:00:00Z" }] });
+  assert.equal(await mode(tag.page).textContent(), "At 3 · 3f9c2e1 · 14 Mar 2026");
 });
 
 test("a query without at: searches the working tree, with no revision anywhere", async (t) => {

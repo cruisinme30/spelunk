@@ -188,6 +188,9 @@ export function renderChips(layout: Layout, state: ViewState, summary: HTMLEleme
   );
 }
 
+/** A value of at: that reads as a commit's sha, in full or in part, rather than a tag or branch such as "3". */
+const SHA_LIKE = /^[0-9a-f]{4,40}$/i;
+
 /**
  * What an at: search reads: "At v1.0.0", then, once the search names the commit, "At v1.0.0 · 3f9c2e1 · 14 Mar
  * 2026", or "At 6m · 2 commits" when the repos read different ones. A sha typed in full or in part isn't repeated.
@@ -201,7 +204,7 @@ function revisionLabel(at = "", revisions: RevisionInfo[] = []): string {
   const day = date
     ? new Date(date).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" })
     : "";
-  const sha = only.startsWith(at.toLowerCase()) ? [] : [only.slice(0, 7)];
+  const sha = SHA_LIKE.test(at) && only.startsWith(at.toLowerCase()) ? [] : [only.slice(0, 7)];
   return ["At " + at, ...sha, ...(day ? [day] : [])].join(" · ");
 }
 
