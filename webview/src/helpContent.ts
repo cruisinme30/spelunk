@@ -47,6 +47,7 @@ export const KEYS: [what: string, keys: string][] = [
   ["Complete an operator or value", "Tab"],
   ["Apply the first suggested fix", "⌘."],
   ["Show the operator sheet", "? in an empty box"],
+  ["Watch the selected pin for new commits", "⌥W in an empty box"],
 ];
 
 /** Every example on the page: the operator table's and the worked examples'. */
