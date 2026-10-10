@@ -84,10 +84,10 @@ func (f *Facets) List() []protocol.Facet {
 	return facets
 }
 
-// CountRepo counts a result in its repo's bucket: repo:payments-api, the
-// filter the repo menu writes.
+// CountRepo counts a result in its repo's bucket: repo:^payments-api$, the
+// filter the repo menu writes, anchored so it isn't also api's bucket.
 func (f *Facets) CountRepo(name string) {
-	f.Count(FacetRepo, name, "repo:"+regexValue(regexp.QuoteMeta(name)))
+	f.Count(FacetRepo, name, "repo:"+regexValue("^"+regexp.QuoteMeta(name)+"$"))
 }
 
 // CountLang counts a result in its language's bucket: lang:python. Files

@@ -428,7 +428,7 @@ func (p *parser) operatorNode(t token) *protocol.Node {
 		return p.contentNode(t, match)
 	}
 	node := &protocol.Node{Kind: protocol.NodeKindOp, Op: op.name, Value: t.value, Match: match, Span: p.span(t)}
-	node.Resolved = p.resolve(op.name, t.value)
+	node.Resolved = p.resolve(op.name, t.value, match)
 	return node
 }
 
@@ -532,7 +532,7 @@ func (p *parser) reportBadValue(op operator, t token, valueSpan protocol.Span, p
 // resolve returns the friendlier label for an author: or repo: value, if
 // exactly one author or repo matches. An author whose name equals the value
 // (ignoring case) also counts, even if others contain it.
-func (p *parser) resolve(op protocol.OpName, value string) *protocol.Resolved {
+func (p *parser) resolve(op protocol.OpName, value string, match protocol.Match) *protocol.Resolved {
 	switch op {
 	case protocol.OpNameAuthor:
 		authors := p.resolver.Authors(value, math.MaxInt)
@@ -545,9 +545,14 @@ func (p *parser) resolve(op protocol.OpName, value string) *protocol.Resolved {
 			}
 		}
 	case protocol.OpNameRepo:
+		// As the search matches repo names, ignoring case: repo:^api$ is api alone.
+		re, err := regexp.Compile("(?i)" + valuePattern(value, match))
+		if err != nil {
+			return nil
+		}
 		var matches []string
 		for _, name := range repoNames(p.resolver) {
-			if strings.Contains(strings.ToLower(name), strings.ToLower(value)) {
+			if re.MatchString(name) {
 				matches = append(matches, name)
 			}
 		}

@@ -691,6 +691,12 @@ func (l *lowering) lowerOperator(node *protocol.Node) Pred {
 
 // regex builds the regex for a value: literals and phrases are quoted.
 func (l *lowering) regex(value string, match protocol.Match) *regexp.Regexp {
+	return l.compile(valuePattern(value, match))
+}
+
+// valuePattern is the regex an f: or repo: value matches as: itself as a
+// regex, a glob's translation, or a literal or phrase quoted.
+func valuePattern(value string, match protocol.Match) string {
 	switch match {
 	case protocol.MatchRegex:
 	case protocol.MatchGlob:
@@ -698,7 +704,7 @@ func (l *lowering) regex(value string, match protocol.Match) *regexp.Regexp {
 	case protocol.MatchLiteral, protocol.MatchPhrase:
 		value = regexp.QuoteMeta(value)
 	}
-	return l.compile(value)
+	return value
 }
 
 func (l *lowering) compile(pattern string) *regexp.Regexp {

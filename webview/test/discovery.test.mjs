@@ -198,22 +198,22 @@ test("the repo menu scopes the query to one repo, or back to all", async (t) => 
   const labels = (await options.allInnerTexts()).map((text) => text.replaceAll(/\s+/g, " ").trim());
   assert.deepEqual(labels, ["✓ All repos 2", "payments-api", "web-checkout"]);
   await options.nth(2).click();
-  assert.equal(await page.inputValue(QUERY), "repo:web-checkout timeout");
+  assert.equal(await page.inputValue(QUERY), "repo:^web-checkout$ timeout");
   assert.equal(await page.locator('[data-testid="repo-menu"]').isVisible(), false);
 
   const scoped = {
     kind: "op",
     op: "repo",
-    value: "web-checkout",
-    match: "literal",
-    span: { start: 0, end: 17 },
+    value: "^web-checkout$",
+    match: "regex",
+    span: { start: 0, end: 19 },
     resolved: { label: "web-checkout" },
   };
   const { seq: scopedSeq } = await lastSent(page, "query.changed");
-  const root = { kind: "and", children: [scoped, textNode("timeout", 18)], span: { start: 0, end: 25 } };
+  const root = { kind: "and", children: [scoped, textNode("timeout", 20)], span: { start: 0, end: 27 } };
   await fromHost(page, "parse.result", {
     seq: scopedSeq,
-    query: parsedQuery("repo:web-checkout timeout", root),
+    query: parsedQuery("repo:^web-checkout$ timeout", root),
     completions: [],
   });
   assert.equal(await page.locator('[data-testid="repos"]').innerText(), "web-checkout");

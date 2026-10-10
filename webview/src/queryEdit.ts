@@ -183,7 +183,8 @@ export function scopeToRepo(text: string, query: ParsedQuery | undefined, repoNa
     topLevelOperators(query, "repo").map((node) => node.span),
   ).text;
   if (repoName === undefined) return { text: rest, cursor: rest.length };
-  const operator = `repo:${regexValue(escapeRegex(repoName, new RegExp(REGEX_SPECIAL.source, "g")))}`;
+  // Anchored, so picking api doesn't also search payments-api.
+  const operator = `repo:${regexValue(`^${escapeRegex(repoName, new RegExp(REGEX_SPECIAL.source, "g"))}$`)}`;
   const result = rest ? `${operator} ${rest}` : operator;
   return { text: result, cursor: result.length };
 }

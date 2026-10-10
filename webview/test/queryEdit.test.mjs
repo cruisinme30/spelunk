@@ -164,17 +164,17 @@ test(".* turns a regex with a space back into a quoted phrase", () => {
   assert.deepEqual(toggleRegex("/a b/", parsed("/a b/", term("a b", 0, "regex", 5))), { text: '"a b"', cursor: 5 });
 });
 
-test("the repo menu writes a repo: scope into an empty box and escapes the name", () => {
+test("the repo menu writes an anchored repo: scope into an empty box and escapes the name", () => {
   assert.deepEqual(scopeToRepo(""), { text: "", cursor: 0 });
-  assert.deepEqual(scopeToRepo("", undefined, "a.b"), { text: String.raw`repo:a\.b`, cursor: 9 });
+  assert.deepEqual(scopeToRepo("", undefined, "a.b"), { text: String.raw`repo:^a\.b$`, cursor: 11 });
   // A space or parenthesis would end a bare value, so the name becomes a /regex/.
   assert.deepEqual(scopeToRepo("", undefined, "My a/b (old)"), {
-    text: String.raw`repo:/My a\/b \(old\)/`,
-    cursor: 22,
+    text: String.raw`repo:/^My a\/b \(old\)$/`,
+    cursor: 24,
   });
   assert.deepEqual(scopeToRepo("repo:x", parsed("repo:x", operator("repo", "x", 0)), "😀"), {
-    text: "repo:😀",
-    cursor: 7,
+    text: "repo:^😀$",
+    cursor: 9,
   });
 });
 

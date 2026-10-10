@@ -224,6 +224,13 @@ func TestAuthorAndRepoValuesAreResolved(t *testing.T) {
 	if q := Parse("author:JO x", authors); q.Root.Children[0].Resolved == nil || q.Root.Children[0].Resolved.Label != "Jo" {
 		t.Errorf("author:JO resolved = %+v, want Jo", q.Root.Children[0].Resolved)
 	}
+	// repo: resolves by the pattern the search matches names with.
+	if q := mustParseCleanly(t, "repo:^web-checkout$ x"); q.Root.Children[0].Resolved == nil || q.Root.Children[0].Resolved.Label != "web-checkout" {
+		t.Errorf("repo:^web-checkout$ resolved = %+v, want web-checkout", q.Root.Children[0].Resolved)
+	}
+	if q := mustParseCleanly(t, "repo:^web$ x"); q.Root.Children[0].Resolved != nil {
+		t.Errorf("repo:^web$ resolved = %+v, want none: no repo is named web", q.Root.Children[0].Resolved)
+	}
 	if q := mustParseCleanly(t, "author:ja x"); q.Root.Children[0].Resolved != nil {
 		t.Errorf("author:ja is ambiguous; resolved = %+v, want nil", q.Root.Children[0].Resolved)
 	}

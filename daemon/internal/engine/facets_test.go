@@ -28,8 +28,8 @@ func TestFacetsListBiggestBucketsFirstWithTheirFilters(t *testing.T) {
 
 	want := []protocol.Facet{
 		{Field: FacetRepo, Buckets: []protocol.FacetBucket{
-			{Label: "payments-api", Count: 4, Filter: "repo:payments-api"},
-			{Label: "shared.libs", Count: 1, Filter: `repo:shared\.libs`},
+			{Label: "payments-api", Count: 4, Filter: "repo:^payments-api$"},
+			{Label: "shared.libs", Count: 1, Filter: `repo:^shared\.libs$`},
 		}},
 		{Field: FacetLang, Buckets: []protocol.FacetBucket{
 			{Label: "Python", Count: 2, Filter: "lang:python"},
@@ -72,7 +72,8 @@ func TestFacetsKeepTheBiggestBucketsAndCountTheRest(t *testing.T) {
 }
 
 // A repo or folder bucket's filter parses back as one operator matching
-// that name, even with a space, quote or parenthesis in it.
+// that name, even with a space, quote or parenthesis in it, and a repo's
+// matches no other repo whose name holds it.
 func TestRepoAndFolderFiltersParseBackWhole(t *testing.T) {
 	for _, name := range []string{"payments-api", "My Project", "legacy (old)", `say "hi"`, "a/b c"} {
 		f := NewFacets(FacetRepo, FacetFolder)
@@ -93,6 +94,9 @@ func TestRepoAndFolderFiltersParseBackWhole(t *testing.T) {
 			switch pred := and.Kids[0].(type) {
 			case *query.Repo:
 				re = pred.Re
+				if re.MatchString("payments-" + name) {
+					t.Errorf("%s matches payments-%s too", filter, name)
+				}
 			case *query.Path:
 				re, want = pred.Re, name+"/x.go"
 			default:
