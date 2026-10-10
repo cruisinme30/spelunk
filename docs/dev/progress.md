@@ -260,6 +260,7 @@ Jason Kim and Marta Ruiz, and one uncommitted edit:
 | 35 | `sym:retry kind:class`, `ref:RetryPolicy` | [symbol-kinds.png](proof/symbol-kinds.png), [references.png](proof/references.png) |
 | 36 | `type:code f:http/ retry` with `--setting results.contextLines=2` | [context-lines.png](proof/context-lines.png) |
 | 37 | `RetryPolicy -is:generated -is:vendored`, replaced with `BackoffPolicy`, and `RetryPolicy -is:`, over the workspace plus a protoc `retry_pb2.py`, a `third_party/` copy and a `dist/` bundle | [generated-vendored.png](proof/generated-vendored.png), [generated-vendored-values.png](proof/generated-vendored-values.png) |
+| 38 | An empty box with a watched pin, then `msg:revert f:payments/`, after two new reverts by others (`--new-commit`) | [query-watches.png](proof/query-watches.png), [query-watches-results.png](proof/query-watches-results.png) |
 
 Mocks 16 (the opened file) and 18 (Settings) are VS Code's own editor and Settings UI, which the tool can't draw
 without VS Code, so they have no screenshot.
@@ -292,3 +293,22 @@ say what they left out.
   header-only generated file counting as written by people).
 - Suggestions: `TestGeneratedAndVendoredSuggestionsCountTheirFiles` in `daemon/internal/query/values_test.go`, and
   `TestIsGeneratedReadsTheIndexedHeaders` over JSON-RPC in `daemon/internal/server/search_test.go`.
+
+## Query watches (1.2)
+
+Mock 38 (`query-watches`). Exit gate: the bell watches a pinned query that searches history; after a history update,
+the daemon runs it over the commits the update brought in (not your own, not a first read, not a switch to an older
+branch) and announces what matched; the pin counts them, a notification offers Show and Stop watching (unless
+`spelunk.watch.notify` is off), and the query's next run tags them New.
+
+- New commits: `daemon/internal/history/watch_test.go` (forward moves, rewrites and branch switches, a store of the new
+  commits alone) and `TestAHistoryUpdateAnnouncesTheCommitsItBroughtIn` in `daemon/internal/indexer`.
+- Watched queries: `daemon/internal/server/watches_test.go` (`initialize`'s watches and `watch/set`, others' commits
+  only, the query's own filters and count, queries over current files ignored).
+- Host: `extension/src/test/watches.test.ts` (counts, repeats, the saved state, the pop-up text), the watch tests in
+  `controller.test.ts` (the pop-up's buttons, `pinned.watch` for history queries only, renames keeping the watch, New
+  on every page, and a real daemon announcing a commit) and `settings.test.ts`.
+- Panel: `webview/test/watches.test.mjs` (the three bells, the count, ⌥W, New tags on every page and only for that
+  search) and malformed `watch.state` in `untrustedInput.test.mjs`.
+- End to end in VS Code: "The panel's bell watches a pinned history query in the setting, and only a history query"
+  in `extension/src/e2e/commands.test.ts`.

@@ -23,12 +23,16 @@
 //   --select <n>        press ↓ n times after the results arrive, to preview a result
 //   --setting <k=v>     a spelunk.* setting, e.g. caseSensitive=smart; v is read as JSON when it parses (repeatable),
 //                       so --setting 'ui.pinnedQueries=[{"query":"sym:RetryPolicy"}]' pins a query
+//   --new-commit <r|a|s|p>  once indexed, commits a line added to file p in repo r of --workspace, by author a
+//                       ("Name <email>") with subject s, then waits for the watches to see it (repeatable). It
+//                       commits in --workspace, so point that at a copy whose repos have user.email set
 //   --workspace <dir>   a folder of repos, one root per subfolder (default: testdata/workspace)
 //   --width, --height   the panel size in pixels (default: 1200 × 720)
 //
 // Needs the daemon binary (npm test builds it) and Playwright's Chromium
 // (or CHROMIUM_PATH).
-import { mkdtempSync, readdirSync, rmSync, statSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { appendFileSync, mkdtempSync, readdirSync, rmSync, statSync } from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -43,6 +47,7 @@ const { values: args } = parseArgs({
     replace: { type: "string" },
     open: { type: "string", multiple: true, default: [] },
     setting: { type: "string", multiple: true, default: [] },
+    "new-commit": { type: "string", multiple: true, default: [] },
     key: { type: "string", multiple: true, default: [] },
     click: { type: "string", multiple: true, default: [] },
     type: { type: "string" },
@@ -88,6 +93,7 @@ async function main() {
     binary: join(repoRoot, "daemon/bin/spelunk-daemon"),
     roots: () => workspaceRoots(host),
     settings: () => ({ ...host.daemonSettings(configured, scratch), location: join(scratch, "index") }),
+    watches: () => host.watchedQueries(configured),
   });
   await daemon.start();
   const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined });
@@ -97,6 +103,7 @@ async function main() {
     const posted = await connectPanel(page, host, daemon);
     await page.goto(pathToFileURL(join(repoRoot, "webview/test/out/searchPanel.html")).href);
     await postToPanel(page, "index.status", await daemon.request("index/status", {}));
+    await commitForWatches(posted);
     await drivePanel(page, posted);
     await page.screenshot({ path: args.out });
     console.log(`saved ${args.out}`);
@@ -149,6 +156,9 @@ async function connectPanel(page, host, daemon) {
     readDocument: async () => {},
     applyEdits: async () => false,
     saveFiles: () => {},
+    // A watch's pop-up is VS Code's own; the panel shows its count.
+    showWatchMatch: async () => {},
+    showQuery: () => {},
   };
   const openFiles = args.open.map((path) => join(args.workspace, path));
   // The extension's settings, minus the typing delay, so each keystroke searches at once.
@@ -162,6 +172,7 @@ async function connectPanel(page, host, daemon) {
       closeOnOpen: () => false,
       uiSettings: () => uiSettings,
       openFiles: () => openFiles,
+      watchNotify: () => true,
     },
     { text: "", recent: args.recent },
   );
@@ -169,6 +180,29 @@ async function connectPanel(page, host, daemon) {
   // The test page passes every message it sends to window.__forwardToHost when that exists.
   await page.exposeBinding("__forwardToHost", (_source, message) => controller.handle(message));
   return posted;
+}
+
+/**
+ * Makes each --new-commit, then waits until the watches have counted them
+ * (the controller posts watch.state once per announcement it records).
+ */
+async function commitForWatches(posted) {
+  if (args["new-commit"].length === 0) return;
+  await until("the panel's first watch.state", () => posted.includes("watch.state"));
+  const counted = posted.filter((type) => type === "watch.state").length;
+  for (const spec of args["new-commit"]) {
+    const [repo, author, subject, path] = spec.split("|");
+    const root = join(args.workspace, repo);
+    appendFileSync(join(root, path), `# ${subject}\n`);
+    execFileSync("git", ["-C", root, "add", "--all"]);
+    execFileSync("git", ["-C", root, "commit", "--quiet", `--author=${author}`, "-m", subject]);
+  }
+  // The daemon looks for new commits every 5 seconds.
+  await until(
+    "the watches to count the new commits",
+    () => posted.filter((type) => type === "watch.state").length > counted,
+    20_000,
+  );
 }
 
 /** Types --first and --query, previews --replace, presses --key, clicks --click, types --type and moves down --select rows. */
@@ -220,7 +254,7 @@ async function loadHost() {
         'export { SearchController } from "./controller";',
         'export { Daemon } from "./daemon";',
         'export { makeRoot } from "./roots";',
-        'export { daemonSettings, pinnedQueries, uiSettings } from "./settings";',
+        'export { daemonSettings, pinnedQueries, uiSettings, watchedQueries } from "./settings";',
       ].join("\n"),
       resolveDir: join(repoRoot, "extension/src"),
       loader: "ts",
