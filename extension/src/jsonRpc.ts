@@ -168,6 +168,23 @@ export class CancelSource {
   }
 }
 
+/** A frame waiting for the peer to read what was written before it. */
+interface QueuedFrame {
+  frame: Buffer;
+  /** Set for a notification whose newest one replaces any older one still queued. */
+  replaces?: string;
+}
+
+/** How a Connection treats what it sends. */
+export interface ConnectionOptions {
+  /**
+   * Notifications that each say the whole of something (the settings, the
+   * roots): while the peer isn't reading, a newer one replaces an older one
+   * still queued, in its place, instead of queueing behind it.
+   */
+  latestWins?: readonly (keyof RpcNotifications)[];
+}
+
 interface PendingRequest {
   resolve(result: unknown): void;
   reject(error: unknown): void;
@@ -193,17 +210,24 @@ export class Connection extends EventEmitter {
   private readonly pending = new Map<number, PendingRequest>();
   private readonly decoder: FrameDecoder;
   private closed = false;
+  /** Set while the output's buffer is full: frames then wait in `queued` until it drains. */
+  private blocked = false;
+  private queued: QueuedFrame[] = [];
+  private readonly latestWins: ReadonlySet<string>;
 
   /**
    * Emits "error" for each problem with what the peer sent (it is skipped),
-   * "activity" whenever bytes arrive from the peer, and "close" once. Problems with no "error" listener are dropped rather
-   * than thrown, since they surface inside a stream event.
+   * "activity" whenever bytes arrive from the peer, and "close" once.
+   * Problems with no "error" listener are dropped rather than thrown, since
+   * they surface inside a stream event.
    */
   constructor(
     input: Readable,
     private readonly output: Writable,
+    options: ConnectionOptions = {},
   ) {
     super();
+    this.latestWins = new Set(options.latestWins);
     this.decoder = new FrameDecoder((header) => {
       this.report(new Error(`jsonrpc: skipped a frame without a usable Content-Length: ${JSON.stringify(header)}`));
     });
@@ -250,7 +274,7 @@ export class Connection extends EventEmitter {
 
   /** Sends a notification; dropped once the connection is closed. */
   notify<M extends keyof RpcNotifications>(method: M, params: RpcNotifications[M]): void {
-    if (!this.closed) this.write({ jsonrpc: "2.0", method, params });
+    if (!this.closed) this.write({ jsonrpc: "2.0", method, params }, this.latestWins.has(method) ? method : undefined);
   }
 
   /** Calls `listener` with the params of every `method` notification from the peer. */
@@ -262,6 +286,7 @@ export class Connection extends EventEmitter {
   dispose(reason = new Error("connection disposed")): void {
     if (this.closed) return;
     this.closed = true;
+    this.queued = [];
     const requests = [...this.pending.values()];
     this.pending.clear();
     for (const request of requests) request.reject(reason);
@@ -285,11 +310,47 @@ export class Connection extends EventEmitter {
     }
   }
 
-  private write(message: object): void {
+  /**
+   * Sends a message, or, while the peer isn't reading, queues it until the
+   * output drains rather than piling more onto a full buffer. A message that
+   * `replaces` takes the place of a queued one that replaces the same.
+   */
+  private write(message: object, replaces?: string): void {
+    const frame = encodeFrame(JSON.stringify(message));
+    if (!this.blocked) {
+      this.send(frame);
+      return;
+    }
+    if (replaces === undefined) {
+      this.queued.push({ frame });
+      return;
+    }
+    const older = this.queued.findIndex((queued) => queued.replaces === replaces);
+    if (older === -1) this.queued.push({ frame, replaces });
+    else this.queued[older] = { frame, replaces };
+  }
+
+  /** Writes a frame; returns false, and waits for the output to drain, once its buffer is full. */
+  private send(frame: Buffer): boolean {
     // A write to a stream that is already destroyed fails only through this callback.
-    this.output.write(encodeFrame(JSON.stringify(message)), (error) => {
+    const roomForMore = this.output.write(frame, (error) => {
       if (error) this.dispose(error);
     });
+    if (!roomForMore) {
+      this.blocked = true;
+      this.output.once("drain", () => {
+        this.flush();
+      });
+    }
+    return roomForMore;
+  }
+
+  /** Sends the queued frames, until the output's buffer is full again. */
+  private flush(): void {
+    this.blocked = false;
+    for (let next = this.queued.shift(); next && !this.closed; next = this.queued.shift()) {
+      if (!this.send(next.frame)) return;
+    }
   }
 
   private receive(body: string): void {

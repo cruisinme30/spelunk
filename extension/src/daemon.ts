@@ -301,7 +301,9 @@ export class Daemon extends EventEmitter {
 
   /** The connection to a new process; its notifications become this daemon's events. */
   private connect(child: DaemonProcess): Connection {
-    const connection = new Connection(child.stdout, child.stdin);
+    const connection = new Connection(child.stdout, child.stdin, {
+      latestWins: ["settings/update", "watch/set", "workspace/setRoots"],
+    });
     this.connection = connection;
     connection.onNotification("search/batch", (batch) => this.emit("batch", batch));
     connection.onNotification("index/progress", (progress) => this.emit("progress", progress));

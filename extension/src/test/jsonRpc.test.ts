@@ -244,3 +244,42 @@ test("cancelling sends $/cancelRequest only while the request is pending", async
   connection.dispose();
   await assert.rejects(pending, /connection disposed/);
 });
+
+/** settings/update params that differ only in caseSensitive, which the test reads back. */
+const settings = (caseSensitive: string) => ({ settings: { caseSensitive } }) as never;
+
+test("while the peer isn't reading, frames wait their turn, and only the newest settings and roots wait", async () => {
+  const input = new PassThrough();
+  const output = new PassThrough({ highWaterMark: 16 });
+  const connection = new Connection(input, output, { latestWins: ["settings/update", "workspace/setRoots"] });
+  void connection.request("index/status", {}).catch(() => {});
+  assert.ok(output.writableLength > 16, "the first frame filled the buffer");
+  for (let index = 0; index < 1000; index++) connection.notify("settings/update", settings(`v${String(index)}`));
+  void connection.request("query/parse", { text: "a", cursor: 1 }).catch(() => {});
+  connection.notify("workspace/setRoots", { roots: [] });
+  connection.notify("settings/update", settings("newest"));
+  connection.notify("workspace/didChangeFiles", { changes: [] });
+  connection.notify("workspace/didChangeFiles", { changes: [] });
+  const buffered = output.writableLength;
+
+  const decoder = new FrameDecoder();
+  const received: { method?: string; params?: { settings?: { caseSensitive?: string } } }[] = [];
+  output.on("data", (chunk: Buffer) => {
+    for (const body of decoder.push(chunk)) received.push(JSON.parse(body) as (typeof received)[number]);
+  });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.ok(buffered < 200, `nothing piled onto the full buffer (${String(buffered)} bytes)`);
+  assert.deepEqual(
+    received.map((message) => message.params?.settings?.caseSensitive ?? message.method),
+    [
+      "index/status",
+      "newest",
+      "query/parse",
+      "workspace/setRoots",
+      "workspace/didChangeFiles",
+      "workspace/didChangeFiles",
+    ],
+    "in order, with the 1,001 settings updates as one, the newest",
+  );
+  connection.dispose();
+});
