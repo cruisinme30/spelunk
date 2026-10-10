@@ -29,9 +29,14 @@ type Hole struct {
 	Start, End int
 }
 
-// maxSteps bounds the work of one Find. A template whose holes could split
-// a long line many ways may need more; Find then stops and says so.
-const maxSteps = 2_000_000
+// One Find takes at most baseSteps steps, and stepsPerToken more for each
+// token of the text: enough for any template to try every place in a big
+// file, but not for one whose holes could split a long line in very many
+// ways, which Find then stops trying, and says so.
+const (
+	baseSteps     = 2_000_000
+	stepsPerToken = 64
+)
 
 // Find returns the template's matches in text, a file in language (a lang
 // package name, or "" for plain text): leftmost first and never
@@ -48,6 +53,7 @@ func (t *Template) Find(text []byte, language string, ignoreCase bool, limit int
 	m := &matcher{
 		c: c, text: text, tokens: tokens, partner: partners(tokens, text), ignoreCase: ignoreCase,
 		at: make([]int, len(c.tokens)), took: make([][2]int, len(c.tokens)), first: firstOfName(c),
+		budget: baseSteps + stepsPerToken*len(tokens),
 	}
 	for start := 0; start < len(tokens) && (limit < 0 || len(found) < limit); {
 		if !m.same(0, start) {
@@ -100,8 +106,9 @@ type matcher struct {
 	at   []int
 	took [][2]int
 	// end is the text token after the last match found.
-	end   int
-	steps int
+	end int
+	// steps counts the work done, up to budget.
+	steps, budget int
 	// out is set when the steps ran out.
 	out bool
 }
@@ -132,7 +139,7 @@ func (m *matcher) match(ti, at int) bool {
 // spend counts one step, reporting whether the steps have run out.
 func (m *matcher) spend() bool {
 	m.steps++
-	if m.steps > maxSteps {
+	if m.steps > m.budget {
 		m.out = true
 	}
 	return m.out
