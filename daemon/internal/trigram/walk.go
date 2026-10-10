@@ -189,7 +189,6 @@ func gitIgnored(ctx context.Context, root string, paths []string) map[string]boo
 // Git couldn't answer (exit status 128) in a repo: not when it found
 // nothing ignored (exit status 1), or when dir is outside Git.
 func checkIgnore(ctx context.Context, dir string, paths []string) (out []byte, failed bool) {
-	//nolint:gosec // G204: dir is a folder inside the root being indexed; the paths go to git on stdin
 	cmd := exec.CommandContext(ctx, "git", "-C", dir, "check-ignore", "-z", "--stdin")
 	cmd.Stdin = strings.NewReader(strings.Join(paths, "\x00") + "\x00")
 	var stderr strings.Builder
