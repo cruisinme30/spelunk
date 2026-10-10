@@ -192,6 +192,8 @@ export class SearchController {
    * indexing, either of which can change how it parses a query.
    */
   private readonly searchesHistoryByText = new Map<string, boolean>();
+  /** watch.state posts started so far; one that finishes after a later one started isn't posted. */
+  private watchStatePosts = 0;
   /** The last change to the pinned list; the next waits for it, so neither overwrites the other. */
   private pinnedUpdate: Promise<void> = Promise.resolve();
 
@@ -438,11 +440,17 @@ export class SearchController {
     return update;
   }
 
-  /** Tells the panel which pinned queries can be watched and what each watch found. */
+  /**
+   * Tells the panel which pinned queries can be watched and what each watch
+   * found. Asking the daemon takes a while, and the pins can change
+   * meanwhile, so only the latest post goes out.
+   */
   private async postWatchState(): Promise<void> {
+    const post = ++this.watchStatePosts;
     const pinned = this.options.pinnedQueries();
     this.watches.keepOnly(watchedOf(pinned));
     const searchesHistory = await Promise.all(pinned.map((entry) => this.searchesHistory(entry.query)));
+    if (post !== this.watchStatePosts) return;
     const watchable = pinned.filter((_entry, index) => searchesHistory[index]).map((entry) => entry.query);
     this.ui.post("watch.state", { watchable, unseen: this.watches.list() });
   }

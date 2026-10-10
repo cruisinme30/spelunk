@@ -989,6 +989,26 @@ test("whether a pin can be watched is asked again once the daemon restarts or fi
   assert.equal(parsed.length, 3, "asked again after a restart");
 });
 
+test("a watch.state that the pins changed under while it was asked about is dropped", async () => {
+  // @covers msg:watch.state
+  const waiting: (() => void)[] = [];
+  const { backend } = scriptedBackend(async (_method, { text }) => {
+    if (text === "msg:slow") await new Promise<void>((resolve) => waiting.push(resolve));
+    return { query: { ...parsedQuery(text, true), mode: "history" }, completions: [] };
+  });
+  const host = recordingUi();
+  let pinned: PinnedQuery[] = [{ query: "msg:slow" }];
+  const controller = newController(backend, host.ui, { pinnedQueries: () => structuredClone(pinned) });
+  controller.restore();
+  await nextTurn();
+  pinned = [{ query: "msg:revert" }];
+  controller.restore();
+  await nextTurn();
+  for (const resolve of waiting.splice(0)) resolve();
+  await nextTurn();
+  assert.deepEqual(host.payloads("watch.state"), [{ watchable: ["msg:revert"], unseen: [] }]);
+});
+
 test("only a pinned query that searches history can be watched, and renaming keeps its watch", async () => {
   // @covers msg:pinned.watch screen:query-watches
   let pinned: PinnedQuery[] = [{ query: "sym:RetryPolicy" }, { query: "msg:revert" }];
