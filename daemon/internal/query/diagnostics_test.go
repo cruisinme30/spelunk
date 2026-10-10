@@ -56,6 +56,8 @@ func TestDiagnostics(t *testing.T) {
 		{"is:open in a history query", "author:jane is:open", DiagOpWrongMode, "is:open", "author:jane"},
 		{"is:changed in a history query", "msg:fix is:changed", DiagOpWrongMode, "is:changed", "msg:fix"},
 		{"is: with a bad value", "a is:tests", DiagBadValue, "is:tests", "a is:open"},
+		{"owner: in a history query", "author:jane owner:@payments", DiagOpWrongMode, "owner:@payments", "author:jane"},
+		{"owner: as a regex", "a owner:/pay.*/", DiagBadValue, "owner:/pay.*/", ""},
 		{"order: with a bad value", "a order:random", DiagBadValue, "order:random", "a order:best"},
 		{"invalid regex term", "/Retry(/", DiagInvalidRegex, "/Retry(/", ""},
 		{"invalid f: regex", "f:a[b x", DiagInvalidRegex, "a[b", ""},

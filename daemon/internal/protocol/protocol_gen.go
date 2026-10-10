@@ -71,6 +71,7 @@ const (
 	OpNameKind    OpName = "kind"
 	OpNameRef     OpName = "ref"
 	OpNameIs      OpName = "is"
+	OpNameOwner   OpName = "owner"
 	OpNameContent OpName = "content"
 	OpNameAuthor  OpName = "author"
 	OpNameMsg     OpName = "msg"

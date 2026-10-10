@@ -2,6 +2,7 @@ package query
 
 import (
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -47,6 +48,7 @@ func TestPlanLowersTheQuery(t *testing.T) {
 		{`author:"Jane Doe" x`, `and(author:="jane doe" content#0:/(?i)x/)`},
 		{"repo:web count:20 x", "and(repo:/(?i)web/ content#0:/(?i)x/)"},
 		{"since:2026-09 until:2026-09 x", "and(since:2026-09-01T00:00:00Z not(since:2026-10-01T00:00:00Z) content#0:/(?i)x/)"},
+		{`owner:@acme/payments -owner:none owner:"jane" x`, "and(owner:@acme/payments not(owner:none) owner:jane content#0:/(?i)x/)"},
 	}
 	for _, tt := range tests {
 		if got := mustPlan(t, tt.query, defaultSettings).Pred.String(); got != tt.want {
@@ -68,6 +70,23 @@ func TestKindReturnsDefinitionsAndRefReturnsCodeLines(t *testing.T) {
 		if got := kinds(mustPlan(t, query, defaultSettings)); got != want {
 			t.Errorf("plan(%q) returns %s, want %s", query, got, want)
 		}
+	}
+}
+
+func TestOwnerIsAFilterThatCountsWhatItHid(t *testing.T) {
+	// @covers op:owner
+	text := "retry owner:@payments-core -owner:none"
+	plan := mustPlan(t, text, defaultSettings)
+	var got []string
+	for _, f := range plan.Filters {
+		got = append(got, f.Reason+"@"+strconv.Itoa(f.Index)+":"+f.Text+"→"+ApplyFix(text, f.Undo))
+	}
+	want := []string{"owner@1:owner:@payments-core→retry -owner:none", "not@2:-owner:none→retry owner:@payments-core"}
+	if !slices.Equal(got, want) {
+		t.Errorf("filters = %q, want %q", got, want)
+	}
+	if plan.Mode != protocol.ModeWorkingTree {
+		t.Errorf("mode = %s, want working tree: owner: searches current files", plan.Mode)
 	}
 }
 

@@ -6,6 +6,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/cruisinme30/spelunk/daemon/internal/codeowners"
 	"github.com/cruisinme30/spelunk/daemon/internal/protocol"
 	"github.com/cruisinme30/spelunk/daemon/internal/trigram"
 )
@@ -105,8 +106,10 @@ func (ix *Indexer) build(job buildJob) {
 		return // superseded, dropped or shutting down
 	}
 	var saveErr error
+	var owners *codeowners.File
 	if err == nil {
 		saveErr = shard.Save(job.shardPath)
+		owners = codeowners.Load(job.root.Path)
 	}
 	ix.update(job, func(r *repo) {
 		r.cancelBuild = nil
@@ -116,6 +119,7 @@ func (ix *Indexer) build(job buildJob) {
 		}
 		// A shard that couldn't be saved still serves this session.
 		r.shard, r.state, r.message, r.visible = shard, protocol.IndexStateReady, "", false
+		r.owners = owners
 		if saveErr != nil {
 			r.message = "Index not saved: " + saveErr.Error()
 		}

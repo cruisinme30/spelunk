@@ -75,6 +75,7 @@
         "kind",
         "ref",
         "is",
+        "owner",
         "content",
         "author",
         "msg",
@@ -883,7 +884,7 @@
       "type": "object",
       "properties": {
         "reason": {
-          "enum": ["not", "since", "case", "word", "type", "pathFilter", "symbol", "kind"]
+          "enum": ["not", "since", "case", "word", "type", "pathFilter", "symbol", "kind", "owner"]
         },
         "filter": {
           "type": "string",

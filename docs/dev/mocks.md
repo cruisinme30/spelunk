@@ -46,3 +46,4 @@ covered.
 | 36 | Context lines: a few lines around each code match, merged when they touch | `context-lines` | `ContextLines` | 1.2 |
 | 37 | `-is:generated` / `-is:vendored` leave tool-written and third-party files out | `generated-vendored` | `GeneratedVendored` | 1.2 |
 | 38 | Query watches: a bell on a pinned history query; new matching commits get a count, a notification and a New tag | `query-watches` | `QueryWatches` | 1.2 |
+| 42 | `owner:` keeps the files a team owns in CODEOWNERS | `owner-filter` | `OwnerFilter` | 1.2 |

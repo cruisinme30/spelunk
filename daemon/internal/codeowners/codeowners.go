@@ -65,17 +65,6 @@ func Load(root string) *File {
 	return nil
 }
 
-// IsLocation reports whether path (slash-separated, relative to the repo
-// root) is one of Locations, so a change to it can change who owns what.
-func IsLocation(path string) bool {
-	for _, location := range Locations {
-		if path == location {
-			return true
-		}
-	}
-	return false
-}
-
 // Parse reads a CODEOWNERS file's content; path is where it is (see File.Path).
 func Parse(path string, content []byte) *File {
 	file := &File{Path: path}

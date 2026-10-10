@@ -81,7 +81,7 @@ type Plan struct {
 type Filter struct {
 	// Reason is the HiddenNote reason that names the kind of filter:
 	// "pathFilter" (-f:), "not" (any other negation), "since" (since: and until:),
-	// "kind" (kind:), and, for Plan.TypeFilter, Plan.CaseFilter,
+	// "kind" (kind:), "owner" (owner:), and, for Plan.TypeFilter, Plan.CaseFilter,
 	// Plan.WordFilter and Plan.SymbolFilter, "type", "case", "word" and
 	// "symbol".
 	Reason string
@@ -183,6 +183,10 @@ type (
 	Is struct{ State string }
 	// Since matches commits after a time, or files last changed after it.
 	Since struct{ After time.Time }
+	// Owner matches files that CODEOWNERS gives an owner named Name
+	// (owner:), or, when Name is OwnerNone, files it gives none. Files of a
+	// repo without a CODEOWNERS file match neither.
+	Owner struct{ Name string }
 )
 
 func (*And) isPred()     {}
@@ -198,6 +202,7 @@ func (*Author) isPred()  {}
 func (*Message) isPred() {}
 func (*Since) isPred()   {}
 func (*Is) isPred()      {}
+func (*Owner) isPred()   {}
 
 func joinPreds(kind string, kids []Pred) string {
 	parts := make([]string, len(kids))
@@ -230,6 +235,7 @@ func (p *Symbol) String() string  { return "sym:/" + p.Re.String() + "/" }
 func (p *Kind) String() string    { return "kind:" + p.Name }
 func (p *Message) String() string { return "msg:/" + p.Re.String() + "/" }
 func (p *Is) String() string      { return "is:" + p.State }
+func (p *Owner) String() string   { return "owner:" + p.Name }
 func (p *Since) String() string   { return "since:" + p.After.UTC().Format(time.RFC3339) }
 func (p *Author) String() string {
 	if p.Exact {
@@ -566,6 +572,8 @@ func (l *lowering) lowerOperator(node *protocol.Node) Pred {
 		return &Message{Re: l.regex(node.Value, node.Match)}
 	case protocol.OpNameIs:
 		return &Is{State: node.Value}
+	case protocol.OpNameOwner:
+		return &Owner{Name: node.Value}
 	case protocol.OpNameSince:
 		return &Since{After: since(l.now, node.Value)}
 	case protocol.OpNameUntil:
@@ -666,6 +674,8 @@ func filterReason(node *protocol.Node) string {
 		return "since" // until: is a time window too, so its note reads like since:'s
 	case node.Kind == protocol.NodeKindOp && node.Op == protocol.OpNameKind:
 		return "kind"
+	case node.Kind == protocol.NodeKindOp && node.Op == protocol.OpNameOwner:
+		return "owner"
 	default:
 		return ""
 	}

@@ -56,6 +56,7 @@ var operators = []operator{
 	{name: protocol.OpNameKind, full: "kind", short: "k", scope: scopeWorkingTreeOnly, summary: "Only definitions of one kind", examples: SymbolKinds, interpret: oneOf(SymbolKinds...)},
 	{name: protocol.OpNameRef, full: "ref", short: "x", scope: scopeWorkingTreeOnly, summary: "Whole-word uses of a name, without its definitions", interpret: asReference},
 	{name: protocol.OpNameIs, full: "is", short: "i", summary: "Open, changed, test, generated or vendored files", examples: []string{StateOpen, StateChanged, StateTest, StateGenerated, StateVendored}, interpret: oneOf(StateOpen, StateChanged, StateTest, StateGenerated, StateVendored)},
+	{name: protocol.OpNameOwner, full: "owner", scope: scopeWorkingTreeOnly, summary: "Files a person or team owns in CODEOWNERS", interpret: asOwner},
 	{name: protocol.OpNameContent, full: "content", summary: "Text inside files only, never file names", examples: []string{"retry", `"read timeout"`, "/Retry(Policy)?/"}, interpret: asText},
 	{name: protocol.OpNameLang, full: "language", short: "l", summary: "Programming language", examples: []string{"python", "go", "typescript"}, interpret: asLanguage},
 	{name: protocol.OpNameRepo, full: "repo", short: "r", summary: "Repo name, as a regex or a glob", interpret: asPathRegex},
@@ -75,6 +76,9 @@ const (
 	StateGenerated = "generated" // written by a tool (lang.IsGenerated)
 	StateVendored  = "vendored"  // someone else's code, or a build's (lang.IsVendored)
 )
+
+// OwnerNone is the owner: value for files no CODEOWNERS rule gives an owner.
+const OwnerNone = "none"
 
 // The values of type: that search commits for lines on one side of their
 // diffs: lines a commit added, or lines it removed.
@@ -190,6 +194,15 @@ func asName(_ string, form valueForm) (protocol.Match, string) {
 	default:
 		return protocol.MatchLiteral, ""
 	}
+}
+
+// asOwner: owner: takes a @user, an @org/team (or its name alone), an
+// email, or none; quotes are allowed but change nothing.
+func asOwner(_ string, form valueForm) (protocol.Match, string) {
+	if form == formRegex {
+		return protocol.MatchLiteral, "owner: takes a @user, an @org/team, an email or none, not a regex"
+	}
+	return protocol.MatchLiteral, ""
 }
 
 // durationPattern is a since: or until: window: a count and a unit, which

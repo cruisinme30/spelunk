@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/cruisinme30/spelunk/daemon/internal/codeowners"
 	"github.com/cruisinme30/spelunk/daemon/internal/history"
 	"github.com/cruisinme30/spelunk/daemon/internal/protocol"
 	"github.com/cruisinme30/spelunk/daemon/internal/trigram"
@@ -62,6 +63,9 @@ type repo struct {
 	visible bool
 	// The files re-read since the shard was built (see FilesChanged).
 	overlay overlay
+	// owners is the repo's CODEOWNERS file, read again with each build and
+	// whenever the editor changes it; nil when the repo has none.
+	owners *codeowners.File
 
 	// The history index.
 	history           *history.Store // published; nil until read or loaded
@@ -169,6 +173,7 @@ func (ix *Indexer) add(root protocol.Root, saved savedIndex) {
 	ix.repos[root.ID] = r
 	if saved.shard != nil {
 		r.shard, r.state, r.visible = saved.shard, protocol.IndexStateReady, false // refresh quietly
+		r.owners = saved.owners
 	}
 	if saved.history != nil {
 		r.history, r.historyState, r.historyFull = saved.history, protocol.IndexStateReady, false
@@ -180,6 +185,7 @@ func (ix *Indexer) add(root protocol.Root, saved savedIndex) {
 // savedIndex is what a previous session saved for a root.
 type savedIndex struct {
 	shard   *trigram.Shard
+	owners  *codeowners.File // read from the repo itself, to go with shard
 	history *history.Store
 	// problem says why a saved index couldn't be used, when it exists but
 	// is unreadable: it is rebuilt.
@@ -205,7 +211,7 @@ func (ix *Indexer) savedIndexes(roots []protocol.Root) map[string]savedIndex {
 		shard, err := trigram.Load(shardPath(location, root))
 		switch {
 		case err == nil:
-			index.shard = shard
+			index.shard, index.owners = shard, codeowners.Load(root.Path)
 		case !errors.Is(err, os.ErrNotExist) && !errors.Is(err, trigram.ErrStaleFormat):
 			index.problem = "The saved index couldn't be read, so it is being rebuilt."
 		}
@@ -274,7 +280,7 @@ func (ix *Indexer) Repos() []trigram.Repo {
 		}
 		repo := trigram.Repo{
 			ID: id, Name: r.root.Name, Root: r.root.Path, Shard: r.shard,
-			Overlay: r.overlay.shard, Masked: r.overlay.masked,
+			Overlay: r.overlay.shard, Masked: r.overlay.masked, Owners: r.owners,
 		}
 		if r.history != nil {
 			repo.History = fileHistory{r.history}

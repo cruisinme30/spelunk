@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/cruisinme30/spelunk/daemon/internal/codeowners"
 	"github.com/cruisinme30/spelunk/daemon/internal/engine"
 	"github.com/cruisinme30/spelunk/daemon/internal/protocol"
 	"github.com/cruisinme30/spelunk/daemon/internal/query"
@@ -31,6 +32,8 @@ type Repo struct {
 	// Open holds the repo-relative paths of its files open in the editor,
 	// for is:open; see WithOpenFiles.
 	Open map[string]bool
+	// Owners is the repo's CODEOWNERS file, for owner:; nil when it has none.
+	Owners *codeowners.File
 }
 
 // FileHistory is what the working-tree engine needs from a repo's history:
@@ -233,6 +236,8 @@ func docLeaf(p query.Pred, repo *Repo, doc *Doc) bool {
 		return repo.changedSince(doc, p.After)
 	case *query.Is:
 		return repo.inState(doc, p.State)
+	case *query.Owner:
+		return repo.ownedBy(doc.Path, p.Name)
 	default:
 		// sym: needs the symbol index; author: and msg: are history-only, and
 		// the parser keeps them out of working-tree plans.

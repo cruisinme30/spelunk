@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/cruisinme30/spelunk/daemon/internal/codeowners"
 	"github.com/cruisinme30/spelunk/daemon/internal/protocol"
 	"github.com/cruisinme30/spelunk/daemon/internal/trigram"
 )
@@ -131,6 +132,11 @@ func (ix *Indexer) reread(id string, paths []string) {
 	if err != nil {
 		return
 	}
+	ownersChanged := changesOwners(paths)
+	var owners *codeowners.File
+	if ownersChanged {
+		owners = codeowners.Load(root.Path)
+	}
 
 	ix.mu.Lock()
 	defer ix.mu.Unlock()
@@ -139,12 +145,29 @@ func (ix *Indexer) reread(id string, paths []string) {
 		return
 	}
 	r.overlay = r.overlay.with(masked, read.Docs, time.Now())
+	if ownersChanged {
+		r.owners = owners
+	}
 	if r.history != nil {
 		r.history = r.history.MarkDirty(paths)
 	}
 	if len(r.overlay.masked) > maxOverlayFiles {
 		ix.refresh(id)
 	}
+}
+
+// changesOwners reports whether a change to paths can change who owns
+// what: one of them is where a CODEOWNERS file goes, or a folder that holds
+// one, deleted or renamed.
+func changesOwners(paths []string) bool {
+	for _, path := range paths {
+		for _, location := range codeowners.Locations {
+			if location == path || strings.HasPrefix(location, path+"/") {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // withFilesUnder adds to paths the shard's files under any of them, for a

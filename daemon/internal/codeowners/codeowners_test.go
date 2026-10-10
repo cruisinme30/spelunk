@@ -38,6 +38,7 @@ apps/ @mona
 `
 
 func TestMatchFollowsGitHubsExample(t *testing.T) {
+	// @covers op:owner
 	file := Parse(".github/CODEOWNERS", []byte(githubExample))
 	tests := []struct {
 		path string
@@ -72,6 +73,7 @@ func TestMatchFollowsGitHubsExample(t *testing.T) {
 }
 
 func TestMatchSaysWhichLineDecided(t *testing.T) {
+	// @covers op:owner
 	file := Parse("CODEOWNERS", []byte(githubExample))
 	rule, ok := file.Match("web/app.js")
 	if !ok || rule.Line != 6 || rule.Pattern != "*.js" {
@@ -83,6 +85,7 @@ func TestMatchSaysWhichLineDecided(t *testing.T) {
 }
 
 func TestPatterns(t *testing.T) {
+	// @covers op:owner
 	tests := []struct {
 		pattern string
 		matches []string
@@ -123,6 +126,7 @@ func TestPatterns(t *testing.T) {
 }
 
 func TestParseSkipsWhatGitHubSkips(t *testing.T) {
+	// @covers op:owner
 	content := strings.Join([]string{
 		"!*.md @a",          // 1: negation isn't supported
 		"[abc].go @a",       // 2: character ranges aren't supported
@@ -149,6 +153,7 @@ func TestParseSkipsWhatGitHubSkips(t *testing.T) {
 }
 
 func TestParseKeepsAPatternWithNoOwners(t *testing.T) {
+	// @covers op:owner
 	file := Parse("CODEOWNERS", []byte("* @a\n/vendor/\r\n"))
 	if len(file.Rules) != 2 || file.Owners("vendor/x.go") != nil || file.Owners("x.go")[0] != "@a" {
 		t.Errorf("Rules = %+v; want vendor/ unowned and the rest @a", file.Rules)
@@ -156,6 +161,7 @@ func TestParseKeepsAPatternWithNoOwners(t *testing.T) {
 }
 
 func TestSameOwner(t *testing.T) {
+	// @covers op:owner
 	tests := []struct {
 		owner, value string
 		want         bool
@@ -184,6 +190,7 @@ func TestSameOwner(t *testing.T) {
 }
 
 func TestLoadUsesTheFirstLocationGitHubFinds(t *testing.T) {
+	// @covers op:owner
 	write := func(t *testing.T, root, path, content string) {
 		t.Helper()
 		full := filepath.Join(root, filepath.FromSlash(path))
@@ -230,15 +237,4 @@ func TestLoadUsesTheFirstLocationGitHubFinds(t *testing.T) {
 			t.Errorf("Load(too big) = %+v, want nil", file)
 		}
 	})
-}
-
-func TestIsLocation(t *testing.T) {
-	for path, want := range map[string]bool{
-		".github/CODEOWNERS": true, "CODEOWNERS": true, "docs/CODEOWNERS": true,
-		"src/CODEOWNERS": false, "codeowners": false,
-	} {
-		if got := IsLocation(path); got != want {
-			t.Errorf("IsLocation(%q) = %v, want %v", path, got, want)
-		}
-	}
 }

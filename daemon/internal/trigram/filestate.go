@@ -4,6 +4,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/cruisinme30/spelunk/daemon/internal/codeowners"
 	"github.com/cruisinme30/spelunk/daemon/internal/lang"
 	"github.com/cruisinme30/spelunk/daemon/internal/query"
 )
@@ -54,4 +55,23 @@ func (r *Repo) inState(doc *Doc, state string) bool {
 	default:
 		return false
 	}
+}
+
+// ownedBy reports whether the repo's CODEOWNERS file gives the file at path
+// an owner that an owner: value names (see codeowners.SameOwner), or, for
+// owner:none, no owner at all. It is false in a repo without the file.
+func (r *Repo) ownedBy(path, name string) bool {
+	if r.Owners == nil {
+		return false
+	}
+	owners := r.Owners.Owners(path)
+	if strings.EqualFold(name, query.OwnerNone) {
+		return len(owners) == 0
+	}
+	for _, owner := range owners {
+		if codeowners.SameOwner(owner, name) {
+			return true
+		}
+	}
+	return false
 }
