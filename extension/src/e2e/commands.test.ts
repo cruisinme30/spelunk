@@ -124,6 +124,29 @@ const TESTS: [name: string, run: () => Promise<void>][] = [
     },
   ],
   [
+    "The panel's bell watches a pinned history query in the setting, and only a history query",
+    async () => {
+      // @covers msg:pinned.watch setting:ui.pinnedQueries
+      const config = () => vscode.workspace.getConfiguration("spelunk");
+      const global = vscode.ConfigurationTarget.Global;
+      await config().update("ui.pinnedQueries", [{ query: "retry_policy" }, { query: "type:commit timeout" }], global);
+      for (const query of ["retry_policy", "type:commit timeout"]) {
+        await vscode.commands.executeCommand("spelunk._testPanelMessage", {
+          v: MESSAGE_VERSION,
+          type: "pinned.watch",
+          payload: { query, watch: true },
+        });
+      }
+      const saved = await poll(
+        "the watch to be saved",
+        () => config().get<{ query: string; watch?: boolean }[]>("ui.pinnedQueries") ?? [],
+        (pinned) => pinned.some((entry) => entry.watch),
+      );
+      assert.deepEqual(saved, [{ query: "retry_policy" }, { query: "type:commit timeout", watch: true }]);
+      await config().update("ui.pinnedQueries", undefined, global);
+    },
+  ],
+  [
     "Restart Search restarts the daemon and search keeps working",
     async () => {
       // @covers command:restartDaemon
