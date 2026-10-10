@@ -243,8 +243,14 @@ func (r workspaceResolver) Files() []query.FileStat {
 func (r workspaceResolver) Tags() []query.TagStat {
 	byName := map[string]*query.TagStat{}
 	var order []*query.TagStat
-	for _, root := range r.server.Roots() {
-		for _, tag := range r.server.tags.list(root.Path) {
+	roots := r.server.Roots()
+	paths := make([]string, len(roots))
+	for i, root := range roots {
+		paths[i] = root.Path
+	}
+	for i, tags := range r.server.tags.lists(paths) {
+		root := roots[i]
+		for _, tag := range tags {
 			stat, ok := byName[tag.Name]
 			if !ok {
 				stat = &query.TagStat{Name: tag.Name, At: tag.At}

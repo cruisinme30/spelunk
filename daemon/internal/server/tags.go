@@ -31,11 +31,13 @@ type cachedTags struct {
 }
 
 // list returns the newest tags of the repo at root, read again once
-// tagsTTL has passed. A folder outside Git has none.
+// tagsTTL has passed. A folder outside Git has none. Git runs without
+// the lock held, so a slow repo holds up no other.
 func (c *tagCache) list(root string) []history.Tag {
 	c.mu.Lock()
-	defer c.mu.Unlock()
-	if cached, ok := c.repos[root]; ok && c.now().Sub(cached.read) < tagsTTL {
+	cached, ok := c.repos[root]
+	c.mu.Unlock()
+	if ok && c.now().Sub(cached.read) < tagsTTL {
 		return cached.tags
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), tagsTimeout)
@@ -44,9 +46,27 @@ func (c *tagCache) list(root string) []history.Tag {
 	if err != nil {
 		tags = nil
 	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	if c.repos == nil {
 		c.repos = map[string]cachedTags{}
 	}
 	c.repos[root] = cachedTags{tags: tags, read: c.now()}
 	return tags
+}
+
+// lists returns the newest tags of each repo at roots, reading them at
+// once, so several slow repos take as long as the slowest.
+func (c *tagCache) lists(roots []string) [][]history.Tag {
+	lists := make([][]history.Tag, len(roots))
+	var wg sync.WaitGroup
+	wg.Add(len(roots))
+	for i, root := range roots {
+		go func() {
+			defer wg.Done()
+			lists[i] = c.list(root)
+		}()
+	}
+	wg.Wait()
+	return lists
 }
