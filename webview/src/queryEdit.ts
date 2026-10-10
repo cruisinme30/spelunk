@@ -124,15 +124,20 @@ export function toggleWord(text: string, query: ParsedQuery | undefined, wholeWo
   });
 }
 
+/** The text terms .* turns into regexes and back: all but struct: templates, which are neither. */
+function plainTerms(query: ParsedQuery | undefined): ReturnType<typeof textNodes> {
+  return textNodes(query).filter((term) => term.match !== "structural");
+}
+
 /** Whether .* shows as pressed: every text term is a regex. */
 export function isRegexPressed(query: ParsedQuery | undefined): boolean {
-  const terms = textNodes(query);
+  const terms = plainTerms(query);
   return terms.length > 0 && terms.every((term) => term.match === "regex");
 }
 
 /** .*: wraps each literal term in /…/ (escaped), or turns each regex term back into literal text. */
 export function toggleRegex(text: string, query: ParsedQuery | undefined): Edited {
-  const terms = textNodes(query);
+  const terms = plainTerms(query);
   if (terms.length === 0) return { text, cursor: text.length };
   if (isRegexPressed(query)) {
     return applyEdits(

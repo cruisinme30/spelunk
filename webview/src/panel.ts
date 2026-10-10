@@ -50,7 +50,7 @@ import { ReplaceBox } from "./replace";
 import { createViewState, hasErrors, type ViewState } from "./state";
 
 /** Cheat-sheet snippets that put the cursor between a pair: "|", /|/, (|). */
-const PAIRED_SNIPPETS = new Set(['""', "//", "()"]);
+const PAIRED_SNIPPETS = new Set(['""', "//", "()", 'struct:""']);
 /** Holding ↓ shouldn't request a preview for every row it passes. */
 const PREVIEW_DEBOUNCE_MS = 30;
 

@@ -147,6 +147,19 @@ test(".* round-trips a term with astral characters and regex metacharacters", ()
   assert.deepEqual(toggleRegex(wrapped.text, parsed(wrapped.text, regexTerm)), { text: literal, cursor: 4 });
 });
 
+test(".* leaves struct: templates alone: they are neither text nor a regex", () => {
+  const raw = 'struct:"f(:[a])" retry';
+  const structure = { ...term("f(:[a])", 0, "structural", 16), contentOnly: true };
+  const root = { kind: "and", children: [structure, term("retry", 17)], span: { start: 0, end: raw.length } };
+  assert.equal(isRegexPressed(parsed(raw, root)), false);
+  assert.deepEqual(toggleRegex(raw, parsed(raw, root)), { text: 'struct:"f(:[a])" /retry/', cursor: 24 });
+  const pressed = { ...root, children: [structure, term("retry", 17, "regex", 24)] };
+  assert.equal(isRegexPressed(parsed('struct:"f(:[a])" /retry/', pressed)), true, "the template doesn't keep .* up");
+  const alone = parsed('struct:"f(:[a])"', structure);
+  assert.equal(isRegexPressed(alone), false);
+  assert.deepEqual(toggleRegex('struct:"f(:[a])"', alone), { text: 'struct:"f(:[a])"', cursor: 16 });
+});
+
 test(".* turns a regex with a space back into a quoted phrase", () => {
   assert.deepEqual(toggleRegex("/a b/", parsed("/a b/", term("a b", 0, "regex", 5))), { text: '"a b"', cursor: 5 });
 });

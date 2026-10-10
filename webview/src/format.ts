@@ -1,10 +1,19 @@
 // DOM and text helpers shared by the renderers: an element builder, match
 // highlighting, progress bars, relative times, plurals and small numeric
 // helpers.
-import type { Hit, IndexState, Range } from "./protocol.gen";
+import type { Hit, HoleValue, IndexState, Range } from "./protocol.gen";
 
 /** Distinct highlight colors for text terms (main.css defines term-color-0 to -3); term N uses color N mod this. */
 const TERM_COLOR_COUNT = 4;
+
+/** Distinct colors for a struct: template's holes (main.css defines hole-color-0 to -3); hole N uses color N-1 mod this. */
+const HOLE_COLOR_COUNT = 4;
+
+/** The CSS class that colors what struct: hole number `hole` (from 1) took. */
+function holeClass(hole: number): string {
+  const index = Number.isSafeInteger(hole) && hole > 0 ? wrapIndex(hole - 1, 0, HOLE_COLOR_COUNT) : 0;
+  return `hole hole-color-${index}`;
+}
 
 /** The CSS class that colors text term `termIndex`: each term, and so each OR branch, has its own color. */
 export function termClass(termIndex: number): string {
@@ -103,9 +112,11 @@ export function highlight(text: string, hits: (Hit | Range)[], replacements?: re
     if (splitsSurrogatePair(text, end)) end++;
     if (start > position) fragment.append(text.slice(position, start));
     const termIndex = "termIndex" in hit ? hit.termIndex : 0;
+    const hole = "hole" in hit ? hit.hole : undefined;
     const replacement = replacements?.[index];
     if (replacement === undefined) {
-      fragment.append(element("mark", { class: termClass(termIndex) }, text.slice(start, end)));
+      const color = hole === undefined ? termClass(termIndex) : holeClass(hole);
+      fragment.append(element("mark", { class: color }, text.slice(start, end)));
     } else {
       fragment.append(element("del", {}, text.slice(start, end)), element("ins", {}, replacement));
     }
@@ -182,7 +193,8 @@ export function plural(count: number, one: string, many = one + "s"): string {
 
 /**
  * A code result's lines: its first, and when its match spans lines, the
- * lines it runs onto (`spanLines`) and the line it ends on (`endLine`).
+ * lines it runs onto (`spanLines`) and the line it ends on (`endLine`). A
+ * struct: match also lists what its template's holes took (`holes`).
  */
 export interface CodeLines {
   line: number;
@@ -190,6 +202,7 @@ export interface CodeLines {
   hits: Hit[];
   spanLines?: { text: string; hits: Hit[] }[];
   endLine?: number;
+  holes?: HoleValue[];
 }
 
 /**
@@ -204,7 +217,9 @@ export function codeLineRow(
   replacements?: readonly string[],
   indent?: number,
 ): HTMLDivElement {
-  if (line.spanLines && line.spanLines.length > 0) return spanRow(line, line.spanLines, attributes, indent);
+  if ((line.spanLines && line.spanLines.length > 0) || (line.holes && line.holes.length > 0)) {
+    return spanRow(line, line.spanLines ?? [], attributes, indent);
+  }
   return element(
     "div",
     { ...attributes, class: "row line" },
@@ -214,10 +229,11 @@ export function codeLineRow(
 }
 
 /**
- * One row for a match that spans lines: each of its lines under its number,
- * all without the indentation they share (or at most `indent`), so they keep
- * their places relative to each other, and "⋯ 14 more lines, to line 25"
- * when the match runs past the lines the result carries. Replace never
+ * One row for a match that spans lines, or a struct: match: each of its
+ * lines under its number, all without the indentation they share (or at
+ * most `indent`), so they keep their places relative to each other,
+ * "⋯ 14 more lines, to line 25" when the match runs past the lines the
+ * result carries, and what each hole of a template took. Replace never
  * changes such a match, so it is always shown marked.
  */
 function spanRow(
@@ -251,7 +267,24 @@ function spanRow(
       ),
     );
   }
+  if (line.holes && line.holes.length > 0) row.append(holeValues(line.holes));
   return row;
+}
+
+/** What each hole of a struct: template took, as chips in the holes' colors: ":[call] lambda: send(event)". */
+function holeValues(holes: HoleValue[]): HTMLElement {
+  return element(
+    "div",
+    { class: "hole-values", "data-testid": "hole-values" },
+    ...holes.map((hole) =>
+      element(
+        "span",
+        { class: `hole-value ${holeClass(hole.hole)}`, title: `:[${hole.name}] took ${hole.text}` },
+        element("span", { class: "hole-name" }, `:[${hole.name}]`),
+        element("code", {}, hole.text),
+      ),
+    ),
+  );
 }
 
 /** The last line of a code result: where its match ends when it spans lines. */

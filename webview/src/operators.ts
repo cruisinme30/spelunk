@@ -30,7 +30,7 @@ export interface OperatorGroup {
   entries: OperatorEntry[];
 }
 
-/** Every operator and piece of syntax: 24 entries in five groups. */
+/** Every operator and piece of syntax: 25 entries in five groups. */
 export const OPERATOR_GROUPS: OperatorGroup[] = [
   {
     name: "Matching",
@@ -67,6 +67,15 @@ export const OPERATOR_GROUPS: OperatorGroup[] = [
         summary: String.raw`Text term as a regular expression; one with \n spans lines.`,
         description: String.raw`Treat the text as a regular expression. One with \n in it matches across lines of current files, so /except\n\s*raise/ finds an except followed by a raise on the next line.`,
         example: "/Retry(Policy|Config)/",
+      },
+      {
+        operator: "struct",
+        label: 'struct:"f(:[x])"',
+        insert: 'struct:""',
+        summary: "Code shaped like a template; each :[hole] takes any code.",
+        description:
+          "Find code by its shape. The template is code with holes: backoff(:[call], tries=:[n]) finds every call of backoff with a tries= argument last, however it is laid out over lines, and a hole takes whole arguments, brackets and all. Spaces don't matter except between words, and code in comments and strings, read by each file's language, never matches. A name used twice must take the same code, so if :[x] == :[x] finds a value compared with itself; :[_] takes anything. Current files only, and replace can't change it.",
+        example: 'struct:"backoff(:[call], tries=:[n])"',
       },
     ],
   },

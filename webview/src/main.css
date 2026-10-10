@@ -43,6 +43,14 @@
   --term-color-1: rgb(142 195 255 / 35%);
   --term-color-2: rgb(211 188 255 / 35%);
   --term-color-3: rgb(111 207 151 / 35%);
+  --hole-color-0: rgb(142 195 255 / 20%);
+  --hole-color-1: rgb(111 207 151 / 20%);
+  --hole-color-2: rgb(255 160 205 / 20%);
+  --hole-color-3: rgb(211 188 255 / 20%);
+  --hole-line-0: #8ec3ff;
+  --hole-line-1: #6fcf97;
+  --hole-line-2: #ffa0cd;
+  --hole-line-3: #d3bcff;
 }
 
 body.vscode-light {
@@ -54,6 +62,14 @@ body.vscode-light {
   --term-color-1: rgb(40 120 220 / 25%);
   --term-color-2: rgb(130 80 210 / 25%);
   --term-color-3: rgb(30 150 80 / 25%);
+  --hole-color-0: rgb(40 120 220 / 14%);
+  --hole-color-1: rgb(30 150 80 / 14%);
+  --hole-color-2: rgb(200 50 120 / 14%);
+  --hole-color-3: rgb(130 80 210 / 14%);
+  --hole-line-0: #1f5fa8;
+  --hole-line-1: #1d7a43;
+  --hole-line-2: #a3245f;
+  --hole-line-3: #6a3fb5;
 }
 
 * {
@@ -918,6 +934,69 @@ ins {
 .span-more .text {
   color: var(--muted);
   font-size: 12px;
+}
+
+/*
+ * What a struct: template's holes took: each hole has its own color, paler
+ * than a term's and underlined, so it reads apart from the template's code,
+ * and a chip under the match says what it took.
+ */
+.hole-color-0 {
+  --hole: var(--hole-color-0);
+  --hole-line: var(--hole-line-0);
+}
+
+.hole-color-1 {
+  --hole: var(--hole-color-1);
+  --hole-line: var(--hole-line-1);
+}
+
+.hole-color-2 {
+  --hole: var(--hole-color-2);
+  --hole-line: var(--hole-line-2);
+}
+
+.hole-color-3 {
+  --hole: var(--hole-color-3);
+  --hole-line: var(--hole-line-3);
+}
+
+mark.hole {
+  background: var(--hole);
+  box-shadow: inset 0 -2px 0 var(--hole-line);
+}
+
+.hole-values {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+  padding: 4px 0 2px calc(3.5em + 10px);
+}
+
+.hole-value {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  min-width: 0;
+  padding: 0 6px;
+  border: 1px solid var(--hole-line);
+  border-radius: 4px;
+  background: var(--hole);
+  font-family: var(--mono);
+  font-size: 11.5px;
+}
+
+.hole-value .hole-name {
+  flex: none;
+  color: var(--hole-line);
+}
+
+.hole-value code {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* The Context buttons in the Code title: how many lines show around each match. */
