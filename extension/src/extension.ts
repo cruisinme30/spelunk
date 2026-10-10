@@ -97,7 +97,7 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi {
   );
   const ui = createUi({ panel, daemon, documents, openedStatus, globalState: context.globalState, logError });
   const unseen = new UnseenWatches(context.workspaceState.get<unknown>(UNSEEN_KEY), (list) => {
-    void context.workspaceState.update(UNSEEN_KEY, list.length > 0 ? list : undefined);
+    context.workspaceState.update(UNSEEN_KEY, list.length > 0 ? list : undefined).then(undefined, logError("watches"));
   });
   const controller = new SearchController(
     daemon,
@@ -366,7 +366,9 @@ function createUi({ panel, daemon, documents, openedStatus, globalState, logErro
     readDocument,
     applyEdits,
     showWatchMatch: async (message) => vscode.window.showInformationMessage(message, SHOW_MATCHES, STOP_WATCHING),
-    showQuery: (query) => void vscode.commands.executeCommand("spelunk.open", { query }),
+    showQuery: (query) => {
+      vscode.commands.executeCommand("spelunk.open", { query }).then(undefined, logError("watches"));
+    },
     saveFiles: (files) => {
       for (const file of files) {
         const document = vscode.workspace.textDocuments.find((open) => open.uri.fsPath === file);
