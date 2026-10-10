@@ -4,6 +4,7 @@ import (
 	"context"
 	"slices"
 	"testing"
+	"time"
 )
 
 // subjectsOf lists the commits' subjects, in order.
@@ -69,6 +70,30 @@ func TestNewCommitsAfterARewriteAreOnlyTheOnesNewerThanAnyKnown(t *testing.T) {
 	next := r.update(old)
 	if got := subjectsOf(NewCommits(old, next)); !slices.Equal(got, []string{"Revert checkout timeout"}) {
 		t.Errorf("NewCommits after a rewrite = %q, want only the commit newer than the old store's", got)
+	}
+}
+
+// A pull that rebases your commit onto upstream brings in upstream's
+// commits, though they were authored before yours: they were committed
+// here after it.
+func TestNewCommitsAfterARebasingPullIncludeUpstreamsOlderWork(t *testing.T) {
+	// @covers screen:query-watches
+	r, _ := paymentsHistory(t)
+	mine := r.commit("Test <test@example.com>", "My local work", day(0), map[string]string{"src/mine.py": "m = 1\n"})
+	old := r.ingest()
+
+	r.git("reset", "--quiet", "--hard", "HEAD~1")
+	r.write("src/upstream.py", "u = 1\n")
+	r.git("add", "--all")
+	r.gitWithEnv([]string{
+		"GIT_AUTHOR_NAME=Jason Kim", "GIT_AUTHOR_EMAIL=jason@checkout.example",
+		"GIT_AUTHOR_DATE=" + day(1).Format(time.RFC3339), "GIT_COMMITTER_DATE=" + day(0).Add(time.Hour).Format(time.RFC3339),
+	}, "commit", "--quiet", "-m", "Revert upstream thing")
+	r.gitWithEnv([]string{"GIT_COMMITTER_DATE=" + day(0).Add(2*time.Hour).Format(time.RFC3339)}, "cherry-pick", mine)
+
+	got := subjectsOf(NewCommits(old, r.update(old)))
+	if !slices.Contains(got, "Revert upstream thing") {
+		t.Errorf("NewCommits after a rebasing pull = %q, want upstream's commit among them", got)
 	}
 }
 

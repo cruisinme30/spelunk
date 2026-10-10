@@ -22,9 +22,12 @@ type Commit struct {
 	AuthorName  string // after .mailmap
 	AuthorEmail string
 	At          time.Time // the author date
-	Subject     string
-	Body        string
-	Files       []FileChange
+	// Committed is the committer date: when the commit was made here, which
+	// a rebase or cherry-pick moves on while the author date stays.
+	Committed time.Time
+	Subject   string
+	Body      string
+	Files     []FileChange
 }
 
 // message is the commit's whole message: its subject, a newline, its body.
@@ -77,13 +80,13 @@ var ErrNotGit = errors.New("not a Git repository")
 // and as a Unix time for dates ISO 8601 can't write), subject, body. Names
 // and messages can hold any other control character, but Git can't store
 // a NUL in them. No line of a patch starts with 0x1e.
-const logFormat = "%x1e%H%x00%aN%x00%aE%x00%aI%x00%at%x00%s%x00%b%x00"
+const logFormat = "%x1e%H%x00%aN%x00%aE%x00%aI%x00%at%x00%ct%x00%s%x00%b%x00"
 
 // fieldEnd ends each field of logFormat.
 const fieldEnd = 0x00
 
 // headerFields is how many fields logFormat writes.
-const headerFields = 7
+const headerFields = 8
 
 // gitOptions come before every git command: plain path names; no optional
 // locks, so the daemon never makes the user's own git commands wait or fail
@@ -297,7 +300,7 @@ func (p *logParser) finishHeader() error {
 	fields := strings.SplitN(text, string(rune(fieldEnd)), headerFields+1)
 	p.commit = &Commit{
 		SHA: fields[0], AuthorName: fields[1], AuthorEmail: fields[2], At: commitDate(fields[3], fields[4]),
-		Subject: fields[5], Body: strings.TrimSpace(fields[6]),
+		Committed: commitDate("", fields[5]), Subject: fields[6], Body: strings.TrimSpace(fields[7]),
 	}
 	return nil
 }

@@ -9,10 +9,12 @@ import (
 // what an Update brought in, for query watches. When HEAD moved forward
 // they are the commits read on top of old. When history was rewritten (a
 // rebase, a reset, a branch switch) they are the commits old never held
-// that are also newer than everything it held, so switching to an older
-// branch, or a pull that rebased local commits, does not count commits
-// that were already there as new. A nil old store (the first read) brings
-// no new commits.
+// that were also committed after everything it held, so switching to an
+// older branch does not count commits that were already there as new. It
+// goes by when each commit was made here, not authored: a pull that
+// rebased your commits on today's upstream brings in upstream commits
+// authored before yours. A nil old store (the first read) brings no new
+// commits.
 func NewCommits(old, next *Store) []Commit {
 	if old == nil || next == nil || old.Head == next.Head {
 		return nil
@@ -25,7 +27,7 @@ func NewCommits(old, next *Store) []Commit {
 	for _, seg := range old.segments {
 		for i := range seg.commits {
 			known[seg.commits[i].SHA] = true
-			if seg.commits[i].At.After(newest.At) {
+			if seg.commits[i].Committed.After(newest.Committed) {
 				newest = seg.commits[i]
 			}
 		}
@@ -33,7 +35,7 @@ func NewCommits(old, next *Store) []Commit {
 	var fresh []Commit
 	for _, seg := range next.segments {
 		for i := range seg.commits {
-			if c := seg.commits[i]; !known[c.SHA] && c.At.After(newest.At) {
+			if c := seg.commits[i]; !known[c.SHA] && c.Committed.After(newest.Committed) {
 				fresh = append(fresh, c)
 			}
 		}
