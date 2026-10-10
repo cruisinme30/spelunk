@@ -177,6 +177,8 @@ export class SearchController {
   results: ResultItem[] = [];
   /** The results `results` last replaced, which the panel shows until the next search's first batch. */
   private replacedResults: ResultItem[] = [];
+  /** The replace the panel last previewed, its plan as planKey writes it: Replace all applies only that. */
+  private previewedReplace: { text: string; replacement: string; plan: string } | undefined;
   private state: PersistedState;
   /** The newest query.changed seq; answers to older ones are dropped. */
   private latestSeq = 0;
@@ -690,7 +692,9 @@ export class SearchController {
   /** The Replace row's preview: what Replace all would change, or why it can't. */
   private async onReplacePreview({ seq, text, replacement }: ReplacePreviewMessage): Promise<void> {
     try {
-      this.ui.post("replace.plan", { seq, plan: await this.planReplace(text, replacement) });
+      const plan = await this.planReplace(text, replacement);
+      this.previewedReplace = { text, replacement, plan: planKey(plan) };
+      this.ui.post("replace.plan", { seq, plan });
     } catch (error) {
       this.ui.post("replace.plan", { seq, error: errorMessage(error) });
     }
@@ -698,14 +702,19 @@ export class SearchController {
 
   /**
    * Replace all: plans the replace again and applies it only if it still
-   * has the matches the preview showed; otherwise the panel gets the new
-   * preview instead. Files edited since they were indexed are skipped.
+   * makes the panel's count of edits, in the files and lines the preview
+   * showed; otherwise the panel gets the new preview instead. Files edited since they were indexed are skipped.
    */
   private async onReplaceApply({ seq, text, replacement, matches }: ReplaceApplyMessage): Promise<void> {
     const nothing = { seq, replaced: 0, files: 0, skipped: [] };
     try {
       const plan = await this.planReplace(text, replacement);
-      if (plan.truncated || plan.matches !== matches) {
+      const previewed = this.previewedReplace;
+      const same =
+        plan.matches === matches &&
+        (previewed?.text !== text || previewed.replacement !== replacement || planKey(plan) === previewed.plan);
+      if (plan.truncated || !same) {
+        this.previewedReplace = { text, replacement, plan: planKey(plan) };
         this.ui.post("replace.plan", { seq, plan });
         this.ui.post("replace.done", { ...nothing, changed: true });
         return;
@@ -767,4 +776,9 @@ export class SearchController {
       return false;
     }
   }
+}
+
+/** What a replace plan would change, as one string: every file, line, text and edit, in order. */
+function planKey(plan: ReplacePlan): string {
+  return JSON.stringify(plan.files.map((file) => [file.repoId, file.path, file.lines]));
 }

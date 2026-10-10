@@ -25,6 +25,7 @@ import type {
   ParsedQuery,
   ParseResult,
   PinnedQuery,
+  ReplacePlan,
   ResultItem,
   RpcRequests,
   SearchResult,
@@ -1168,4 +1169,27 @@ test("a watched query announces new commits through the real daemon", { skip }, 
   } finally {
     await daemon.stop();
   }
+});
+
+/** A plan of one match, in `path`. */
+const planAt = (path: string): ReplacePlan => ({
+  matches: 1,
+  truncated: false,
+  files: [{ repoId: "r1", path, file: `/work/${path}`, lines: [{ line: 1, text: "retry()", edits: [] }] }],
+});
+
+test("Replace all applies nothing when the matches moved since the preview, though their count is the same", async () => {
+  const host = recordingUi();
+  let path = "a.py";
+  const { backend } = scriptedBackend((method) => {
+    if (method === "replace/plan") return planAt(path);
+    throw new Error(`unexpected request ${method}`);
+  });
+  const controller = newController(backend, host.ui);
+  const message = { text: "retry", replacement: "again" };
+  await controller.handle({ v: MESSAGE_VERSION, type: "replace.preview", payload: { seq: 1, ...message } });
+  path = "b.py"; // a pull deleted a.py's match and added one in b.py
+  await controller.handle({ v: MESSAGE_VERSION, type: "replace.apply", payload: { seq: 2, ...message, matches: 1 } });
+  assert.equal(host.payloads("replace.done").at(-1)?.changed, true);
+  assert.equal(host.payloads("replace.plan").at(-1)?.plan?.files[0]?.path, "b.py", "the new preview");
 });
