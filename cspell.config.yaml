@@ -53,6 +53,7 @@ words:
   - goimports
   - golangci
   - gpgsign
+  - katex
   - gosec
   - mailmap
   - nilerr
@@ -62,6 +63,7 @@ words:
   - quotepath
   - Rakefile
   - ripgrep
+  - smol
   - trimpath
   - typealias
   - Zoekt
