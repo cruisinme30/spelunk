@@ -83,3 +83,18 @@ test("the pop-up names the pin, the repo and the newest commit", () => {
     "4 new commits match “msg:revert” in web.",
   );
 });
+
+test("the pop-up shows link syntax in a subject, pin or repo name as text, not as a link", () => {
+  // @covers screen:query-watches
+  // How VS Code finds the links in a notification's message.
+  const notificationLink = /\[([^\]]+)\]\(((?:https?:\/\/|command:|file:)[^)\s]+)(?: (["'])(.+?)(\3))?\)/i;
+  const link = "[Show](command:workbench.action.quit)";
+  const found = { commits: [{ sha: "a1", subject: `Revert ${link}`, author: "Jason Kim" }], count: 1 };
+  const message = watchMessage(`Pin ${link}`, `repo ${link}`, found);
+  assert.doesNotMatch(message, notificationLink);
+  assert.equal(
+    message.replaceAll("\u2060", ""),
+    `1 new commit matches “Pin ${link}” in repo ${link}: “Revert ${link}”.`,
+    "the text reads as it was",
+  );
+});

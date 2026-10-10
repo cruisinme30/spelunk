@@ -82,11 +82,25 @@ export class UnseenWatches {
   }
 }
 
+/** Shows nothing, and keeps "](" from forming. */
+const WORD_JOINER = "\u2060";
+
+/**
+ * Text from a commit, a pin or a repo as plain text in a notification. VS
+ * Code makes "[label](command:…)" in a notification a link, and has no
+ * escape for it (a backslash would show), so a word joiner, which shows
+ * nothing, goes between "]" and "(".
+ */
+function notificationText(text: string): string {
+  return text.replaceAll("](", `]${WORD_JOINER}(`);
+}
+
 /** The pop-up for an announcement: "2 new commits match “Payments reverts” in payments-api: “Revert …” and 1 more." */
 export function watchMessage(label: string, repoName: string, found: NewMatches): string {
   const [first] = found.commits;
-  const head = `${found.count} new ${found.count === 1 ? "commit matches" : "commits match"} “${label}” in ${repoName}`;
+  const matches = found.count === 1 ? "commit matches" : "commits match";
+  const head = `${found.count} new ${matches} “${notificationText(label)}” in ${notificationText(repoName)}`;
   if (!first) return `${head}.`;
   const more = found.count - 1;
-  return `${head}: “${first.subject}”${more > 0 ? ` and ${more} more` : ""}.`;
+  return `${head}: “${notificationText(first.subject)}”${more > 0 ? ` and ${more} more` : ""}.`;
 }
