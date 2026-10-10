@@ -802,13 +802,14 @@ type OpenTarget struct {
 	RevisionLabel string `json:"revisionLabel,omitempty"`
 }
 
-// OpenWhere is which editor group a result opens in.
+// OpenWhere is which editor group a result opens in, or, for a result at a revision (at:), compare: a diff of the file then against the file now.
 type OpenWhere = string
 
 // OpenWhere values.
 const (
 	OpenWhereCurrent OpenWhere = "current"
 	OpenWhereSide    OpenWhere = "side"
+	OpenWhereCompare OpenWhere = "compare"
 )
 
 // InitializeParams start the daemon.
@@ -1293,8 +1294,10 @@ type SearchDoneMessage struct {
 	NextCursor string       `json:"nextCursor,omitempty"`
 	Hidden     []HiddenNote `json:"hidden"`
 	Facets     []Facet      `json:"facets,omitempty"`
-	Ms         int          `json:"ms"`
-	Error      string       `json:"error,omitempty"`
+	// Revisions is for an at: search, the commit each searched repo read, or why it has none (from SearchResult).
+	Revisions []RevisionInfo `json:"revisions,omitempty"`
+	Ms        int            `json:"ms"`
+	Error     string         `json:"error,omitempty"`
 	// NewCommits is the shas of the commits a watch found for this query since it last ran, which the results mark New.
 	NewCommits []string `json:"newCommits,omitempty"`
 }

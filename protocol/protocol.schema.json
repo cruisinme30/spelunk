@@ -1126,9 +1126,9 @@
       "required": []
     },
     "OpenWhere": {
-      "description": "OpenWhere is which editor group a result opens in.",
+      "description": "OpenWhere is which editor group a result opens in, or, for a result at a revision (at:), compare: a diff of the file then against the file now.",
       "type": "string",
-      "enum": ["current", "side"]
+      "enum": ["current", "side", "compare"]
     },
     "InitializeParams": {
       "description": "InitializeParams start the daemon.",
@@ -1902,6 +1902,13 @@
           "type": "array",
           "items": {
             "$ref": "#/$defs/Facet"
+          }
+        },
+        "revisions": {
+          "description": "For an at: search, the commit each searched repo read, or why it has none (from SearchResult).",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/RevisionInfo"
           }
         },
         "ms": {

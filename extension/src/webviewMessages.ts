@@ -51,7 +51,7 @@ const PAYLOAD_CHECKS: { [K in keyof WebviewToHost]: PayloadCheck<K> } = {
   },
   "result.select": ({ ref }) => (isString(ref) ? { ref } : undefined),
   "result.open": ({ ref, where }) => {
-    const side = member(where, ["current", "side"] as const);
+    const side = member(where, ["current", "side", "compare"] as const);
     return isString(ref) && side ? { ref, where: side } : undefined;
   },
   "results.more": ({ searchId, cursor }) => (isString(searchId) && isString(cursor) ? { searchId, cursor } : undefined),

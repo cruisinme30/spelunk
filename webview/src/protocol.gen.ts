@@ -425,8 +425,8 @@ export interface OpenTarget {
   revisionLabel?: string;
 }
 
-/** OpenWhere is which editor group a result opens in. */
-export type OpenWhere = "current" | "side";
+/** OpenWhere is which editor group a result opens in, or, for a result at a revision (at:), compare: a diff of the file then against the file now. */
+export type OpenWhere = "current" | "side" | "compare";
 
 /** InitializeParams start the daemon. */
 export interface InitializeParams {
@@ -746,6 +746,8 @@ export interface SearchDoneMessage {
   nextCursor?: string;
   hidden: HiddenNote[];
   facets?: Facet[];
+  /** For an at: search, the commit each searched repo read, or why it has none (from SearchResult). */
+  revisions?: RevisionInfo[];
   ms: number;
   error?: string;
   /** The shas of the commits a watch found for this query since it last ran, which the results mark New. */

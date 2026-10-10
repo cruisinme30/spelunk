@@ -170,6 +170,59 @@ const queryChanged = (text: string, seq: number, asTyped?: true): WebviewMessage
 /** Lets queued callbacks (such as a re-run search) run before the test continues. */
 const nextTurn = () => new Promise((resolve) => setImmediate(resolve));
 
+test("a result at a revision opens there, and compare is a message the panel may send", { skip }, async () => {
+  // @covers msg:result.open
+  const workspace = mkdtempSync(join(tmpdir(), "us-ws-"));
+  const git = (...args: string[]) =>
+    execFileSync("git", ["-C", workspace, ...args], { encoding: "utf8", stdio: "pipe" }).trim();
+  git("init", "--quiet");
+  git("config", "user.email", "me@example.com");
+  git("config", "user.name", "Me");
+  git("config", "commit.gpgsign", "false");
+  writeFileSync(join(workspace, "client.py"), "retry_policy = 1\n");
+  git("add", "--all");
+  git("commit", "--quiet", "-m", "First");
+  git("tag", "v1.0.0");
+  writeFileSync(join(workspace, "client.py"), "retry_policy = 2\n");
+  const daemon = newTestDaemon([makeRoot(workspace, "payments-api")]);
+  await daemon.start();
+  try {
+    await untilIndexed(daemon);
+    const host = recordingUi();
+    const controller = newController(daemon, host.ui);
+    await controller.handle(queryChanged("at:v1.0.0 type:code retry_policy", 1));
+    await waitFor("the search to finish", () => host.payloads("search.done").length > 0);
+    const [done] = host.payloads("search.done");
+    assert.equal(done?.revisions?.[0]?.sha, git("rev-parse", "v1.0.0"), "search.done names the commit read");
+    const item = host.payloads("search.batch")[0]?.items[0];
+    assert.ok(item?.kind === "line", "a code result");
+    assert.equal(item.sinceRevision, "changed", "client.py changed since v1.0.0");
+
+    const message = parseWebviewMessage({
+      v: MESSAGE_VERSION,
+      type: "result.open",
+      payload: { ref: item.ref, where: "compare" },
+    });
+    assert.ok(message, "compare is a valid place to open a result");
+    await controller.handle(message);
+    assert.deepEqual(host.opened[0], {
+      target: {
+        path: join(workspace, "client.py"),
+        line: 1,
+        column: 1,
+        length: 12,
+        revision: git("rev-parse", "v1.0.0"),
+        revisionLabel: "v1.0.0",
+      },
+      where: "compare",
+    });
+    const { text } = await daemon.request("revision/text", { ref: item.ref });
+    assert.equal(text, "retry_policy = 1\n", "revision/text is the file as it was");
+  } finally {
+    await daemon.stop();
+  }
+});
+
 test("a query round-trips to results, preview and open through the real daemon", { skip }, async () => {
   const workspace = mkdtempSync(join(tmpdir(), "us-ws-"));
   writeFileSync(join(workspace, "client.py"), "class C:\n    def go(self):\n        self.retry_policy.run()\n");

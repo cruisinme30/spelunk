@@ -107,6 +107,41 @@ const TESTS: [name: string, run: () => Promise<void>][] = [
     },
   ],
   [
+    "Opening a result at a revision shows the file as it was, read-only, or compared with the file now",
+    async () => {
+      // @covers screen:past-revision rpc:revision/text
+      // HEAD, because a CI checkout has no other commit; its client.py is the file on disk.
+      const { results } = await searchFor("at:HEAD type:code retry_policy f:client.py");
+      await vscode.commands.executeCommand("spelunk.nextResult");
+      const { editor } = await until("the revision's editor", (state) => state.editor?.scheme === "spelunk-revision");
+      assert.ok(editor, "an editor is open");
+      assert.ok(
+        editor.path.endsWith("client.py") && editor.path.includes("HEAD"),
+        `${editor.path} is client.py at HEAD`,
+      );
+      const document = vscode.window.activeTextEditor?.document;
+      assert.ok(document, "the document is open");
+      const onDisk = vscode.workspace.workspaceFolders?.[0];
+      assert.ok(onDisk, "the fixture workspace is open");
+      const file = await vscode.workspace.fs.readFile(
+        vscode.Uri.joinPath(onDisk.uri, "payments-api/src/payments/client.py"),
+      );
+      assert.equal(document.getText(), new TextDecoder().decode(file), "the revision's text is client.py's at HEAD");
+      assert.equal(document.languageId, "python", "its language comes from its name");
+      assert.ok(
+        document.getText(vscode.window.activeTextEditor?.selection).includes("retry_policy"),
+        "the match is selected",
+      );
+
+      await vscode.commands.executeCommand("spelunk._testPanelMessage", {
+        v: MESSAGE_VERSION,
+        type: "result.open",
+        payload: { ref: results[0], where: "compare" },
+      });
+      await untilTab("client.py (HEAD) ↔ now");
+    },
+  ],
+  [
     "Open Help shows the search guide",
     async () => {
       // @covers command:openHelp

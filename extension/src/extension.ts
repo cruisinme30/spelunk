@@ -7,6 +7,8 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import * as vscode from "vscode";
 import { CommitDocuments } from "./commitDocuments";
+import { RevisionDocuments } from "./revisionDocuments";
+import { revisionDiffTitle } from "./revisionPath";
 import {
   type ControllerOptions,
   type PersistedState,
@@ -82,7 +84,7 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi {
     },
   });
   activeDaemon = daemon;
-  const commitDocuments = new CommitDocuments(daemon);
+  const documents = { commits: new CommitDocuments(daemon), revisions: new RevisionDocuments(daemon) };
   const openedStatus = createOpenedStatus();
   // The panel forwards messages only after show(), by which time `controller` below exists.
   const panel = new SearchPanel(
@@ -93,7 +95,7 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi {
       if (open) openedStatus.hide();
     },
   );
-  const ui = createUi({ panel, daemon, commitDocuments, openedStatus, globalState: context.globalState, logError });
+  const ui = createUi({ panel, daemon, documents, openedStatus, globalState: context.globalState, logError });
   const unseen = new UnseenWatches(context.workspaceState.get<unknown>(UNSEEN_KEY), (list) => {
     void context.workspaceState.update(UNSEEN_KEY, list.length > 0 ? list : undefined);
   });
@@ -117,7 +119,8 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi {
     help,
     welcome,
     openedStatus,
-    vscode.workspace.registerTextDocumentContentProvider(CommitDocuments.scheme, commitDocuments),
+    vscode.workspace.registerTextDocumentContentProvider(CommitDocuments.scheme, documents.commits),
+    vscode.workspace.registerTextDocumentContentProvider(RevisionDocuments.scheme, documents.revisions),
     createStatusBar(daemon),
     ...registerCommands(daemon, controller, panel, help),
     vscode.commands.registerCommand("spelunk.showWelcome", () => {
@@ -331,19 +334,19 @@ function openEditorFiles(): string[] {
 interface UiParts {
   panel: SearchPanel;
   daemon: Daemon;
-  commitDocuments: CommitDocuments;
+  documents: ReadOnlyDocuments;
   openedStatus: vscode.StatusBarItem;
   globalState: vscode.Memento;
   logError: (source: string) => (error: unknown) => void;
 }
 
 /** The controller's view of VS Code. */
-function createUi({ panel, daemon, commitDocuments, openedStatus, globalState, logError }: UiParts): Ui {
+function createUi({ panel, daemon, documents, openedStatus, globalState, logError }: UiParts): Ui {
   return {
     post: (type, payload) => {
       panel.post(type, payload);
     },
-    openTarget: (target, where, preview, item) => openTarget({ target, where, preview, item }, commitDocuments),
+    openTarget: (target, where, preview, item) => openTarget({ target, where, preview, item }, documents),
     hidePanel: () => {
       panel.close();
     },
@@ -512,8 +515,9 @@ export interface TestState {
   /** The text of the search `results` belongs to, once it finished; undefined while one runs. */
   searched: string | undefined;
   daemon: DaemonState;
-  /** The active editor's file and selection, 1-based; undefined without an editor. */
-  editor: { path: string; line: number; column: number; endLine: number; endColumn: number } | undefined;
+  /** The active editor's document (its URI's scheme and path) and selection, 1-based; undefined without an editor. */
+  editor:
+    { scheme: string; path: string; line: number; column: number; endLine: number; endColumn: number } | undefined;
 }
 
 function testState(daemon: Daemon, controller: SearchController, panel: SearchPanel): TestState {
@@ -526,6 +530,7 @@ function testState(daemon: Daemon, controller: SearchController, panel: SearchPa
     searched: controller.finishedSearchText,
     daemon: daemon.state,
     editor: editor && {
+      scheme: editor.document.uri.scheme,
       path: editor.document.uri.fsPath,
       line: editor.selection.start.line + 1,
       column: editor.selection.start.character + 1,
@@ -607,11 +612,24 @@ function selectionOf(target: OpenTarget): vscode.Selection {
   );
 }
 
-/** Opens a resolved result: a commit as a diff document, or a file with the match selected, all of it when it spans lines. */
-async function openTarget({ target, where, preview, item }: Opening, commitDocuments: CommitDocuments): Promise<void> {
+/** The read-only documents results open in: commits as diffs, and files as they were at a revision. */
+interface ReadOnlyDocuments {
+  commits: CommitDocuments;
+  revisions: RevisionDocuments;
+}
+
+/**
+ * Opens a resolved result: a commit as a diff document; a file at a revision read-only, or compared with the file
+ * now; or a file with the match selected, all of it when it spans lines.
+ */
+async function openTarget({ target, where, preview, item }: Opening, documents: ReadOnlyDocuments): Promise<void> {
   const viewColumn = where === "side" ? vscode.ViewColumn.Beside : vscode.ViewColumn.Active;
+  if (target.revision && target.path && item && "path" in item) {
+    await openAtRevision(documents.revisions, { target, where, preview, item }, item.path);
+    return;
+  }
   if (target.sha && item) {
-    const uri = commitDocuments.uriFor(item.ref, target.sha, item.kind === "commit" ? item.subject : undefined);
+    const uri = documents.commits.uriFor(item.ref, target.sha, item.kind === "commit" ? item.subject : undefined);
     const document = await vscode.workspace.openTextDocument(uri);
     await vscode.languages.setTextDocumentLanguage(document, "diff");
     await vscode.window.showTextDocument(document, { viewColumn, preview });
@@ -620,5 +638,31 @@ async function openTarget({ target, where, preview, item }: Opening, commitDocum
   if (!target.path) return;
   const selection = selectionOf(target);
   const editor = await vscode.window.showTextDocument(vscode.Uri.file(target.path), { viewColumn, preview, selection });
+  editor.revealRange(selection, vscode.TextEditorRevealType.InCenterIfOutsideViewport);
+}
+
+/**
+ * Opens a result at a revision: its file as it was, read-only, with the match selected; or, for compare, a diff of
+ * that file against the file now. `path` is the file's repo-relative path.
+ */
+async function openAtRevision(revisions: RevisionDocuments, opening: Opening, path: string): Promise<void> {
+  const { target, where, preview, item } = opening;
+  const label = target.revisionLabel ?? target.revision?.slice(0, 7) ?? "";
+  const uri = revisions.uriFor(item?.ref ?? "", label, path);
+  if (where === "compare" && target.path) {
+    await vscode.commands.executeCommand(
+      "vscode.diff",
+      uri,
+      vscode.Uri.file(target.path),
+      revisionDiffTitle(label, path),
+      {
+        preview,
+      },
+    );
+    return;
+  }
+  const selection = selectionOf(target);
+  const viewColumn = where === "side" ? vscode.ViewColumn.Beside : vscode.ViewColumn.Active;
+  const editor = await vscode.window.showTextDocument(uri, { viewColumn, preview, selection });
   editor.revealRange(selection, vscode.TextEditorRevealType.InCenterIfOutsideViewport);
 }
