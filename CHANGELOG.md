@@ -25,6 +25,8 @@ All notable changes to this project are documented here. The format follows
 - In a narrow results column a file name’s path was cut to a few letters (“src/p…”) to make room for its badges, last
   author and repo; the path now comes first and those go on a line of their own, where the author and time give way
   first. A highlight cut by the path’s ellipsis no longer leaves a stray bar of color after it.
+- A commit’s body line ran past the edge of the results column and was cut off there; it now ends in an ellipsis
+  inside its row, like other rows.
 
 ### Added
 

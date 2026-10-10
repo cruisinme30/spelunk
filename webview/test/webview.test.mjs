@@ -485,6 +485,29 @@ const commitResult = (ref, subject, overrides) => ({
   ...overrides,
 });
 
+test("a commit's body line longer than the column ends in an ellipsis inside its row", async (t) => {
+  const page = await openPanel(t);
+  await page.setViewportSize({ width: 900, height: 500 });
+  await restore(page);
+  const seq = await typeAndParse(page, "retry", parsedQuery("retry", textNode("retry", 0), { mode: "history" }));
+  const text = `Retry the charge once more, ${"then back off for longer each time, ".repeat(6)}until the gateway answers`;
+  const bodyLine = { text, hits: [{ start: 0, end: 5, termIndex: 0 }] };
+  await fromHost(page, "search.batch", {
+    seq,
+    searchId: "s1",
+    items: [commitResult("c1", "Cap retries", { bodyLine })],
+  });
+  const sizes = await page.$eval('[data-ref="c1"]', (row) => {
+    const body = row.querySelector(".commit-body-line");
+    return {
+      cut: body.scrollWidth > body.clientWidth,
+      inside: body.getBoundingClientRect().right <= row.getBoundingClientRect().right,
+      ellipsis: getComputedStyle(body).textOverflow,
+    };
+  });
+  assert.deepEqual(sizes, { cut: true, inside: true, ellipsis: "ellipsis" });
+});
+
 test("commit rows say whether the message or the diff matched, and a preview says so too", async (t) => {
   // @covers screen:words-in-messages
   const page = await openPanel(t);

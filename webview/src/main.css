@@ -945,10 +945,11 @@ body.vscode-high-contrast-light .completion.selected {
 }
 
 /*
- * A path cut short ends in an ellipsis. Inline, a highlight cut by it would paint its background on past the ellipsis
+ * A path or commit body line cut short ends in an ellipsis. Inline, a highlight cut by it would paint its background on past the ellipsis
  * to the edge; as an inline block it is shown whole or left out, so the ellipsis follows the last part that fits.
  */
-.row .path mark {
+.row .path mark,
+.row.commit .commit-body-line mark {
   display: inline-block;
 }
 
@@ -1230,8 +1231,12 @@ mark.hole {
   font-size: 12.5px;
 }
 
+/*
+ * One column of lines. Not wrapping, as .row does: a wrapping column is as wide as its widest line, so the body line
+ * would run past the row instead of ending in its ellipsis.
+ */
 .row.commit {
-  flex-direction: column;
+  flex-flow: column nowrap;
   align-items: stretch;
   gap: 4px;
   padding: 8px 14px;
