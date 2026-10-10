@@ -87,7 +87,7 @@ func (f *Facets) List() []protocol.Facet {
 // CountRepo counts a result in its repo's bucket: repo:payments-api, the
 // filter the repo menu writes.
 func (f *Facets) CountRepo(name string) {
-	f.Count(FacetRepo, name, "repo:"+regexp.QuoteMeta(name))
+	f.Count(FacetRepo, name, "repo:"+regexValue(regexp.QuoteMeta(name)))
 }
 
 // CountLang counts a result in its language's bucket: lang:python. Files
@@ -102,8 +102,18 @@ func (f *Facets) CountLang(name string) {
 // its repo-relative path: f:^src/. Files at the repo root aren't counted.
 func (f *Facets) CountFolder(path string) {
 	if folder, _, ok := strings.Cut(path, "/"); ok {
-		f.Count(FacetFolder, folder+"/", "f:^"+regexp.QuoteMeta(folder)+"/")
+		f.Count(FacetFolder, folder+"/", "f:"+regexValue("^"+regexp.QuoteMeta(folder)+"/"))
 	}
+}
+
+// regexValue writes a regex as an operator value: bare, unless it has a
+// space, quote or parenthesis, which would end a bare value; then
+// /delimited/, with its slashes escaped.
+func regexValue(regex string) string {
+	if !strings.ContainsAny(regex, " \t\n\"()") {
+		return regex
+	}
+	return "/" + strings.ReplaceAll(regex, "/", `\/`) + "/"
 }
 
 // CountOwners counts a result in the bucket of each owner its repo's

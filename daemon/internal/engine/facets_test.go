@@ -2,10 +2,12 @@ package engine
 
 import (
 	"reflect"
+	"regexp"
 	"testing"
 	"time"
 
 	"github.com/cruisinme30/spelunk/daemon/internal/protocol"
+	"github.com/cruisinme30/spelunk/daemon/internal/query"
 )
 
 func TestFacetsListBiggestBucketsFirstWithTheirFilters(t *testing.T) {
@@ -66,5 +68,39 @@ func TestFacetsKeepTheBiggestBucketsAndCountTheRest(t *testing.T) {
 	}
 	if first := got[0].Buckets[0]; first.Label != "k/" || first.Count != maxFacetBuckets+3 {
 		t.Errorf("first bucket = %+v, want the biggest, k/", first)
+	}
+}
+
+// A repo or folder bucket's filter parses back as one operator matching
+// that name, even with a space, quote or parenthesis in it.
+func TestRepoAndFolderFiltersParseBackWhole(t *testing.T) {
+	for _, name := range []string{"payments-api", "My Project", "legacy (old)", `say "hi"`, "a/b c"} {
+		f := NewFacets(FacetRepo, FacetFolder)
+		f.CountRepo(name)
+		f.CountFolder(name + "/x.go")
+		for _, facet := range f.List() {
+			filter := facet.Buckets[0].Filter
+			plan, problems, err := query.NewPlan(query.Parse(filter, nil), protocol.Settings{}, time.Now(), "")
+			if err != nil || len(problems) > 0 {
+				t.Fatalf("%s: %v %v", filter, err, problems)
+			}
+			and := plan.Pred
+			if len(and.Kids) != 1 {
+				t.Fatalf("%s plans %#v, want one operator", filter, plan.Pred)
+			}
+			var re *regexp.Regexp
+			want := name
+			switch pred := and.Kids[0].(type) {
+			case *query.Repo:
+				re = pred.Re
+			case *query.Path:
+				re, want = pred.Re, name+"/x.go"
+			default:
+				t.Fatalf("%s plans %T", filter, pred)
+			}
+			if !re.MatchString(want) {
+				t.Errorf("%s doesn't match %q", filter, want)
+			}
+		}
 	}
 }
