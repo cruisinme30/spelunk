@@ -21,7 +21,8 @@ const cache = join(repoRoot, ".vscode-test");
 /** The download for this machine, and where its executable may be once unpacked. */
 function platformBuild() {
   if (process.platform === "linux") {
-    return { platform: "linux-x64", archive: "vscode.tar.gz", executables: ["VSCode-linux-x64/code"] };
+    const arch = process.arch === "arm64" ? "arm64" : "x64";
+    return { platform: `linux-${arch}`, archive: "vscode.tar.gz", executables: [`VSCode-linux-${arch}/code`] };
   }
   if (process.platform === "darwin") {
     const platform = process.arch === "arm64" ? "darwin-arm64" : "darwin";
