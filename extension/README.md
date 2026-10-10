@@ -55,8 +55,8 @@ commit, newest first, and ↵ opens its diff. For current files, `since:` and `u
 files with uncommitted edits count as changed now.
 
 Above the results, facets count them by repo, language and top folder, or a commit search's by repo, author and
-month. Click a bucket to add its filter (`repo:payments-api`, `lang:python`, `f:^src/`), Alt-click to leave it out
-(`-repo:payments-api`), and click it again to take the filter back out.
+month. Click a bucket to add its filter (`repo:^payments-api$`, `lang:python`, `f:^src/`), Alt-click to leave it out
+(`-repo:^payments-api$`), and click it again to take the filter back out.
 
 When a query has a mistake, the panel says what is wrong and offers a one-key fix (⌘.), and the last good results
 stay on screen. Likely slips get a warning: `daemon|search` matches the pipe itself, so the panel offers
