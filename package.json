@@ -1,6 +1,9 @@
 {
   "name": "spelunk-repo",
   "private": true,
+  "engines": {
+    "node": ">=22"
+  },
   "description": "Monorepo root: npm workspaces for the VS Code extension and its webview. The Go daemon lives in daemon/.",
   "license": "MIT",
   "workspaces": [
