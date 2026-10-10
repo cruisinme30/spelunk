@@ -54,7 +54,7 @@ const SHORTCUT_CARDS: ShortcutCard[] = [
   {
     choice: "custom",
     title: "Choose my own",
-    description: () => "Opens Keyboard Shortcuts filtered to Spelunk so you can record any key.",
+    description: () => "No key from Spelunk: record any key in Keyboard Shortcuts, filtered to Spelunk.",
   },
 ];
 
@@ -109,18 +109,37 @@ function keysFor(settings: WelcomeState): Keys {
   return settings.mac ? MAC_KEYS : OTHER_KEYS;
 }
 
+/**
+ * One shortcut choice. Picking it saves the preset at once, as ↑↓ through
+ * the radio group do; "Choose my own" leaves Spelunk without a key, and only
+ * its button opens Keyboard Shortcuts, so arrowing past it doesn't.
+ */
 function shortcutCard(card: ShortcutCard, keys: Keys, chosen: ShortcutChoice): HTMLElement {
+  const titleId = `shortcut-${card.choice}-title`;
   const input = element("input", {
     type: "radio",
     name: "shortcut",
     value: card.choice,
     checked: card.choice === chosen,
+    // Named by its title and key alone: the custom card's button has a name of its own.
+    "aria-labelledby": titleId,
+    "aria-describedby": `shortcut-${card.choice}-description`,
     "data-testid": "shortcut",
   });
   input.addEventListener("change", () => {
-    if (card.choice === "custom") send("welcome.shortcut", {});
-    else send("welcome.choose", { preset: card.choice });
+    send("welcome.choose", { preset: card.choice === "custom" ? "none" : card.choice });
   });
+  const record =
+    card.choice === "custom"
+      ? button(
+          { class: "btn", "data-testid": "record-shortcut" },
+          () => {
+            input.checked = true;
+            send("welcome.shortcut", {});
+          },
+          "Open Keyboard Shortcuts",
+        )
+      : null;
   return element(
     "label",
     { class: "choice" },
@@ -130,12 +149,13 @@ function shortcutCard(card: ShortcutCard, keys: Keys, chosen: ShortcutChoice): H
       { class: "choice-text" },
       element(
         "span",
-        { class: "choice-title" },
+        { class: "choice-title", id: titleId },
         element("span", { class: "strong" }, card.title),
         card.key ? element("kbd", {}, card.key(keys)) : null,
         card.recommended ? element("span", { class: "pill" }, "Recommended") : null,
       ),
-      element("span", { class: "muted" }, card.description(keys)),
+      element("span", { class: "muted", id: `shortcut-${card.choice}-description` }, card.description(keys)),
+      record,
     ),
   );
 }
@@ -247,6 +267,21 @@ function render(root: HTMLElement): void {
 const root = document.querySelector<HTMLElement>("#app");
 
 /**
+ * Draws the page again, with the focus back on the control that had it:
+ * each choice saves a setting, whose change comes back as welcome.state,
+ * and ↑↓ through the shortcuts must go on from the one just picked.
+ */
+function renderKeepingFocus(into: HTMLElement): void {
+  const focused = document.activeElement instanceof HTMLElement ? document.activeElement : undefined;
+  const testId = focused?.dataset["testid"];
+  const value = focused?.getAttribute("value");
+  render(into);
+  if (!testId) return;
+  const selector = `[data-testid="${CSS.escape(testId)}"]${value === null || value === undefined ? "" : `[value="${CSS.escape(value)}"]`}`;
+  into.querySelector<HTMLElement>(selector)?.focus();
+}
+
+/**
  * Redraws the repo rows alone, if the page shows them: progress comes often
  * while the page is open, and redrawing it all would take the focus away.
  */
@@ -279,6 +314,6 @@ onHostMessage((message) => {
       return; // the search panel's messages
     }
   }
-  if (root) render(root);
+  if (root) renderKeepingFocus(root);
 });
 send("ready", {});

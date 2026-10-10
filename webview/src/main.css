@@ -2037,6 +2037,10 @@ pre.body {
   gap: 6px;
 }
 
+.choice-text .btn {
+  align-self: flex-start;
+}
+
 .choice-title {
   display: flex;
   flex-wrap: wrap;

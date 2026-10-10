@@ -58,6 +58,9 @@ test("each choice is sent to the host, which saves it in Settings", async (t) =>
     preset: "findInFiles",
   });
   await page.check('[data-testid="shortcut"][value="custom"]');
+  assert.deepEqual(await lastSent(page, "welcome.choose"), { preset: "none" });
+  assert.equal(await lastSent(page, "welcome.shortcut"), undefined, "picking it alone doesn't leave the page");
+  await page.click('[data-testid="record-shortcut"]');
   assert.deepEqual(await lastSent(page, "welcome.shortcut"), {});
   await page.selectOption('[data-testid="history-depth"]', "6m");
   assert.deepEqual(await lastSent(page, "welcome.choose"), {
@@ -69,6 +72,25 @@ test("each choice is sent to the host, which saves it in Settings", async (t) =>
   assert.deepEqual(await lastSent(page, "welcome.start"), {});
   await page.click('[data-testid="open-help"]');
   assert.deepEqual(await lastSent(page, "help.open"), {});
+});
+
+test("↑↓ through the shortcut choices picks each one but never opens Keyboard Shortcuts", async (t) => {
+  const page = await welcomePage(t);
+  await page.focus('[data-testid="shortcut"][value="quickOpen"]');
+  await page.keyboard.press("ArrowDown");
+  // The host saves the choice, and the change comes back: the page redraws with the focus where it was.
+  await fromHost(page, "welcome.state", { ...SETTINGS, preset: "findInFiles" });
+  assert.equal(await page.evaluate(() => document.activeElement?.getAttribute("value")), "findInFiles");
+  await page.keyboard.press("ArrowDown");
+  const chosen = (await sentMessages(page, "welcome.choose")).map((message) => message.payload);
+  assert.deepEqual(chosen, [{ preset: "findInFiles" }, { preset: "none" }]);
+  assert.deepEqual(await sentMessages(page, "welcome.shortcut"), []);
+  assert.equal(await page.evaluate(() => document.activeElement?.getAttribute("value")), "custom");
+  // Each choice is named by its title and key, not by the custom card's button.
+  const names = await page.$$eval('[data-testid="shortcut"]', (inputs) =>
+    inputs.map((input) => document.querySelector(`#${input.getAttribute("aria-labelledby")}`).textContent),
+  );
+  assert.deepEqual(names, ["Take over⌘PRecommended", "Take over⇧⌘F", "Choose my own"]);
 });
 
 test("off a Mac the keys are written with Ctrl and Alt", async (t) => {

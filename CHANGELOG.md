@@ -78,6 +78,9 @@ All notable changes to this project are documented here. The format follows
 - Between 641 and about 795 px wide, the preview wrapped below the results and was cut off out of sight; it now sits
   beside them at every width above 640 px. At 640 px or less, where it hides, the panel no longer asks for previews
   nobody sees.
+- On the welcome page, moving through the shortcut choices with ↑ ↓ opened Keyboard Shortcuts on reaching **Choose my
+  own**, and each saved choice redrew the page and lost the focus. Picking it now only clears the key; its **Open
+  Keyboard Shortcuts** button opens the editor, and the focus stays on the choice.
 
 ## [1.1.0] - 2026-10-05
 
