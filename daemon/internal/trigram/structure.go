@@ -36,6 +36,9 @@ const maxHoleRunes = 80
 func (m *lineMatcher) matchStructure(term *query.Content) []matchedLine {
 	text := m.lfContent()
 	matches, _ := term.Structural.Find(text, m.lang, term.IgnoreCase, -1)
+	if len(matches) == 0 {
+		return nil
+	}
 	lines := newLineIndex(text)
 	found := make([]matchedLine, 0, len(matches))
 	for _, match := range matches {

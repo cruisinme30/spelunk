@@ -6,7 +6,9 @@ import "bytes"
 // line end at the very end finishes the last line; it doesn't start an
 // empty one.
 func lineStarts(content []byte) []int {
-	starts := []int{0}
+	// Counting the lines first allocates starts once, rather than growing
+	// it a line at a time.
+	starts := make([]int, 1, bytes.Count(content, []byte{'\n'})+1)
 	for at := 0; ; {
 		i := bytes.IndexByte(content[at:], '\n')
 		if i < 0 {
