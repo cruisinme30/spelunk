@@ -1,4 +1,4 @@
-// The extension manifest: the keys each shortcut preset binds, and how settings are grouped.
+// The extension manifest: the keys each shortcut preset binds, where F4 applies, and how settings are grouped.
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -71,5 +71,20 @@ test("no setting offers a folder's value, since one value serves the whole windo
     for (const [key, property] of Object.entries(section.properties)) {
       assert.notEqual(property.scope, "resource", `${key} is read once for the window`);
     }
+  }
+});
+
+test("F4 and Shift+F4 step through Spelunk's results except where VS Code's own lists use them", () => {
+  for (const command of ["spelunk.nextResult", "spelunk.prevResult"]) {
+    const binding = manifest.contributes.keybindings.find((each) => each.command === command);
+    const clauses = binding?.when?.split(" && ") ?? [];
+    assert.deepEqual(clauses, [
+      "spelunk.hasResults",
+      "!searchViewletFocus", // the Search view
+      "!inSearchEditor",
+      "!referenceSearchVisible", // a references peek
+      "!inReferenceSearchEditor",
+      "focusedView != 'references-view.tree'", // the References view
+    ]);
   }
 });

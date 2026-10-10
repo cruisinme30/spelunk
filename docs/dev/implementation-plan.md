@@ -567,11 +567,15 @@ is a set of bindings gated on the preset setting; choosing an option only writes
   { "command": "spelunk.open", "key": "ctrl+shift+f", "mac": "cmd+shift+f",
     "when": "config.spelunk.shortcut.preset == 'findInFiles'" },
   { "command": "spelunk.nextResult", "key": "f4",
-    "when": "spelunk.hasResults && !searchViewletFocus" },
+    "when": "spelunk.hasResults && !searchViewletFocus && !inSearchEditor && !referenceSearchVisible && !inReferenceSearchEditor && focusedView != 'references-view.tree'" },
   { "command": "spelunk.prevResult", "key": "shift+f4",
-    "when": "spelunk.hasResults && !searchViewletFocus" }
+    "when": "spelunk.hasResults && !searchViewletFocus && !inSearchEditor && !referenceSearchVisible && !inReferenceSearchEditor && focusedView != 'references-view.tree'" }
 ]
 ```
+
+F4 and ⇧F4 leave VS Code's own lists alone: the Search view, a search editor, a references peek and the References
+view keep them while focused (or, for a peek, open). An extension's keybinding outranks those built-in ones, so the
+`when` has to say so.
 
 "Choose my own" sets the preset to `none` and opens Keyboard Shortcuts filtered to `spelunk.open`. Bindings the
 user sets there always override the extension's.

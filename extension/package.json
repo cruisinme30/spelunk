@@ -106,12 +106,12 @@
       {
         "command": "spelunk.nextResult",
         "key": "f4",
-        "when": "spelunk.hasResults && !searchViewletFocus"
+        "when": "spelunk.hasResults && !searchViewletFocus && !inSearchEditor && !referenceSearchVisible && !inReferenceSearchEditor && focusedView != 'references-view.tree'"
       },
       {
         "command": "spelunk.prevResult",
         "key": "shift+f4",
-        "when": "spelunk.hasResults && !searchViewletFocus"
+        "when": "spelunk.hasResults && !searchViewletFocus && !inSearchEditor && !referenceSearchVisible && !inReferenceSearchEditor && focusedView != 'references-view.tree'"
       }
     ],
     "configuration": [
