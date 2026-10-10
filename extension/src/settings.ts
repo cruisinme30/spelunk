@@ -112,6 +112,12 @@ export const MOVED_SETTINGS: Readonly<Record<string, string>> = {
 };
 
 /**
+ * The moved settings' new keys that only the user's settings may hold (scope
+ * "application"): VS Code refuses a workspace or folder value for them.
+ */
+export const USER_ONLY_SETTINGS: ReadonlySet<string> = new Set(["search.typingDelayMs"]);
+
+/**
  * The value to save under a moved setting's new key, at a scope where its
  * old key holds `old` and its new key `current`: undefined when there is
  * nothing to move, or the new key already has a value there, which wins. A

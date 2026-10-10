@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
+import { MOVED_SETTINGS, USER_ONLY_SETTINGS } from "../settings";
 
 interface Keybinding {
   command: string;
@@ -14,14 +15,17 @@ interface Keybinding {
 interface Manifest {
   contributes: {
     keybindings: Keybinding[];
-    configuration: { title: string; properties: Record<string, { enum?: string[]; deprecationMessage?: string }> }[];
+    configuration: {
+      title: string;
+      properties: Record<string, { enum?: string[]; deprecationMessage?: string; scope?: string }>;
+    }[];
   };
 }
 
 const manifest = JSON.parse(readFileSync(join(__dirname, "../package.json"), "utf8")) as Manifest;
 
 /** The setting key declares, from whichever section holds it. */
-function setting(key: string): { enum?: string[] } | undefined {
+function setting(key: string): { enum?: string[]; scope?: string } | undefined {
   return manifest.contributes.configuration.find((section) => key in section.properties)?.properties[key];
 }
 
@@ -55,4 +59,9 @@ test("settings are grouped in sections, each key under the section its name star
     const prefixes = new Set(current.map(([key]) => key.split(".").slice(0, 2).join(".")));
     assert.equal(prefixes.size, 1, `${section.title} mixes ${[...prefixes].join(", ")}`);
   }
+});
+
+test("the moved settings only the user may hold are the application-scoped ones", () => {
+  const userOnly = Object.values(MOVED_SETTINGS).filter((key) => setting(`spelunk.${key}`)?.scope === "application");
+  assert.deepEqual([...USER_ONLY_SETTINGS].sort(), userOnly.sort());
 });

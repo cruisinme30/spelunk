@@ -39,6 +39,7 @@ import {
   daemonSettings,
   MOVED_SETTINGS,
   movedValue,
+  USER_ONLY_SETTINGS,
   pinnedQueries,
   previewContextLines,
   recentQueriesLimit,
@@ -135,7 +136,7 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi {
     vscode.workspace.onDidChangeConfiguration((event) => {
       if (!event.affectsConfiguration("spelunk")) return;
       // A value saved under an old key (by hand, or synced from an older version) moves at once.
-      if (touchesMovedSetting(event)) moveSettings().catch(logError("settings"));
+      if (touchesMovedSetting(event)) moveSettingsSoon(logError("settings"));
       daemon.updateSettings(daemonSettings(configuration(), homedir()));
       daemon.setWatches(watchedQueries(configuration()));
       if (panel.isOpen) controller.restore(); // sends the new settings to the panel
@@ -143,7 +144,7 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi {
     }),
   );
 
-  moveSettings().catch(logError("settings"));
+  moveSettingsSoon(logError("settings"));
   daemon.start().catch(logError("daemon start"));
   if (!context.globalState.get<boolean>(WELCOMED_KEY)) {
     welcome.show();
@@ -228,12 +229,23 @@ async function saveWelcomeChoice(choice: WelcomeChoice): Promise<void> {
   if (choice.symbols !== undefined) await config.update("index.symbols", choice.symbols, global);
 }
 
+/** The moves of old setting keys, one after another: each write starts another, and two at once would race. */
+let settingsMoved: Promise<void> = Promise.resolve();
+
+/** Moves the settings saved under old keys once any move already running is done. */
+function moveSettingsSoon(onError: (error: unknown) => void): void {
+  settingsMoved = settingsMoved.then(() => moveSettings(onError));
+}
+
 /**
  * Moves each value saved under a setting's old key (MOVED_SETTINGS) to its
  * new key, in the user's, the workspace's and each folder's settings, and
- * removes the old key there. A value already under the new key wins.
+ * removes the old key there. A value already under the new key wins. A new
+ * key only the user's settings may hold (USER_ONLY_SETTINGS) takes no
+ * workspace or folder value: the old key is only removed there. A move that
+ * fails is reported and the others go on.
  */
-async function moveSettings(): Promise<void> {
+async function moveSettings(onError: (error: unknown) => void): Promise<void> {
   const targets = vscode.ConfigurationTarget;
   const scopes = [undefined, ...(vscode.workspace.workspaceFolders ?? []).map((folder) => folder.uri)];
   for (const scope of scopes) {
@@ -248,13 +260,23 @@ async function moveSettings(): Promise<void> {
             [old?.workspaceValue, now?.workspaceValue, targets.Workspace],
           ] as const);
       for (const [saved, current, target] of values) {
-        if (saved === undefined) continue;
-        const moved = movedValue(oldKey, saved, current);
-        if (moved !== undefined) await config.update(newKey, moved, target);
-        await config.update(oldKey, undefined, target);
+        if (saved !== undefined) await moveSetting(config, [oldKey, newKey], [saved, current], target).catch(onError);
       }
     }
   }
+}
+
+/** Moves one saved value from its old key to its new key at target (see moveSettings). */
+async function moveSetting(
+  config: vscode.WorkspaceConfiguration,
+  [oldKey, newKey]: [string, string],
+  [saved, current]: [unknown, unknown],
+  target: vscode.ConfigurationTarget,
+): Promise<void> {
+  const moved = movedValue(oldKey, saved, current);
+  const takesIt = target === vscode.ConfigurationTarget.Global || !USER_ONLY_SETTINGS.has(newKey);
+  if (moved !== undefined && takesIt) await config.update(newKey, moved, target);
+  await config.update(oldKey, undefined, target);
 }
 
 /** Whether a settings change touched a key that has moved, so moveSettings has work. */
