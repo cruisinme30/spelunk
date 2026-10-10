@@ -786,6 +786,26 @@ test("a daemon that dies mid-search ends the search with its error, and the next
   assert.deepEqual(host.payloads("search.done").at(-1), { seq: 2, searchId: "s2", ...NO_RESULTS });
 });
 
+test("a search that failed while the daemon was down runs again once it is back", async () => {
+  const host = recordingUi();
+  let down = true;
+  const { backend, listeners } = scriptedBackend((method, { text }) => {
+    if (method === "query/parse") return { query: parsedQuery(text, true), completions: [] };
+    if (down) throw new Error("search daemon not ready");
+    return NO_RESULTS;
+  });
+  const controller = newController(backend, host.ui);
+  await controller.handle(queryChanged("retry", 1));
+  assert.equal(host.payloads("search.done").at(-1)?.error, "search daemon not ready");
+  down = false;
+  listeners.get("state")?.("ok");
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(host.payloads("search.done").at(-1), { seq: 1, searchId: "s2", ...NO_RESULTS });
+  listeners.get("state")?.("ok"); // a search that worked isn't run again
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(host.payloads("search.done").length, 2);
+});
+
 test("the preview shows as many lines around its match as ui.previewContextLines says", async () => {
   // @covers setting:ui.previewContextLines
   const asked: unknown[] = [];

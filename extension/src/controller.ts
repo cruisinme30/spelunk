@@ -154,6 +154,8 @@ interface RunningSearch {
   cancel: CancelSource;
   /** The commits a watch found for this query since it last ran, which the panel marks New on every page. */
   newCommits: string[];
+  /** Set when its first page failed, so the daemon coming back runs it again. */
+  failed?: boolean;
 }
 
 /** The help and welcome pages' messages, which extension.ts handles. */
@@ -219,7 +221,7 @@ export class SearchController {
       void this.onWatchMatched(match);
     });
     backend.on("state", (state) => {
-      if (state === "ok") this.searchesHistoryByText.clear();
+      if (state === "ok") this.onDaemonReady();
     });
   }
 
@@ -594,7 +596,9 @@ export class SearchController {
       this.ui.post("search.done", { seq, searchId, ...result, ...(newCommits.length > 0 ? { newCommits } : {}) });
     } catch (error) {
       if (error instanceof RpcError && error.code === ErrorCodes.RequestCancelled) return;
-      if (this.search === search) this.postSearchFailed(seq, searchId, error);
+      if (this.search !== search) return;
+      search.failed = pageCursor === undefined;
+      this.postSearchFailed(seq, searchId, error);
     }
   }
 
@@ -614,6 +618,19 @@ export class SearchController {
     const search = this.search;
     if (!newlyReady || !search || search.cancel.cancelled) return;
     search.cancel.cancel();
+    void this.startSearch(search.text, search.seq);
+  }
+
+  /**
+   * The daemon is (back) up: which queries search history is asked again,
+   * and a search that failed while it was down (it crashed, or hadn't
+   * started yet) runs again, rather than showing that error until the
+   * query is edited.
+   */
+  private onDaemonReady(): void {
+    this.searchesHistoryByText.clear();
+    const search = this.search;
+    if (!search?.failed || search.cancel.cancelled) return;
     void this.startSearch(search.text, search.seq);
   }
 
