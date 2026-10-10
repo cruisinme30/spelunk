@@ -267,15 +267,16 @@ export class ResultsView {
     // The daemon sends a cursor when there are more pages; Load more asks for the next one.
     if (done.nextCursor) {
       const cursor = done.nextCursor;
-      this.loadMore.append(
-        button(
-          { class: "btn", "data-testid": "load-more" },
-          () => {
-            this.handlers.onLoadMore(done.searchId, cursor);
-          },
-          "Load more",
-        ),
+      const more = button(
+        { class: "btn", "data-testid": "load-more" },
+        () => {
+          // Once: a second click would fetch the same page again, and show its results twice.
+          more.disabled = true;
+          this.handlers.onLoadMore(done.searchId, cursor);
+        },
+        "Load more",
       );
+      this.loadMore.append(more);
     }
     if (done.error) {
       this.preview.replaceChildren(element("div", { class: "notice error" }, done.error));

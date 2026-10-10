@@ -735,8 +735,10 @@ test("Load more asks for the next page of the same search and appends it", async
   const firstPage = { seq, searchId: "s1", total: 1, truncated: false, hidden: [], ms: 1 };
   await fromHost(page, "search.done", { ...firstPage, nextCursor: "page-2" });
 
-  await page.click('[data-testid="load-more"]');
-  assert.deepEqual(await lastSent(page, "results.more"), { searchId: "s1", cursor: "page-2" });
+  await page.dblclick('[data-testid="load-more"]', { force: true });
+  assert.deepEqual(await sentMessages(page, "results.more").then((sent) => sent.map((message) => message.payload)), [
+    { searchId: "s1", cursor: "page-2" },
+  ]);
 
   await fromHost(page, "search.batch", { seq, searchId: "s1", items: [CODE_LINE_RESULT] });
   await fromHost(page, "search.done", firstPage);
