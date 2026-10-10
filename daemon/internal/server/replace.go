@@ -6,6 +6,7 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"time"
 
 	"github.com/cruisinme30/spelunk/daemon/internal/protocol"
@@ -44,7 +45,11 @@ func (s *Server) replacePlan(ctx context.Context, raw json.RawMessage) (any, err
 		rpc.Errorf(protocol.CodeOverloaded, "finding every match took too long; narrow the search to replace"))
 	defer cancel()
 	repos := trigram.WithOpenFiles(s.index.Repos(), params.OpenFiles)
-	return trigram.Replacements(ctx, plan, repos, term, params.Replacement, maxReplaceMatches)
+	replace, err := trigram.Replacements(ctx, plan, repos, term, params.Replacement, maxReplaceMatches)
+	if errors.Is(err, trigram.ErrIncomplete) {
+		return nil, rpc.Errorf(protocol.CodeQueryInvalid, "%v", err)
+	}
+	return replace, err
 }
 
 // replacedTerm is the one text term a replace changes, or why plan can't

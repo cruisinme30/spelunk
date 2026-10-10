@@ -2,6 +2,7 @@ package trigram
 
 import (
 	"context"
+	"errors"
 	"path/filepath"
 	"strings"
 
@@ -9,10 +10,15 @@ import (
 	"github.com/cruisinme30/spelunk/daemon/internal/query"
 )
 
+// ErrIncomplete means a struct: template gave up on a file, so the files
+// a replace would change can't all be known.
+var ErrIncomplete = errors.New("a struct: filter gave up on a file, so some matches may be missed; narrow the search to replace")
+
 // Replacements lists the edits that replacing term's matches with
 // replacement would make: one per match of term on every line that the
 // query's code results show. Unlike a search it never stops part way: it
-// returns ctx's error instead, and once the edits pass limit it returns
+// returns ctx's error instead, or ErrIncomplete when a struct: template
+// gave up on a file, and once the edits pass limit it returns
 // only their count, marked truncated, so a caller never mistakes part of a
 // replace for all of it.
 func Replacements(ctx context.Context, plan *query.Plan, repos []Repo, term *query.Content, replacement string, limit int) (protocol.ReplacePlan, error) {
@@ -44,6 +50,9 @@ func Replacements(ctx context.Context, plan *query.Plan, repos []Repo, term *que
 	})
 	if err := ctx.Err(); err != nil {
 		return protocol.ReplacePlan{}, context.Cause(ctx)
+	}
+	if s.incomplete {
+		return protocol.ReplacePlan{}, ErrIncomplete
 	}
 	if out.Truncated {
 		out.Files = []protocol.ReplaceFile{}

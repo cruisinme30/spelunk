@@ -1,6 +1,8 @@
 package trigram
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"reflect"
 	"strings"
@@ -154,6 +156,19 @@ func TestStructGivingUpMarksResultsTruncated(t *testing.T) {
 	}
 	if !stats.Truncated {
 		t.Error("the results aren't marked truncated, though the template gave up on a.go")
+	}
+}
+
+// A replace refuses a query whose struct: filter gave up on a file: the
+// file might hold matches it would have to change, or leave alone.
+func TestReplaceRefusesAStructFilterThatGaveUp(t *testing.T) {
+	repo := repoOf("r", map[string]string{
+		"a.go": "retry()\nf(" + strings.Repeat("1, ", 400) + "y)\n",
+	})
+	plan := mustPlan(t, `retry -struct:"f(:[a], :[b], :[c], :[d], :[e], :[f], :[g], x)"`, defaultSettings, "")
+	_, err := Replacements(context.Background(), plan, []Repo{repo}, plan.Terms[0], "again", 100)
+	if !errors.Is(err, ErrIncomplete) {
+		t.Errorf("Replacements = %v, want ErrIncomplete", err)
 	}
 }
 
