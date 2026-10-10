@@ -52,7 +52,8 @@ func (s *Server) preview(ctx context.Context, raw json.RawMessage) (any, error) 
 		preview, previewErr := trigram.PreviewText(repo, ref, plan, params.ContextLines, content, time.Time{})
 		return preview, staleAsRPCError(previewErr)
 	}
-	preview, err := trigram.Preview(repo, ref, plan, params.ContextLines)
+	maxBytes := int64(s.Settings().MaxFileSizeKB) * 1024
+	preview, err := trigram.Preview(repo, ref, plan, params.ContextLines, maxBytes)
 	return preview, staleAsRPCError(err)
 }
 

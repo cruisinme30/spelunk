@@ -232,7 +232,7 @@ func TestPreviewMarksAStructMatch(t *testing.T) {
 	repo := &Repo{ID: "r", Name: "r", Root: root}
 	plan := mustPlan(t, `struct:"retry(:[call], attempts=:[n])"`, defaultSettings, "")
 	ref := Ref{PlanID: 1, RepoID: "r", Path: "client.py", Line: 6, Column: 15, Length: 6, EndLine: 8, EndColumn: 46}
-	got, err := Preview(repo, ref, plan, 1)
+	got, err := Preview(repo, ref, plan, 1, 0)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -306,7 +306,7 @@ func TestPreviewShowsAMatchAcrossLines(t *testing.T) {
 			repo := &Repo{ID: "r", Name: "r", Root: root}
 			plan := mustPlan(t, `/except TransientError:\n\s*delay/`, defaultSettings, "")
 			ref := Ref{PlanID: 1, RepoID: "r", Path: "client.py", Line: 5, Column: 8, Length: 22, EndLine: 6, EndColumn: 17}
-			got, err := Preview(repo, ref, plan, 1)
+			got, err := Preview(repo, ref, plan, 1, 0)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -334,14 +334,14 @@ func TestPreviewOfAVeryLongMatchIsCapped(t *testing.T) {
 	root := testutil.WriteTree(t, map[string]string{"a.txt": strings.Join(lines, "\n")})
 	repo := &Repo{ID: "r", Name: "r", Root: root}
 	ref := Ref{RepoID: "r", Path: "a.txt", Line: 2, EndLine: maxPreviewSpanLines + 40, EndColumn: 3}
-	got, err := Preview(repo, ref, nil, 3)
+	got, err := Preview(repo, ref, nil, 3, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if last := got.FirstLine + len(got.Lines) - 1; last != 2+maxPreviewSpanLines+3 || got.FocusEndLine != maxPreviewSpanLines+40 {
 		t.Errorf("preview ends at %d, focus end %d; want %d and %d", last, got.FocusEndLine, 2+maxPreviewSpanLines+3, maxPreviewSpanLines+40)
 	}
-	single, _ := Preview(repo, Ref{RepoID: "r", Path: "a.txt", Line: 2, Length: 1}, nil, 1)
+	single, _ := Preview(repo, Ref{RepoID: "r", Path: "a.txt", Line: 2, Length: 1}, nil, 1, 0)
 	if single.FocusEndLine != 0 {
 		t.Errorf("single-line focus end = %d, want none", single.FocusEndLine)
 	}

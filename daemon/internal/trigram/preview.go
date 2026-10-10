@@ -26,10 +26,11 @@ const maxPreviewSpanLines = 200
 // highlights every term that made the file match, in the term's color;
 // without it (the plan was forgotten), only the result's own match. A
 // match that spans lines is shown whole (up to maxPreviewSpanLines more
-// lines), with the lines around it. A file that is gone, or is no longer a
-// regular text file, is ErrStale.
-func Preview(repo *Repo, ref Ref, plan *query.Plan, contextLines int) (protocol.Preview, error) {
-	content, info, err := readText(filepath.Join(repo.Root, filepath.FromSlash(ref.Path)), 0)
+// lines), with the lines around it. A file that is gone, is no longer a
+// regular text file, or has grown past maxBytes (the index's size limit;
+// 0 for none) since it was indexed is ErrStale.
+func Preview(repo *Repo, ref Ref, plan *query.Plan, contextLines int, maxBytes int64) (protocol.Preview, error) {
+	content, info, err := readText(filepath.Join(repo.Root, filepath.FromSlash(ref.Path)), maxBytes)
 	if err != nil {
 		return protocol.Preview{}, ErrStale
 	}
@@ -40,6 +41,7 @@ func Preview(repo *Repo, ref Ref, plan *query.Plan, contextLines int) (protocol.
 // commit's tree, for a result at a revision. modTime stands in for the
 // file's modification time.
 func PreviewText(repo *Repo, ref Ref, plan *query.Plan, contextLines int, content []byte, modTime time.Time) (protocol.Preview, error) {
+	contextLines = max(contextLines, 0)
 	lines := splitLines(content)
 	focus := ref.Line
 	if ref.IsFile() {

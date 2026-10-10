@@ -24,7 +24,7 @@ func TestPreviewHighlightsEveryContributingTerm(t *testing.T) {
 	repo := previewRepo(t)
 	plan := mustPlan(t, "RetryPolicy timeout -zebra", defaultSettings, "")
 	ref := Ref{PlanID: 1, RepoID: "r", Path: "retry.go", Line: 4, Column: 5, Length: 11}
-	got, err := Preview(repo, ref, plan, 2)
+	got, err := Preview(repo, ref, plan, 2, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -44,7 +44,7 @@ func TestPreviewHighlightsEveryContributingTerm(t *testing.T) {
 func TestPreviewWithoutThePlanShowsTheResultsOwnMatch(t *testing.T) {
 	repo := previewRepo(t)
 	ref := Ref{PlanID: 1, RepoID: "r", Path: "retry.go", Line: 4, Column: 5, Length: 11}
-	got, err := Preview(repo, ref, nil, 1)
+	got, err := Preview(repo, ref, nil, 1, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -56,7 +56,7 @@ func TestPreviewWithoutThePlanShowsTheResultsOwnMatch(t *testing.T) {
 
 func TestPreviewOfAFileNameShowsTheTop(t *testing.T) {
 	repo := previewRepo(t)
-	got, err := Preview(repo, Ref{RepoID: "r", Path: "retry.go"}, mustPlan(t, "retry", defaultSettings, ""), 1)
+	got, err := Preview(repo, Ref{RepoID: "r", Path: "retry.go"}, mustPlan(t, "retry", defaultSettings, ""), 1, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -67,7 +67,7 @@ func TestPreviewOfAFileNameShowsTheTop(t *testing.T) {
 
 func TestPreviewOfAFileNameOnlyResultMarksNothingInTheText(t *testing.T) {
 	repo := previewRepo(t)
-	got, err := Preview(repo, Ref{RepoID: "r", Path: "retry.go"}, mustPlan(t, "type:file retry", defaultSettings, ""), 3)
+	got, err := Preview(repo, Ref{RepoID: "r", Path: "retry.go"}, mustPlan(t, "type:file retry", defaultSettings, ""), 3, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -79,11 +79,18 @@ func TestPreviewOfAFileNameOnlyResultMarksNothingInTheText(t *testing.T) {
 func TestPreviewAndOpenTargetReportStaleRefs(t *testing.T) {
 	// @covers failure:ref-stale
 	repo := previewRepo(t)
-	if _, err := Preview(repo, Ref{RepoID: "r", Path: "gone.go", Line: 1}, nil, 3); !errors.Is(err, ErrStale) {
+	if _, err := Preview(repo, Ref{RepoID: "r", Path: "gone.go", Line: 1}, nil, 3, 0); !errors.Is(err, ErrStale) {
 		t.Errorf("Preview(deleted file) error = %v, want ErrStale", err)
 	}
-	if _, err := Preview(repo, Ref{RepoID: "r", Path: "retry.go", Line: 99}, nil, 3); !errors.Is(err, ErrStale) {
+	if _, err := Preview(repo, Ref{RepoID: "r", Path: "retry.go", Line: 99}, nil, 3, 0); !errors.Is(err, ErrStale) {
 		t.Errorf("Preview(line past the end) error = %v, want ErrStale", err)
+	}
+	// A file grown past the index's size limit isn't read whole into memory.
+	if _, err := Preview(repo, Ref{RepoID: "r", Path: "retry.go", Line: 1}, nil, 3, 8); !errors.Is(err, ErrStale) {
+		t.Errorf("Preview(file over the limit) error = %v, want ErrStale", err)
+	}
+	if _, err := Preview(repo, Ref{RepoID: "r", Path: "retry.go", Line: 1}, nil, -1, 0); err != nil {
+		t.Errorf("Preview with negative context lines: %v, want the line alone", err)
 	}
 	if _, err := OpenTarget(repo, Ref{RepoID: "r", Path: "gone.go", Line: 1}); !errors.Is(err, ErrStale) {
 		t.Errorf("OpenTarget(deleted file) error = %v, want ErrStale", err)
@@ -112,7 +119,7 @@ func TestPreviewClipsALongLineAroundItsMatch(t *testing.T) {
 	root := testutil.WriteTree(t, map[string]string{"min.js": "first\n" + long + "\n" + strings.Repeat("z", 10_000) + "\n"})
 	repo := &Repo{ID: "r", Name: "r", Root: root}
 	plan := mustPlan(t, "needle", defaultSettings, "")
-	got, err := Preview(repo, Ref{RepoID: "r", Path: "min.js", Line: 2, Column: 500_000, Length: 6}, plan, 1)
+	got, err := Preview(repo, Ref{RepoID: "r", Path: "min.js", Line: 2, Column: 500_000, Length: 6}, plan, 1, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -129,7 +136,7 @@ func TestPreviewClipsALongLineAroundItsMatch(t *testing.T) {
 		t.Errorf("hit %+v covers %q, want needle", r, string(shown[r.Start:r.End]))
 	}
 	// Without the plan, the ref's own match is marked in the clipped line.
-	got, err = Preview(repo, Ref{RepoID: "r", Path: "min.js", Line: 2, Column: 500_000, Length: 6}, nil, 0)
+	got, err = Preview(repo, Ref{RepoID: "r", Path: "min.js", Line: 2, Column: 500_000, Length: 6}, nil, 0, 0)
 	if err != nil {
 		t.Fatal(err)
 	}

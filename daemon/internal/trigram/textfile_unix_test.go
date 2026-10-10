@@ -23,7 +23,7 @@ func TestFIFOInTheTreeNeverBlocksIndexing(t *testing.T) {
 		// As if the FIFO replaced a file after it was listed.
 		shard, _ := Build(context.Background(), root, []File{{Path: "a.txt"}, {Path: "pipe"}}, BuildOptions{})
 		selected := SelectFiles(context.Background(), root, []string{"pipe"}, WalkOptions{})
-		_, previewErr := Preview(&Repo{Root: root}, Ref{Path: "pipe", Line: 1}, nil, 1)
+		_, previewErr := Preview(&Repo{Root: root}, Ref{Path: "pipe", Line: 1}, nil, 1, 0)
 		if previewErr == nil {
 			t.Errorf("Preview of a FIFO = nil error, want ErrStale")
 		}

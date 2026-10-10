@@ -189,7 +189,7 @@ func TestThePreviewSaysWhoOwnsTheFileAndWhichLineSaysSo(t *testing.T) {
 	})
 	repo := &Repo{ID: "r", Name: "payments-api", Root: root, Owners: codeowners.Parse(".github/CODEOWNERS", []byte(ownersFile))}
 	plan := mustPlan(t, "retry owner:jane", defaultSettings, "")
-	got, err := Preview(repo, Ref{PlanID: 1, RepoID: "r", Path: "src/payments/http/retry.py", Line: 1, Column: 4, Length: 5}, plan, 2)
+	got, err := Preview(repo, Ref{PlanID: 1, RepoID: "r", Path: "src/payments/http/retry.py", Line: 1, Column: 4, Length: 5}, plan, 2, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -201,7 +201,7 @@ func TestThePreviewSaysWhoOwnsTheFileAndWhichLineSaysSo(t *testing.T) {
 	if len(got.Hits) != 1 || got.Hits[0].Line != 1 {
 		t.Errorf("hits = %+v, want retry marked on line 1", got.Hits)
 	}
-	got, err = Preview(repo, Ref{PlanID: 1, RepoID: "r", Path: "src/payments/legacy/retry.py"}, nil, 2)
+	got, err = Preview(repo, Ref{PlanID: 1, RepoID: "r", Path: "src/payments/legacy/retry.py"}, nil, 2, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -209,7 +209,7 @@ func TestThePreviewSaysWhoOwnsTheFileAndWhichLineSaysSo(t *testing.T) {
 		t.Errorf("ownership of an unowned file = %+v, want line 6, no owners", got.Ownership)
 	}
 	repo.Owners = nil
-	if got, _ = Preview(repo, Ref{PlanID: 1, RepoID: "r", Path: "src/payments/legacy/retry.py"}, nil, 2); got.Ownership != nil {
+	if got, _ = Preview(repo, Ref{PlanID: 1, RepoID: "r", Path: "src/payments/legacy/retry.py"}, nil, 2, 0); got.Ownership != nil {
 		t.Errorf("ownership without CODEOWNERS = %+v, want none", got.Ownership)
 	}
 }

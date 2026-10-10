@@ -181,7 +181,7 @@ func TestEncodingsAndLineEndsMatchTheEditor(t *testing.T) {
 		if item.Line != 2 || ref.Column != 4 || item.Text != "😀  needle" || !reflect.DeepEqual(item.Hits, []protocol.Hit{{Start: 4, End: 10}}) {
 			t.Errorf("%s: line %d column %d text %q hits %+v; want line 2, column 4, the line without BOM or CR, hit 4-10", item.Path, item.Line, ref.Column, item.Text, item.Hits)
 		}
-		preview, err := Preview(&repo, ref, nil, 1)
+		preview, err := Preview(&repo, ref, nil, 1, 0)
 		if err != nil || preview.Lines[0] != "first" || preview.Lines[1] != "😀  needle" {
 			t.Errorf("%s: preview lines = %q, %v; want the decoded lines", item.Path, preview.Lines, err)
 		}
