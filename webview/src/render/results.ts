@@ -180,7 +180,7 @@ export class ResultsView {
     this.lastGood = element("div", { class: "last-good muted", "data-testid": "last-good", hidden: true });
     this.list = element(
       "div",
-      { id: "results", role: "listbox", "aria-label": "Results", "data-testid": "results" },
+      { id: "results", "data-testid": "results" },
       this.lastGood,
       this.sections.file.root,
       this.sections.symbol.root,
@@ -191,7 +191,8 @@ export class ResultsView {
     );
     this.withContext = state.ui.contextLines > 0;
     this.list.classList.toggle("with-context", this.withContext);
-    this.preview = element("div", { id: "preview", "data-testid": "preview", "aria-live": "polite" });
+    // Not a live region: it would read the whole excerpt again on every ↑↓; the selected row is announced instead.
+    this.preview = element("div", { id: "preview", "data-testid": "preview" });
     body.replaceChildren(element("div", { class: "split" }, this.list, this.preview));
   }
 
@@ -724,9 +725,15 @@ function demoted(reason: RankReason | undefined): string {
 }
 
 /** A section of the list; `controls` go in its title, before the count. */
+/** The ids of the sections' listboxes, which the query box controls while no suggestions show. */
+export const RESULT_LISTS = ["section-files", "section-symbols", "section-code", "section-commits"]
+  .map((testId) => `${testId}-list`)
+  .join(" ");
+
 function makeSection(title: string, testId: string, controls?: HTMLElement): Section {
   const count = element("span", { class: "muted" });
-  const list = element("div", { class: "list" });
+  // A listbox of the section's rows alone: its title's buttons, and the notes and Load more below, stay outside it.
+  const list = element("div", { class: "list", id: `${testId}-list`, role: "listbox", "aria-label": title });
   const root = element(
     "div",
     { class: "result-section", "data-testid": testId, hidden: true },

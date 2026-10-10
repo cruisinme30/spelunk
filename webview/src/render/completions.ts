@@ -5,6 +5,7 @@ import { codeLineRow, codeList, element, plural } from "../format";
 import type { Layout } from "../layout";
 import { opNameFor, operatorEntry, toneForLabel } from "../operators";
 import { textTerms } from "../parsedQuery";
+import { RESULT_LISTS } from "./results";
 import type { Completion, OpName, ResultItem } from "../protocol.gen";
 import type { ViewState } from "../state";
 
@@ -49,6 +50,25 @@ export interface ResultsGlimpse {
 /** Whether the list is showing: suggestions exist, they weren't dismissed, and the box has focus. */
 export function completionsVisible(state: ViewState, input: HTMLInputElement): boolean {
   return state.completionsOpen && state.completions.length > 0 && document.activeElement === input;
+}
+
+/**
+ * Tells screen readers which option ↑↓ is on: suggestion `completionIndex`
+ * while suggestions show, otherwise the selected result `row`, or none.
+ */
+export function pointAtActiveOption(
+  input: HTMLInputElement,
+  completionIndex: number | undefined,
+  row: HTMLElement | null | undefined,
+): void {
+  if (completionIndex !== undefined) {
+    input.setAttribute("aria-controls", "completions");
+    input.setAttribute("aria-activedescendant", `completion-${completionIndex}`);
+    return;
+  }
+  input.setAttribute("aria-controls", RESULT_LISTS);
+  if (row) input.setAttribute("aria-activedescendant", row.id);
+  else input.removeAttribute("aria-activedescendant");
 }
 
 /** Renders the suggestion list, or hides it when it shouldn't show. */

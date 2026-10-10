@@ -1,5 +1,6 @@
 // The panel's fixed skeleton, built once. Regions are filled by render/*.
 import { element, icon } from "./format";
+import { RESULT_LISTS } from "./render/results";
 import { createReplaceRow, type ReplaceRow } from "./replace";
 
 /** The panel's regions and controls, from top to bottom. */
@@ -24,6 +25,8 @@ export interface Layout {
   facets: HTMLElement;
   body: HTMLElement;
   footer: HTMLElement;
+  /** Unseen, it says what ↑↓ picked where nothing else does: the empty box's queries. */
+  announcer: HTMLElement;
 }
 
 /** The class of the element that holds the repos button and its menu; a click outside it closes the menu. */
@@ -46,7 +49,7 @@ function createQueryInput(): HTMLInputElement {
     "data-testid": "query",
     role: "combobox",
     "aria-expanded": "false",
-    "aria-controls": "results",
+    "aria-controls": RESULT_LISTS,
     "aria-autocomplete": "list",
   });
 }
@@ -187,6 +190,7 @@ export function createLayout(root: HTMLElement): Layout {
   const statusDot = element("span", { class: "status-dot", "aria-hidden": "true" });
   const statusText = element("span", { class: "status-text", "data-testid": "index-status" });
   const regions = createRegions();
+  const announcer = element("div", { class: "visually-hidden", role: "status", "data-testid": "announcer" });
   const searchBar = element(
     "div",
     { class: "search-bar" },
@@ -210,6 +214,7 @@ export function createLayout(root: HTMLElement): Layout {
     searchBar,
     element("div", { class: "status", role: "status" }, statusDot, statusText),
     ...Object.values(regions),
+    announcer,
   );
   root.append(shell);
   return {
@@ -226,5 +231,6 @@ export function createLayout(root: HTMLElement): Layout {
     statusDot,
     statusText,
     ...regions,
+    announcer,
   };
 }

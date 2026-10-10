@@ -7,7 +7,7 @@
 import { clamp, element, plural, scrollIntoContainer, wrapIndex } from "./format";
 import { type HostMessage, loadDraft, loadRecentWidth, onHostMessage, saveDraft, send } from "./host";
 import { EmptyBox } from "./emptyBox";
-import { createLayout, type Layout, REPO_MENU_ANCHOR_CLASS } from "./layout";
+import { createLayout, type Layout } from "./layout";
 import { pathScope, scopedRepo } from "./parsedQuery";
 import type {
   Completion,
@@ -40,10 +40,10 @@ import {
   renderFooter,
   renderIndexStatus,
 } from "./render/chrome";
-import { completionsVisible, renderCompletions, type ResultsGlimpse } from "./render/completions";
+import { completionsVisible, pointAtActiveOption, renderCompletions, type ResultsGlimpse } from "./render/completions";
 import { renderEmptyState } from "./render/emptyState";
 import { renderFacets } from "./render/facets";
-import { renderRepoMenu } from "./render/repoMenu";
+import { RepoMenu } from "./render/repoMenu";
 import { previewOf, renderPreview } from "./render/preview";
 import { ResultsView } from "./render/results";
 import { ReplaceBox } from "./replace";
@@ -60,6 +60,7 @@ export class SearchPanel {
   private readonly layout: Layout;
   private readonly emptyBox: EmptyBox;
   private readonly replace: ReplaceBox;
+  private readonly repoMenu: RepoMenu;
   private readonly summary = element("span", { class: "summary", "data-testid": "summary" });
   private results: ResultsView | undefined;
   private debounceTimer: ReturnType<typeof setTimeout> | undefined;
@@ -80,6 +81,13 @@ export class SearchPanel {
       },
       onFocusChanged: () => {
         this.renderFooter();
+      },
+    });
+    this.repoMenu = new RepoMenu(this.layout, {
+      repos: () => this.state.repos,
+      selected: () => scopedRepo(this.state.parsed),
+      onPick: (repoName) => {
+        if (this.editQuery((text) => scopeToRepo(text, this.state.parsed, repoName))) this.layout.input.focus();
       },
     });
   }
@@ -214,7 +222,7 @@ export class SearchPanel {
   // ------------------------------------------------------------ user input
 
   private bindEvents(): void {
-    const { input, caseButton, wordButton, regexButton, reposButton, settingsButton, body } = this.layout;
+    const { input, caseButton, wordButton, regexButton, settingsButton, body } = this.layout;
     input.addEventListener("input", () => {
       if (this.editingBox) return;
       this.state.completionsOpen = true;
@@ -244,16 +252,8 @@ export class SearchPanel {
     regexButton.addEventListener("click", () => {
       this.editQuery((text) => toggleRegex(text, this.state.parsed));
     });
-    reposButton.addEventListener("click", () => {
-      this.toggleRepoMenu();
-    });
     settingsButton.addEventListener("click", () => {
       send("settings.open", {});
-    });
-    // A click anywhere else closes the repo menu.
-    document.addEventListener("mousedown", (event) => {
-      const target = event.target as HTMLElement;
-      if (!target.closest(`.${REPO_MENU_ANCHOR_CLASS}`)) this.toggleRepoMenu(false);
     });
 
     body.addEventListener("click", (event) => {
@@ -265,20 +265,6 @@ export class SearchPanel {
     body.addEventListener("dblclick", (event) => {
       const ref = rowReference(event);
       if (ref && this.state.ui.openTrigger === "doubleClick") this.open(ref, event);
-    });
-  }
-
-  /** Opens or closes the repo menu (or sets it with `open`). */
-  private toggleRepoMenu(open = this.layout.repoMenu.hidden): void {
-    const { repoMenu, reposButton, input } = this.layout;
-    repoMenu.hidden = !open;
-    reposButton.setAttribute("aria-expanded", String(open));
-    if (!open) return;
-    renderRepoMenu(repoMenu, this.state.repos, scopedRepo(this.state.parsed), {
-      onPick: (repoName) => {
-        this.toggleRepoMenu(false);
-        if (this.editQuery((text) => scopeToRepo(text, this.state.parsed, repoName))) input.focus();
-      },
     });
   }
 
@@ -374,7 +360,7 @@ export class SearchPanel {
 
   /** Esc closes the suggestions first, keeping the word as typed, then the panel. */
   private onEscape(): void {
-    if (!this.layout.repoMenu.hidden) this.toggleRepoMenu(false);
+    if (this.repoMenu.isOpen) this.repoMenu.toggle(false);
     else if (this.completionsVisible) this.searchAsTyped();
     else send("panel.close", {});
   }
@@ -421,8 +407,8 @@ export class SearchPanel {
       row.classList.add("selected");
       row.setAttribute("aria-selected", "true");
       scrollIntoContainer(this.results.list, row, "nearest");
-      this.layout.input.setAttribute("aria-activedescendant", row.id);
     }
+    this.pointAtActiveOption();
     clearTimeout(this.previewTimer);
     this.previewTimer = setTimeout(() => {
       send("result.select", { ref });
@@ -591,6 +577,7 @@ export class SearchPanel {
     state.newCommits = new Set();
     state.selectedRef = "";
     state.preview = undefined;
+    this.layout.input.removeAttribute("aria-activedescendant"); // the old results' rows go
     // A note's undo indexes the text this search ran on, which may be the box without the word being completed.
     const searchedText = state.searchText ?? state.parsed?.raw;
     const handlers = {
@@ -651,6 +638,7 @@ export class SearchPanel {
     this.layout.facets.replaceChildren();
     this.layout.diagnostics.replaceChildren();
     renderEmptyState(this.layout.body, state, this.emptyBox.handlers());
+    this.pointAtActiveOption(); // the old results' rows are gone
     this.renderFooter();
   }
 
@@ -667,7 +655,14 @@ export class SearchPanel {
         this.searchAsTyped();
       },
     });
+    this.pointAtActiveOption();
     this.renderFooter();
+  }
+
+  /** Tells screen readers which option ↑↓ is on (see pointAtActiveOption). */
+  private pointAtActiveOption(): void {
+    const row = this.state.selectedRef ? this.results?.rowFor(this.state.selectedRef) : undefined;
+    pointAtActiveOption(this.layout.input, this.completionsVisible ? this.state.completionIndex : undefined, row);
   }
 
   private renderBanners(): void {

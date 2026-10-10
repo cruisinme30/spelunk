@@ -24,7 +24,7 @@ export class EmptyBox {
   /** Works on the panel's `state`, in its query box and body. */
   constructor(
     private readonly state: ViewState,
-    private readonly layout: Pick<Layout, "input" | "body">,
+    private readonly layout: Pick<Layout, "input" | "body" | "announcer">,
     private readonly panel: EmptyBoxPanel,
   ) {}
 
@@ -101,6 +101,9 @@ export class EmptyBox {
     if (rows.length === 0) return;
     this.state.recentIndex = wrapIndex(this.state.recentIndex, step, rows.length);
     for (const [index, row] of rows.entries()) row.classList.toggle("selected", index === this.state.recentIndex);
+    // The box keeps the focus, so nothing else tells a screen reader which query ↵ would run.
+    const query = rows[this.state.recentIndex]?.dataset["recent"];
+    if (query !== undefined) this.layout.announcer.textContent = query;
   }
 
   /** Unpins a query, or takes a recent one off the list; the selection stays on the same row, now the next query. */
