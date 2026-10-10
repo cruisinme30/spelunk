@@ -116,11 +116,16 @@ export function highlight(text: string, hits: (Hit | Range)[], replacements?: re
 }
 
 /**
- * Drops a code line's indentation, shifting its hits to match, so result
- * rows line up; `dropped` counts the hits inside the indentation.
+ * Drops a code line's indentation, at most `limit` characters of it,
+ * shifting its hits to match, so result rows line up; `dropped` counts the
+ * hits inside what was dropped.
  */
-function trimIndent<H extends Range>(text: string, hits: H[]): { text: string; hits: H[]; dropped: number } {
-  const indent = text.length - text.trimStart().length;
+function trimIndent<H extends Range>(
+  text: string,
+  hits: H[],
+  limit = Number.POSITIVE_INFINITY,
+): { text: string; hits: H[]; dropped: number } {
+  const indent = Math.min(indentOf(text), limit);
   if (indent === 0) return { text, hits, dropped: 0 };
   const kept = hits.filter((hit) => hit.end > indent);
   return {
@@ -128,6 +133,11 @@ function trimIndent<H extends Range>(text: string, hits: H[]): { text: string; h
     hits: kept.map((hit) => ({ ...hit, start: Math.max(hit.start, indent) - indent, end: hit.end - indent })),
     dropped: hits.length - kept.length,
   };
+}
+
+/** How many whitespace characters a line starts with. */
+export function indentOf(text: string): number {
+  return text.length - text.trimStart().length;
 }
 
 const TIME_UNITS: [seconds: number, name: string][] = [
@@ -179,18 +189,27 @@ export function codeLineRow(
   line: { line: number; text: string; hits: Hit[] },
   attributes: Record<string, AttributeValue> = {},
   replacements?: readonly string[],
+  indent?: number,
 ): HTMLDivElement {
   return element(
     "div",
     { ...attributes, class: "row line" },
     element("span", { class: "line-number" }, String(line.line)),
-    element("code", { class: "text" }, codeLineText(line, replacements)),
+    element("code", { class: "text" }, codeLineText(line, replacements, indent)),
   );
 }
 
-/** The text of codeLineRow: the line without its indent, marked or shown replaced. */
-export function codeLineText(line: { text: string; hits: Hit[] }, replacements?: readonly string[]): DocumentFragment {
-  const shown = trimIndent(line.text, line.hits);
+/**
+ * The text of codeLineRow, marked or shown replaced: the line without its
+ * indent, or without at most `indent` characters of it, so it keeps its
+ * place among the context lines around it.
+ */
+export function codeLineText(
+  line: { text: string; hits: Hit[] },
+  replacements?: readonly string[],
+  indent?: number,
+): DocumentFragment {
+  const shown = trimIndent(line.text, line.hits, indent);
   return highlight(shown.text, shown.hits, replacements?.slice(shown.dropped));
 }
 

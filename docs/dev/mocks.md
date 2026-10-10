@@ -43,3 +43,4 @@ covered.
 | 33 | Bare words find file names by their letters in order | `fuzzy-file-names` | `FuzzyNames` | 1.1 |
 | 34 | `type:added` finds the commits that added a line | `added-removed-lines` | `AddedLines` | 1.1 |
 | 35 | `kind:` keeps one kind of definition; `ref:` finds a name's uses | `symbol-kinds` | `SymbolKinds` | 1.1 |
+| 36 | Context lines: a few lines around each code match, merged when they touch | `context-lines` | `ContextLines` | 1.2 |

@@ -8,6 +8,7 @@ import {
   element,
   fileStat,
   highlight,
+  indentOf,
   plural,
   shortSha,
   termClass,
@@ -92,6 +93,22 @@ interface OpenCodeFile {
   /** The header's count, updated as the file's lines arrive. */
   countLabel: HTMLElement;
   lineCount: number;
+  /** The run of lines shown last, when results carry context lines. */
+  block?: CodeBlock;
+}
+
+/**
+ * A run of consecutive lines of one file: matches and the context lines
+ * around them. The next match in the file joins it when their lines touch
+ * or overlap, so no line is shown twice.
+ */
+interface CodeBlock {
+  /** The line of its last match. */
+  matchLine: number;
+  /** The context lines shown after that match, which the next match may take over. */
+  trailing: { line: number; row: HTMLElement }[];
+  /** How much indentation every line of the run drops, so they keep their places relative to each other. */
+  indent: number;
 }
 
 /**
@@ -115,6 +132,10 @@ export class ResultsView {
   private readonly repoIds = new Set<string>();
   /** Set while code lines of one file arrive in a row, so they share its header. */
   private openCodeFile: OpenCodeFile | undefined;
+  /** Whether code results carry context lines (the contextLines setting is above 0). */
+  private readonly withContext: boolean;
+  /** How much indentation each code result drops, when it sits among context lines. */
+  private readonly indentByRef = new Map<string, number>();
 
   /** Replaces `body` with an empty list and preview; `scope` is the query's path patterns (pathScope). */
   constructor(
@@ -145,6 +166,8 @@ export class ResultsView {
       this.notes,
       this.loadMore,
     );
+    this.withContext = state.ui.contextLines > 0;
+    this.list.classList.toggle("with-context", this.withContext);
     this.preview = element("div", { id: "preview", "data-testid": "preview", "aria-live": "polite" });
     body.replaceChildren(element("div", { class: "split" }, this.list, this.preview));
   }
@@ -185,7 +208,7 @@ export class ResultsView {
     for (const item of this.items) {
       if (item.kind !== "line") continue;
       const text = this.list.querySelector(`#${rowId(item.ref)} .text`);
-      text?.replaceChildren(codeLineText(item, this.handlers.replacementsFor(item)));
+      text?.replaceChildren(codeLineText(item, this.handlers.replacementsFor(item), this.indentByRef.get(item.ref)));
     }
   }
 
@@ -373,8 +396,52 @@ export class ResultsView {
     }
     this.openCodeFile.lineCount++;
     this.openCodeFile.countLabel.textContent = String(this.openCodeFile.lineCount);
-    group.append(codeLineRow(item, this.rowAttributes(item), this.handlers.replacementsFor(item)));
+    if (this.withContext) {
+      this.appendWithContext(group, item, this.openCodeFile);
+    } else {
+      group.append(codeLineRow(item, this.rowAttributes(item), this.handlers.replacementsFor(item)));
+    }
     return group;
+  }
+
+  /**
+   * Appends a code result with the dimmed lines around it. When the file's
+   * last run of lines reaches this match's context, the two join: lines
+   * already shown aren't repeated, and context the last match showed past
+   * this one makes way for it. Otherwise "⋯" marks the lines skipped.
+   */
+  private appendWithContext(group: HTMLElement, item: ItemOf<"line">, file: OpenCodeFile): void {
+    const before = item.contextBefore ?? [];
+    const after = item.contextAfter ?? [];
+    const firstLine = item.line - before.length;
+    let block = file.block && item.line > file.block.matchLine ? file.block : undefined;
+    let lastShown = 0;
+    if (block) {
+      for (const shown of block.trailing.filter((trailing) => trailing.line >= item.line)) shown.row.remove();
+      block.trailing = block.trailing.filter((trailing) => trailing.line < item.line);
+      lastShown = block.trailing.at(-1)?.line ?? block.matchLine;
+      if (Math.max(firstLine, lastShown + 1) > lastShown + 1) block = undefined;
+    }
+    if (file.block && !block) group.append(contextGap());
+    if (!block) {
+      lastShown = 0;
+      const lines = [...before, item.text, ...after].filter((text) => text.trim() !== "");
+      block = { matchLine: item.line, trailing: [], indent: Math.min(...lines.map((text) => indentOf(text))) };
+    }
+    const { indent } = block;
+    for (const [index, text] of before.entries()) {
+      const line = firstLine + index;
+      if (line > lastShown) group.append(contextRow(line, text, indent));
+    }
+    this.indentByRef.set(item.ref, indent);
+    group.append(codeLineRow(item, this.rowAttributes(item), this.handlers.replacementsFor(item), indent));
+    block.matchLine = item.line;
+    block.trailing = after.map((text, index) => {
+      const row = contextRow(item.line + 1 + index, text, indent);
+      group.append(row);
+      return { line: item.line + 1 + index, row };
+    });
+    file.block = block;
   }
 
   private renderSymbolRow(item: ItemOf<"symbol">): HTMLElement {
@@ -454,6 +521,29 @@ function rankBadge(reason: RankReason | undefined): HTMLElement | null {
   return reason
     ? element("span", { class: `badge rank-${reason}`, "data-testid": "rank-reason" }, RANK_BADGE[reason])
     : null;
+}
+
+/**
+ * A dimmed line around a code result, without the first `indent`
+ * characters of its indentation. It isn't a result: the arrow keys skip it,
+ * and screen readers read the match on its own.
+ */
+function contextRow(line: number, text: string, indent: number): HTMLElement {
+  return element(
+    "div",
+    { class: "context-line", "aria-hidden": "true", "data-testid": "context-line", "data-line": String(line) },
+    element("span", { class: "line-number" }, String(line)),
+    element("code", { class: "text" }, text.slice(Math.min(indentOf(text), indent))),
+  );
+}
+
+/** "⋯" between two runs of lines of one file, for the lines skipped. */
+function contextGap(): HTMLElement {
+  return element(
+    "div",
+    { class: "context-gap", "aria-hidden": "true", "data-testid": "context-gap" },
+    element("span", { class: "line-number" }, "⋯"),
+  );
 }
 
 /** " demoted" for a test, vendored or generated file, which reads dimmer; "" otherwise. */
