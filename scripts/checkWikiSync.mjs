@@ -6,8 +6,12 @@
 // the panel draws needs a built screenshot from docs/dev/proof/ in its section,
 // and its Built column must say so. Every image a page shows must be committed
 // under that exact name, since GitHub's paths are case-sensitive and the Mac's
-// aren't. It also fails while the wiki has uncommitted or unpushed changes,
-// which GitHub can't see.
+// aren't. A screen's section is the block from `<!-- screen:<id> -->` to
+// `<!-- /screen -->`, on whichever page documents that feature. Every wiki link
+// must reach a page (and heading) that exists, every page must be in the
+// sidebar, and the repo's links into the wiki must name real pages. It also
+// fails while the wiki has uncommitted or unpushed changes, which GitHub can't
+// see.
 //
 // The wiki is its own git repo, so this looks for a clone next to this one
 // (../<this folder>.wiki, e.g. ../spelunk.wiki) or at $SPELUNK_WIKI. Without a clone it
@@ -26,10 +30,15 @@ const wiki = process.env.SPELUNK_WIKI ?? join(root, "..", `${basename(root)}.wik
 const problems = [];
 /** Screens with no built screenshot: they're VS Code's own UI, which scripts/screenshotPanel.mjs can't draw. */
 const vsCodeUi = "VS Code's own UI";
+/** A screen's section: its mock, its built screenshot and what it shows. */
+const screenBlock = /<!-- screen:([\w-]+) -->\n([\s\S]*?)<!-- \/screen -->/g;
+/** Links into the wiki from anywhere: https://github.com/cruisinme30/spelunk/wiki/<page>#<anchor>. */
+const wikiUrl = /https:\/\/github\.com\/cruisinme30\/spelunk\/wiki\/([\w%.-]+)(?:#([\w%-]+))?/g;
 
 if (existsSync(join(wiki, "Screens.md"))) {
   checkScreens();
   checkImages();
+  checkLinks();
   checkWikiPushed();
   for (const problem of problems) console.log(`  ${problem}`);
   console.log(problems.length > 0 ? `${String(problems.length)} wiki problem(s)` : "Wiki matches the mocks.");
@@ -74,37 +83,158 @@ function checkScreens() {
 }
 
 /**
- * Checks each screen's built screenshot against its Built column, and that
- * every image the pages show is a committed file: images/ in the wiki, and
- * docs/dev/proof/ in this repo, which the pages load from GitHub.
+ * Checks each screen's block and built screenshot against its Screens row, and
+ * that every image the pages show is a committed file: images/ in the wiki,
+ * and docs/dev/proof/ in this repo, which the pages load from GitHub.
  */
 function checkImages() {
-  const sections = new Map();
   const wikiFiles = new Set(git("ls-files").split("\n"));
   const proofFiles = new Set(
     execFileSync("git", ["-C", root, "ls-files", "docs/dev/proof"], { encoding: "utf8" }).trim().split("\n"),
   );
-  for (const name of readdirSync(wiki).filter((file) => file.endsWith(".md"))) {
-    const text = readFileSync(join(wiki, name), "utf8");
-    for (const [, number, body] of text.matchAll(/^## (\d+) [^\n]*\n([\s\S]*?)(?=^## |(?![\s\S]))/gm))
-      sections.set(number, body);
+  for (const [page, text] of wikiPages()) {
     for (const [, path] of text.matchAll(/(?:src|href)="(images\/[^"]+)"|\]\((images\/[^)\s]+)\)/g)) {
-      if (path && !wikiFiles.has(path)) problems.push(`${name} shows ${path}, which isn't committed to the wiki`);
+      if (path && !wikiFiles.has(path)) problems.push(`${page}.md shows ${path}, which isn't committed to the wiki`);
     }
     for (const [path] of text.matchAll(/docs\/dev\/proof\/[\w.-]+/g)) {
-      if (!proofFiles.has(path)) problems.push(`${name} shows ${path}, which isn't committed to this repo`);
+      if (!proofFiles.has(path)) problems.push(`${page}.md shows ${path}, which isn't committed to this repo`);
     }
   }
-  for (const row of screenRows(readFileSync(join(wiki, "Screens.md"), "utf8"))) {
-    const id = row["Screen id"];
-    const built = /docs\/dev\/proof\//.test(sections.get(row["#"]) ?? "");
-    if (row.Built === vsCodeUi) {
-      if (built) problems.push(`${id}: Screens.md says ${vsCodeUi}, but its section has a built screenshot`);
-    } else if (!built) {
-      problems.push(`${id} has no built screenshot from docs/dev/proof/ (or mark it "${vsCodeUi}" in Screens.md)`);
-    } else if (!row.Built.includes("✓"))
-      problems.push(`${id} has a built screenshot, but Screens.md's Built column isn't ✓`);
+  const blocks = screenBlocks();
+  for (const row of screenRows(readFileSync(join(wiki, "Screens.md"), "utf8"))) checkScreenBlock(row, blocks);
+}
+
+/**
+ * Every screen block on the wiki, by screen id, with the page that shows it.
+ * @returns {Map<string, {page: string, body: string}>} The blocks.
+ */
+function screenBlocks() {
+  const blocks = new Map();
+  for (const [page, text] of wikiPages()) {
+    for (const [, id, body] of text.matchAll(screenBlock)) {
+      if (blocks.has(id)) problems.push(`${String(id)} has a screen block on ${blocks.get(id).page} and ${page}`);
+      else blocks.set(id, { page, body });
+    }
   }
+  return blocks;
+}
+
+/** Checks one Screens row against its screen's block: where it is, and whether it has a built screenshot. */
+function checkScreenBlock(row, blocks) {
+  const id = row["Screen id"];
+  const block = blocks.get(id);
+  if (!block) {
+    problems.push(`${id} has no <!-- screen:${id} --> … <!-- /screen --> block on a wiki page`);
+    return;
+  }
+  const target = /\]\(([\w-]+)(?:#[^)]*)?\)/.exec(row.Screen ?? "")?.[1];
+  if (target !== block.page) problems.push(`${id}: Screens.md links to ${String(target)}, but ${block.page} shows it`);
+  const built = /docs\/dev\/proof\//.test(block.body);
+  if (row.Built === vsCodeUi) {
+    if (built) problems.push(`${id}: Screens.md says ${vsCodeUi}, but its section has a built screenshot`);
+  } else if (!built) {
+    problems.push(`${id} has no built screenshot from docs/dev/proof/ (or mark it "${vsCodeUi}" in Screens.md)`);
+  } else if (!row.Built.includes("✓")) {
+    problems.push(`${id} has a built screenshot, but Screens.md's Built column isn't ✓`);
+  }
+}
+
+/**
+ * Checks that every link between wiki pages reaches a page, and a heading on
+ * it when it names one; that the sidebar lists every page; and that the
+ * repo's own docs link only to pages that exist.
+ */
+function checkLinks() {
+  const pages = wikiPages();
+  const anchors = new Map([...pages].map(([page, text]) => [page, headingAnchors(text)]));
+  /** Flags a link from `from` to `page#anchor` that goes nowhere. */
+  const check = (from, page, anchor) => {
+    const name = decodeURIComponent(page).replaceAll(" ", "-");
+    if (!anchors.has(name)) problems.push(`${from} links to a page ${page} that doesn't exist`);
+    else if (anchor && !anchors.get(name).has(decodeURIComponent(anchor).toLowerCase()))
+      problems.push(`${from} links to ${name}#${anchor}, which isn't a heading there`);
+  };
+  for (const [page, text] of pages) {
+    for (const [linked, anchor] of pageLinks(text)) check(page, linked || page, anchor);
+  }
+  const listed = new Set(pageLinks(pages.get("_Sidebar") ?? "").map(([linked]) => linked));
+  for (const page of pages.keys()) {
+    if (!page.startsWith("_") && page !== "Home" && !listed.has(page)) problems.push(`${page} isn't in _Sidebar.md`);
+  }
+  const repoDocuments = execFileSync("git", ["-C", root, "ls-files", "*.md"], { encoding: "utf8" }).trim().split("\n");
+  for (const document of repoDocuments.filter((path) => !path.startsWith("testdata/"))) {
+    for (const [, linked, anchor] of readFileSync(join(root, document), "utf8").matchAll(wikiUrl))
+      check(document, linked ?? "", anchor);
+  }
+}
+
+/**
+ * The wiki pages each link in a page goes to, as [page, anchor]: [[Page]] and
+ * [[Text|Page]], relative [text](Page#anchor) links (page "" is this page),
+ * and full wiki URLs. Code is skipped, and so are images and other sites.
+ * @param {string} text Markdown source.
+ * @returns {[string, string | undefined][]} The links.
+ */
+function pageLinks(text) {
+  const links = [];
+  const prose = withoutCode(text);
+  for (const [, inner] of prose.matchAll(/\[\[([^\]]+)\]\]/g)) {
+    const [page = "", anchor] = (inner?.split("|").at(-1) ?? "").trim().split("#");
+    links.push([page.replaceAll(" ", "-"), anchor]);
+  }
+  for (const [, target = ""] of prose.matchAll(/\]\(([^)\s]+)\)/g)) {
+    if (/^(?:[a-z]+:|images\/|\.\.?\/)/.test(target)) continue;
+    const [page = "", anchor] = target.split("#");
+    links.push([page, anchor]);
+  }
+  for (const [, page = "", anchor] of prose.matchAll(wikiUrl)) links.push([page, anchor]);
+  return links;
+}
+
+/**
+ * Each wiki page's name (its file without .md) and its text.
+ * @returns {Map<string, string>} The pages.
+ */
+function wikiPages() {
+  return new Map(
+    readdirSync(wiki)
+      .filter((file) => file.endsWith(".md"))
+      .map((file) => [file.slice(0, -3), readFileSync(join(wiki, file), "utf8")]),
+  );
+}
+
+/**
+ * The anchors GitHub gives a page's headings (lowercase, punctuation dropped,
+ * spaces as hyphens, a repeat numbered -1, -2, ...), plus any `id="..."`.
+ * @param {string} text Markdown source.
+ * @returns {Set<string>} The anchors.
+ */
+function headingAnchors(text) {
+  const found = new Set();
+  const plain = withoutFences(text);
+  for (const [, heading] of plain.matchAll(/^#{1,6} +(.+?) *#*$/gm)) {
+    const base = (heading ?? "")
+      .replaceAll(/\[([^\]]*)\]\([^)]*\)/g, "$1")
+      .replaceAll(/<[^>]+>/g, "")
+      .toLowerCase()
+      .replaceAll(/[^\p{L}\p{N}\s_-]/gu, "")
+      .replaceAll(" ", "-");
+    let anchor = base;
+    for (let n = 1; found.has(anchor); n++) anchor = `${base}-${String(n)}`;
+    found.add(anchor);
+  }
+  for (const [, id] of text.matchAll(/\b(?:id|name)="([\w-]+)"/g)) found.add((id ?? "").toLowerCase());
+  return found;
+}
+
+/** Markdown without fenced code blocks, whose text is never a heading. */
+function withoutFences(text) {
+  return text.replaceAll(/^```[\s\S]*?^```/gm, "");
+}
+
+/** Markdown without code, fenced or inline, whose text is never a link. */
+function withoutCode(text) {
+  return withoutFences(text).replaceAll(/`[^`\n]*`/g, "");
 }
 
 /** Flags wiki edits that GitHub can't see yet. */
