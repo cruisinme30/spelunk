@@ -159,6 +159,7 @@ async function connectPanel(page, host, daemon) {
     // A watch's pop-up is VS Code's own; the panel shows its count.
     showWatchMatch: async () => {},
     showQuery: () => {},
+    showError: (message) => console.error(message),
   };
   const openFiles = args.open.map((path) => join(args.workspace, path));
   // The extension's settings, minus the typing delay, so each keystroke searches at once.
@@ -170,6 +171,7 @@ async function connectPanel(page, host, daemon) {
       recentLimit: () => 20,
       pinnedQueries: () => host.pinnedQueries(configured),
       closeOnOpen: () => false,
+      previewContextLines: () => host.previewContextLines(configured),
       uiSettings: () => uiSettings,
       openFiles: () => openFiles,
       watchNotify: () => true,
@@ -254,7 +256,7 @@ async function loadHost() {
         'export { SearchController } from "./controller";',
         'export { Daemon } from "./daemon";',
         'export { makeRoot } from "./roots";',
-        'export { daemonSettings, pinnedQueries, uiSettings, watchedQueries } from "./settings";',
+        'export { daemonSettings, pinnedQueries, previewContextLines, uiSettings, watchedQueries } from "./settings";',
       ].join("\n"),
       resolveDir: join(repoRoot, "extension/src"),
       loader: "ts",
