@@ -122,6 +122,11 @@ type termFacts struct {
 	// multiline means the term is a regex with \n, matched against the
 	// whole text (see span.go).
 	multiline bool
+	// crossesLines means the regex can match a newline ([^;], \s, (?s).)
+	// though it isn't multiline. Searching the whole text with it would
+	// find matches that run from one line onto later ones, which no line
+	// has on its own, so it is never used to find candidate lines.
+	crossesLines bool
 	// literal finds where the term may match, when hasLiteral.
 	literal    literalFinder
 	hasLiteral bool
@@ -131,7 +136,7 @@ type termFacts struct {
 func (c termCache) facts(term *query.Content) *termFacts {
 	facts, ok := c[term]
 	if !ok {
-		facts = &termFacts{anchored: hasAnchors(term.Re), multiline: term.Multiline}
+		facts = &termFacts{anchored: hasAnchors(term.Re), multiline: term.Multiline, crossesLines: canMatchNewline(term.Re)}
 		facts.literal, facts.hasLiteral = newLiteralFinder(term)
 		c[term] = facts
 	}
@@ -156,6 +161,34 @@ func hasAnchors(re *regexp.Regexp) bool {
 			}
 		}
 		return false
+	}
+	return visit(parsed)
+}
+
+// canMatchNewline reports whether re can match a "\n": it has a dot that
+// matches one ((?s)), a class that takes one ([^;], \s, [\s\S]) or the
+// character itself.
+func canMatchNewline(re *regexp.Regexp) bool {
+	parsed, err := syntax.Parse(re.String(), syntax.Perl)
+	if err != nil {
+		return true
+	}
+	var visit func(*syntax.Regexp) bool
+	visit = func(r *syntax.Regexp) bool {
+		switch r.Op { //nolint:exhaustive // only the ops that match characters matter; every other op recurses below
+		case syntax.OpAnyChar:
+			return true
+		case syntax.OpLiteral:
+			return slices.Contains(r.Rune, '\n')
+		case syntax.OpCharClass:
+			for i := 0; i+1 < len(r.Rune); i += 2 {
+				if r.Rune[i] <= '\n' && '\n' <= r.Rune[i+1] {
+					return true
+				}
+			}
+			return false
+		}
+		return slices.ContainsFunc(r.Sub, visit)
 	}
 	return visit(parsed)
 }
@@ -203,10 +236,15 @@ func withoutDefinitions(found []matchedLine, term *query.Content, definitions []
 // scanForLines finds candidate lines by matching the whole file, then
 // matches each candidate line on its own. That skips the many lines with
 // no match, and it is sound for terms without anchors: a line that
-// matches on its own also matches the file at that line.
+// matches on its own also matches the file at that line. A regex that can
+// cross lines and has no literal to look for is matched a line at a time
+// instead (see finder).
 func (m *lineMatcher) scanForLines(term *query.Content) []matchedLine {
 	content := m.content
 	next := m.finder(term)
+	if next == nil {
+		return m.everyLine(term)
+	}
 	var found []matchedLine
 	// lineStart is the byte offset where line number begins. Each search
 	// resumes there, so the newlines between lineStart and a match are all
@@ -236,6 +274,10 @@ func (m *lineMatcher) scanForLines(term *query.Content) []matchedLine {
 // finder returns how to find the next position, at or after a line start,
 // where term may match: a fast literal search when that is sound, or the
 // regex itself. It also returns how many bytes the search read, at least.
+// It returns nil for a regex that can cross lines: its leftmost match from
+// a line start can begin there and run on to a far line, only to fail on
+// the line alone, and searching again from each next line made matching a
+// file quadratic in its lines ([^;]*zz over a file without semicolons).
 func (m *lineMatcher) finder(term *query.Content) func(from int) (at, read int) {
 	if facts := m.terms.facts(term); facts.hasLiteral && facts.literal.usableOn(m.content) {
 		return func(from int) (int, int) {
@@ -245,6 +287,9 @@ func (m *lineMatcher) finder(term *query.Content) func(from int) (at, read int) 
 			}
 			return at, at - from + len(facts.literal.needle)
 		}
+	}
+	if m.terms.facts(term).crossesLines {
+		return nil
 	}
 	return func(from int) (int, int) {
 		loc := term.Re.FindIndex(m.content[from:])
