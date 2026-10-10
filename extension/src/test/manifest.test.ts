@@ -14,6 +14,8 @@ interface Keybinding {
 
 interface Manifest {
   contributes: {
+    commands: { command: string }[];
+    menus: { commandPalette: { command: string; when?: string }[] };
     keybindings: Keybinding[];
     configuration: {
       title: string;
@@ -87,4 +89,14 @@ test("F4 and Shift+F4 step through Spelunk's results except where VS Code's own 
       "focusedView != 'references-view.tree'", // the References view
     ]);
   }
+});
+
+test("the Command Palette lists Next and Previous Result only while there are results to step through", () => {
+  const palette = new Map(manifest.contributes.menus.commandPalette.map((entry) => [entry.command, entry.when]));
+  assert.deepEqual(Object.fromEntries(palette), {
+    "spelunk.nextResult": "spelunk.hasResults",
+    "spelunk.prevResult": "spelunk.hasResults",
+  });
+  const declared = new Set(manifest.contributes.commands.map((entry) => entry.command));
+  for (const command of palette.keys()) assert.ok(declared.has(command), `${command} is a declared command`);
 });

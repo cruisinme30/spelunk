@@ -84,6 +84,18 @@
         "title": "Spelunk: Show Welcome"
       }
     ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "spelunk.nextResult",
+          "when": "spelunk.hasResults"
+        },
+        {
+          "command": "spelunk.prevResult",
+          "when": "spelunk.hasResults"
+        }
+      ]
+    },
     "keybindings": [
       {
         "command": "spelunk.open",
