@@ -569,6 +569,7 @@ export class SearchPanel {
     state.done = undefined;
     state.searchedAt = hasErrors(state) ? undefined : state.parsed?.globals.at;
     state.newCommits = new Set();
+    state.expandedFacets.clear(); // +N shows every bucket of this search only
     state.selectedRef = "";
     state.preview = undefined;
     this.layout.input.removeAttribute("aria-activedescendant"); // the old results' rows go

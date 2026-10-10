@@ -73,7 +73,7 @@ export interface ViewState {
   recentWidth: number | undefined;
   /** Each facet bucket seen, by filter, so a bucket the query leaves out (and so finds nothing) still shows. */
   facetLabels: Map<string, { field: Facet["field"]; label: string }>;
-  /** The facets whose "+N" showed every bucket. */
+  /** The facets whose "+N" showed every bucket, until the next search. */
   expandedFacets: Set<Facet["field"]>;
 }
 

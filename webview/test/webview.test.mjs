@@ -842,12 +842,24 @@ test("the facet row counts the results, and a click keeps a bucket or Alt-click 
   assert.ok(bucket.height < 30, `a bucket is a small pill, not ${String(bucket.height)}px tall`);
   await page.click('[data-testid="facets"] [data-field="folder"] [data-testid="facet-more"]');
   assert.ok((await facetRow(page)).folder.includes("vendor/1"), "+3 shows every bucket sent");
-
+  await searchDone(page, seq, { total: 7, facets: FACETS }); // Load more's page of the same search
+  assert.ok((await facetRow(page)).folder.includes("vendor/1"), "still every bucket");
   await page.click('[data-filter="repo:payments-api"]');
   assert.equal(await page.inputValue(QUERY), "retry_policy repo:payments-api");
   await page.fill(QUERY, "retry_policy");
   await page.click('[data-filter="repo:shared-libs"]', { modifiers: ["Alt"] });
-  assert.equal(await page.inputValue(QUERY), "retry_policy -repo:shared-libs");
+  assert.equal(await page.inputValue(QUERY), "retry_policy -repo:shared-libs"); // The next search shows five buckets again.
+  const next = await typeAndParse(page, "retry", parsedQuery("retry", textNode("retry", 0)));
+  await fromHost(page, "search.done", {
+    seq: next,
+    searchId: "s2",
+    total: 7,
+    truncated: false,
+    hidden: [],
+    ms: 1,
+    facets: FACETS,
+  });
+  assert.equal((await facetRow(page)).folder.at(-1), "+3");
 });
 
 test("a left-out bucket stays in the facet row, struck through, and a click brings it back", async (t) => {

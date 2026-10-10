@@ -93,6 +93,7 @@ All notable changes to this project are documented here. The format follows
   panel shows once above the file’s lines.
 - Typing `?` while an operator’s values were suggested opened Help and dropped the character, so `f:*.ts?` couldn’t be
   typed; `?` now opens Help only while operators are suggested, and among values it is typed.
+- A facet’s **+N**, once clicked, stayed open for every later search; it now shows every bucket of that search only.
 
 ## [1.1.0] - 2026-10-05
 
