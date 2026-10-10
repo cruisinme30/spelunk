@@ -151,6 +151,37 @@ func TestReadTextReportsWhyAFileIsNotRead(t *testing.T) {
 	}
 }
 
+// readTextIn is readText under a root that no symbolic link leads out of:
+// a folder on the way that became a link to elsewhere after the path was
+// checked reads nothing there, and a link at the end is refused even when
+// it stays inside the root.
+func TestReadTextInNeverLeavesTheRoot(t *testing.T) {
+	root := testutil.WriteTree(t, map[string]string{"src/a.txt": "alpha\n", "big.txt": strings.Repeat("x", 100)})
+	outside := testutil.WriteTree(t, map[string]string{"src/a.txt": "secret\n"})
+	if err := os.Symlink(filepath.Join(outside, "src"), filepath.Join(root, "swapped")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink("big.txt", filepath.Join(root, "link")); err != nil {
+		t.Fatal(err)
+	}
+	if text, _, err := readTextIn(root, "src/a.txt", 50); err != nil || string(text) != "alpha\n" {
+		t.Errorf("readTextIn(src/a.txt) = %q, %v; want alpha", text, err)
+	}
+	for _, tt := range []struct {
+		path string
+		want error
+	}{{"big.txt", errTooBig}, {"link", errNotRegular}, {"src", errNotRegular}} {
+		if _, _, err := readTextIn(root, tt.path, 50); !errors.Is(err, tt.want) {
+			t.Errorf("readTextIn(%s) error = %v, want %v", tt.path, err, tt.want)
+		}
+	}
+	for _, path := range []string{"swapped/a.txt", "../" + filepath.Base(outside) + "/src/a.txt"} {
+		if text, _, err := readTextIn(root, path, 50); err == nil {
+			t.Errorf("readTextIn(%s) read %q from outside the root", path, text)
+		}
+	}
+}
+
 func TestEncodingsAndLineEndsMatchTheEditor(t *testing.T) {
 	// Each file's "needle" is on line 2 at UTF-16 column 4 as VS Code shows
 	// the file: after a hidden BOM, in UTF-16 text, or after a lone CR.

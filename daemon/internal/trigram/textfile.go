@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"os"
+	"path/filepath"
 	"unicode/utf16"
 	"unicode/utf8"
 )
@@ -46,17 +47,66 @@ func isSymlinkRefusal(path string) bool {
 	return err == nil && info.Mode()&os.ModeSymlink != 0
 }
 
-// readText reads a regular file's text as searches and previews see it
-// (see decodeText). maxBytes, when positive, bounds what is read: a file
-// that is bigger now than when it was listed fails with errTooBig rather
-// than filling memory, and binary content (it may have changed since it
-// was listed) fails with errBinary.
+// openRegularIn opens rel, a slash-separated path under root, as
+// openRegular opens a path, through an os.Root: no symbolic link leads it
+// outside root, even one that replaced a folder on the way after rel was
+// checked. A link that stays inside root is still refused at the end of
+// the path, as openRegular refuses it.
+func openRegularIn(root, rel string) (*os.File, os.FileInfo, error) {
+	dir, err := os.OpenRoot(root)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer closeRoot(dir)
+	name := filepath.FromSlash(rel)
+	f, err := dir.OpenFile(name, os.O_RDONLY|openFlags, 0)
+	if err != nil {
+		return nil, nil, err
+	}
+	info, err := f.Stat()
+	if err != nil {
+		closeReadOnly(f)
+		return nil, nil, err
+	}
+	// The root follows a link that stays inside it; what the path names
+	// must be the file that was opened, not a link to it.
+	if named, err := dir.Lstat(name); err != nil || !info.Mode().IsRegular() || !os.SameFile(info, named) {
+		closeReadOnly(f)
+		return nil, nil, errNotRegular
+	}
+	return f, info, nil
+}
+
+// closeRoot closes a root that was only read from.
+func closeRoot(root *os.Root) { _ = root.Close() }
+
+// readText reads the regular file at path as searches and previews see it
+// (see readOpened).
 func readText(path string, maxBytes int64) ([]byte, os.FileInfo, error) {
 	f, info, err := openRegular(path)
 	if err != nil {
 		return nil, nil, err
 	}
 	defer closeReadOnly(f)
+	return readOpened(f, info, maxBytes)
+}
+
+// readTextIn is readText of rel under root, opened by openRegularIn.
+func readTextIn(root, rel string, maxBytes int64) ([]byte, os.FileInfo, error) {
+	f, info, err := openRegularIn(root, rel)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer closeReadOnly(f)
+	return readOpened(f, info, maxBytes)
+}
+
+// readOpened reads an opened regular file's text as searches and previews
+// see it (see decodeText). maxBytes, when positive, bounds what is read: a
+// file that is bigger now than when it was listed fails with errTooBig
+// rather than filling memory, and binary content (it may have changed
+// since it was listed) fails with errBinary.
+func readOpened(f *os.File, info os.FileInfo, maxBytes int64) ([]byte, os.FileInfo, error) {
 	var r io.Reader = f
 	if maxBytes > 0 {
 		r = io.LimitReader(f, maxBytes+1)

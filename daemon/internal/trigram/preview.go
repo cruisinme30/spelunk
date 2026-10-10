@@ -28,9 +28,10 @@ const maxPreviewSpanLines = 200
 // match that spans lines is shown whole (up to maxPreviewSpanLines more
 // lines), with the lines around it. A file that is gone, is no longer a
 // regular text file, or has grown past maxBytes (the index's size limit;
-// 0 for none) since it was indexed is ErrStale.
+// 0 for none) since it was indexed is ErrStale, and so is a path that a
+// symbolic link leads out of the repo's folder.
 func Preview(repo *Repo, ref Ref, plan *query.Plan, contextLines int, maxBytes int64) (protocol.Preview, error) {
-	content, info, err := readText(filepath.Join(repo.Root, filepath.FromSlash(ref.Path)), maxBytes)
+	content, info, err := readTextIn(repo.Root, ref.Path, maxBytes)
 	if err != nil {
 		return protocol.Preview{}, ErrStale
 	}
