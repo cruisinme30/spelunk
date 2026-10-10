@@ -89,3 +89,18 @@ func TestIsGeneratedAndIsVendoredFilterFiles(t *testing.T) {
 		}
 	}
 }
+
+func TestIsGeneratedAndIsVendoredSayWhatTheyLeftOut(t *testing.T) {
+	// @covers screen:generated-vendored
+	_, stats := run(t, "content:RetryPolicy -is:generated -is:vendored", ownedAndOthersRepo)
+	got := map[string]int{}
+	for _, note := range stats.Hidden {
+		got[note.Filter] = note.Count
+		if note.Undo.Title != "Remove "+note.Filter {
+			t.Errorf("undo = %q, want Remove %s", note.Undo.Title, note.Filter)
+		}
+	}
+	if want := map[string]int{"-is:generated": 3, "-is:vendored": 2}; !reflect.DeepEqual(got, want) {
+		t.Errorf("hidden = %v, want %v: each filter credited with the matches only it left out", got, want)
+	}
+}
