@@ -294,3 +294,31 @@ func TestAtSuggestsTheOpenReposTags(t *testing.T) {
 		t.Errorf("at:v suggests %q, want v1.1.0 first, then v1.0.0 and v0.9.0", labels)
 	}
 }
+
+// Today's CODEOWNERS file can't speak for a past revision's files: results
+// at a revision and their previews name no owners.
+func TestAtResultsNameNoOwners(t *testing.T) {
+	// @covers op:at
+	root, _ := revisionRepo(t)
+	testutil.WriteFiles(t, root, map[string]string{".github/CODEOWNERS": "* @acme/payments-core\n"})
+	client := newTestClient(t)
+	batches := collectBatches(client)
+	client.mustInitialize(t, protocol.Root{ID: "r1", Path: root, Name: "payments-api"})
+	_, now := searchAt(t, client, batches, "now", "parse_retry_after")
+	if len(now) != 1 || len(now[0].Owners) != 1 {
+		t.Fatalf("current results = %+v, want client.py owned by the team", now)
+	}
+	_, items := searchAt(t, client, batches, "s1", "at:v1.0.0 parse_retry_after")
+	for _, item := range items {
+		if item.Owners != nil {
+			t.Errorf("%s at v1.0.0 names owners %v", item.Path, item.Owners)
+		}
+		var preview protocol.Preview
+		if err := client.call(protocol.MethodPreviewGet, protocol.PreviewParams{Ref: item.Ref, ContextLines: 1}, &preview); err != nil {
+			t.Fatal(err)
+		}
+		if preview.Ownership != nil {
+			t.Errorf("the preview of %s at v1.0.0 names owners %+v", item.Path, preview.Ownership)
+		}
+	}
+}

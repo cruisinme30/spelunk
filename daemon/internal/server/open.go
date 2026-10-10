@@ -129,7 +129,12 @@ func (s *Server) repoForRef(text string) (*trigram.Repo, trigram.Ref, error) {
 				return nil, trigram.Ref{}, err
 			}
 		}
-		return &trigram.Repo{ID: root.ID, Name: root.Name, Root: root.Path, Owners: s.codeOwners(root.ID)}, ref, nil
+		repo := &trigram.Repo{ID: root.ID, Name: root.Name, Root: root.Path}
+		// Today's CODEOWNERS file can't speak for a past revision's files.
+		if ref.Revision == "" {
+			repo.Owners = s.codeOwners(root.ID)
+		}
+		return repo, ref, nil
 	}
 	return nil, trigram.Ref{}, rpc.Errorf(protocol.CodeRefStale, "repo no longer open")
 }
