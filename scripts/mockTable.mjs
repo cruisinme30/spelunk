@@ -1,6 +1,6 @@
 // Reads the mock tables: docs/dev/mocks.md lists every screen of the panel
-// once, and the wiki's Screens page lists the same screens grouped as on the
-// design canvas. Both are Markdown tables with a "Screen id" column.
+// once, and the wiki's Screens page lists the same screens grouped by the wiki
+// page that shows each one. Both are Markdown tables with a "Screen id" column.
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 

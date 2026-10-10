@@ -168,16 +168,18 @@ work, whichever side it starts from:
 
 | When this changes | Also update |
 | --- | --- |
-| Behaviour, architecture, protocol, an invariant, an operator, a setting or a command | The wiki page that describes it, and the plan in `docs/dev/` if it changes what's planned |
+| Behaviour, architecture, protocol, an invariant, an operator, a diagnostic, a setting or a command | The wiki page that describes it (an operator's card on its reference page and its row on Query Language, a diagnostic's entry on the Error Index, a setting or command on Settings and Commands), and the plan in `docs/dev/` if it changes what's planned |
 | A wiki page | The code (and its tests) to match, or mark the page's text as planned |
 | What a screen looks like | Its mock on the design canvas, the wiki's `images/mocks/` export and `docs/dev/proof/` screenshot |
-| A mock, or a screen added or removed | The code and its `@covers screen:` tests, the `docs/dev/mocks.md` row and the wiki's Screens pages |
+| A mock, or a screen added or removed | The code and its `@covers screen:` tests, the `docs/dev/mocks.md` row, the screen's block on the wiki page that documents it, and its row on the wiki's Screens page |
 
 The wiki is its own repo (`spelunk.wiki.git`); commit and push its change alongside the code's. The presubmit
 runs `scripts/checkWikiSync.mjs`, which fails when a clone next to this one disagrees with `docs/dev/mocks.md` (screen
-numbers, ids, milestones, sections, images, canvas link), when a screen the panel draws has no `docs/dev/proof/`
-screenshot on its wiki section, when a page shows an image that isn't committed under that exact name, or when the
-wiki has changes that aren't pushed. `specCoverage.mjs` reads the screen ids from `docs/dev/mocks.md`, so a new
+numbers, ids, milestones, screen blocks, images, canvas link), when a screen the panel draws has no `docs/dev/proof/`
+screenshot in its `<!-- screen:<id> -->` block, when a page shows an image that isn't committed under that exact
+name, when a wiki link goes to a page or heading that doesn't exist or a page is missing from the sidebar, when an
+operator, diagnostic code, setting or command the code defines isn't on its wiki page, or when the wiki has changes
+that aren't pushed. `specCoverage.mjs` reads the screen ids from `docs/dev/mocks.md`, so a new
 mock needs a test.
 
 ## Docs

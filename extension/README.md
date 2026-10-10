@@ -89,5 +89,5 @@ responding, run **Spelunk: Restart Search**; **Spelunk: Rebuild Index** rebuilds
 ## More
 
 The [user guide](https://github.com/cruisinme30/spelunk/wiki/Getting-Started) covers every operator, key and
-setting, and [how searches behave](https://github.com/cruisinme30/spelunk/wiki/How-Searches-Behave) explains
+setting, and [Troubleshooting](https://github.com/cruisinme30/spelunk/wiki/Troubleshooting) explains
 errors, empty results, indexing, folders without Git and crashes.

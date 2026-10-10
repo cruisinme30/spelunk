@@ -16,7 +16,8 @@ extension (Spelunk: Open Help) is the query-language reference.
 
 ## For contributors
 
-- [Wiki](https://github.com/cruisinme30/spelunk/wiki): the code map, the rules that always hold, and the design mocks.
+- [Wiki](https://github.com/cruisinme30/spelunk/wiki): the user guide and query reference, the code map, the rules that
+  always hold, and the design mocks.
 - [CONTRIBUTING.md](../CONTRIBUTING.md): setup, commit and code conventions, tests.
 - [dev/implementation-plan.md](dev/implementation-plan.md): the original build plan: scope, interfaces between the
   parts, indexing, performance budgets, the order of work and risks.

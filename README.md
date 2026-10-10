@@ -55,9 +55,10 @@ removed `timeout` or `retry`. Drop `author:` and the same box searches current f
 
 The [wiki](https://github.com/cruisinme30/spelunk/wiki) has the user guide:
 [Getting Started](https://github.com/cruisinme30/spelunk/wiki/Getting-Started),
-[Query Language](https://github.com/cruisinme30/spelunk/wiki/Query-Language),
+[Recipes](https://github.com/cruisinme30/spelunk/wiki/Recipes),
+[Query Language](https://github.com/cruisinme30/spelunk/wiki/Query-Language) (every operator, each linked to its card),
 [Using the Panel](https://github.com/cruisinme30/spelunk/wiki/Using-the-Panel),
-[How Searches Behave](https://github.com/cruisinme30/spelunk/wiki/How-Searches-Behave) and
+[Troubleshooting](https://github.com/cruisinme30/spelunk/wiki/Troubleshooting) and
 [Settings and Commands](https://github.com/cruisinme30/spelunk/wiki/Settings-and-Commands). It also explains
 how the pieces fit together, with diagrams and every design mock.
 

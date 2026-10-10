@@ -1,6 +1,6 @@
 # Working notes for Claude
 
-Read the [wiki](https://github.com/cruisinme30/spelunk/wiki) (code map, invariants and mocks; clone
+Read the [wiki](https://github.com/cruisinme30/spelunk/wiki) (user guide, query reference, code map, rules and mocks; clone
 `spelunk.wiki.git` to read it locally) and [CONTRIBUTING.md](CONTRIBUTING.md) (conventions) first.
 They're the source of truth; this file only adds what an agent needs on top.
 
