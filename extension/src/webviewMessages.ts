@@ -62,6 +62,7 @@ const PAYLOAD_CHECKS: { [K in keyof WebviewToHost]: PayloadCheck<K> } = {
     return name === undefined ? { query } : { query, name };
   },
   "pinned.remove": ({ query }) => (isString(query) ? { query } : undefined),
+  "pinned.watch": ({ query, watch }) => (isString(query) && typeof watch === "boolean" ? { query, watch } : undefined),
   "context.set": ({ lines }) => (isCount(lines) && lines <= MAX_CONTEXT_LINES ? { lines } : undefined),
   "replace.preview": ({ seq, text, replacement }) =>
     isCount(seq) && isString(text) && isString(replacement) ? { seq, text, replacement } : undefined,

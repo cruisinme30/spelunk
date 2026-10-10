@@ -9,6 +9,8 @@ import {
   pinnedQueries,
   recentQueriesLimit,
   uiSettings,
+  watchedQueries,
+  watchNotify,
   welcomeSettings,
   type ConfigReader,
 } from "../settings";
@@ -181,4 +183,31 @@ test("pinned queries keep their order, drop bad entries and blank names, and kee
   ]);
   assert.deepEqual(pinnedQueries(configWith({ "ui.pinnedQueries": "nope" })), []);
   assert.deepEqual(pinnedQueries(configWith({})), []);
+});
+
+test("a pinned query is watched only with watch: true, and the watched ones go to the daemon", () => {
+  // @covers screen:query-watches
+  const config = configWith({
+    "ui.pinnedQueries": [
+      { query: "msg:revert f:payments/", name: "Payments reverts", watch: true },
+      { query: "author:jason", watch: "yes" },
+      { query: "sym:RetryPolicy", watch: false },
+      { query: " type:commit timeout ", watch: true },
+    ],
+  });
+  assert.deepEqual(pinnedQueries(config), [
+    { query: "msg:revert f:payments/", name: "Payments reverts", watch: true },
+    { query: "author:jason" },
+    { query: "sym:RetryPolicy" },
+    { query: "type:commit timeout", watch: true },
+  ]);
+  assert.deepEqual(watchedQueries(config), ["msg:revert f:payments/", "type:commit timeout"]);
+  assert.deepEqual(watchedQueries(configWith({})), []);
+});
+
+test("watch.notify pops up a watch's new commits unless it is off", () => {
+  // @covers setting:watch.notify
+  assert.equal(watchNotify(configWith({})), true, "on by default");
+  assert.equal(watchNotify(configWith({ "watch.notify": false })), false);
+  assert.equal(watchNotify(configWith({ "watch.notify": "no" })), true, "not a boolean: the default");
 });

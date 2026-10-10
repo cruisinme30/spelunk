@@ -2,6 +2,7 @@
 // the others use a scripted backend to pin down ordering rules.
 // @covers msg:query.changed msg:parse.result msg:search.batch msg:search.done msg:result.select msg:preview.result msg:result.open
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -11,6 +12,7 @@ import {
   type ControllerOptions,
   type PersistedState,
   SearchController,
+  type STOP_WATCHING,
   textWithoutCompletedWord,
   type Ui,
 } from "../controller";
@@ -27,13 +29,14 @@ import type {
   RpcRequests,
   SearchResult,
   UiSettings,
+  WatchMatchedParams,
 } from "../protocol.gen";
 import { RpcError } from "../jsonRpc";
 import { ErrorCodes } from "../protocol.gen";
 import { makeRoot } from "../roots";
 import type { DocumentLines } from "../replaceEdits";
 import { MESSAGE_VERSION, parseWebviewMessage, type WebviewMessage } from "../webviewMessages";
-import { newTestDaemon, SKIP_WITHOUT_DAEMON as skip, untilIndexed } from "./realDaemon";
+import { newTestDaemon, SKIP_WITHOUT_DAEMON as skip, untilIndexed, waitFor } from "./realDaemon";
 
 const TEST_UI_SETTINGS: UiSettings = {
   typingDelayMs: 0,
@@ -81,6 +84,8 @@ function recordingUi() {
     readDocument: () => Promise.resolve(undefined as DocumentLines | undefined),
     applyEdits: () => Promise.resolve(true),
     saveFiles: () => {},
+    showWatchMatch: () => Promise.resolve(undefined as typeof STOP_WATCHING | undefined),
+    showQuery: () => {},
   };
   /** The payloads of every posted message of `type`, oldest first. */
   const payloads = <T extends keyof HostToWebview>(type: T) =>
@@ -95,6 +100,7 @@ function newController(backend: Backend, ui: Ui, options: Partial<ControllerOpti
     closeOnOpen: () => true,
     uiSettings: () => TEST_UI_SETTINGS,
     openFiles: () => [],
+    watchNotify: () => true,
   };
   return new SearchController(backend, ui, { ...defaults, ...options }, initial);
 }
@@ -543,6 +549,9 @@ test("malformed panel messages are dropped at the boundary, and well-formed ones
     { v: MESSAGE_VERSION, type: "pinned.save", payload: { name: "x" } },
     { v: MESSAGE_VERSION, type: "pinned.save", payload: { query: "x", name: 5 } },
     { v: MESSAGE_VERSION, type: "pinned.remove", payload: { query: null } },
+    { v: MESSAGE_VERSION, type: "pinned.watch", payload: { query: "msg:revert" } },
+    { v: MESSAGE_VERSION, type: "pinned.watch", payload: { query: "msg:revert", watch: "yes" } },
+    { v: MESSAGE_VERSION, type: "pinned.watch", payload: { query: 3, watch: true } },
     { v: MESSAGE_VERSION, type: "context.set", payload: {} },
     { v: MESSAGE_VERSION, type: "context.set", payload: { lines: 4 } },
     { v: MESSAGE_VERSION, type: "context.set", payload: { lines: -1 } },
@@ -715,4 +724,244 @@ test("a pasted query too long for the recent list is searched but not remembered
   kept.rememberQuery();
   kept.restore();
   assert.deepEqual(host.payloads("state.restore").at(-1)?.recent, ["short"]);
+});
+
+/**
+ * A backend for watch tests: query/parse reads texts starting msg: or author:
+ * as history queries, search/start finds nothing, and `fire` plays a
+ * watch/matched announcement.
+ */
+function watchBackend() {
+  const searched: string[] = [];
+  const { backend, listeners } = scriptedBackend((method, { text }) => {
+    if (method === "search/start") {
+      searched.push(text);
+      return NO_RESULTS;
+    }
+    const history = /^(msg|author):/.test(text);
+    return { query: { ...parsedQuery(text, true), mode: history ? "history" : "workingTree" }, completions: [] };
+  });
+  const fire = async (match: WatchMatchedParams) => {
+    listeners.get("watch")?.(match);
+    await nextTurn();
+    await nextTurn();
+  };
+  return { backend, fire, searched };
+}
+
+/** An announcement of commits b2 and a1 (newest first) for msg:revert in payments-api. */
+const REVERTS: WatchMatchedParams = {
+  query: "msg:revert",
+  repoId: "r1",
+  repoName: "payments-api",
+  total: 2,
+  commits: [
+    { sha: "b2", subject: "Revert ledger batching", author: "Jason Kim" },
+    { sha: "a1", subject: "Revert refunds retry", author: "Marta Ruiz" },
+  ],
+};
+
+test("a watch's new commits count on its pin, pop up, and are marked New when its query runs", async () => {
+  // @covers screen:query-watches msg:watch.state
+  const host = recordingUi();
+  const popups: string[] = [];
+  const ui: Ui = {
+    ...host.ui,
+    showWatchMatch: (message) => (popups.push(message), Promise.resolve(undefined as typeof STOP_WATCHING | undefined)),
+  };
+  const pinned: PinnedQuery[] = [
+    { query: "msg:revert", name: "Payments reverts", watch: true },
+    { query: "sym:RetryPolicy" },
+  ];
+  const { backend, fire } = watchBackend();
+  const controller = newController(backend, ui, { pinnedQueries: () => structuredClone(pinned) });
+  controller.restore();
+  await nextTurn();
+  assert.deepEqual(host.payloads("watch.state").at(-1), { watchable: ["msg:revert"], unseen: [] });
+
+  await fire(REVERTS);
+  assert.deepEqual(popups, [
+    "2 new commits match “Payments reverts” in payments-api: “Revert ledger batching” and 1 more.",
+  ]);
+  assert.deepEqual(host.payloads("watch.state").at(-1)?.unseen, [
+    { query: "msg:revert", count: 2, shas: ["b2", "a1"] },
+  ]);
+
+  await controller.handle(queryChanged("msg:revert", 1));
+  assert.deepEqual(host.payloads("search.done").at(-1)?.newCommits, ["b2", "a1"], "the results mark them New");
+  await nextTurn();
+  assert.deepEqual(host.payloads("watch.state").at(-1)?.unseen, [], "running the query clears the count");
+
+  await controller.handle(queryChanged("msg:revert", 2));
+  assert.equal(host.payloads("search.done").at(-1)?.newCommits, undefined, "seen now");
+});
+
+test("Load more keeps marking the new commits; another query never takes them", async () => {
+  // @covers screen:query-watches
+  const host = recordingUi();
+  const { backend, fire } = watchBackend();
+  const pinned = [{ query: "msg:revert", watch: true }];
+  const controller = newController(backend, host.ui, { pinnedQueries: () => structuredClone(pinned) });
+  await fire(REVERTS);
+  await controller.handle(queryChanged("msg:revert author:jason", 1));
+  assert.equal(host.payloads("search.done").at(-1)?.newCommits, undefined, "a different query");
+  await controller.handle(queryChanged("msg:revert", 2));
+  const done = host.payloads("search.done").at(-1);
+  assert.ok(done);
+  assert.deepEqual(done.newCommits, ["b2", "a1"]);
+  await controller.handle({
+    v: MESSAGE_VERSION,
+    type: "results.more",
+    payload: { searchId: done.searchId, cursor: "500" },
+  });
+  assert.deepEqual(host.payloads("search.done").at(-1)?.newCommits, ["b2", "a1"], "the next page is marked too");
+});
+
+test("Show opens the watched query, and Stop watching unwatches it and forgets what it found", async () => {
+  // @covers screen:query-watches
+  let pinned: PinnedQuery[] = [{ query: "msg:revert", name: "Payments reverts", watch: true }];
+  const host = recordingUi();
+  const shown: string[] = [];
+  let answer: "Show" | "Stop watching" = "Show";
+  const ui: Ui = {
+    ...host.ui,
+    showWatchMatch: () => Promise.resolve(answer),
+    showQuery: (query) => void shown.push(query),
+    savePinned: (list) => void (pinned = list),
+  };
+  const { backend, fire } = watchBackend();
+  const controller = newController(backend, ui, { pinnedQueries: () => structuredClone(pinned) });
+  await fire(REVERTS);
+  assert.deepEqual(shown, ["msg:revert"]);
+
+  answer = "Stop watching";
+  await fire({ ...REVERTS, commits: [{ sha: "c3", subject: "Revert again", author: "Jane Doe" }], total: 1 });
+  assert.deepEqual(pinned, [{ query: "msg:revert", name: "Payments reverts" }], "unwatched, name kept");
+  controller.restore();
+  await nextTurn();
+  assert.deepEqual(host.payloads("watch.state").at(-1)?.unseen, [], "what it found is forgotten");
+});
+
+test("an announcement for a query no longer watched is ignored, and watch.notify off only counts", async () => {
+  // @covers screen:query-watches setting:watch.notify
+  const host = recordingUi();
+  const popups: string[] = [];
+  const ui: Ui = {
+    ...host.ui,
+    showWatchMatch: (message) => (popups.push(message), Promise.resolve(undefined as typeof STOP_WATCHING | undefined)),
+  };
+  const { backend, fire } = watchBackend();
+  let pinned: PinnedQuery[] = [{ query: "msg:revert" }];
+  const controller = newController(backend, ui, {
+    pinnedQueries: () => structuredClone(pinned),
+    watchNotify: () => false,
+  });
+  await fire(REVERTS);
+  assert.deepEqual(host.payloads("watch.state"), [], "not watched: nothing recorded");
+  pinned = [{ query: "msg:revert", watch: true }];
+  await fire(REVERTS);
+  assert.deepEqual(popups, [], "no pop-up with watch.notify off");
+  assert.deepEqual(host.payloads("watch.state").at(-1)?.unseen, [
+    { query: "msg:revert", count: 2, shas: ["b2", "a1"] },
+  ]);
+  await fire(REVERTS);
+  assert.equal(
+    host.payloads("watch.state").at(-1)?.unseen[0]?.count,
+    2,
+    "the same commits again are not counted twice",
+  );
+  controller.restore();
+});
+
+test("only a pinned query that searches history can be watched, and renaming keeps its watch", async () => {
+  // @covers msg:pinned.watch screen:query-watches
+  let pinned: PinnedQuery[] = [{ query: "sym:RetryPolicy" }, { query: "msg:revert" }];
+  const saves: PinnedQuery[][] = [];
+  const host = recordingUi();
+  const ui: Ui = { ...host.ui, savePinned: (list) => void (saves.push(list), (pinned = list)) };
+  const { backend } = watchBackend();
+  const controller = newController(backend, ui, { pinnedQueries: () => structuredClone(pinned) });
+  const watch = (query: string, on: boolean) =>
+    controller.handle({ v: MESSAGE_VERSION, type: "pinned.watch", payload: { query, watch: on } });
+
+  await watch("sym:RetryPolicy", true);
+  await watch("not pinned", true);
+  assert.equal(saves.length, 0, "a query over current files, or one not pinned, can't be watched");
+  await watch("msg:revert", true);
+  assert.deepEqual(pinned[1], { query: "msg:revert", watch: true });
+  await watch("msg:revert", true);
+  assert.equal(saves.length, 1, "already watched: nothing saved");
+  await controller.handle({
+    v: MESSAGE_VERSION,
+    type: "pinned.save",
+    payload: { query: "msg:revert", name: "Reverts" },
+  });
+  assert.deepEqual(pinned[1], { query: "msg:revert", name: "Reverts", watch: true }, "renaming keeps the watch");
+  await watch("msg:revert", false);
+  assert.deepEqual(pinned[1], { query: "msg:revert", name: "Reverts" });
+});
+
+test("a watched query announces new commits through the real daemon", { skip }, async () => {
+  // @covers screen:query-watches
+  const root = mkdtempSync(join(tmpdir(), "us-watch-"));
+  const git = (...args: string[]) => execFileSync("git", ["-C", root, ...args], { stdio: "pipe" });
+  git("init", "--quiet");
+  git("config", "user.email", "me@example.com");
+  git("config", "user.name", "Me");
+  git("config", "commit.gpgsign", "false");
+  writeFileSync(join(root, "ledger.py"), "batch = True\n");
+  git("add", "--all");
+  git("commit", "--quiet", "-m", "Batch ledger writes");
+  const daemon = newTestDaemon([makeRoot(root, "payments-api")], { watches: () => ["msg:revert"] });
+  const matches: WatchMatchedParams[] = [];
+  daemon.on("watch", (match) => void matches.push(match));
+  await daemon.start();
+  try {
+    await waitFor("history read", async () => {
+      const { repos } = await daemon.request("index/status", {});
+      return repos.every((repo) => repo.history === "ready");
+    });
+    writeFileSync(join(root, "ledger.py"), "batch = False\n");
+    git("add", "--all");
+    git(
+      "-c",
+      "user.name=Jason Kim",
+      "-c",
+      "user.email=jason@example.com",
+      "commit",
+      "--quiet",
+      "-m",
+      "Revert ledger batching",
+    );
+    await waitFor("a watch/matched announcement", () => matches.length > 0, 20_000);
+    const [first] = matches;
+    assert.ok(first);
+    assert.equal(first.query, "msg:revert");
+    assert.equal(first.repoName, "payments-api");
+    assert.deepEqual(
+      first.commits.map((commit) => [commit.subject, commit.author]),
+      [["Revert ledger batching", "Jason Kim"]],
+    );
+    daemon.setWatches([]);
+    writeFileSync(join(root, "ledger.py"), "batch = 2\n");
+    git("add", "--all");
+    git(
+      "-c",
+      "user.name=Jason Kim",
+      "-c",
+      "user.email=jason@example.com",
+      "commit",
+      "--quiet",
+      "-m",
+      "Revert it again",
+    );
+    await waitFor("the history to catch up", async () => {
+      const { query } = await daemon.request("query/parse", { text: "msg:again", cursor: 9 });
+      return query.root !== null;
+    });
+    await new Promise((resolve) => setTimeout(resolve, 7000)); // past the next HEAD poll
+    assert.equal(matches.length, 1, "nothing is announced once no query is watched");
+  } finally {
+    await daemon.stop();
+  }
 });

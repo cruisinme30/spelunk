@@ -7,7 +7,14 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import * as vscode from "vscode";
 import { CommitDocuments } from "./commitDocuments";
-import { type ControllerOptions, type PersistedState, SearchController, type Ui } from "./controller";
+import {
+  type ControllerOptions,
+  type PersistedState,
+  SearchController,
+  SHOW_MATCHES,
+  STOP_WATCHING,
+  type Ui,
+} from "./controller";
 import { Daemon, type DaemonState } from "./daemon";
 import { HelpPanel } from "./helpPanel";
 import { SearchPanel } from "./panel";
@@ -32,13 +39,18 @@ import {
   pinnedQueries,
   recentQueriesLimit,
   uiSettings,
+  watchedQueries,
+  watchNotify,
   welcomeSettings,
 } from "./settings";
+import { UnseenWatches } from "./watches";
 import { messageGuard, parseWebviewMessage, type WebviewMessage } from "./webviewMessages";
 import { WELCOMED_KEY, WelcomePanel } from "./welcomePanel";
 
 /** The globalState key that keeps the query and recent queries across sessions. */
 const STATE_KEY = "spelunk.state";
+/** The workspaceState key that keeps what query watches found that hasn't been looked at. */
+const UNSEEN_KEY = "spelunk.unseenWatches";
 const READY_STATUS = "$(search) Spelunk";
 /** Where the status bar item sits among the other right-aligned items; higher is further left. */
 const STATUS_BAR_PRIORITY = 100;
@@ -64,6 +76,7 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi {
     binary: daemonBinary(context.extensionPath),
     roots: workspaceRoots,
     settings: () => daemonSettings(configuration(), homedir()),
+    watches: () => watchedQueries(configuration()),
     log: (line) => {
       log.appendLine(line);
     },
@@ -81,10 +94,13 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi {
     },
   );
   const ui = createUi({ panel, daemon, commitDocuments, openedStatus, globalState: context.globalState, logError });
+  const unseen = new UnseenWatches(context.workspaceState.get<unknown>(UNSEEN_KEY), (list) => {
+    void context.workspaceState.update(UNSEEN_KEY, list.length > 0 ? list : undefined);
+  });
   const controller = new SearchController(
     daemon,
     ui,
-    controllerOptions(),
+    { ...controllerOptions(), unseen },
     context.globalState.get<PersistedState>(STATE_KEY),
   );
   // The help page's Try runs its example in the search panel; its settings button opens Settings.
@@ -114,6 +130,7 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi {
     vscode.workspace.onDidChangeConfiguration((event) => {
       if (!event.affectsConfiguration("spelunk")) return;
       daemon.updateSettings(daemonSettings(configuration(), homedir()));
+      daemon.setWatches(watchedQueries(configuration()));
       if (panel.isOpen) controller.restore(); // sends the new settings to the panel
       welcome.refresh();
     }),
@@ -292,6 +309,7 @@ function controllerOptions(): ControllerOptions {
     closeOnOpen: () => closeOnOpen(configuration()),
     uiSettings: () => uiSettings(configuration()),
     openFiles: openEditorFiles,
+    watchNotify: () => watchNotify(configuration()),
   };
 }
 
@@ -346,6 +364,8 @@ function createUi({ panel, daemon, commitDocuments, openedStatus, globalState, l
     },
     readDocument,
     applyEdits,
+    showWatchMatch: async (message) => vscode.window.showInformationMessage(message, SHOW_MATCHES, STOP_WATCHING),
+    showQuery: (query) => void vscode.commands.executeCommand("spelunk.open", { query }),
     saveFiles: (files) => {
       for (const file of files) {
         const document = vscode.workspace.textDocuments.find((open) => open.uri.fsPath === file);

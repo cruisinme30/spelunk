@@ -19,9 +19,11 @@ import {
   type RpcRequests,
   type SearchBatchParams,
   type UiSettings,
+  type WatchMatchedParams,
 } from "./protocol.gen";
 import { checkReplace, type DocumentLines, type LineEdit } from "./replaceEdits";
 import { pinnedEntry } from "./settings";
+import { UnseenWatches, watchMessage } from "./watches";
 import { type GuardedBy, messageGuard, type WebviewMessage } from "./webviewMessages";
 
 /** Lines of context above and below the match in a file preview. */
@@ -48,6 +50,11 @@ function plural(count: number, one: string, many: string): string {
   return `${count} ${count === 1 ? one : many}`;
 }
 
+/** The queries of the watched pins. */
+function watchedOf(pinned: PinnedQuery[]): string[] {
+  return pinned.filter((entry) => entry.watch).map((entry) => entry.query);
+}
+
 /** Whether a parsed query has errors; such a query is not searched. */
 function hasErrors(query: ParsedQuery): boolean {
   return query.diagnostics.some((diagnostic) => diagnostic.severity === "error");
@@ -62,7 +69,13 @@ export interface Backend {
   ): Promise<RpcRequests[M][1]>;
   on(event: "batch", listener: (batch: SearchBatchParams) => void): unknown;
   on(event: "progress", listener: (progress: IndexStatusResult) => void): unknown;
+  on(event: "watch", listener: (match: WatchMatchedParams) => void): unknown;
 }
+
+/** The pop-up button that opens a watch's query. */
+export const SHOW_MATCHES = "Show";
+/** The pop-up button that stops a watch. */
+export const STOP_WATCHING = "Stop watching";
 
 /** What the controller needs from VS Code. */
 export interface Ui {
@@ -87,6 +100,10 @@ export interface Ui {
   applyEdits(edits: LineEdit[], label: string): Promise<boolean>;
   /** Saves files the editor has open. */
   saveFiles(files: string[]): void;
+  /** Pops up what a watch found; resolves to the button clicked, if any. */
+  showWatchMatch(message: string): Promise<typeof SHOW_MATCHES | typeof STOP_WATCHING | undefined>;
+  /** Opens the search panel on `query`, which then runs. */
+  showQuery(query: string): void;
 }
 
 /** Survives window reloads (globalState): the last query and recent queries. */
@@ -104,6 +121,10 @@ export interface ControllerOptions {
   uiSettings(): UiSettings;
   /** The absolute paths of the files open in editor tabs, for is:open. */
   openFiles(): string[];
+  /** spelunk.watch.notify: whether a watch's new commits pop up. */
+  watchNotify(): boolean;
+  /** What query watches found that hasn't been looked at; the caller keeps it, to save it. None found when left out. */
+  unseen?: UnseenWatches;
 }
 
 /** A query/parse answer, plus the text to search while a word is being completed. */
@@ -123,11 +144,16 @@ interface RunningSearch {
   /** The files open in the editor when it started; Load more keeps them, so pages agree. */
   openFiles: string[];
   cancel: CancelSource;
+  /** The commits a watch found for this query since it last ran, which the panel marks New on every page. */
+  newCommits: string[];
 }
 
 /** The help and welcome pages' messages, which extension.ts handles. */
 const fromHelpOrWelcome = messageGuard(["help.try", "welcome.choose", "welcome.shortcut", "welcome.start"]);
 type HelpOrWelcomeMessage = GuardedBy<typeof fromHelpOrWelcome>;
+/** The empty box's messages about recent and pinned queries, which handleQueryList handles. */
+const fromQueryList = messageGuard(["recent.remove", "pinned.save", "pinned.remove", "pinned.watch"]);
+type QueryListMessage = GuardedBy<typeof fromQueryList>;
 /** The Replace row's messages, which handleReplace handles. */
 const fromReplaceRow = messageGuard(["replace.preview", "replace.apply", "replace.save"]);
 type ReplaceMessage = GuardedBy<typeof fromReplaceRow>;
@@ -152,8 +178,13 @@ export class SearchController {
   private lastProgress: IndexStatusResult | undefined;
   /** The files the last replace changed, which Save saves. */
   private replacedFiles: string[] = [];
+  /** Whether each query text searches history (and so can be watched), as the daemon parsed it. */
+  private readonly searchesHistoryByText = new Map<string, boolean>();
 
-  /** Listens for the backend's batches and indexing progress; `initial` is the state saved last session. */
+  /** What query watches found that hasn't been looked at. */
+  private readonly watches: UnseenWatches;
+
+  /** Listens for the backend's batches, indexing progress and watches; `initial` is the state saved last session. */
   constructor(
     private readonly backend: Backend,
     private readonly ui: Ui,
@@ -161,11 +192,15 @@ export class SearchController {
     initial?: PersistedState,
   ) {
     this.state = initial ?? { text: "", recent: [] };
+    this.watches = options.unseen ?? new UnseenWatches(undefined);
     backend.on("batch", (batch) => {
       this.onBatch(batch);
     });
     backend.on("progress", (progress) => {
       this.onIndexProgress(progress);
+    });
+    backend.on("watch", (match) => {
+      void this.onWatchMatched(match);
     });
   }
 
@@ -193,16 +228,20 @@ export class SearchController {
       settings: this.options.uiSettings(),
     });
     if (this.lastProgress) this.ui.post("index.status", this.lastProgress);
+    void this.postWatchState();
   }
 
   /** Handles one message from the search panel. */
   async handle(message: WebviewMessage): Promise<void> {
     if (fromHelpOrWelcome(message)) return;
-    await (fromReplaceRow(message) ? this.handleReplace(message) : this.handleSearch(message));
+    if (fromQueryList(message)) await this.handleQueryList(message);
+    else await (fromReplaceRow(message) ? this.handleReplace(message) : this.handleSearch(message));
   }
 
-  /** Handles the search panel's messages other than the Replace row's. */
-  private async handleSearch(message: Exclude<WebviewMessage, HelpOrWelcomeMessage | ReplaceMessage>): Promise<void> {
+  /** Handles the search panel's messages other than the Replace row's and the query list's. */
+  private async handleSearch(
+    message: Exclude<WebviewMessage, HelpOrWelcomeMessage | ReplaceMessage | QueryListMessage>,
+  ): Promise<void> {
     switch (message.type) {
       case "ready": {
         // A new webview counts seq from zero again, so a search still running
@@ -245,6 +284,16 @@ export class SearchController {
         this.ui.restartDaemon();
         return;
       }
+      case "context.set": {
+        this.setContextLines(message.payload.lines);
+        return;
+      }
+    }
+  }
+
+  /** Handles the empty box's messages: removing a recent query, and pinning, naming and watching. */
+  private async handleQueryList(message: QueryListMessage): Promise<void> {
+    switch (message.type) {
       case "recent.remove": {
         this.removeRecent(message.payload.query);
         return;
@@ -257,8 +306,8 @@ export class SearchController {
         this.unpin(message.payload.query);
         return;
       }
-      case "context.set": {
-        this.setContextLines(message.payload.lines);
+      case "pinned.watch": {
+        await this.setWatch(message.payload.query, message.payload.watch);
         return;
       }
     }
@@ -309,15 +358,33 @@ export class SearchController {
     this.ui.saveState(this.state);
   }
 
-  /** Pins a query at the end of the pinned list, or renames it if it is pinned already. A blank name is none. */
+  /**
+   * Pins a query at the end of the pinned list, or renames it if it is
+   * pinned already, keeping its watch. A blank name is none.
+   */
   private pin({ query, name }: PinnedQuery): void {
-    const entry = pinnedEntry(query, name);
-    if (!entry) return;
     const pinned = this.options.pinnedQueries();
-    const index = pinned.findIndex((kept) => kept.query === entry.query);
+    const index = pinned.findIndex((kept) => kept.query === query.trim());
+    const entry = pinnedEntry(query, name, pinned[index]?.watch);
+    if (!entry) return;
     if (index === -1) pinned.push(entry);
     else if (pinned[index]?.name === entry.name) return;
     else pinned[index] = entry;
+    this.ui.savePinned(pinned);
+  }
+
+  /**
+   * Starts or stops watching a pinned query for new commits. Only a query
+   * that searches history can be watched; stopping forgets what it found.
+   */
+  private async setWatch(query: string, watch: boolean): Promise<void> {
+    if (watch && !(await this.searchesHistory(query))) return;
+    const pinned = this.options.pinnedQueries();
+    const index = pinned.findIndex((entry) => entry.query === query);
+    const entry = pinned[index];
+    if (!entry || (entry.watch ?? false) === watch) return;
+    pinned[index] = pinnedEntry(entry.query, entry.name, watch) ?? entry;
+    this.watches.keepOnly(watchedOf(pinned));
     this.ui.savePinned(pinned);
   }
 
@@ -326,11 +393,60 @@ export class SearchController {
     if (lines !== this.options.uiSettings().contextLines) this.ui.saveContextLines(lines);
   }
 
-  /** Unpins a query. */
+  /** Unpins a query, forgetting what its watch found. */
   private unpin(query: string): void {
     const pinned = this.options.pinnedQueries();
     const kept = pinned.filter((entry) => entry.query !== query);
-    if (kept.length !== pinned.length) this.ui.savePinned(kept);
+    if (kept.length === pinned.length) return;
+    this.watches.keepOnly(watchedOf(kept));
+    this.ui.savePinned(kept);
+  }
+
+  /** Tells the panel which pinned queries can be watched and what each watch found. */
+  private async postWatchState(): Promise<void> {
+    const pinned = this.options.pinnedQueries();
+    this.watches.keepOnly(watchedOf(pinned));
+    const searchesHistory = await Promise.all(pinned.map((entry) => this.searchesHistory(entry.query)));
+    const watchable = pinned.filter((_entry, index) => searchesHistory[index]).map((entry) => entry.query);
+    this.ui.post("watch.state", { watchable, unseen: this.watches.list() });
+  }
+
+  /** Whether a query searches history without errors, so it can be watched; remembered per text. */
+  private async searchesHistory(text: string): Promise<boolean> {
+    const known = this.searchesHistoryByText.get(text);
+    if (known !== undefined) return known;
+    try {
+      const { query } = await this.backend.request("query/parse", { text, cursor: text.length });
+      const history = query.mode === "history" && query.root !== null && !hasErrors(query);
+      this.searchesHistoryByText.set(text, history);
+      return history;
+    } catch {
+      return false; // the daemon is down; asked again next time
+    }
+  }
+
+  /**
+   * A watch found new commits: they count on the pin until its query runs,
+   * and, unless spelunk.watch.notify is off, pop up with Show and Stop
+   * watching. An announcement for a query no longer watched is ignored.
+   */
+  private async onWatchMatched(match: WatchMatchedParams): Promise<void> {
+    const pin = this.options.pinnedQueries().find((entry) => entry.query === match.query && entry.watch);
+    if (!pin) return;
+    const found = this.watches.record(match);
+    if (found.count === 0) return;
+    void this.postWatchState();
+    if (!this.options.watchNotify()) return;
+    const choice = await this.ui.showWatchMatch(watchMessage(pin.name ?? pin.query, match.repoName, found));
+    if (choice === SHOW_MATCHES) this.ui.showQuery(pin.query);
+    else if (choice === STOP_WATCHING) await this.setWatch(pin.query, false);
+  }
+
+  /** The commits a watch found for `text` since it last ran, now that it runs again; empty for any other query. */
+  private takeUnseen(text: string): string[] {
+    const shas = this.watches.take(text.trim());
+    if (shas.length > 0) void this.postWatchState();
+    return shas;
   }
 
   /** Parses the box, posts the parse, then searches it unless it has errors or is empty. */
@@ -401,6 +517,7 @@ export class SearchController {
       text,
       openFiles: this.options.openFiles(),
       cancel: new CancelSource(),
+      newCommits: [],
     };
     this.search = search;
     this.setResults([]);
@@ -428,7 +545,9 @@ export class SearchController {
       const result = await this.backend.request("search/start", params, cancel);
       if (this.search !== search || cancel.cancelled) return;
       this.finishedSearchId = searchId;
-      this.ui.post("search.done", { seq, searchId, ...result });
+      if (pageCursor === undefined) search.newCommits = this.takeUnseen(text);
+      const { newCommits } = search;
+      this.ui.post("search.done", { seq, searchId, ...result, ...(newCommits.length > 0 ? { newCommits } : {}) });
     } catch (error) {
       if (error instanceof RpcError && error.code === ErrorCodes.RequestCancelled) return;
       if (this.search === search) this.postSearchFailed(seq, searchId, error);

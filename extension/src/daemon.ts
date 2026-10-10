@@ -13,6 +13,7 @@ import {
   type RpcRequests,
   type SearchBatchParams,
   type Settings,
+  type WatchMatchedParams,
 } from "./protocol.gen";
 import { setTimeout as sleep } from "node:timers/promises";
 
@@ -54,6 +55,8 @@ export interface DaemonOptions {
   roots(): Root[];
   /** The settings, read again on every (re)start. */
   settings(): Settings;
+  /** The watched queries, read again on every (re)start; none when left out. */
+  watches?(): string[];
   log?(line: string): void;
   maxRestartsPerMinute?: number;
   restartDelayMs?: number;
@@ -71,6 +74,7 @@ export interface DaemonEvents {
   state: [DaemonState, string | undefined];
   batch: [SearchBatchParams];
   progress: [IndexStatusResult];
+  watch: [WatchMatchedParams];
 }
 
 /** One supervised daemon process; see DaemonEvents for what it emits. */
@@ -164,6 +168,11 @@ export class Daemon extends EventEmitter {
     this.connection?.notify("settings/update", { settings });
   }
 
+  /** Tells the running daemon which queries are watched for new commits. */
+  setWatches(queries: string[]): void {
+    this.connection?.notify("watch/set", { queries });
+  }
+
   /** Forwards file changes VS Code saw, so the index catches up before the daemon's own watcher would. */
   didChangeFiles(changes: FileChange[]): void {
     if (changes.length > 0) this.connection?.notify("workspace/didChangeFiles", { changes });
@@ -192,7 +201,12 @@ export class Daemon extends EventEmitter {
     let child: DaemonProcess;
     let params: RpcRequests["initialize"][0];
     try {
-      params = { protocol: PROTOCOL_VERSION, roots: this.options.roots(), settings: this.options.settings() };
+      params = {
+        protocol: PROTOCOL_VERSION,
+        roots: this.options.roots(),
+        settings: this.options.settings(),
+        watches: this.options.watches?.() ?? [],
+      };
       child = this.spawnChild();
     } catch (error) {
       // Nothing is running, and trying again would fail the same way.
@@ -237,6 +251,7 @@ export class Daemon extends EventEmitter {
     this.connection = connection;
     connection.onNotification("search/batch", (batch) => this.emit("batch", batch));
     connection.onNotification("index/progress", (progress) => this.emit("progress", progress));
+    connection.onNotification("watch/matched", (match) => this.emit("watch", match));
     connection.on("error", (error) => {
       this.log(`[rpc] ${String(error)}`);
     });

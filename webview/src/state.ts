@@ -10,6 +10,7 @@ import type {
   RepoStatus,
   SearchDoneMessage,
   UiSettings,
+  UnseenCommits,
 } from "./protocol.gen";
 
 /** The preview pane's content: the host's answer for the selected result. */
@@ -56,6 +57,12 @@ export interface ViewState {
   recentIndex: number;
   /** The pinned query whose name is being typed, if any. */
   naming: string | undefined;
+  /** The pinned queries that search history, and so can be watched. */
+  watchable: Set<string>;
+  /** What each watch found since its query last ran, by query. */
+  unseen: Map<string, UnseenCommits>;
+  /** The shas of the commits on screen that a watch found since their query last ran: marked New. */
+  newCommits: Set<string>;
   ui: UiSettings;
   repos: RepoStatus[];
   /** Daemon health; undefined while it is healthy. */
@@ -103,6 +110,9 @@ export function createViewState(): ViewState {
     pinned: [],
     recentIndex: 0,
     naming: undefined,
+    watchable: new Set(),
+    unseen: new Map(),
+    newCommits: new Set(),
     ui: { ...DEFAULT_UI_SETTINGS },
     repos: [],
     banner: undefined,

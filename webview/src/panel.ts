@@ -18,6 +18,7 @@ import type {
   SearchBatchMessage,
   SearchDoneMessage,
   StateRestoreMessage,
+  WatchStateMessage,
 } from "./protocol.gen";
 import {
   applyEdits,
@@ -449,7 +450,7 @@ export class SearchPanel {
         return;
       }
       case "search.done": {
-        if (this.isCurrent(message.payload.seq, message.payload.searchId)) this.onSearchDone(message.payload);
+        this.onSearchDone(message.payload);
         return;
       }
       case "preview.result": {
@@ -467,6 +468,10 @@ export class SearchPanel {
         this.renderBanners();
         return;
       }
+      case "watch.state": {
+        this.onWatchState(message.payload);
+        return;
+      }
       case "welcome.state": {
         return; // for the welcome page
       }
@@ -479,6 +484,14 @@ export class SearchPanel {
         return;
       }
     }
+  }
+
+  /** Which pinned queries can be watched and what each watch found: the empty box shows them. */
+  private onWatchState({ watchable, unseen }: WatchStateMessage): void {
+    this.state.watchable = new Set(watchable);
+    this.state.unseen = new Map(unseen.map((entry) => [entry.query, entry]));
+    // Redrawn only while it shows, and never under a name being typed.
+    if (!this.layout.input.value && !this.results && this.state.naming === undefined) this.showEmptyState();
   }
 
   /** A batch of results for the current search: appended, and the first one selected. */
@@ -604,6 +617,7 @@ export class SearchPanel {
   }
 
   private onSearchDone(done: SearchDoneMessage): void {
+    if (!this.isCurrent(done.seq, done.searchId)) return;
     this.state.done = done;
     this.resultsFor(done.searchId).finish(done);
     this.renderSummary();

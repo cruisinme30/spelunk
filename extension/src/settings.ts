@@ -32,6 +32,7 @@ const DEFAULTS = {
   shortcutPreset: "quickOpen",
   order: "best",
   contextLines: 0,
+  watchNotify: true,
 } as const;
 
 /** The hard cap on results per page; the daemon enforces the same limit. */
@@ -156,8 +157,8 @@ export function recentQueriesLimit(config: ConfigReader): number {
 
 /**
  * The pinned queries, in the order they were pinned. An entry without a
- * query is dropped, a blank name counts as none, and a query pinned twice
- * keeps its first entry.
+ * query is dropped, a blank name counts as none, only `watch: true` watches,
+ * and a query pinned twice keeps its first entry.
  */
 export function pinnedQueries(config: ConfigReader): PinnedQuery[] {
   const saved = config.get<unknown>("ui.pinnedQueries", []);
@@ -165,19 +166,38 @@ export function pinnedQueries(config: ConfigReader): PinnedQuery[] {
   const pinned = new Map<string, PinnedQuery>();
   for (const entry of saved as unknown[]) {
     if (typeof entry !== "object" || entry === null) continue;
-    const { query, name } = entry as Record<string, unknown>;
-    const pin = pinnedEntry(typeof query === "string" ? query : "", typeof name === "string" ? name : undefined);
+    const { query, name, watch } = entry as Record<string, unknown>;
+    const pin = pinnedEntry(
+      typeof query === "string" ? query : "",
+      typeof name === "string" ? name : undefined,
+      watch === true,
+    );
     if (pin && !pinned.has(pin.query)) pinned.set(pin.query, pin);
   }
   return [...pinned.values()];
 }
 
-/** A pinned query as it is saved: trimmed, a blank name dropped; undefined for a blank query. */
-export function pinnedEntry(query: string, name: string | undefined): PinnedQuery | undefined {
+/**
+ * A pinned query as it is saved: trimmed, a blank name dropped, `watch` only
+ * when watched; undefined for a blank query.
+ */
+export function pinnedEntry(query: string, name: string | undefined, watch = false): PinnedQuery | undefined {
   const text = query.trim();
   if (!text) return undefined;
   const label = name?.trim();
-  return label ? { query: text, name: label } : { query: text };
+  return { query: text, ...(label ? { name: label } : {}), ...(watch ? { watch } : {}) };
+}
+
+/** The pinned queries that are watched, for the daemon's watch/set. */
+export function watchedQueries(config: ConfigReader): string[] {
+  return pinnedQueries(config)
+    .filter((pin) => pin.watch)
+    .map((pin) => pin.query);
+}
+
+/** Whether a watch's new commits pop up a notification (spelunk.watch.notify). */
+export function watchNotify(config: ConfigReader): boolean {
+  return boolean(config.get<unknown>("watch.notify", DEFAULTS.watchNotify), DEFAULTS.watchNotify);
 }
 
 /** Whether opening a result closes the search panel. */

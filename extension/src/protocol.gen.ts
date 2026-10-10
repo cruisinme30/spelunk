@@ -568,15 +568,36 @@ export interface HelpTryMessage {
   query: string;
 }
 
-/** PinnedQuery is a query starred in the empty box, with the name it was given, if any. */
+/** PinnedQuery is a query starred in the empty box, with the name it was given, if any, and whether it is watched. */
 export interface PinnedQuery {
   query: string;
   name?: string;
+  /** Whether new commits the query matches are announced (query watches); history queries only. */
+  watch?: boolean;
 }
 
 /** PinnedRemoveMessage unpins a query. */
 export interface PinnedRemoveMessage {
   query: string;
+}
+
+/** PinnedWatchMessage starts or stops watching a pinned query for new commits. */
+export interface PinnedWatchMessage {
+  query: string;
+  watch: boolean;
+}
+
+/** UnseenCommits are the new commits a watched query matched since it last ran: how many, and their shas. */
+export interface UnseenCommits {
+  query: string;
+  count: number;
+  shas: string[];
+}
+
+/** WatchStateMessage says which pinned queries can be watched (those that search history) and what each watch found since its query last ran. */
+export interface WatchStateMessage {
+  watchable: string[];
+  unseen: UnseenCommits[];
 }
 
 /** ContextSetMessage sets how many lines each code result shows around its match (spelunk.results.contextLines). */
@@ -647,6 +668,8 @@ export interface SearchDoneMessage {
   facets?: Facet[];
   ms: number;
   error?: string;
+  /** The shas of the commits a watch found for this query since it last ran, which the results mark New. */
+  newCommits?: string[];
 }
 
 /** PreviewResultMessage fills the preview pane; stale means the result no longer exists. */
@@ -748,6 +771,7 @@ export interface WebviewToHost {
   "recent.remove": RecentRemoveMessage;
   "pinned.save": PinnedQuery;
   "pinned.remove": PinnedRemoveMessage;
+  "pinned.watch": PinnedWatchMessage;
   "context.set": ContextSetMessage;
   "replace.preview": ReplacePreviewMessage;
   "replace.apply": ReplaceApplyMessage;
@@ -762,6 +786,7 @@ export interface HostToWebview {
   "preview.result": PreviewResultMessage;
   "index.status": IndexStatusMessage;
   "state.restore": StateRestoreMessage;
+  "watch.state": WatchStateMessage;
   "banner": BannerMessage;
   "focus": Empty;
   "welcome.state": WelcomeStateMessage;

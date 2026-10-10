@@ -297,6 +297,10 @@
               "name": {
                 "type": "string",
                 "description": "What the empty box calls it; the query itself when left out."
+              },
+              "watch": {
+                "type": "boolean",
+                "description": "Tell me when new commits match it (history queries only): the bell in the empty box."
               }
             },
             "required": [
@@ -305,6 +309,12 @@
             "additionalProperties": false
           },
           "description": "Queries starred in the empty box, top first, each with an optional name. Set it in a workspace's settings to share the pins with everyone who opens the workspace; pinning then saves there."
+        },
+        "spelunk.watch.notify": {
+          "type": "boolean",
+          "default": true,
+          "scope": "window",
+          "description": "Pop up a notification when new commits by others match a watched pinned query. Off, the pin's count of new commits still shows in the empty box."
         }
       }
     }

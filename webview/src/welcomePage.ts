@@ -258,7 +258,8 @@ onHostMessage((message) => {
     case "replace.plan":
     case "search.batch":
     case "search.done":
-    case "state.restore": {
+    case "state.restore":
+    case "watch.state": {
       return; // the search panel's messages
     }
   }

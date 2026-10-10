@@ -26,6 +26,8 @@ const isNumber = (value: unknown): value is number => typeof value === "number" 
 const isString = (value: unknown): value is string => typeof value === "string";
 const isObjectArray = (value: unknown): value is Fields[] =>
   Array.isArray(value) && value.every((item) => isObject(item));
+const isStringArray = (value: unknown): value is string[] =>
+  Array.isArray(value) && value.every((item) => isString(item));
 
 /**
  * Per message type, whether a payload has the fields the webviews keep or
@@ -42,7 +44,11 @@ const HAS_REQUIRED_FIELDS: Record<keyof HostToWebview, (payload: Fields) => bool
     isObject(query["globals"]) &&
     isObjectArray(completions),
   "search.batch": ({ seq, searchId, items }) => isNumber(seq) && isString(searchId) && isObjectArray(items),
-  "search.done": ({ seq, searchId, hidden }) => isNumber(seq) && isString(searchId) && isObjectArray(hidden),
+  "search.done": ({ seq, searchId, hidden, newCommits }) =>
+    isNumber(seq) &&
+    isString(searchId) &&
+    isObjectArray(hidden) &&
+    (newCommits === undefined || isStringArray(newCommits)),
   "preview.result": ({ ref, preview }) => isString(ref) && (preview === null || isObject(preview)),
   "index.status": ({ repos }) => isObjectArray(repos) && repos.every((repo) => isString(repo["name"])),
   "state.restore": ({ text, recent, pinned, settings }) =>
@@ -50,8 +56,17 @@ const HAS_REQUIRED_FIELDS: Record<keyof HostToWebview, (payload: Fields) => bool
     Array.isArray(recent) &&
     recent.every((query) => isString(query)) &&
     isObjectArray(pinned) &&
-    pinned.every(({ query, name }) => isString(query) && (name === undefined || isString(name))) &&
+    pinned.every(
+      ({ query, name, watch }) =>
+        isString(query) &&
+        (name === undefined || isString(name)) &&
+        (watch === undefined || typeof watch === "boolean"),
+    ) &&
     (settings === undefined || isObject(settings)),
+  "watch.state": ({ watchable, unseen }) =>
+    isStringArray(watchable) &&
+    isObjectArray(unseen) &&
+    unseen.every(({ query, count, shas }) => isString(query) && isNumber(count) && isStringArray(shas)),
   banner: ({ state }) => isString(state),
   focus: () => true,
   "welcome.state": ({ preset, historyDepth }) => isString(preset) && isString(historyDepth),

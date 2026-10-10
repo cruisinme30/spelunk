@@ -7,7 +7,7 @@ import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import { SearchController, type Ui } from "../controller";
+import { SearchController, type STOP_WATCHING, type Ui } from "../controller";
 import type { HostToWebview, ReplacePlan, UiSettings } from "../protocol.gen";
 import { checkReplace, type DocumentLines, type LineEdit } from "../replaceEdits";
 import { makeRoot } from "../roots";
@@ -101,6 +101,8 @@ function diskUi() {
       return Promise.resolve(true);
     },
     saveFiles: (files) => void saved.push(files),
+    showWatchMatch: () => Promise.resolve(undefined as typeof STOP_WATCHING | undefined),
+    showQuery: () => {},
   };
   const payloads = <T extends keyof HostToWebview>(type: T) =>
     posted.filter((message) => message.type === type).map((message) => message.payload as HostToWebview[T]);
@@ -122,6 +124,7 @@ test("Replace all applies what the preview showed through the real daemon", { sk
       uiSettings: () => UI_SETTINGS,
       openFiles: () => [],
       pinnedQueries: () => [],
+      watchNotify: () => true,
     });
     const message = { text: "RetryPolicy", replacement: "BackoffPolicy" };
 

@@ -1024,15 +1024,59 @@ type HelpTryMessage struct {
 	Query string `json:"query"`
 }
 
-// PinnedQuery is a query starred in the empty box, with the name it was given, if any.
+// PinnedQuery is a query starred in the empty box, with the name it was given, if any, and whether it is watched.
 type PinnedQuery struct {
 	Query string `json:"query"`
 	Name  string `json:"name,omitempty"`
+	// Watch is whether new commits the query matches are announced (query watches); history queries only.
+	Watch bool `json:"watch,omitempty"`
 }
 
 // PinnedRemoveMessage unpins a query.
 type PinnedRemoveMessage struct {
 	Query string `json:"query"`
+}
+
+// PinnedWatchMessage starts or stops watching a pinned query for new commits.
+type PinnedWatchMessage struct {
+	Query string `json:"query"`
+	Watch bool   `json:"watch"`
+}
+
+// UnseenCommits are the new commits a watched query matched since it last ran: how many, and their shas.
+type UnseenCommits struct {
+	Query string   `json:"query"`
+	Count int      `json:"count"`
+	Shas  []string `json:"shas"`
+}
+
+// MarshalJSON emits [] rather than null for required arrays.
+func (v UnseenCommits) MarshalJSON() ([]byte, error) {
+	type plain UnseenCommits
+	p := plain(v)
+	if p.Shas == nil {
+		p.Shas = []string{}
+	}
+	return json.Marshal(p)
+}
+
+// WatchStateMessage says which pinned queries can be watched (those that search history) and what each watch found since its query last ran.
+type WatchStateMessage struct {
+	Watchable []string        `json:"watchable"`
+	Unseen    []UnseenCommits `json:"unseen"`
+}
+
+// MarshalJSON emits [] rather than null for required arrays.
+func (v WatchStateMessage) MarshalJSON() ([]byte, error) {
+	type plain WatchStateMessage
+	p := plain(v)
+	if p.Watchable == nil {
+		p.Watchable = []string{}
+	}
+	if p.Unseen == nil {
+		p.Unseen = []UnseenCommits{}
+	}
+	return json.Marshal(p)
 }
 
 // ContextSetMessage sets how many lines each code result shows around its match (spelunk.results.contextLines).
@@ -1123,6 +1167,8 @@ type SearchDoneMessage struct {
 	Facets     []Facet      `json:"facets,omitempty"`
 	Ms         int          `json:"ms"`
 	Error      string       `json:"error,omitempty"`
+	// NewCommits is the shas of the commits a watch found for this query since it last ran, which the results mark New.
+	NewCommits []string `json:"newCommits,omitempty"`
 }
 
 // MarshalJSON emits [] rather than null for required arrays.
@@ -1263,6 +1309,7 @@ const (
 	MsgRecentRemove    = "recent.remove"
 	MsgPinnedSave      = "pinned.save"
 	MsgPinnedRemove    = "pinned.remove"
+	MsgPinnedWatch     = "pinned.watch"
 	MsgContextSet      = "context.set"
 	MsgReplacePreview  = "replace.preview"
 	MsgReplaceApply    = "replace.apply"
@@ -1273,6 +1320,7 @@ const (
 	MsgPreviewResult   = "preview.result"
 	MsgIndexStatus     = "index.status"
 	MsgStateRestore    = "state.restore"
+	MsgWatchState      = "watch.state"
 	MsgBanner          = "banner"
 	MsgFocus           = "focus"
 	MsgWelcomeState    = "welcome.state"
