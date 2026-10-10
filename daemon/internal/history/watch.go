@@ -1,0 +1,77 @@
+package history
+
+import (
+	"context"
+	"strings"
+)
+
+// NewCommits returns the commits next holds that old did not, newest first:
+// what an Update brought in, for query watches. When HEAD moved forward
+// they are the commits read on top of old. When history was rewritten (a
+// rebase, a reset, a branch switch) they are the commits old never held
+// that are also newer than everything it held, so switching to an older
+// branch, or a pull that rebased local commits, does not count commits
+// that were already there as new. A nil old store (the first read) brings
+// no new commits.
+func NewCommits(old, next *Store) []Commit {
+	if old == nil || next == nil || old.Head == next.Head {
+		return nil
+	}
+	if movedForward(old, next) {
+		return append([]Commit(nil), next.segments[0].commits...)
+	}
+	known := map[string]bool{}
+	var newest Commit
+	for _, seg := range old.segments {
+		for i := range seg.commits {
+			known[seg.commits[i].SHA] = true
+			if seg.commits[i].At.After(newest.At) {
+				newest = seg.commits[i]
+			}
+		}
+	}
+	var fresh []Commit
+	for _, seg := range next.segments {
+		for i := range seg.commits {
+			if c := seg.commits[i]; !known[c.SHA] && c.At.After(newest.At) {
+				fresh = append(fresh, c)
+			}
+		}
+	}
+	return fresh
+}
+
+// movedForward reports whether next is old with one new segment on top,
+// which is how Update records commits read after old's HEAD.
+func movedForward(old, next *Store) bool {
+	if len(next.segments) != len(old.segments)+1 {
+		return false
+	}
+	for i, seg := range old.segments {
+		if next.segments[i+1] != seg {
+			return false
+		}
+	}
+	return true
+}
+
+// StoreOf returns a store holding only commits, newest first, so a history
+// plan can be run over them alone.
+func StoreOf(head string, commits []Commit) *Store {
+	b := &builder{store: &Store{Head: head, touches: map[string]Touch{}}}
+	for i := range commits {
+		b.add(commits[i])
+	}
+	b.flush()
+	return b.snapshot().withDirty(map[string]bool{})
+}
+
+// UserEmail returns the email Git commits under in root (user.email), or ""
+// when none is set.
+func UserEmail(ctx context.Context, root string) string {
+	out, err := git(ctx, root, "config", "--get", "user.email")
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(out))
+}
