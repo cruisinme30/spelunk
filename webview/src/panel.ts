@@ -44,7 +44,7 @@ import { completionsVisible, renderCompletions, type ResultsGlimpse } from "./re
 import { renderEmptyState } from "./render/emptyState";
 import { renderFacets } from "./render/facets";
 import { renderRepoMenu } from "./render/repoMenu";
-import { renderPreview } from "./render/preview";
+import { previewOf, renderPreview } from "./render/preview";
 import { ResultsView } from "./render/results";
 import { ReplaceBox } from "./replace";
 import { createViewState, hasErrors, type ViewState } from "./state";
@@ -583,6 +583,7 @@ export class SearchPanel {
     state.searchId = searchId;
     state.searchReplaced = false;
     state.done = undefined;
+    state.searchedAt = hasErrors(state) ? undefined : state.parsed?.globals.at;
     state.newCommits = new Set();
     state.selectedRef = "";
     state.preview = undefined;
@@ -619,11 +620,12 @@ export class SearchPanel {
 
   private onSearchDone(done: SearchDoneMessage): void {
     if (!this.isCurrent(done.seq, done.searchId)) return;
+    const results = this.resultsFor(done.searchId); // first: a search that found nothing starts its view here
     this.state.done = done;
     this.state.newCommits = new Set(done.newCommits);
-    const results = this.resultsFor(done.searchId);
     results.markNew();
     results.finish(done);
+    if (!hasErrors(this.state)) renderChips(this.layout, this.state, this.summary); // the chip names the commit read
     this.renderSummary();
     this.renderFacets();
     if (this.completionsVisible) this.renderCompletions();
@@ -683,7 +685,7 @@ export class SearchPanel {
   private renderPreview(): void {
     if (!this.results) return;
     const item = this.results.items.find((result) => result.ref === this.state.preview?.ref);
-    renderPreview(this.results.preview, this.state, item?.repoId, {
+    renderPreview(this.results.preview, this.state, previewOf(this.state, item), {
       onOpen: (ref, where) => {
         send("result.open", { ref, where });
       },

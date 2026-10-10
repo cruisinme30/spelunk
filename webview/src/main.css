@@ -36,6 +36,7 @@
   --tone-match: #d3bcff;
   --tone-scope: #8ec3ff;
   --tone-history: #f5b866;
+  --tone-revision: #7fe0d6;
   --tone-logic: var(--fg);
   --tone-output: var(--fg);
   --star: #e8c062;
@@ -58,6 +59,7 @@ body.vscode-light {
   --tone-match: #6a3fb5;
   --tone-scope: #1f5fa8;
   --tone-history: #8a5300;
+  --tone-revision: #0f6b63;
   --term-color-0: rgb(230 150 30 / 35%);
   --term-color-1: rgb(40 120 220 / 25%);
   --term-color-2: rgb(130 80 210 / 25%);
@@ -752,6 +754,12 @@ ins {
   color: var(--tone-history);
 }
 
+/* An at: search: the files as they were at a revision. */
+.mode.revision {
+  color: var(--tone-revision);
+  border-color: var(--tone-revision);
+}
+
 .summary {
   margin-left: auto;
 }
@@ -1096,6 +1104,17 @@ mark.hole {
 .badge.rank-open {
   color: var(--tone-scope);
   border-color: var(--tone-scope);
+}
+
+/* How a file found at a revision (at:) differs now, and the preview's revision. */
+.badge.since-deleted {
+  color: var(--del);
+  border-color: var(--del);
+}
+
+.badge.revision {
+  color: var(--tone-revision);
+  border-color: var(--tone-revision);
 }
 
 /* Who owns the file, by its repo's CODEOWNERS file. */

@@ -14,6 +14,7 @@ import type {
   ParsedQuery,
   Node as QueryNode,
   RepoStatus,
+  RevisionInfo,
 } from "../protocol.gen";
 import { isCasePressed, isCaseSmart } from "../queryEdit";
 import { hasErrors, type ViewState } from "../state";
@@ -169,7 +170,12 @@ export function renderChips(layout: Layout, state: ViewState, summary: HTMLEleme
   layout.chips.replaceChildren();
   const query = state.parsed;
   if (!state.ui.showParsedQuery || !query?.root || hasErrors(state)) return;
-  const modeLabel = query.mode === "history" ? "Commit history" : "Working tree";
+  const at = query.mode === "workingTree" ? query.globals.at : undefined;
+  const mode = at === undefined ? query.mode : "revision";
+  const revisions = state.done?.seq === state.seq ? state.done.revisions : undefined;
+  const modeLabel = { history: "Commit history", workingTree: "Working tree", revision: revisionLabel(at, revisions) }[
+    mode
+  ];
   layout.chips.append(
     element("span", { class: "label" }, "Query"),
     ...chipsFor(query.root, {
@@ -177,9 +183,26 @@ export function renderChips(layout: Layout, state: ViewState, summary: HTMLEleme
       fileNamesOnly: query.globals.type === "file",
       diffSide: diffSide(query),
     }),
-    element("span", { class: `mode ${query.mode}`, "data-testid": "mode" }, modeLabel),
+    element("span", { class: `mode ${mode}`, "data-testid": "mode" }, modeLabel),
     summary,
   );
+}
+
+/**
+ * What an at: search reads: "At v1.0.0", then, once the search names the commit, "At v1.0.0 · 3f9c2e1 · 14 Mar
+ * 2026", or "At 6m · 2 commits" when the repos read different ones. A sha typed in full or in part isn't repeated.
+ */
+function revisionLabel(at = "", revisions: RevisionInfo[] = []): string {
+  const commits = [...new Set(revisions.flatMap((revision) => (revision.sha ? [revision.sha] : [])))];
+  const [only] = commits;
+  if (commits.length > 1) return `At ${at} · ${plural(commits.length, "commit")}`;
+  if (only === undefined) return `At ${at}`;
+  const date = revisions.find((revision) => revision.sha === only)?.date;
+  const day = date
+    ? new Date(date).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" })
+    : "";
+  const sha = only.startsWith(at.toLowerCase()) ? [] : [only.slice(0, 7)];
+  return ["At " + at, ...sha, ...(day ? [day] : [])].join(" · ");
 }
 
 /** A word between chips: AND, OR, NOT or a parenthesis. */

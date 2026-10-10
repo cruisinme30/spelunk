@@ -16,7 +16,15 @@ import {
   timeAgo,
 } from "../format";
 import { diffSide, operatorNodes, textNodes, textTerms } from "../parsedQuery";
-import type { Fix, HiddenNote, RankReason, ResultItem, ResultOrder, SearchDoneMessage } from "../protocol.gen";
+import type {
+  Fix,
+  HiddenNote,
+  RankReason,
+  ResultItem,
+  ResultOrder,
+  SearchDoneMessage,
+  SinceRevision,
+} from "../protocol.gen";
 import { repoName, type ViewState } from "../state";
 
 type ResultKind = ResultItem["kind"];
@@ -246,7 +254,12 @@ export class ResultsView {
 
   /** Renders hidden-result notes, Load more, an error, or the empty result. */
   finish(done: SearchDoneMessage): void {
-    this.notes.replaceChildren(...done.hidden.filter((note) => note.count > 0).map((note) => this.renderNote(note)));
+    this.notes.replaceChildren(
+      ...revisionProblems(done).map((problem) =>
+        element("div", { class: "note", "data-reason": "revision", "data-testid": "revision-problem" }, problem),
+      ),
+      ...done.hidden.filter((note) => note.count > 0).map((note) => this.renderNote(note)),
+    );
     this.loadMore.replaceChildren();
     // The daemon sends a cursor when there are more pages; Load more asks for the next one.
     if (done.nextCursor) {
@@ -284,6 +297,7 @@ export class ResultsView {
     else if (caseNote) hint = "case:yes is on, so capital letters have to match.";
     else if (notes.some((note) => note.reason === "word")) hint = "word:yes is on, so only whole words match.";
     else if (notes.length > 0) hint = "Some results are hidden by filters below.";
+    else if (revisionProblems(this.state.done).length > 0) hint = "Some repos don't have that revision; see below.";
     this.list.prepend(
       element(
         "div",
@@ -390,6 +404,7 @@ export class ResultsView {
       { ...this.rowAttributes(item), class: `row file${demoted(item.rankReason)}`, title: item.path },
       element("span", { class: "path" }, highlight(item.path, item.nameHits)),
       rankBadge(item.rankReason),
+      sinceBadge(item.sinceRevision),
       ownerBadge(item.owners),
       item.dirty ? element("span", { class: "badge warn" }, "Uncommitted changes") : null,
       item.lastCommit
@@ -411,6 +426,7 @@ export class ResultsView {
           { class: `group${demoted(item.rankReason)}`, "data-testid": "code-group" },
           element("span", { class: "path" }, item.path),
           rankBadge(item.rankReason),
+          sinceBadge(item.sinceRevision),
           ownerBadge(item.owners),
           element("span", { class: "repo" }, repoName(this.state, item.repoId)),
           countLabel,
@@ -476,6 +492,7 @@ export class ResultsView {
       element("span", { class: `badge kind-${item.symbolKind}` }, item.symbolKind),
       element("code", { class: "name" }, highlight(item.name, item.hits)),
       element("span", { class: "path muted" }, `${item.path}:${item.line}`),
+      sinceBadge(item.sinceRevision),
       element("span", { class: "repo" }, repoName(this.state, item.repoId)),
     );
   }
@@ -549,6 +566,23 @@ function pathScopeNote(scope: string[]): HTMLElement {
     ...patterns,
     " are searched.",
   );
+}
+
+/** Why each repo an at: search left out has no such revision: "v9 isn't a tag, branch or commit in web-checkout". */
+function revisionProblems(done: SearchDoneMessage | undefined): string[] {
+  return (done?.revisions ?? []).flatMap((revision) => (revision.problem ? [revision.problem] : []));
+}
+
+/** How a file found at a revision (at:) differs now: "deleted since" or "changed since"; nothing when it's the same. */
+const SINCE_BADGE: Record<SinceRevision, { label: string; title: string }> = {
+  deleted: { label: "deleted since", title: "This file isn't in the current files" },
+  changed: { label: "changed since", title: "This file is different in the current files" },
+};
+
+function sinceBadge(since: SinceRevision | undefined): HTMLElement | null {
+  if (!since) return null;
+  const { label, title } = SINCE_BADGE[since];
+  return element("span", { class: `badge since-${since}`, title, "data-testid": "since-revision" }, label);
 }
 
 /** The badge for why best-match order put a result's file where it is, if it says. */

@@ -30,7 +30,7 @@ export interface OperatorGroup {
   entries: OperatorEntry[];
 }
 
-/** Every operator and piece of syntax: 25 entries in five groups. */
+/** Every operator and piece of syntax: 26 entries in five groups. */
 export const OPERATOR_GROUPS: OperatorGroup[] = [
   {
     name: "Matching",
@@ -242,6 +242,15 @@ export const OPERATOR_GROUPS: OperatorGroup[] = [
         description:
           "The other end of since: and the same values. A date or a month counts in full, so until:2026-09 keeps everything before October; until:2w keeps what is older than two weeks. since:2026-09 until:2026-09 is September.",
         example: "until:2w timeout",
+      },
+      {
+        operator: "at",
+        label: "at:v1.0.0|main|6m",
+        insert: "at:",
+        summary: "Files as they were at a tag, branch, commit or time.",
+        description:
+          "Search the files as they were at a tag, a branch, a commit (3f9c2e1, HEAD~10) or a time (6m, 2026-01-31: the newest commit by then), read from Git in each repo. Results say which files changed or were deleted since, open read-only, and Compare with now shows what changed. is:open, is:changed, since:, until: and owner: describe files as they are now, so they can't go with it.",
+        example: "at:v1.0.0 retry",
       },
     ],
   },

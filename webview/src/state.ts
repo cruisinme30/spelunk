@@ -42,6 +42,8 @@ export interface ViewState {
    */
   searchReplaced: boolean;
   done: SearchDoneMessage | undefined;
+  /** The at: value of the search on screen: its results are files as they were at that revision. */
+  searchedAt: string | undefined;
   /** Raw text of the last query that parsed without errors; its results stay while the box has errors. */
   lastGoodText: string;
   /** The selected result's ref ("" when none). */
@@ -102,6 +104,7 @@ export function createViewState(): ViewState {
     searchId: "",
     searchReplaced: false,
     done: undefined,
+    searchedAt: undefined,
     lastGoodText: "",
     selectedRef: "",
     preview: undefined,

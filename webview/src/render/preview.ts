@@ -1,7 +1,7 @@
 // The preview pane: a file excerpt around the match, or a commit's diff.
 import { button, element, fileStat, highlight, plural, scrollIntoContainer, shortSha, timeAgo } from "../format";
 import { textTerms } from "../parsedQuery";
-import type { OpenWhere, Ownership, Preview } from "../protocol.gen";
+import type { OpenWhere, Ownership, Preview, ResultItem, SinceRevision } from "../protocol.gen";
 import { repoName, type ViewState } from "../state";
 
 type FilePreview = Extract<Preview, { kind: "file" }>;
@@ -19,11 +19,25 @@ interface PreviewHandlers {
   replacementsFor: (path: string, line: number) => string[] | undefined;
 }
 
+/** The selected result a preview shows: its repo, and, for an at: search, its revision. */
+export interface PreviewOf {
+  repoId: string | undefined;
+  /** The at: value its file is at, and how the file differs now; undefined for a current file. */
+  at?: { label: string; since: SinceRevision | undefined };
+}
+
+/** What the preview of `item` shows it as: in its repo, and at the revision of the search on screen, if any. */
+export function previewOf(state: ViewState, item: ResultItem | undefined): PreviewOf {
+  const at = state.searchedAt;
+  if (at === undefined || !item) return { repoId: item?.repoId };
+  return { repoId: item.repoId, at: { label: at, since: "sinceRevision" in item ? item.sinceRevision : undefined } };
+}
+
 /** Fills `container` with the preview in `state.preview`, if any. */
 export function renderPreview(
   container: HTMLElement,
   state: ViewState,
-  repoId: string | undefined,
+  of: PreviewOf,
   handlers: PreviewHandlers,
 ): void {
   container.replaceChildren();
@@ -43,13 +57,16 @@ export function renderPreview(
       preview.kind === "commit" ? "Open diff ↵" : "Open ↵",
     ),
     element("button", { type: "button", class: "btn", "data-where": "side" }, "Open to side ⌘↵"),
+    of.at ? compareButton(of.at.since) : null,
   );
-  // One listener for both buttons: each says where it opens in data-where.
+  // One listener for every button: each says where it opens in data-where.
   actions.addEventListener("click", (event) => {
-    const where = (event.target as HTMLElement).closest<HTMLElement>("[data-where]")?.dataset["where"];
-    if (where === "current" || where === "side") handlers.onOpen(current.ref, where);
+    const where = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-where]:not(:disabled)")?.dataset[
+      "where"
+    ];
+    if (where === "current" || where === "side" || where === "compare") handlers.onOpen(current.ref, where);
   });
-  const header = { repo: repoId ? repoName(state, repoId) : "", actions };
+  const header = { repo: of.repoId ? repoName(state, of.repoId) : "", actions, at: of.at?.label };
   if (preview.kind === "file") {
     renderFilePreview(container, preview, header, handlers.replacementsFor);
   } else {
@@ -61,16 +78,39 @@ export function renderPreview(
   }
 }
 
-/** What every preview header shows besides the title: the repo name and the Open buttons. */
+/** What every preview header shows besides the title: the repo name, the Open buttons, and an at: search's revision. */
 interface PreviewHeader {
   repo: string;
   actions: HTMLElement;
+  at?: string | undefined;
+}
+
+/**
+ * Compare, for a file at a revision: a diff of the file then against the file now. A file deleted since, or the
+ * same now, has nothing to compare with.
+ */
+function compareButton(since: SinceRevision | undefined): HTMLElement {
+  const reason = {
+    deleted: "Deleted since: there's no current file to compare with",
+    none: "The same as the current file",
+  }[since === "deleted" ? "deleted" : "none"];
+  return element(
+    "button",
+    {
+      type: "button",
+      class: "btn",
+      "data-where": "compare",
+      "data-testid": "compare",
+      ...(since === "changed" ? { title: "Show what changed since, as a diff" } : { disabled: true, title: reason }),
+    },
+    "Compare with now",
+  );
 }
 
 function renderFilePreview(
   container: HTMLElement,
   preview: FilePreview,
-  { repo, actions }: PreviewHeader,
+  { repo, actions, at }: PreviewHeader,
   replacementsFor: PreviewHandlers["replacementsFor"],
 ): void {
   container.append(
@@ -83,6 +123,9 @@ function renderFilePreview(
         element("span", { class: "muted" }, repo ? `${repo} / ` : ""),
         preview.path,
       ),
+      at === undefined
+        ? null
+        : element("span", { class: "badge revision", "data-testid": "preview-revision" }, `${at} · read-only`),
       element("span", { class: "muted" }, focusLabel(preview)),
       actions,
     ),
