@@ -556,7 +556,6 @@ export class SearchPanel {
     state.searchText = searchText;
     if (state.completionIndex >= completions.length) state.completionIndex = 0;
     const errors = hasErrors(state);
-    if (!errors && query.root) state.lastGoodText = query.raw;
     if (!errors) state.searchReplaced = true; // the host searches this query instead
 
     const { caseButton, wordButton, regexButton, shell, input } = this.layout;
@@ -609,6 +608,8 @@ export class SearchPanel {
         this.replace.replacementsFor(item.repoId, item.path, item.line),
     };
     const errors = hasErrors(state);
+    // Named once its results show: a query whose results never came isn't the one on screen.
+    if (!errors && state.parsed?.root) state.lastGoodText = state.parsed.raw;
     this.results = new ResultsView(this.layout.body, state, handlers, errors ? [] : pathScope(state.parsed));
     this.results.showLastGood(errors ? state.lastGoodText : undefined);
     this.replace.refresh(); // a new search: preview replacing its matches

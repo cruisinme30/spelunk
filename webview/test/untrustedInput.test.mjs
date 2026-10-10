@@ -342,6 +342,17 @@ test("while the box has errors, the last good search keeps streaming its results
   assert.deepEqual(await shownReferences(page), ["old-1", "old-2"]);
 });
 
+test("while the box has errors, the line names the query whose results show, not one whose results never came", async (t) => {
+  const { page, seq } = await searchingPanel(t);
+  await fromHost(page, "search.batch", { seq, searchId: "s1", items: [codeLine("old-1", "retry", [])] });
+  await typeAndParse(page, "timeout", parsedQuery("timeout", textNode("timeout", 0))); // no results yet
+  const diagnostics = [
+    { severity: "error", code: "unclosed_paren", message: "(", span: { start: 8, end: 9 }, fixes: [] },
+  ];
+  await typeAndParse(page, "timeout (", parsedQuery("timeout (", null, { diagnostics }));
+  assert.match(await page.textContent('[data-testid="last-good"]'), /worked retry$/);
+});
+
 test("a corrupt or old saved state leaves the box empty", async (t) => {
   for (const saved of ["text", 42, [1, 2], { text: 5 }, { text: { nested: true } }, { version: 0, query: "x" }]) {
     const page = await openPanelWithSavedState(t, saved);
