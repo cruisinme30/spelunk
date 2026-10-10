@@ -49,7 +49,8 @@ const SHORTCUT_CARDS: ShortcutCard[] = [
     choice: "findInFiles",
     title: "Take over",
     key: (keys) => keys.findInFiles,
-    description: () => "Leave Quick Open alone and use the find-in-files key instead.",
+    description: () =>
+      "Leave Quick Open alone and use the find-in-files key instead. VS Code’s Search view then has no key: open it from the Activity Bar.",
   },
   {
     choice: "custom",

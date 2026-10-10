@@ -42,6 +42,7 @@ test("the welcome page offers the shortcuts and shows each repo's indexing", asy
   assert.match(await cards.nth(0).innerText(), /Take over\s*⌘P\s*Recommended/);
   assert.match(await cards.nth(0).innerText(), /Quick Open moves to ⌥⌘P/);
   assert.match(await cards.nth(1).innerText(), /Take over\s*⇧⌘F/);
+  assert.match(await cards.nth(1).innerText(), /Search view then has no key/);
   assert.equal(await page.isChecked('[data-testid="shortcut"][value="quickOpen"]'), true);
 
   const rows = page.locator('[data-testid="welcome-repo"]');
