@@ -74,9 +74,9 @@ declare module "vscode" {
     export function createStatusBarItem(alignment?: StatusBarAlignment, priority?: number): StatusBarItem;
     export function showTextDocument(uri: Uri, options?: TextDocumentShowOptions): Thenable<TextEditor>;
     export function showTextDocument(document: TextDocument, options?: TextDocumentShowOptions): Thenable<TextEditor>;
-    export function showErrorMessage(message: string, ...items: string[]): Thenable<string | undefined>;
-    export function showWarningMessage(message: string, ...items: string[]): Thenable<string | undefined>;
-    export function showInformationMessage(message: string, ...items: string[]): Thenable<string | undefined>;
+    export function showErrorMessage<T extends string>(message: string, ...items: T[]): Thenable<T | undefined>;
+    export function showWarningMessage<T extends string>(message: string, ...items: T[]): Thenable<T | undefined>;
+    export function showInformationMessage<T extends string>(message: string, ...items: T[]): Thenable<T | undefined>;
     export function showQuickPick<T extends QuickPickItem>(items: readonly T[], options?: { placeHolder?: string }): Thenable<T | undefined>;
   }
 
