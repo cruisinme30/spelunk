@@ -69,11 +69,17 @@ export class SearchPanel implements vscode.Disposable {
       void this.panel.webview.postMessage({ v: MESSAGE_VERSION, type, payload });
       return;
     }
-    // Only the newest state.restore matters; everything else waits in order.
+    // Only the newest state.restore matters, keeping the text of an older one
+    // when a settings change sent none; everything else waits in order.
+    let queuedPayload: HostToWebview[keyof HostToWebview] = payload;
     if (type === "state.restore") {
-      this.pendingMessages = this.pendingMessages.filter((queued) => queued.type !== "state.restore");
+      const queued = this.pendingMessages.find((message) => message.type === "state.restore");
+      const { text } = (queued?.payload ?? {}) as HostToWebview["state.restore"];
+      this.pendingMessages = this.pendingMessages.filter((message) => message !== queued);
+      const restore = payload as HostToWebview["state.restore"];
+      if (restore.text === undefined && text !== undefined) queuedPayload = { ...restore, text };
     }
-    this.pendingMessages.push({ type, payload });
+    this.pendingMessages.push({ type, payload: queuedPayload });
   }
 
   /** Closes the panel when the extension deactivates. */

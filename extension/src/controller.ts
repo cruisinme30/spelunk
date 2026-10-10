@@ -252,6 +252,20 @@ export class SearchController {
     void this.postWatchState();
   }
 
+  /**
+   * Sends changed settings and pinned queries to the open panel, leaving
+   * the box's text alone: the text here lags what is being typed by the
+   * typing delay, and sending it would undo the newest keystrokes.
+   */
+  settingsChanged(): void {
+    this.ui.post("state.restore", {
+      recent: this.state.recent,
+      pinned: this.options.pinnedQueries(),
+      settings: this.options.uiSettings(),
+    });
+    void this.postWatchState();
+  }
+
   /** Handles one message from the search panel. */
   async handle(message: WebviewMessage): Promise<void> {
     if (fromHelpOrWelcome(message)) return;

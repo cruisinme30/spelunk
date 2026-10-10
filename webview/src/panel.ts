@@ -512,7 +512,10 @@ export class SearchPanel {
     if (preview.stale) this.results?.markStale(preview.ref);
   }
 
-  /** The host's saved box text, recent and pinned queries, and settings: on opening, and after settings change. */
+  /**
+   * The host's saved box text, recent and pinned queries, and settings: on
+   * opening, and, without the text, after settings change.
+   */
   private onRestore({ text, recent, pinned, settings }: StateRestoreMessage): void {
     const { input } = this.layout;
     if (settings) this.state.ui = settings;
@@ -526,7 +529,7 @@ export class SearchPanel {
     this.state.naming = undefined;
     // A shorter list mustn't leave ↵ pointing past its end.
     this.emptyBox.clampIndex();
-    if (text !== input.value) {
+    if (text !== undefined && text !== input.value) {
       input.value = text;
       input.setSelectionRange(text.length, text.length);
     }

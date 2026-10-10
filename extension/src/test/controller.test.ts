@@ -309,6 +309,16 @@ test("recent queries are deduplicated, newest first, and capped", () => {
   assert.deepEqual(host.payloads("state.restore").at(-1)?.recent, ["c", "a"]);
 });
 
+test("a settings change sends the settings and pins, but not the box's text, which lags the typing", async () => {
+  const host = recordingUi();
+  const controller = newController(parseOnlyBackend().backend, host.ui, { pinnedQueries: () => [{ query: "retry" }] });
+  await controller.handle(queryChanged("timeo", 1));
+  controller.settingsChanged();
+  const sent = host.payloads("state.restore").at(-1);
+  assert.equal(sent?.text, undefined);
+  assert.deepEqual(sent?.pinned, [{ query: "retry" }]);
+});
+
 test("closing the panel hides it and remembers the query", async () => {
   // @covers msg:panel.close
   const host = recordingUi();

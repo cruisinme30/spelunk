@@ -1346,7 +1346,8 @@ func (v IndexStatusMessage) MarshalJSON() ([]byte, error) {
 
 // StateRestoreMessage restores the panel's query, recent and pinned queries, and settings.
 type StateRestoreMessage struct {
-	Text     string        `json:"text"`
+	// Text is the query box's text; absent after a settings change, which leaves the box as it is.
+	Text     string        `json:"text,omitempty"`
 	Recent   []string      `json:"recent"`
 	Pinned   []PinnedQuery `json:"pinned"`
 	Settings *UiSettings   `json:"settings,omitempty"`

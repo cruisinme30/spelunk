@@ -139,7 +139,7 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi {
       if (touchesMovedSetting(event)) moveSettingsSoon(logError("settings"));
       daemon.updateSettings(daemonSettings(configuration(), homedir()));
       daemon.setWatches(watchedQueries(configuration()));
-      if (panel.isOpen) controller.restore(); // sends the new settings to the panel
+      if (panel.isOpen) controller.settingsChanged();
       welcome.refresh();
     }),
   );

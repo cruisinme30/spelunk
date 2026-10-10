@@ -1991,6 +1991,7 @@
       "type": "object",
       "properties": {
         "text": {
+          "description": "The query box's text; absent after a settings change, which leaves the box as it is.",
           "type": "string"
         },
         "recent": {
@@ -2009,7 +2010,7 @@
           "$ref": "#/$defs/UiSettings"
         }
       },
-      "required": ["text", "recent", "pinned"]
+      "required": ["recent", "pinned"]
     },
     "UiSettings": {
       "description": "UiSettings are the UI-facing settings the host forwards to the webview.",

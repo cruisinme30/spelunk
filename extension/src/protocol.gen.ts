@@ -778,7 +778,8 @@ export interface IndexStatusMessage {
 
 /** StateRestoreMessage restores the panel's query, recent and pinned queries, and settings. */
 export interface StateRestoreMessage {
-  text: string;
+  /** The query box's text; absent after a settings change, which leaves the box as it is. */
+  text?: string;
   recent: string[];
   pinned: PinnedQuery[];
   settings?: UiSettings;

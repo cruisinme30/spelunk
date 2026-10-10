@@ -52,7 +52,7 @@ const HAS_REQUIRED_FIELDS: Record<keyof HostToWebview, (payload: Fields) => bool
   "preview.result": ({ ref, preview }) => isString(ref) && (preview === null || isObject(preview)),
   "index.status": ({ repos }) => isObjectArray(repos) && repos.every((repo) => isString(repo["name"])),
   "state.restore": ({ text, recent, pinned, settings }) =>
-    isString(text) &&
+    (text === undefined || isString(text)) &&
     Array.isArray(recent) &&
     recent.every((query) => isString(query)) &&
     isObjectArray(pinned) &&

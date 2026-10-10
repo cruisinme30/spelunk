@@ -10,6 +10,7 @@ import {
   restore,
   sentMessages,
   textNode,
+  UI_SETTINGS,
   useBrowser,
   waitForSent,
 } from "./harness.mjs";
@@ -38,4 +39,12 @@ test("the parsed query is shown unless ui.showParsedQuery is off", async (t) => 
     if (showParsedQuery) assert.match(chips, /retry/);
     else assert.equal(chips, "");
   }
+});
+
+test("a settings change keeps what is being typed in the box", async (t) => {
+  const page = await openPanel(t);
+  await restore(page, [], { typingDelayMs: 300 });
+  await page.fill(QUERY, "retry_aft");
+  await fromHost(page, "state.restore", { recent: [], pinned: [], settings: { ...UI_SETTINGS, preview: false } });
+  assert.equal(await page.inputValue(QUERY), "retry_aft");
 });
