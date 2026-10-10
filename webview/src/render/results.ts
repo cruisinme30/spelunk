@@ -464,14 +464,19 @@ export class ResultsView {
       "div",
       { ...this.rowAttributes(item), class: `row file${demoted(item.rankReason)}`, title: item.path },
       element("span", { class: "path" }, highlight(item.path, item.nameHits)),
-      rankBadge(item.rankReason),
-      sinceBadge(item.sinceRevision),
-      ownerBadge(item.owners),
-      item.dirty ? element("span", { class: "badge warn" }, "Uncommitted changes") : null,
-      item.lastCommit
-        ? element("span", { class: "meta" }, `${item.lastCommit.author} · ${timeAgo(item.lastCommit.at)}`)
-        : null,
-      element("span", { class: "repo" }, repoName(this.state, item.repoId)),
+      // Together after the path, on a line of their own when they don't fit beside it.
+      element(
+        "span",
+        { class: "details" },
+        rankBadge(item.rankReason),
+        sinceBadge(item.sinceRevision),
+        ownerBadge(item.owners),
+        item.dirty ? element("span", { class: "badge warn" }, "Uncommitted changes") : null,
+        item.lastCommit
+          ? element("span", { class: "meta" }, `${item.lastCommit.author} · ${timeAgo(item.lastCommit.at)}`)
+          : null,
+        element("span", { class: "repo" }, repoName(this.state, item.repoId)),
+      ),
     );
   }
 

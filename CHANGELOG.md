@@ -22,6 +22,9 @@ All notable changes to this project are documented here. The format follows
 - Esc runs the search again as typed, and ↑ ↓ pressed before its results came were undone when they arrived: the
   selection jumped back to the first row. The result you were on now stays selected when the new results still have
   it.
+- In a narrow results column a file name’s path was cut to a few letters (“src/p…”) to make room for its badges, last
+  author and repo; the path now comes first and those go on a line of their own, where the author and time give way
+  first. A highlight cut by the path’s ellipsis no longer leaves a stray bar of color after it.
 
 ### Added
 

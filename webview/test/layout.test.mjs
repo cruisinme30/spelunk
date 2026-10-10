@@ -116,6 +116,80 @@ test("the preview sits beside the results down to 641px, and below that hides an
   assert.equal((await sentMessages(page, "result.select")).length, 1);
 });
 
+/** A file-name result for `path`, with every detail a row can show after it. */
+const fileRow = (ref, path, nameHits) => ({
+  kind: "file",
+  ref,
+  repoId: "r1",
+  path,
+  nameHits,
+  dirty: false,
+  rankReason: "test",
+  owners: ["@acme/payments-core", "@jane"],
+  lastCommit: { author: "Someone With A Long Name", at: "2026-01-01T00:00:00Z" },
+});
+
+/** Whether a file-name row cuts its path, and where the details after it sit. */
+const rowLayout = (page, ref) =>
+  page.evaluate((wanted) => {
+    const row = document.querySelector(`[data-ref="${wanted}"]`);
+    const path = row.querySelector(".path");
+    const details = row.querySelector(".details");
+    return {
+      pathCut: path.scrollWidth > path.clientWidth,
+      detailsBelow: details.getBoundingClientRect().top >= path.getBoundingClientRect().bottom,
+      detailsInside: details.getBoundingClientRect().right <= row.getBoundingClientRect().right,
+    };
+  }, ref);
+
+/** The color of the pixel at `x`, `y` of a PNG, read in the page. */
+const pixel = (page, png, x, y) =>
+  page.evaluate(
+    async ([base64, px, py]) => {
+      // Decoded here: the page's content security policy lets it fetch nothing, data: URLs included.
+      const bytes = Uint8Array.from(atob(base64), (character) => character.codePointAt(0));
+      const image = await createImageBitmap(new Blob([bytes], { type: "image/png" }));
+      const canvas = new OffscreenCanvas(image.width, image.height);
+      const context = canvas.getContext("2d");
+      context.drawImage(image, 0, 0);
+      return [...context.getImageData(px, py, 1, 1).data].join(",");
+    },
+    [png.toString("base64"), x, y],
+  );
+
+test("a file name's path takes the row first, and a highlight cut by its ellipsis leaves nothing after it", async (t) => {
+  const page = await openPanel(t);
+  await page.setViewportSize({ width: 760, height: 500 });
+  await restore(page, [], { order: "path" });
+  const seq = await typeAndParse(page, "payment", parsedQuery("payment", textNode("payment", 0)));
+  const fits = "src/payments/retry/payment_retry_policy.py";
+  const cut = `tests/payments/${"integration/".repeat(4)}gateway.py`;
+  await fromHost(page, "search.batch", {
+    seq,
+    searchId: "s1",
+    items: [fileRow("fits", fits, [{ start: 19, end: 26 }]), fileRow("cut", cut, [{ start: 6, end: 13 }])],
+  });
+  const layout = { fits: await rowLayout(page, "fits"), cut: await rowLayout(page, "cut") };
+  // The path fits on its line, so the badges, the author and the repo go below it rather than cut it short.
+  assert.deepEqual(layout.fits, { pathCut: false, detailsBelow: true, detailsInside: true });
+  assert.equal(layout.cut.pathCut, true);
+
+  // Cut inside the highlight: the highlight is left out whole, so its color doesn't run on past the ellipsis.
+  await page.setViewportSize({ width: 700, height: 500 });
+  await page.evaluate(() => {
+    const path = document.querySelector('[data-ref="cut"] .path');
+    path.style.flex = "none";
+    path.style.maxWidth = `${path.querySelector("mark").offsetLeft + 20}px`;
+  });
+  const path = page.locator('[data-ref="cut"] .path');
+  const box = await path.boundingBox();
+  const png = await page.locator('[data-ref="cut"]').screenshot();
+  const row = await page.locator('[data-ref="cut"]').boundingBox();
+  const y = Math.round(box.y - row.y + box.height / 2);
+  const end = Math.round(box.x - row.x + box.width) - 2;
+  assert.equal(await pixel(page, png, end, y), await pixel(page, png, end + 6, y), "the end of the path shows the row");
+});
+
 /** How far the page is wider than its window, in pixels (0 when it fits). */
 const horizontalOverflow = (page) =>
   page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);

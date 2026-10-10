@@ -901,9 +901,14 @@ body.vscode-high-contrast-light .completion.selected {
   opacity: 0.5;
 }
 
+/*
+ * The path comes first: it takes the width it needs (flex-basis auto) before the badges, author and repo after it,
+ * which wrap onto a line of their own when they don't fit beside it. Only a path wider than the whole row is cut, with
+ * an ellipsis.
+ */
 .row .path,
 .group .path {
-  flex: 1;
+  flex: 1 1 auto;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -911,6 +916,40 @@ body.vscode-high-contrast-light .completion.selected {
 
 .row .path {
   white-space: nowrap;
+}
+
+/*
+ * What a file-name row says after its path: badges, the last commit and the repo, on one line. Beside the path when
+ * there is room, else on a line of its own, where the last commit's author and time give way first.
+ */
+.row .details {
+  display: flex;
+  align-items: center;
+  gap: 4px 10px;
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.row .details .meta {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.row .details .badge,
+.row .details .repo {
+  flex: none;
+  white-space: nowrap;
+}
+
+/*
+ * A path cut short ends in an ellipsis. Inline, a highlight cut by it would paint its background on past the ellipsis
+ * to the edge; as an inline block it is shown whole or left out, so the ellipsis follows the last part that fits.
+ */
+.row .path mark {
+  display: inline-block;
 }
 
 .row .repo,
