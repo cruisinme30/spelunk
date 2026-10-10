@@ -68,7 +68,7 @@ func subjectsOf(match protocol.WatchMatchedParams) []string {
 }
 
 func TestWatchedHistoryQueriesAnnounceNewCommitsByOthers(t *testing.T) {
-	// @covers screen:query-watches
+	// @covers screen:query-watches rpc:watch/matched
 	root := checkoutRepo(t)
 	client := newTestClient(t)
 	matches := collectMatches(client)
@@ -115,7 +115,7 @@ func TestWatchedHistoryQueriesAnnounceNewCommitsByOthers(t *testing.T) {
 }
 
 func TestWatchSetReplacesTheWatchedQueries(t *testing.T) {
-	// @covers screen:query-watches
+	// @covers screen:query-watches rpc:watch/set
 	client := newTestClient(t)
 	client.mustInitialize(t)
 	if err := client.conn.Notify(protocol.MethodWatchSet, protocol.WatchSetParams{Queries: []string{"msg:revert", ""}}); err != nil {
