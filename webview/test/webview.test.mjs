@@ -619,9 +619,13 @@ test("after a click on a result, the keys still move through the results and ope
   await page.keyboard.press("Enter");
   assert.deepEqual(await lastSent(page, "result.open"), { ref: "l1", where: "current" });
 
-  // Text selected in a row stays selected, to be copied.
-  await page.locator('[data-ref="l1"] .text').selectText();
-  await page.locator('[data-ref="l1"] .text').click({ position: { x: 2, y: 2 }, modifiers: ["Shift"] });
+  // Text dragged over in a row stays selected, to be copied.
+  const text = await page.locator('[data-ref="l1"] .text').boundingBox();
+  const y = text.y + text.height / 2;
+  await page.mouse.move(text.x + 2, y);
+  await page.mouse.down();
+  await page.mouse.move(text.x + text.width - 2, y, { steps: 5 });
+  await page.mouse.up();
   assert.notEqual(await page.evaluate(() => document.getSelection()?.toString()), "");
 });
 
