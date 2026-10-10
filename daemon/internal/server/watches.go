@@ -66,7 +66,7 @@ func (s *Server) announceWatches(repo history.Repo, commits []history.Commit) {
 	}
 	fresh := history.Repo{ID: repo.ID, Name: repo.Name, Root: repo.Root, Store: history.StoreOf(repo.Store.Head, commits)}
 	for _, text := range watches {
-		if matched, ok := s.watchMatches(ctx, text, fresh); ok {
+		if matched, ok := s.watchMatches(text, fresh); ok {
 			_ = s.conn.Notify(protocol.MethodWatchMatched, matched)
 		}
 	}
@@ -85,7 +85,10 @@ func othersCommits(commits []history.Commit, email string) []history.Commit {
 
 // watchMatches runs one watched query over repo's commits. ok is false when
 // the query doesn't search history, has errors, or matched nothing.
-func (s *Server) watchMatches(ctx context.Context, text string, repo history.Repo) (protocol.WatchMatchedParams, bool) {
+// Each query has its own engine.Budget, so slow ones don't starve the rest.
+func (s *Server) watchMatches(text string, repo history.Repo) (protocol.WatchMatchedParams, bool) {
+	ctx, cancel := context.WithTimeout(context.Background(), engine.Budget)
+	defer cancel()
 	plan, _, err := query.NewPlan(query.Parse(text, s.resolver(nil)), s.Settings(), s.now(), "")
 	if err != nil || plan.Mode != protocol.ModeHistory {
 		return protocol.WatchMatchedParams{}, false
