@@ -641,13 +641,14 @@ async function openTarget({ target, where, preview, item }: Opening, documents: 
 
 /**
  * Opens a result at a revision: its file as it was, read-only, with the match selected; or, for compare, a diff of
- * that file against the file now. `path` is the file's repo-relative path.
+ * that file against the file now. A file deleted since has nothing to compare with, so it opens read-only instead.
+ * `path` is the file's repo-relative path.
  */
 async function openAtRevision(revisions: RevisionDocuments, opening: Opening, path: string): Promise<void> {
   const { target, where, preview, item } = opening;
   const label = target.revisionLabel ?? target.revision?.slice(0, 7) ?? "";
   const uri = revisions.uriFor(item?.ref ?? "", label, path);
-  if (where === "compare" && target.path) {
+  if (where === "compare" && target.path && existsSync(target.path)) {
     await vscode.commands.executeCommand(
       "vscode.diff",
       uri,
