@@ -11,6 +11,16 @@ All notable changes to this project are documented here. The format follows
   each code match, so you can often tell what a match is without opening it. Matches close together share one run of
   lines, and **⋯** marks the lines skipped between runs; ↑ ↓ still step from match to match. The buttons save
   `spelunk.results.contextLines` (0 by default), where its value comes from.
+- `is:generated` and `is:vendored` keep the files a tool wrote (`*.pb.go`, `*_pb2.py`, `*.min.js`, or a header with
+  `DO NOT EDIT` or `@generated`) or the ones in `vendor/`, `node_modules/`, `third_party/` and `dist/`, the same files
+  best-match ranking puts last. `RetryPolicy -is:generated -is:vendored` keeps a search or a replace to code you
+  wrote, and a note says how many matches each filter left out. In a commit search they go by path, and
+  `is:generated` by file name only. Their suggestions say how many files are in each.
+
+### Changed
+
+- protoc's Python output (`*_pb2.py`) and any header that says `DO NOT EDIT` beside the word "generated" now count as
+  generated code, so best-match ranking puts those files last too.
 
 ## [1.1.0] - 2026-10-05
 
