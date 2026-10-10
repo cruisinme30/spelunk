@@ -150,6 +150,7 @@ function diskUi() {
     saveFiles: (files) => void saved.push(files),
     showWatchMatch: () => Promise.resolve(undefined as typeof STOP_WATCHING | undefined),
     showQuery: () => {},
+    showError: () => {},
   };
   const payloads = <T extends keyof HostToWebview>(type: T) =>
     posted.filter((message) => message.type === type).map((message) => message.payload as HostToWebview[T]);

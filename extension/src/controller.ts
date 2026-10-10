@@ -113,6 +113,8 @@ export interface Ui {
   showWatchMatch(message: string): Promise<typeof SHOW_MATCHES | typeof STOP_WATCHING | undefined>;
   /** Opens the search panel on `query`, which then runs. */
   showQuery(query: string): void;
+  /** Tells the user something they asked for failed, and logs it. */
+  showError(message: string): void;
 }
 
 /** Survives window reloads (globalState): the last query and recent queries. */
@@ -773,7 +775,11 @@ export class SearchController {
     if (where !== "side" && this.options.closeOnOpen()) this.ui.hidePanel();
   }
 
-  /** Opens a result; a stale ref greys its row out instead. Returns whether it opened. */
+  /**
+   * Opens a result; a stale ref greys its row out instead, and any other
+   * failure (an editor that can't show the file, a daemon that is down) is
+   * shown to the user. Returns whether it opened.
+   */
   private async openRef(ref: string, where: OpenWhere): Promise<boolean> {
     try {
       const target = await this.backend.request("open/resolve", { ref });
@@ -783,6 +789,8 @@ export class SearchController {
     } catch (error) {
       if (error instanceof RpcError && error.code === ErrorCodes.RefStale) {
         this.ui.post("preview.result", { ref, preview: null, stale: true });
+      } else {
+        this.ui.showError(`Spelunk couldn't open that result: ${errorMessage(error)}`);
       }
       return false;
     }

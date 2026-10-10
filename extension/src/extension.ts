@@ -414,6 +414,10 @@ function createUi({ panel, daemon, documents, openedStatus, globalState, logErro
     showQuery: (query) => {
       vscode.commands.executeCommand("spelunk.open", { query }).then(undefined, logError("watches"));
     },
+    showError: (message) => {
+      logError("open")(message);
+      void vscode.window.showErrorMessage(message);
+    },
     saveFiles: (files) => {
       for (const file of files) {
         // As URIs, which normalize the drive letter's case that a path may spell either way.

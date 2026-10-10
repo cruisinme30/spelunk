@@ -64,6 +64,7 @@ function recordingUi() {
   const previews: boolean[] = [];
   const shown: string[] = [];
   const contextKeys: Record<string, boolean> = {};
+  const errors: string[] = [];
   let closedPanels = 0;
   const ui: Ui = {
     post: (type, payload) => void posted.push({ type, payload } as PostedMessage),
@@ -89,11 +90,23 @@ function recordingUi() {
     saveFiles: () => {},
     showWatchMatch: () => Promise.resolve(undefined as typeof STOP_WATCHING | undefined),
     showQuery: () => {},
+    showError: (message) => void errors.push(message),
   };
   /** The payloads of every posted message of `type`, oldest first. */
   const payloads = <T extends keyof HostToWebview>(type: T) =>
     posted.filter((message) => message.type === type).map((message) => message.payload as HostToWebview[T]);
-  return { ui, posted, payloads, opened, openedItems, previews, shown, contextKeys, closedPanels: () => closedPanels };
+  return {
+    ui,
+    posted,
+    payloads,
+    opened,
+    openedItems,
+    previews,
+    shown,
+    contextKeys,
+    errors,
+    closedPanels: () => closedPanels,
+  };
 }
 
 function newController(backend: Backend, ui: Ui, options: Partial<ControllerOptions> = {}, initial?: PersistedState) {
@@ -896,6 +909,28 @@ test("opening a stale result greys it out and neither closes the panel nor remem
   assert.deepEqual(host.payloads("preview.result"), [{ ref: "old", preview: null, stale: true }]);
   assert.equal(host.closedPanels(), 0);
   assert.deepEqual(host.shown, []);
+  assert.deepEqual(host.errors, [], "a stale result is greyed out, not reported");
+});
+
+test("a result the editor can't open says why, and neither closes the panel nor counts as opened", async () => {
+  const host = recordingUi();
+  const ui: Ui = {
+    ...host.ui,
+    openTarget: () => Promise.reject(new Error("cannot open /work/blob.bin: binary file")),
+  };
+  const { backend } = scriptedBackend((method) => {
+    if (method === "open/resolve") return { path: "/work/blob.bin", line: 1, column: 1 };
+    throw new Error(`unexpected request ${method}`);
+  });
+  const controller = newController(backend, ui);
+  await controller.handle({ v: MESSAGE_VERSION, type: "result.open", payload: { ref: "r1", where: "current" } });
+  assert.deepEqual(host.errors, ["Spelunk couldn't open that result: cannot open /work/blob.bin: binary file"]);
+  assert.equal(host.closedPanels(), 0);
+  assert.deepEqual(host.shown, []);
+
+  const down = newController(scriptedBackend(() => Promise.reject(new Error("search daemon is stopped"))).backend, ui);
+  await down.handle({ v: MESSAGE_VERSION, type: "result.open", payload: { ref: "r1", where: "current" } });
+  assert.match(host.errors.at(-1) ?? "", /search daemon is stopped/);
 });
 
 test("a pasted query too long for the recent list is searched but not remembered", () => {
