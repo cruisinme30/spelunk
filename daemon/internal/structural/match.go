@@ -2,6 +2,7 @@ package structural
 
 import (
 	"bytes"
+	"sync"
 	"unicode"
 	"unicode/utf8"
 )
@@ -49,9 +50,13 @@ func (t *Template) Find(text []byte, language string, ignoreCase bool, limit int
 	if c.never {
 		return nil, true
 	}
-	tokens := lex(text, syntaxOf(language))
+	b := takeBuffers()
+	defer b.release()
+	b.tokens = lexInto(b.tokens, text, syntaxOf(language))
+	tokens := b.tokens
+	b.pair(tokens, text)
 	m := &matcher{
-		c: c, text: text, tokens: tokens, partner: partners(tokens, text), ignoreCase: ignoreCase,
+		c: c, text: text, tokens: tokens, partner: b.partner, ignoreCase: ignoreCase,
 		at: make([]int, len(c.tokens)), took: make([][2]int, len(c.tokens)), first: firstOfName(c),
 		budget: baseSteps + stepsPerToken*len(tokens),
 	}
@@ -71,6 +76,36 @@ func (t *Template) Find(text []byte, language string, ignoreCase bool, limit int
 		start++
 	}
 	return found, true
+}
+
+// buffers are the slices one Find lexes a text into. A struct: search
+// lexes every file that might match, and allocating their tokens anew for
+// each was most of its cost, so Find takes them from bufferPool.
+type buffers struct {
+	tokens  []token
+	partner []int
+	stack   []int
+}
+
+var bufferPool sync.Pool
+
+// maxPooledTokens is the most tokens buffers keep room for when they go
+// back to the pool; one huge file's buffers are left to the collector.
+const maxPooledTokens = 1 << 20
+
+// takeBuffers returns buffers from the pool, or new ones.
+func takeBuffers() *buffers {
+	if b, ok := bufferPool.Get().(*buffers); ok {
+		return b
+	}
+	return new(buffers)
+}
+
+// release puts b back in the pool, unless it grew too big to keep.
+func (b *buffers) release() {
+	if cap(b.tokens) <= maxPooledTokens {
+		bufferPool.Put(b)
+	}
 }
 
 // firstOfName returns, for each hole token, the index of the first hole

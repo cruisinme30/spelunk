@@ -2,6 +2,7 @@ package structural
 
 import (
 	"bytes"
+	"slices"
 	"unicode"
 	"unicode/utf8"
 )
@@ -126,7 +127,13 @@ type lexer struct {
 // lex reads text into tokens. Comments and spaces become nothing; they
 // only keep the next token from being joined to the one before.
 func lex(text []byte, s syntax) []token {
-	l := &lexer{syntax: s, text: text, gap: true}
+	return lexInto(nil, text, s)
+}
+
+// lexInto is lex, appending the tokens to buf[:0] so a caller can reuse
+// one buffer across texts.
+func lexInto(buf []token, text []byte, s syntax) []token {
+	l := &lexer{syntax: s, text: text, tokens: buf[:0], gap: true}
 	for l.pos < len(text) {
 		l.next()
 	}
@@ -388,8 +395,15 @@ func (l *lexer) emitString(start, end int) {
 // index of the token that closes token i, or -1 when none does. Only
 // opening brackets have one.
 func partners(tokens []token, text []byte) []int {
-	partner := make([]int, len(tokens))
-	var stack []int
+	var b buffers
+	b.pair(tokens, text)
+	return b.partner
+}
+
+// pair fills b.partner with the partners of tokens, reusing b's slices.
+func (b *buffers) pair(tokens []token, text []byte) {
+	partner := slices.Grow(b.partner[:0], len(tokens))[:len(tokens)]
+	stack := b.stack[:0]
 	for i, t := range tokens {
 		partner[i] = -1
 		switch t.kind {
@@ -405,7 +419,7 @@ func partners(tokens []token, text []byte) []int {
 		default:
 		}
 	}
-	return partner
+	b.partner, b.stack = partner, stack
 }
 
 // closes reports whether closer closes opener.
