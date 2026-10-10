@@ -19,6 +19,9 @@ All notable changes to this project are documented here. The format follows
   matches this file”.
 - The empty box’s key hints offered **⌥W watch** whatever row was selected; they now offer it only on a pin that can
   be watched (or **stop watching** on a watched one), and say **unpin** and **run pinned query** on a pin.
+- Esc runs the search again as typed, and ↑ ↓ pressed before its results came were undone when they arrived: the
+  selection jumped back to the first row. The result you were on now stays selected when the new results still have
+  it.
 
 ### Added
 

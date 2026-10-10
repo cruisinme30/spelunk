@@ -155,7 +155,8 @@ export class ResultsView {
   private readonly notes: HTMLElement;
   private readonly loadMore: HTMLElement;
   private readonly lastGood: HTMLElement;
-  private readonly index = new ResultIndex();
+  /** Every result on screen, indexed: by ref, by identity, and in the order ↑↓ go through them. */
+  readonly index = new ResultIndex();
   /** Results per kind so far; append() keeps it current, so counting never rescans `items`. */
   private readonly countByKind: Record<ResultKind, number> = { file: 0, line: 0, symbol: 0, commit: 0 };
   /** The files (fileKey) the code lines so far come from. */
@@ -235,16 +236,6 @@ export class ResultsView {
   /** The row of the result `ref` names, if it is on screen. */
   rowFor(ref: string): HTMLElement | undefined {
     return this.index.placed(ref)?.row;
-  }
-
-  /** The top result of the list. */
-  firstRef(): string | undefined {
-    return this.index.firstRef();
-  }
-
-  /** The result `step` rows below or above `ref`, staying on the first or last row. */
-  refFrom(ref: string, step: 1 | -1): string | undefined {
-    return this.index.refFrom(ref, step);
   }
 
   /** The first `count` code results, for the glimpse under the suggestions. */

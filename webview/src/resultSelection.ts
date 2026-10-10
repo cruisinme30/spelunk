@@ -3,6 +3,7 @@
 // while the preview pane shows.
 import { scrollIntoContainer } from "./format";
 import { send } from "./host";
+import { identityOf } from "./render/resultIndex";
 import type { ResultsView } from "./render/results";
 import type { ViewState } from "./state";
 
@@ -20,6 +21,12 @@ interface SelectionHooks {
 /** The selected result of the panel's results: one per panel. */
 export class ResultSelection {
   private previewTimer: ReturnType<typeof setTimeout> | undefined;
+  /**
+   * The result (identityOf) to select again once a new search, such as the
+   * same query run again by Esc, shows it: the one ↑↓ were on when it
+   * replaced the results, so keys pressed meanwhile aren't undone.
+   */
+  private kept: string | undefined;
   /** The result whose preview was last asked for, so a pane that shows again asks only once. */
   private previewed: string | undefined;
   /** Notices the preview pane showing again (a narrow panel hides it), to ask for the preview it missed. */
@@ -77,16 +84,46 @@ export class ResultSelection {
     send("result.select", { ref });
   }
 
+  /** A new search replaces `previous`: its selected result is kept for the new results to show again. */
+  keepFrom(previous: ResultsView | undefined): void {
+    const item = previous?.itemFor(this.state.selectedRef);
+    this.kept = item ? identityOf(item) : this.kept;
+  }
+
+  /** The results are gone (an empty box): nothing is kept for a later search. */
+  forget(): void {
+    this.kept = undefined;
+  }
+
   /** Results don't wrap: ↓ on the last row stays there. */
   move(step: 1 | -1): void {
-    const ref = this.hooks.results()?.refFrom(this.state.selectedRef, step);
+    this.kept = undefined; // the keys now move through the new results
+    const ref = this.hooks.results()?.index.refFrom(this.state.selectedRef, step);
     if (ref) this.select(ref);
   }
 
-  /** Selects the first result, unless one is selected already. */
+  /**
+   * After a batch: selects the kept result once it arrives, else the first
+   * result, unless one is selected already. While the kept one may still
+   * come, nothing is selected, so the selection doesn't jump back and forth.
+   */
   selectFirst(): void {
     if (this.state.selectedRef) return;
-    const first = this.hooks.results()?.firstRef();
+    const results = this.hooks.results();
+    if (this.kept !== undefined) {
+      const again = results?.index.refWithIdentity(this.kept);
+      if (!again) return;
+      this.kept = undefined;
+      this.select(again);
+      return;
+    }
+    const first = results?.index.firstRef();
     if (first) this.select(first);
+  }
+
+  /** The search is done: a kept result it didn't find gives way to the first one. */
+  settle(): void {
+    this.kept = undefined;
+    this.selectFirst();
   }
 }

@@ -570,6 +570,7 @@ export class SearchPanel {
     state.searchedAt = hasErrors(state) ? undefined : state.parsed?.globals.at;
     state.newCommits = new Set();
     state.expandedFacets.clear(); // +N shows every bucket of this search only
+    this.selection.keepFrom(this.results);
     state.selectedRef = "";
     state.preview = undefined;
     this.layout.input.removeAttribute("aria-activedescendant"); // the old results' rows go
@@ -608,6 +609,7 @@ export class SearchPanel {
     this.state.newCommits = new Set(done.newCommits);
     results.markNew();
     results.finish(done);
+    this.selection.settle();
     if (!hasErrors(this.state)) renderChips(this.layout, this.state, this.summary); // the chip names the commit read
     this.renderSummary();
     this.renderFacets();
@@ -623,6 +625,7 @@ export class SearchPanel {
     state.selectedRef = "";
     state.preview = undefined;
     this.results = undefined;
+    this.selection.forget();
     this.replace.refresh();
     this.layout.chips.replaceChildren();
     this.layout.facets.replaceChildren();

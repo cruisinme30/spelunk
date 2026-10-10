@@ -391,6 +391,48 @@ test("↑↓ go through the sections top to bottom, in the order their batches c
   assert.equal(await selected(), "f1");
 });
 
+/** The selected result row. */
+const SELECTED_RESULT = '[data-testid="result"][aria-selected="true"]';
+
+test("keys pressed while a search runs again keep their place when its results replace the old ones", async (t) => {
+  const page = await panelWithResults(t);
+  const lines = [42, 43, 44].map((line) => ({ ...CODE_LINE_RESULT, ref: `old${line}`, line }));
+  const { seq } = await lastSent(page, "query.changed");
+  await fromHost(page, "search.batch", { seq, searchId: "s1", items: lines });
+  // Suggestions show; Esc closes them and searches the box as typed.
+  const suggestion = { label: "x", detail: "x", group: "value", insert: { title: "x", edits: [] } };
+  const query = parsedQuery("retry_policy", textNode("retry_policy", 0));
+  await fromHost(page, "parse.result", { seq, query, completions: [suggestion] });
+  assert.equal(await page.locator('[data-testid="completions"]').isVisible(), true);
+  await page.keyboard.press("Escape");
+  const { seq: again, asTyped } = await lastSent(page, "query.changed");
+  assert.equal(asTyped, true);
+  // Before its results come, ↓ moves on through the results on screen.
+  await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("ArrowDown");
+  assert.equal(await page.getAttribute(SELECTED_RESULT, "data-ref"), "old43");
+  // The same results under the new search's refs: the selection stays on the same line, even though the batch that
+  // has it isn't the first.
+  const fresh = [FILE_NAME_RESULT, CODE_LINE_RESULT, ...lines].map((item) => ({
+    ...item,
+    ref: item.ref.replace("old", "new"),
+  }));
+  await fromHost(page, "search.batch", { seq: again, searchId: "s2", items: fresh.slice(0, 2) });
+  assert.equal(await page.locator(SELECTED_RESULT).count(), 0, "no jump to the first row meanwhile");
+  await fromHost(page, "search.batch", { seq: again, searchId: "s2", items: fresh.slice(2) });
+  assert.equal(await page.getAttribute(SELECTED_RESULT, "data-ref"), "new43");
+  await waitForSent(page, "result.select", { ref: "new43" });
+
+  // A search that doesn't find the selected result selects its first row when it is done.
+  await page.fill(QUERY, "retry");
+  const { seq: other } = await lastSent(page, "query.changed");
+  await fromHost(page, "search.batch", { seq: other, searchId: "s3", items: [{ ...FILE_NAME_RESULT, ref: "f9" }] });
+  assert.equal(await page.locator(SELECTED_RESULT).count(), 0);
+  await fromHost(page, "search.done", { seq: other, searchId: "s3", total: 1, truncated: false, hidden: [], ms: 1 });
+  assert.equal(await page.getAttribute(SELECTED_RESULT, "data-ref"), "f9");
+});
+
 test("under type:added, chips, commit rows and the hidden note speak of added lines", async (t) => {
   // @covers screen:added-removed-lines
   const page = await openPanel(t);
