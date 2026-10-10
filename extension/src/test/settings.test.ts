@@ -260,7 +260,7 @@ test("panel settings of the wrong type fall back to their defaults", () => {
   assert.equal(uiSettings(configWith({ "search.typingDelayMs": Number.POSITIVE_INFINITY })).typingDelayMs, 120);
 });
 
-test("pinned queries keep their order, drop bad entries and blank names, and keep a query once", () => {
+test("pinned queries keep their order, drop bad entries and blank names, and keep a query once, watch and all", () => {
   const config = configWith({
     "ui.pinnedQueries": [
       { query: " sym:RetryPolicy ", name: " Retry policy " },
@@ -278,6 +278,19 @@ test("pinned queries keep their order, drop bad entries and blank names, and kee
     { query: "since:2w timeout" },
     { query: "retry" },
   ]);
+  const twice = configWith({
+    "ui.pinnedQueries": [
+      { query: " msg:revert " },
+      { query: "retry" },
+      { query: "msg:revert", name: "Reverts", watch: true },
+    ],
+  });
+  assert.deepEqual(
+    pinnedQueries(twice),
+    [{ query: "msg:revert", name: "Reverts", watch: true }, { query: "retry" }],
+    "a query pinned twice keeps its first place, and the other entry's name and watch",
+  );
+  assert.deepEqual(watchedQueries(twice), ["msg:revert"]);
   assert.deepEqual(pinnedQueries(configWith({ "ui.pinnedQueries": "nope" })), []);
   assert.deepEqual(pinnedQueries(configWith({})), []);
 });

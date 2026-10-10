@@ -254,8 +254,9 @@ export function recentQueriesLimit(config: ConfigReader): number {
 
 /**
  * The pinned queries, in the order they were pinned. An entry without a
- * query is dropped, a blank name counts as none, only `watch: true` watches,
- * and a query pinned twice keeps its first entry.
+ * query is dropped, a blank name counts as none, and only `watch: true`
+ * watches. A query pinned twice is kept once, where it was first pinned,
+ * with the first name it has and watched if either entry is.
  */
 export function pinnedQueries(config: ConfigReader): PinnedQuery[] {
   const saved = config.get<unknown>("ui.pinnedQueries", []);
@@ -269,7 +270,12 @@ export function pinnedQueries(config: ConfigReader): PinnedQuery[] {
       typeof name === "string" ? name : undefined,
       watch === true,
     );
-    if (pin && !pinned.has(pin.query)) pinned.set(pin.query, pin);
+    if (!pin) continue;
+    const earlier = pinned.get(pin.query);
+    pinned.set(
+      pin.query,
+      earlier ? (pinnedEntry(pin.query, earlier.name ?? pin.name, earlier.watch ?? pin.watch) ?? pin) : pin,
+    );
   }
   return [...pinned.values()];
 }
