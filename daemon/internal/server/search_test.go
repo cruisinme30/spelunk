@@ -309,3 +309,59 @@ func TestAMatchAcrossLinesRoundTrips(t *testing.T) {
 		t.Fatalf("open/resolve = %+v, want %+v", target, want)
 	}
 }
+
+// struct: finds code by its shape over JSON-RPC: a match across lines
+// carries its lines, marks and what each hole took; the preview marks the
+// holes by number; opening it selects the whole match; and a one-line
+// match opens selected whole too.
+func TestAStructMatchRoundTrips(t *testing.T) {
+	// @covers op:struct rpc:search/start rpc:open/resolve
+	dir := t.TempDir()
+	mustWriteFile(t, filepath.Join(dir, "client.py"), "# retry(fn, attempts=N)\r\nreturn retry(\r\n    lambda: post(url),\r\n    attempts=3)\r\nretry(f, attempts=2)\r\n")
+	client := newTestClient(t)
+	batches := collectBatches(client)
+	client.mustInitialize(t, protocol.Root{ID: "r1", Path: dir, Name: "payments-api"})
+
+	var result protocol.SearchResult
+	if err := client.call(protocol.MethodSearchStart, protocol.SearchStartParams{SearchID: "s1", Text: `struct:"retry(:[call], attempts=:[n])"`}, &result); err != nil {
+		t.Fatal(err)
+	}
+	items := batches.all()
+	if result.Total != 2 || len(items) != 2 {
+		t.Fatalf("total %d, %d items; want 2 and 2", result.Total, len(items))
+	}
+	item := items[0]
+	wantHoles := []protocol.HoleValue{{Hole: 1, Name: "call", Text: "lambda: post(url)"}, {Hole: 2, Name: "n", Text: "3"}}
+	wantSpan := []protocol.SpanLine{
+		{Text: "    lambda: post(url),", Hits: []protocol.Hit{{Start: 4, End: 21, Hole: 1}, {Start: 21, End: 22}}},
+		{Text: "    attempts=3)", Hits: []protocol.Hit{{Start: 4, End: 13}, {Start: 13, End: 14, Hole: 2}, {Start: 14, End: 15}}},
+	}
+	if item.Line != 2 || item.EndLine != 4 || !slices.Equal(item.Holes, wantHoles) || !slices.EqualFunc(item.SpanLines, wantSpan, func(a, b protocol.SpanLine) bool {
+		return a.Text == b.Text && slices.Equal(a.Hits, b.Hits)
+	}) || !slices.Equal(item.Hits, []protocol.Hit{{Start: 7, End: 13}}) {
+		t.Fatalf("result = line %d to %d, hits %+v, span %+v, holes %+v", item.Line, item.EndLine, item.Hits, item.SpanLines, item.Holes)
+	}
+
+	var preview protocol.Preview
+	if err := client.call(protocol.MethodPreviewGet, protocol.PreviewParams{Ref: item.Ref, ContextLines: 1}, &preview); err != nil {
+		t.Fatal(err)
+	}
+	if preview.FocusLine != 2 || preview.FocusEndLine != 4 || len(preview.Hits) != 4 || preview.Hits[0].Line != 2 || preview.Hits[1].Ranges[0].Hole != 1 {
+		t.Fatalf("preview = focus %d to %d, hits %+v; want 2 to 4 and line 5's match marked, the comment not", preview.FocusLine, preview.FocusEndLine, preview.Hits)
+	}
+
+	var target protocol.OpenTarget
+	if err := client.call(protocol.MethodOpenResolve, protocol.OpenResolveParams{Ref: item.Ref}, &target); err != nil {
+		t.Fatal(err)
+	}
+	if want := (protocol.OpenTarget{Path: filepath.Join(dir, "client.py"), Line: 2, Column: 8, Length: 6, EndLine: 4, EndColumn: 16}); target != want {
+		t.Fatalf("open/resolve = %+v, want %+v", target, want)
+	}
+	var oneLine protocol.OpenTarget
+	if err := client.call(protocol.MethodOpenResolve, protocol.OpenResolveParams{Ref: items[1].Ref}, &oneLine); err != nil {
+		t.Fatal(err)
+	}
+	if want := (protocol.OpenTarget{Path: filepath.Join(dir, "client.py"), Line: 5, Column: 1, Length: 20}); oneLine != want {
+		t.Fatalf("open/resolve one line = %+v, want %+v", oneLine, want)
+	}
+}

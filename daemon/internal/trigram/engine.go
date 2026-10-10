@@ -167,6 +167,9 @@ func newSearcher(ctx context.Context, plan *query.Plan, planID int, emit func(pr
 	}
 	s.holding = s.ranking()
 	query.VisitPositive(plan.Pred, func(term *query.Content) {
+		if term.Structural != nil {
+			return // a template is no file's name, nor what a file defines
+		}
 		s.rankTerms = append(s.rankTerms, term)
 		s.literals[term.TermIndex] = term.Literal
 	})
@@ -619,11 +622,18 @@ func (s *searcher) lineResult(repo *Repo, doc *Doc, line matchedLine) protocol.R
 		ref.EndLine, ref.EndColumn = line.endLine, line.endColumn
 	} else {
 		first := line.hits[0]
-		ref.Column, ref.Length = utf16Len(line.text[:first.start]), utf16Len(line.text[first.start:first.end])
+		end := first.end
+		if line.structure != nil && line.structure.matchEnd > first.start {
+			end = line.structure.matchEnd // a struct: match, selected whole
+		}
+		ref.Column, ref.Length = utf16Len(line.text[:first.start]), utf16Len(line.text[first.start:end])
 	}
 	item := protocol.ResultItem{
 		Kind: query.KindLine, Ref: ref.String(), RepoID: repo.ID, Path: doc.Path,
 		Line: line.number, Text: text, Hits: hits,
+	}
+	if line.structure != nil {
+		item.Holes = line.structure.holes
 	}
 	if line.spans() {
 		item.EndLine = line.endLine

@@ -61,6 +61,11 @@ func (l *matchedLine) sortHits() {
 func (l *matchedLine) clone() matchedLine {
 	copied := *l
 	copied.hits = slices.Clone(l.hits)
+	if l.structure != nil {
+		facts := *l.structure
+		facts.holes = slices.Clone(facts.holes)
+		copied.structure = &facts
+	}
 	copied.spanned = slices.Clone(l.spanned)
 	for i := range copied.spanned {
 		copied.spanned[i].hits = slices.Clone(l.spanned[i].hits)
@@ -91,6 +96,9 @@ func (l *matchedLine) absorb(other matchedLine) {
 		l.endLine, l.endColumn = other.endLine, other.endColumn
 	}
 	l.startColumn = start
+	if other.structure != nil {
+		l.addHoles(other.structure.holes)
+	}
 }
 
 // joinLines joins matches, sorted by their first line, whose lines
@@ -215,17 +223,24 @@ func (x lineIndex) match(start, end, termIndex int) (match matchedLine, ok bool)
 	return match, ok
 }
 
-// splitAcrossLines takes the terms that span lines out of terms, returning
-// the rest and, by line number, the parts of the taken terms' matches on
-// lines first to last of content.
-func splitAcrossLines(terms []*query.Content, content []byte, first, last int) ([]*query.Content, map[int][]byteHit) {
+// splitAcrossLines takes the terms that span lines out of terms (a regex
+// with \n, or a struct: template, read as language), returning the rest and,
+// by line number, the parts of the taken terms' matches on lines first to
+// last of content.
+func splitAcrossLines(terms []*query.Content, content []byte, language string, first, last int) ([]*query.Content, map[int][]byteHit) {
 	acrossLines := map[int][]byteHit{}
 	rest := slices.DeleteFunc(slices.Clone(terms), func(term *query.Content) bool {
-		if !term.Multiline {
+		var found map[int][]byteHit
+		switch {
+		case term.Structural != nil:
+			found = hitsOfStructure(lfText(content), term, language, first, last)
+		case term.Multiline:
+			found = hitsAcrossLines(lfText(content), term, first, last)
+		default:
 			return false
 		}
-		for number, found := range hitsAcrossLines(lfText(content), term, first, last) {
-			acrossLines[number] = append(acrossLines[number], found...)
+		for number, hits := range found {
+			acrossLines[number] = append(acrossLines[number], hits...)
 		}
 		return true
 	})

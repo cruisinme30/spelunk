@@ -60,7 +60,7 @@ func Preview(repo *Repo, ref Ref, plan *query.Plan, contextLines int) (protocol.
 	}
 	// A term that spans lines is matched against the whole file; the others
 	// line by line, as markLine does.
-	terms, acrossLines := splitAcrossLines(terms, content, first, last)
+	terms, acrossLines := splitAcrossLines(terms, content, language, first, last)
 	hits := []protocol.LineHits{}
 	shown := make([]string, 0, last-first+1)
 	for number := first; number <= last; number++ {

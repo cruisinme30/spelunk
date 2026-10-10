@@ -13,6 +13,9 @@ import (
 type byteHit struct {
 	start, end int
 	termIndex  int
+	// hole is the number of the struct: template hole whose code the hit
+	// marks; 0 for the rest.
+	hole int
 }
 
 // matchedLine is a line with one or more matches, or the first line of a
@@ -28,6 +31,8 @@ type matchedLine struct {
 	// For a match that spans lines, where it starts in text and where it
 	// ends in line endLine, both in UTF-16 units. endLine is 0 otherwise.
 	startColumn, endLine, endColumn int
+	// structure is set for the result of a struct: match (structure.go).
+	structure *structureFacts
 }
 
 // lineMatcher finds, and remembers, which lines each term matches in one file.
@@ -45,6 +50,9 @@ type lineMatcher struct {
 	// definitions returns the file's definitions, which ref: terms skip.
 	// It is nil for texts that aren't files, such as commits.
 	definitions func() []symbols.Symbol
+	// lang is the language of a file's text, which struct: terms read it
+	// by; "" for a text in none.
+	lang string
 }
 
 func newLineMatcher(content []byte, terms termCache) *lineMatcher {
@@ -56,6 +64,7 @@ func newLineMatcher(content []byte, terms termCache) *lineMatcher {
 // symbols aren't indexed), the ones found the first time a ref: term asks.
 func newFileMatcher(doc *Doc, terms termCache) *lineMatcher {
 	m := newLineMatcher(doc.Content, terms)
+	m.lang = doc.Lang
 	found, done := doc.Symbols, doc.Symbols != nil
 	m.definitions = func() []symbols.Symbol {
 		if !done {
@@ -126,6 +135,8 @@ func (m *lineMatcher) matches(term *query.Content) []matchedLine {
 	}
 	var found []matchedLine
 	switch facts := m.terms.facts(term); {
+	case term.Structural != nil:
+		found = m.matchStructure(term)
 	case facts.multiline && !m.perLine:
 		found = m.matchAcrossLines(term)
 	case !facts.anchored:

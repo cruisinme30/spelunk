@@ -56,6 +56,7 @@ func clipWindow(text string, hits []byteHit, maxRunes int) (string, []protocol.H
 			Start:     shift + utf16Len(text[start:h.start]),
 			End:       shift + utf16Len(text[start:h.end]),
 			TermIndex: h.termIndex,
+			Hole:      h.hole,
 		})
 	}
 	return shown, out
