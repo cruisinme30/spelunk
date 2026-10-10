@@ -220,6 +220,31 @@ func TestAtResultsPreviewAndOpenAsTheyWere(t *testing.T) {
 	}
 }
 
+// A result's preview, open and text come from the files its search read,
+// without asking Git again.
+func TestAtResultsReuseTheRevisionTheSearchRead(t *testing.T) {
+	root, _ := revisionRepo(t)
+	client := newTestClient(t)
+	batches := collectBatches(client)
+	client.mustInitialize(t, protocol.Root{ID: "r1", Path: root, Name: "payments-api"})
+	_, items := searchAt(t, client, batches, "s1", "at:v1.0.0 parse_retry_after")
+	// Git still holds the old text, so only the kept shard can answer this.
+	const kept = "kept by the search\n"
+	docs := client.server.revisions.entries[0].shard.Docs
+	for i := range docs {
+		if docs[i].Path == "src/backoff.py" {
+			docs[i].Content = []byte(kept)
+		}
+	}
+	var text protocol.RevisionText
+	if err := client.call(protocol.MethodRevisionText, protocol.RevisionTextParams{Ref: items[0].Ref}, &text); err != nil {
+		t.Fatal(err)
+	}
+	if text.Text != kept {
+		t.Errorf("revision/text = %q, want the kept shard's %q", text.Text, kept)
+	}
+}
+
 // Once a search has read a revision, the next search of it reads nothing
 // again; another revision is read anew.
 func TestAtKeepsTheRevisionsItRead(t *testing.T) {

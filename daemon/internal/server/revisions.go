@@ -235,10 +235,41 @@ func readRevision(ctx context.Context, root string, revision history.Revision, s
 	return trigram.NewShard(docs), nil
 }
 
-// readAtRevision reads and decodes the file a ref at a revision names, as
-// the revision's shard holds it. A file the revision doesn't have, or
-// that is binary, is stale.
-func readAtRevision(ctx context.Context, root string, ref trigram.Ref) ([]byte, error) {
+// content returns the text of path in commit sha of the repo at root, as a
+// finished read of that revision holds it; false when no kept read has it.
+func (c *revisionCache) content(root, sha, path string) ([]byte, bool) {
+	c.mu.Lock()
+	entries := slices.Clone(c.entries)
+	c.mu.Unlock()
+	for _, entry := range entries {
+		if entry.key.root != root || entry.key.sha != sha {
+			continue
+		}
+		select {
+		case <-entry.ready: // shard and err are set before ready closes
+		default:
+			continue
+		}
+		if entry.err != nil {
+			continue
+		}
+		for _, doc := range entry.shard.Docs {
+			if doc.Path == path {
+				return doc.Content, true
+			}
+		}
+	}
+	return nil, false
+}
+
+// readAtRevision returns the decoded text of the file a ref at a revision
+// names: from the revision's kept shard when the search read it, otherwise
+// from Git, decoded as the shard would hold it. A file the revision
+// doesn't have, or that is binary, is stale.
+func (s *Server) readAtRevision(ctx context.Context, root string, ref trigram.Ref) ([]byte, error) {
+	if content, ok := s.revisions.content(root, ref.Revision, ref.Path); ok {
+		return content, nil
+	}
 	raw, err := history.ReadFileAt(ctx, root, ref.Revision, ref.Path)
 	if err != nil {
 		return nil, err

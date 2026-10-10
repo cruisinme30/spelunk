@@ -45,7 +45,7 @@ func (s *Server) preview(ctx context.Context, raw json.RawMessage) (any, error) 
 	}
 	plan := s.plans.recall(ref.PlanID)
 	if ref.Revision != "" {
-		content, readErr := readAtRevision(ctx, repo.Root, ref)
+		content, readErr := s.readAtRevision(ctx, repo.Root, ref)
 		if readErr != nil {
 			return nil, staleAsRPCError(readErr)
 		}
@@ -76,7 +76,7 @@ func (s *Server) openResolve(ctx context.Context, raw json.RawMessage) (any, err
 		return nil, err
 	}
 	if ref.Revision != "" {
-		if _, readErr := readAtRevision(ctx, repo.Root, ref); readErr != nil {
+		if _, readErr := s.readAtRevision(ctx, repo.Root, ref); readErr != nil {
 			return nil, staleAsRPCError(readErr)
 		}
 		label := short(ref.Revision)
@@ -104,7 +104,7 @@ func (s *Server) revisionText(ctx context.Context, raw json.RawMessage) (any, er
 	if ref.Revision == "" {
 		return nil, rpc.Errorf(protocol.CodeRefStale, "not a result at a revision")
 	}
-	content, err := readAtRevision(ctx, repo.Root, ref)
+	content, err := s.readAtRevision(ctx, repo.Root, ref)
 	if err != nil {
 		return nil, staleAsRPCError(err)
 	}
