@@ -181,7 +181,7 @@ function indexSection(settings: WelcomeState): HTMLElement {
       { class: "muted" },
       "You can search right away. Repos that are still indexing return partial results until they finish.",
     ),
-    element("div", { class: "repo-rows" }, ...state.repos.map((repo, index) => repoRow(repo, index))),
+    element("div", { class: "repo-rows" }, ...repoRows()),
     element(
       "div",
       { class: "index-options" },
@@ -223,6 +223,11 @@ function actions(settings: WelcomeState): HTMLElement {
   return element("div", { class: "welcome-actions" }, start, settingsButton, guide);
 }
 
+/** A row per repo with its indexing progress. */
+function repoRows(): HTMLElement[] {
+  return state.repos.map((repo, index) => repoRow(repo, index));
+}
+
 function render(root: HTMLElement): void {
   const settings = state.settings;
   if (!settings) return;
@@ -240,6 +245,16 @@ function render(root: HTMLElement): void {
 }
 
 const root = document.querySelector<HTMLElement>("#app");
+
+/**
+ * Redraws the repo rows alone, if the page shows them: progress comes often
+ * while the page is open, and redrawing it all would take the focus away.
+ */
+function redrawRepoRows(): boolean {
+  const rows = root?.querySelector(".repo-rows");
+  rows?.replaceChildren(...repoRows());
+  return rows !== undefined && rows !== null;
+}
 onHostMessage((message) => {
   switch (message.type) {
     case "welcome.state": {
@@ -248,6 +263,7 @@ onHostMessage((message) => {
     }
     case "index.status": {
       state.repos = message.payload.repos;
+      if (redrawRepoRows()) return;
       break;
     }
     case "banner":

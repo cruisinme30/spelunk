@@ -81,3 +81,10 @@ test("off a Mac the keys are written with Ctrl and Alt", async (t) => {
   assert.equal(await page.isChecked('[data-testid="shortcut"][value="findInFiles"]'), true);
   assert.match(await page.locator('[data-testid="start"]').innerText(), /Ctrl\+Shift\+F/);
 });
+
+test("indexing progress keeps the focus where it is on the welcome page", async (t) => {
+  const page = await welcomePage(t);
+  await page.focus('[data-testid="symbols"]');
+  await fromHost(page, "index.status", { repos: REPOS.map((repo) => ({ ...repo, progress: 0.5 })) });
+  assert.equal(await page.evaluate(() => document.activeElement?.dataset.testid), "symbols");
+});
