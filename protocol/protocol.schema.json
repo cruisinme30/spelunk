@@ -1008,6 +1008,13 @@
         },
         "settings": {
           "$ref": "#/$defs/Settings"
+        },
+        "watches": {
+          "description": "The watched queries, as in watch/set.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
         }
       },
       "required": ["protocol", "roots", "settings"]
@@ -1047,6 +1054,60 @@
         }
       },
       "required": ["settings"]
+    },
+    "WatchSetParams": {
+      "description": "WatchSetParams list the watched queries: after each history update, the daemon runs every one that searches history over the new commits.",
+      "type": "object",
+      "properties": {
+        "queries": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": ["queries"]
+    },
+    "WatchCommit": {
+      "description": "WatchCommit is a new commit a watched query matched.",
+      "type": "object",
+      "properties": {
+        "sha": {
+          "type": "string"
+        },
+        "subject": {
+          "type": "string"
+        },
+        "author": {
+          "type": "string"
+        }
+      },
+      "required": ["sha", "subject", "author"]
+    },
+    "WatchMatchedParams": {
+      "description": "WatchMatchedParams announce the new commits of one repo that a watched query matched, newest first; your own commits are left out. total counts them all; commits lists at most the query's count.",
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string"
+        },
+        "repoId": {
+          "type": "string"
+        },
+        "repoName": {
+          "type": "string"
+        },
+        "total": {
+          "type": "integer"
+        },
+        "commits": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/WatchCommit"
+          }
+        }
+      },
+      "required": ["query", "repoId", "repoName", "total", "commits"]
     },
     "FileChange": {
       "description": "FileChange is one file event from VS Code's watcher.",
@@ -1788,6 +1849,10 @@
       "kind": "notification",
       "params": "SettingsUpdateParams"
     },
+    "watch/set": {
+      "kind": "notification",
+      "params": "WatchSetParams"
+    },
     "query/parse": {
       "kind": "request",
       "params": "ParseParams",
@@ -1825,6 +1890,11 @@
     "index/progress": {
       "kind": "notification",
       "params": "IndexStatusResult",
+      "direction": "daemon->host"
+    },
+    "watch/matched": {
+      "kind": "notification",
+      "params": "WatchMatchedParams",
       "direction": "daemon->host"
     },
     "index/rebuild": {

@@ -32,6 +32,7 @@ type Server struct {
 	mu                sync.RWMutex
 	roots             []protocol.Root
 	settings          protocol.Settings
+	watches           []string // the watched queries (watches.go)
 	shutdownRequested bool
 
 	exitOnce sync.Once
@@ -61,6 +62,7 @@ func New(conn *rpc.Conn, opts Options) *Server {
 	s.handle(protocol.MethodQueryParse, s.parse)
 	s.registerSearch()
 	s.registerIndex()
+	s.registerWatches()
 	return s
 }
 
@@ -158,6 +160,7 @@ func (s *Server) initialize(_ context.Context, raw json.RawMessage) (any, error)
 	if len(present.Settings) > 0 && string(present.Settings) != "null" {
 		s.applySettings(params.Settings)
 	}
+	s.applyWatches(params.Watches)
 	s.applyRoots(params.Roots)
 	return protocol.InitializeResult{DaemonVersion: DaemonVersion, Protocol: protocol.Version}, nil
 }

@@ -376,6 +376,8 @@ export interface InitializeParams {
   protocol: number;
   roots: Root[];
   settings: Settings;
+  /** The watched queries, as in watch/set. */
+  watches?: string[];
 }
 
 /** InitializeResult reports the daemon's version and protocol. */
@@ -392,6 +394,27 @@ export interface SetRootsParams {
 /** SettingsUpdateParams carry changed settings. */
 export interface SettingsUpdateParams {
   settings: Settings;
+}
+
+/** WatchSetParams list the watched queries: after each history update, the daemon runs every one that searches history over the new commits. */
+export interface WatchSetParams {
+  queries: string[];
+}
+
+/** WatchCommit is a new commit a watched query matched. */
+export interface WatchCommit {
+  sha: string;
+  subject: string;
+  author: string;
+}
+
+/** WatchMatchedParams announce the new commits of one repo that a watched query matched, newest first; your own commits are left out. total counts them all; commits lists at most the query's count. */
+export interface WatchMatchedParams {
+  query: string;
+  repoId: string;
+  repoName: string;
+  total: number;
+  commits: WatchCommit[];
 }
 
 /** FileChange is one file event from VS Code's watcher. */
@@ -699,9 +722,11 @@ export interface RpcNotifications {
   "workspace/setRoots": SetRootsParams;
   "workspace/didChangeFiles": DidChangeFilesParams;
   "settings/update": SettingsUpdateParams;
+  "watch/set": WatchSetParams;
   "search/batch": SearchBatchParams;
   "$/cancelRequest": Empty;
   "index/progress": IndexStatusResult;
+  "watch/matched": WatchMatchedParams;
   "exit": Empty;
 }
 

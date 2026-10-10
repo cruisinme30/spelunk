@@ -711,6 +711,8 @@ type InitializeParams struct {
 	Protocol int      `json:"protocol"`
 	Roots    []Root   `json:"roots"`
 	Settings Settings `json:"settings"`
+	// Watches is the watched queries, as in watch/set.
+	Watches []string `json:"watches,omitempty"`
 }
 
 // MarshalJSON emits [] rather than null for required arrays.
@@ -747,6 +749,47 @@ func (v SetRootsParams) MarshalJSON() ([]byte, error) {
 // SettingsUpdateParams carry changed settings.
 type SettingsUpdateParams struct {
 	Settings Settings `json:"settings"`
+}
+
+// WatchSetParams list the watched queries: after each history update, the daemon runs every one that searches history over the new commits.
+type WatchSetParams struct {
+	Queries []string `json:"queries"`
+}
+
+// MarshalJSON emits [] rather than null for required arrays.
+func (v WatchSetParams) MarshalJSON() ([]byte, error) {
+	type plain WatchSetParams
+	p := plain(v)
+	if p.Queries == nil {
+		p.Queries = []string{}
+	}
+	return json.Marshal(p)
+}
+
+// WatchCommit is a new commit a watched query matched.
+type WatchCommit struct {
+	SHA     string `json:"sha"`
+	Subject string `json:"subject"`
+	Author  string `json:"author"`
+}
+
+// WatchMatchedParams announce the new commits of one repo that a watched query matched, newest first; your own commits are left out. total counts them all; commits lists at most the query's count.
+type WatchMatchedParams struct {
+	Query    string        `json:"query"`
+	RepoID   string        `json:"repoId"`
+	RepoName string        `json:"repoName"`
+	Total    int           `json:"total"`
+	Commits  []WatchCommit `json:"commits"`
+}
+
+// MarshalJSON emits [] rather than null for required arrays.
+func (v WatchMatchedParams) MarshalJSON() ([]byte, error) {
+	type plain WatchMatchedParams
+	p := plain(v)
+	if p.Commits == nil {
+		p.Commits = []WatchCommit{}
+	}
+	return json.Marshal(p)
 }
 
 // FileChange is one file event from VS Code's watcher.
@@ -1186,6 +1229,7 @@ const (
 	MethodWorkspaceSetRoots       = "workspace/setRoots"
 	MethodWorkspaceDidChangeFiles = "workspace/didChangeFiles"
 	MethodSettingsUpdate          = "settings/update"
+	MethodWatchSet                = "watch/set"
 	MethodQueryParse              = "query/parse"
 	MethodSearchStart             = "search/start"
 	MethodSearchBatch             = "search/batch"
@@ -1194,6 +1238,7 @@ const (
 	MethodOpenResolve             = "open/resolve"
 	MethodIndexStatus             = "index/status"
 	MethodIndexProgress           = "index/progress"
+	MethodWatchMatched            = "watch/matched"
 	MethodIndexRebuild            = "index/rebuild"
 	MethodReplacePlan             = "replace/plan"
 	MethodShutdown                = "shutdown"
