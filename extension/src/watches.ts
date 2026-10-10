@@ -39,13 +39,16 @@ export class UnseenWatches {
   /**
    * Adds an announcement's commits to its query's unseen ones. A commit
    * already unseen (another repo's update can't repeat it, but a restart
-   * reading the same update again can) is not counted twice.
+   * reading the same update again can) is not counted twice, and an
+   * announcement whose listed commits are all known is that repeat, so its
+   * unlisted ones aren't counted again either.
    */
   record(match: WatchMatchedParams): NewMatches {
     const entry = this.unseen.get(match.query) ?? { query: match.query, count: 0, shas: [] };
     const known = new Set(entry.shas);
     const commits = match.commits.filter((commit) => !known.has(commit.sha));
-    const unlisted = Math.max(0, match.total - match.commits.length);
+    const repeated = match.commits.length > 0 && commits.length === 0;
+    const unlisted = repeated ? 0 : Math.max(0, match.total - match.commits.length);
     const count = commits.length + unlisted;
     if (count === 0) return { commits, count };
     this.unseen.set(match.query, {

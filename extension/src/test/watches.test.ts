@@ -38,6 +38,12 @@ test("commits past the first page still count, and the shas kept are capped", ()
   // @covers screen:query-watches
   const unseen = new UnseenWatches(undefined);
   assert.equal(unseen.record(matched("msg:revert", ["a1"], 3)).count, 3, "two more matched than were listed");
+  assert.equal(
+    unseen.record(matched("msg:revert", ["a1"], 3)).count,
+    0,
+    "the same announcement again, after a restart",
+  );
+  assert.equal(unseen.list()[0]?.count, 3);
   const many = Array.from({ length: MAX_UNSEEN_SHAS + 5 }, (_, index) => `s${index}`);
   unseen.record(matched("author:jason", many));
   const [, jason] = unseen.list();
