@@ -1,5 +1,7 @@
 // Mapping spelunk.* configuration to protocol types, and root ids.
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { test } from "node:test";
 import { rootId } from "../roots";
 import {
@@ -29,6 +31,21 @@ test("daemon settings clamp counts and reject unknown history depths", () => {
   const settings = daemonSettings(configWith({ "results.count": 999_999, "index.historyDepth": "bogus" }), "/home/u");
   assert.equal(settings.defaultCount, 50_000);
   assert.equal(settings.historyDepth, "2y");
+});
+
+test("daemon settings clamp to the maximum the manifest declares", () => {
+  const manifest = JSON.parse(readFileSync(join(__dirname, "../package.json"), "utf8")) as {
+    contributes: { configuration: { properties: Record<string, { maximum?: number }> }[] };
+  };
+  const maximum = (key: string) =>
+    manifest.contributes.configuration.find((section) => key in section.properties)?.properties[key]?.maximum;
+  const settings = daemonSettings(
+    configWith({ "results.count": 1e12, "index.maxFileSizeKB": 1e12, "search.timeLimitMs": 1e12 }),
+    "/home/u",
+  );
+  assert.equal(settings.defaultCount, maximum("spelunk.results.count"));
+  assert.equal(settings.maxFileSizeKB, maximum("spelunk.index.maxFileSizeKB"));
+  assert.equal(settings.timeLimitMs, maximum("spelunk.search.timeLimitMs"));
 });
 
 test("the order setting reaches both the daemon and the panel", () => {
