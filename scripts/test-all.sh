@@ -20,18 +20,8 @@ tool() { if [ -x "$root/node_modules/.bin/$1" ]; then echo "$root/node_modules/.
 step "protocol: generated types are up to date"
 node protocol/gen.mjs --check
 
-step "format: prettier --check, gofmt"
-prettier=$(tool prettier)
-if command -v "$prettier" >/dev/null; then
-  "$prettier" --check .
-else
-  echo "prettier not installed; skipped"
-fi
-(cd daemon && test -z "$(gofmt -l .)" || { gofmt -l .; echo "gofmt: files above need formatting"; exit 1; })
-
-step "lint: golangci-lint, ESLint, Stylelint, markdownlint, cspell, knip"
-# A linter that isn't installed is skipped locally, but fails the run in CI
-# (where the CI variable is set), so CI always runs every one of them.
+# A formatter or linter that isn't installed is skipped locally, but fails the
+# run in CI (where the CI variable is set), so CI always runs every one of them.
 missing() {
   if [ -n "${CI:-}" ]; then
     echo "$1 is not installed" >&2
@@ -39,6 +29,17 @@ missing() {
   fi
   echo "$1 not installed; skipped (npm install adds the Node linters)"
 }
+
+step "format: prettier --check, gofmt"
+prettier=$(tool prettier)
+if command -v "$prettier" >/dev/null; then
+  "$prettier" --check .
+else
+  missing prettier
+fi
+(cd daemon && test -z "$(gofmt -l .)" || { gofmt -l .; echo "gofmt: files above need formatting"; exit 1; })
+
+step "lint: golangci-lint, ESLint, Stylelint, markdownlint, cspell, knip"
 # Linters whose configs load plugins run only from the workspace's node_modules.
 workspace_lint() {
   local bin="$root/node_modules/.bin/$1"
