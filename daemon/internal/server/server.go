@@ -30,6 +30,7 @@ type Server struct {
 	plans     planMemory
 	tags      tagCache
 	revisions revisionCache
+	ownership ownershipCache
 
 	mu                sync.RWMutex
 	roots             []protocol.Root

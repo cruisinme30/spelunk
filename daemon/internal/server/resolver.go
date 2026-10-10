@@ -170,11 +170,7 @@ func (r workspaceResolver) Repos() []query.RepoStat {
 			continue
 		}
 		codeOwners[repo.ID] = repo.Owners
-		for i := range repo.Shard.Docs {
-			if len(repo.Owners.Owners(repo.Shard.Docs[i].Path)) == 0 {
-				unowned[repo.ID]++
-			}
-		}
+		unowned[repo.ID] = r.server.ownership.of(&repo).unowned
 	}
 	statuses := map[string]protocol.RepoStatus{}
 	for _, status := range r.server.index.Status() {
@@ -202,23 +198,16 @@ func (r workspaceResolver) Owners() []query.OwnerStat {
 	byName := map[string]*query.OwnerStat{}
 	var order []*query.OwnerStat
 	for _, repo := range r.server.index.Repos() {
-		if repo.Owners == nil {
-			continue
-		}
-		for i := range repo.Shard.Docs {
-			for _, owner := range repo.Owners.Owners(repo.Shard.Docs[i].Path) {
-				key := strings.ToLower(owner)
-				stat, ok := byName[key]
-				if !ok {
-					stat = &query.OwnerStat{Name: owner}
-					byName[key] = stat
-					order = append(order, stat)
-				}
-				stat.Files++
-				if !slices.Contains(stat.Repos, repo.Name) {
-					stat.Repos = append(stat.Repos, repo.Name)
-				}
+		for _, owner := range r.server.ownership.of(&repo).owners {
+			key := strings.ToLower(owner.name)
+			stat, ok := byName[key]
+			if !ok {
+				stat = &query.OwnerStat{Name: owner.name}
+				byName[key] = stat
+				order = append(order, stat)
 			}
+			stat.Files += owner.files
+			stat.Repos = append(stat.Repos, repo.Name)
 		}
 	}
 	owners := make([]query.OwnerStat, len(order))
