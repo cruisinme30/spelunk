@@ -34,6 +34,9 @@ type Indexer struct {
 	treeQueue    queue
 	historyQueue queue
 
+	// life ends when the indexer is closed; work it does outside the
+	// workers, such as re-reading saved files, stops with it.
+	life    context.Context
 	stop    context.CancelFunc
 	workers sync.WaitGroup
 
@@ -119,7 +122,7 @@ func (q *queue) remove(id string) {
 func New(settings protocol.Settings, notify func([]protocol.RepoStatus)) *Indexer {
 	ctx, stop := context.WithCancel(context.Background())
 	ix := &Indexer{
-		notify: notify, settings: settings, repos: map[string]*repo{}, stop: stop,
+		notify: notify, settings: settings, repos: map[string]*repo{}, life: ctx, stop: stop,
 		treeQueue:    queue{wake: make(chan struct{}, 1)},
 		historyQueue: queue{wake: make(chan struct{}, 1)},
 	}

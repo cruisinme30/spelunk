@@ -442,8 +442,8 @@ func TestStoreKnowsEachFilesNewestCommitAndUncommittedEdits(t *testing.T) {
 			t.Errorf("Dirty(%s) = %v, want %v", path, got, want)
 		}
 	}
-	if !store.MarkDirty([]string{"tests/checkout_test.py"}).Dirty("tests/checkout_test.py") || store.Dirty("tests/checkout_test.py") {
-		t.Error("MarkDirty should mark a copy, not the store")
+	if !store.WithDirty(map[string]bool{"tests/checkout_test.py": true}).Dirty("tests/checkout_test.py") || store.Dirty("tests/checkout_test.py") {
+		t.Error("WithDirty should mark a copy, not the store")
 	}
 }
 

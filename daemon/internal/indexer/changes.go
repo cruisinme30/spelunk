@@ -1,7 +1,6 @@
 package indexer
 
 import (
-	"context"
 	"maps"
 	"path/filepath"
 	"slices"
@@ -9,6 +8,7 @@ import (
 	"time"
 
 	"github.com/cruisinme30/spelunk/daemon/internal/codeowners"
+	"github.com/cruisinme30/spelunk/daemon/internal/history"
 	"github.com/cruisinme30/spelunk/daemon/internal/protocol"
 	"github.com/cruisinme30/spelunk/daemon/internal/trigram"
 )
@@ -121,11 +121,11 @@ func (ix *Indexer) reread(id string, paths []string) {
 		ix.mu.Unlock()
 		return
 	}
-	root, settings := r.root, ix.settings
+	root, settings, inGit := r.root, ix.settings, r.history != nil
 	masked := withFilesUnder(paths, r.shard)
 	ix.mu.Unlock()
 
-	ctx := context.Background()
+	ctx := ix.life
 	walk := walkOptions(settings)
 	files := trigram.SelectFiles(ctx, root.Path, masked, walk)
 	read, err := trigram.Build(ctx, root.Path, files, trigram.BuildOptions{Symbols: settings.Symbols, MaxFileBytes: walk.MaxFileBytes})
@@ -136,6 +136,15 @@ func (ix *Indexer) reread(id string, paths []string) {
 	var owners *codeowners.File
 	if ownersChanged {
 		owners = codeowners.Load(root.Path, settings.CodeownersFiles)
+	}
+	// Ask Git again which files differ from HEAD: a save can undo a change
+	// as well as make one, and so can a stash or a checkout of a file.
+	var dirty map[string]bool
+	if inGit {
+		dirty = history.UncommittedPaths(ctx, root.Path)
+	}
+	if ctx.Err() != nil {
+		return
 	}
 
 	ix.mu.Lock()
@@ -148,8 +157,8 @@ func (ix *Indexer) reread(id string, paths []string) {
 	if ownersChanged {
 		r.owners = owners
 	}
-	if r.history != nil {
-		r.history = r.history.MarkDirty(paths)
+	if r.history != nil && dirty != nil {
+		r.history = r.history.WithDirty(dirty)
 	}
 	if len(r.overlay.masked) > maxOverlayFiles {
 		ix.refresh(id)

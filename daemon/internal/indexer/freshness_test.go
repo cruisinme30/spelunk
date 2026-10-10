@@ -76,6 +76,32 @@ func TestHistoryIsReadForGitRepos(t *testing.T) {
 	}
 }
 
+// is:changed follows each save: undoing an edit, as a stash or a
+// checkout of the file does, makes the file unchanged again.
+func TestASaveThatUndoesAnEditLeavesTheFileUnchanged(t *testing.T) {
+	root := testutil.WriteTree(t, map[string]string{"main.go": "package main\n"})
+	gitInit(t, root)
+	ix := New(testSettings(t), nil)
+	defer ix.Close(time.Second)
+	ix.SetRoots([]protocol.Root{{ID: "r1", Path: root, Name: "app"}})
+	waitFor(t, ix, protocol.IndexStateReady)
+
+	save := func(content string) bool {
+		t.Helper()
+		if err := os.WriteFile(filepath.Join(root, "main.go"), []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		ix.FilesChanged([]protocol.FileChange{{Path: filepath.Join(root, "main.go")}})
+		return ix.HistoryRepos()[0].Store.Dirty("main.go")
+	}
+	if !save("package main // edited\n") {
+		t.Error("after an edit, main.go isn't changed")
+	}
+	if save("package main\n") {
+		t.Error("after undoing the edit, main.go is still changed")
+	}
+}
+
 func TestSavedFilesGoIntoTheOverlayUntilTheNextBuild(t *testing.T) {
 	root := testutil.WriteTree(t, map[string]string{"a.txt": "alpha\n", "old/b.txt": "beta\n"})
 	ix := New(testSettings(t), nil)

@@ -98,24 +98,12 @@ func (s *Store) LastCommit(path string) (Touch, bool) {
 // Dirty reports whether path has uncommitted changes.
 func (s *Store) Dirty(path string) bool { return s.dirty[path] }
 
-// withDirty returns a copy of the store with a new set of uncommitted paths.
-func (s *Store) withDirty(dirty map[string]bool) *Store {
+// WithDirty returns a copy of the store with a new set of uncommitted
+// paths, as UncommittedPaths lists them.
+func (s *Store) WithDirty(dirty map[string]bool) *Store {
 	next := *s
 	next.dirty = dirty
 	return &next
-}
-
-// MarkDirty returns a copy of the store in which paths have uncommitted
-// changes, for files saved since the store was read.
-func (s *Store) MarkDirty(paths []string) *Store {
-	dirty := make(map[string]bool, len(s.dirty)+len(paths))
-	for path := range s.dirty {
-		dirty[path] = true
-	}
-	for _, path := range paths {
-		dirty[path] = true
-	}
-	return s.withDirty(dirty)
 }
 
 // ------------------------------------------------------------ building
@@ -181,7 +169,7 @@ func Ingest(ctx context.Context, root string, opts Options, progress func(float6
 	}
 	b.flush()
 	store := b.snapshot()
-	return store.withDirty(uncommittedPaths(ctx, root)), nil
+	return store.WithDirty(UncommittedPaths(ctx, root)), nil
 }
 
 // read adds the commits of revisions to the builder.
@@ -212,7 +200,7 @@ func Update(ctx context.Context, root string, store *Store, opts Options) (*Stor
 		return nil, err
 	}
 	if head == store.Head {
-		return store.withDirty(uncommittedPaths(ctx, root)), nil
+		return store.WithDirty(UncommittedPaths(ctx, root)), nil
 	}
 	if store.Head == "" || !onFirstParentLine(ctx, root, store.Head) {
 		return Ingest(ctx, root, opts, nil, nil)
@@ -231,12 +219,12 @@ func Update(ctx context.Context, root string, store *Store, opts Options) (*Stor
 		}
 	}
 	next.segments = append([]*segment{newSegment(newer)}, store.segments...)
-	return next.withDirty(uncommittedPaths(ctx, root)), nil
+	return next.WithDirty(UncommittedPaths(ctx, root)), nil
 }
 
-// uncommittedPaths lists root's files that differ from HEAD: modified,
+// UncommittedPaths lists root's files that differ from HEAD: modified,
 // staged, or new and not ignored.
-func uncommittedPaths(ctx context.Context, root string) map[string]bool {
+func UncommittedPaths(ctx context.Context, root string) map[string]bool {
 	dirty := map[string]bool{}
 	for _, args := range [][]string{
 		{"ls-files", "--modified", "--others", "--exclude-standard"},
@@ -293,5 +281,5 @@ func Load(path string) (*Store, error) {
 		b.add(saved.Commits[i])
 	}
 	b.flush()
-	return b.snapshot().withDirty(map[string]bool{}), nil
+	return b.snapshot().WithDirty(map[string]bool{}), nil
 }

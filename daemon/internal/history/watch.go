@@ -63,7 +63,7 @@ func StoreOf(head string, commits []Commit) *Store {
 		b.add(commits[i])
 	}
 	b.flush()
-	return b.snapshot().withDirty(map[string]bool{})
+	return b.snapshot().WithDirty(map[string]bool{})
 }
 
 // UserEmail returns the email Git commits under in root (user.email), or ""
