@@ -28,9 +28,11 @@ type matchedLine struct {
 	// onto, each with its part of the match: at most maxSpanLines of them,
 	// so a longer match ends past the last. Nil for a match within a line.
 	spanned []spanLine
-	// For a match that spans lines, where it starts in text and where it
-	// ends in line endLine, both in UTF-16 units. endLine is 0 otherwise.
-	startColumn, endLine, endColumn int
+	// For a match that spans lines, where it starts in text, in bytes, and
+	// where it ends in line endLine, in UTF-16 units. endLine is 0
+	// otherwise. joinLines also sets startByte of a line it joins matches
+	// on, to the first of them.
+	startByte, endLine, endColumn int
 	// structure is set for the result of a struct: match (structure.go).
 	structure *structureFacts
 }

@@ -678,7 +678,7 @@ func (s *searcher) lineResult(repo *Repo, doc *Doc, line matchedLine) protocol.R
 	text, hits := clipLine(line.text, line.hits)
 	ref := Ref{PlanID: s.planID, RepoID: repo.ID, Path: doc.Path, Line: line.number, Revision: repo.revision()}
 	if line.spans() {
-		ref.Column = line.startColumn
+		ref.Column = utf16Len(line.text[:line.startByte])
 		ref.Length = utf16Len(line.text) - ref.Column // the rest of the first line
 		ref.EndLine, ref.EndColumn = line.endLine, line.endColumn
 	} else {

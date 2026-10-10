@@ -37,16 +37,16 @@ func (l *matchedLine) last() int {
 	return l.number
 }
 
-// firstColumn is where the match starts in its first line, in UTF-16 units.
-func (l *matchedLine) firstColumn() int {
+// firstByte is where the match starts in its first line, in bytes.
+func (l *matchedLine) firstByte() int {
 	if l.spans() {
-		return l.startColumn
+		return l.startByte
 	}
 	start := len(l.text)
 	for _, hit := range l.hits {
 		start = min(start, hit.start)
 	}
-	return utf16Len(l.text[:start])
+	return start
 }
 
 // sortHits orders the hits of each of the match's lines by where they start.
@@ -74,20 +74,22 @@ func (l *matchedLine) clone() matchedLine {
 }
 
 // absorb adds other, which starts on one of l's lines, to l: its hits on
-// lines l shows, its later lines while l may show more, and its end when it
-// ends later.
+// lines l shows, up to maxLineHits a line, as for a term matched line by
+// line, its later lines while l may show more, and its end when it ends
+// later. l is a result of joinLines, whose startByte is set. Its cost
+// depends on other alone, however many matches l has absorbed: a long
+// minified line can have tens of thousands.
 func (l *matchedLine) absorb(other matchedLine) {
-	start := l.firstColumn()
 	if other.number == l.number {
-		start = min(start, other.firstColumn())
+		l.startByte = min(l.startByte, other.firstByte())
 	}
 	lines := append([]spanLine{{text: other.text, hits: other.hits}}, other.spanned...)
 	for i, line := range lines {
 		switch at := other.number + i - l.number; {
 		case at == 0:
-			l.hits = append(l.hits, line.hits...)
+			l.hits = appendHits(l.hits, line.hits)
 		case at <= len(l.spanned):
-			l.spanned[at-1].hits = append(l.spanned[at-1].hits, line.hits...)
+			l.spanned[at-1].hits = appendHits(l.spanned[at-1].hits, line.hits)
 		case at == len(l.spanned)+1 && at <= maxSpanLines:
 			l.spanned = append(l.spanned, spanLine{text: line.text, hits: slices.Clone(line.hits)})
 		}
@@ -95,10 +97,15 @@ func (l *matchedLine) absorb(other matchedLine) {
 	if other.last() > l.last() {
 		l.endLine, l.endColumn = other.endLine, other.endColumn
 	}
-	l.startColumn = start
 	if other.structure != nil {
 		l.addHoles(other.structure.holes)
 	}
+}
+
+// appendHits adds more to a line's hits while it has fewer than
+// maxLineHits.
+func appendHits(hits, more []byteHit) []byteHit {
+	return append(hits, more[:min(len(more), max(maxLineHits-len(hits), 0))]...)
 }
 
 // joinLines joins matches, sorted by their first line, whose lines
@@ -111,7 +118,9 @@ func joinLines(found []matchedLine) []matchedLine {
 			joined[n-1].absorb(line)
 			continue
 		}
-		joined = append(joined, line.clone())
+		first := line.clone()
+		first.startByte = line.firstByte()
+		joined = append(joined, first)
 	}
 	return joined
 }
@@ -159,10 +168,24 @@ func (m *lineMatcher) matchAcrossLines(term *query.Content) []matchedLine {
 type lineIndex struct {
 	text   []byte
 	starts []int
+	// texts holds, by 0-based line, the text of the lines results have
+	// asked for, so the many matches of one long line share one copy.
+	texts map[int]string
 }
 
 func newLineIndex(text []byte) lineIndex {
-	return lineIndex{text: text, starts: lineStarts(text)}
+	return lineIndex{text: text, starts: lineStarts(text), texts: map[int]string{}}
+}
+
+// lineText returns the text of 0-based line i, without its "\n".
+func (x lineIndex) lineText(i int) string {
+	text, ok := x.texts[i]
+	if !ok {
+		start, end := x.bounds(i)
+		text = string(x.text[start:end])
+		x.texts[i] = text
+	}
+	return text
 }
 
 // of returns the 0-based line that byte offset is on.
@@ -205,8 +228,7 @@ func (x lineIndex) match(start, end, termIndex int) (match matchedLine, ok bool)
 	}
 	first, last := x.of(start), x.of(end-1)
 	for i := first; i <= min(last, first+maxSpanLines); i++ {
-		lineStart, lineEnd := x.bounds(i)
-		line := spanLine{text: string(x.text[lineStart:lineEnd])}
+		line := spanLine{text: x.lineText(i)}
 		if from, to := x.shown(i, start, end); from < to {
 			line.hits = []byteHit{{start: from, end: to, termIndex: termIndex}}
 			ok = true
@@ -220,7 +242,7 @@ func (x lineIndex) match(start, end, termIndex int) (match matchedLine, ok bool)
 	if last > first {
 		firstStart, _ := x.bounds(first)
 		lastStart, lastEnd := x.bounds(last)
-		match.startColumn = utf16Len(match.text[:start-firstStart])
+		match.startByte = start - firstStart
 		match.endLine, match.endColumn = last+1, utf16Len(string(x.text[lastStart:min(end, lastEnd)]))
 	}
 	return match, ok
