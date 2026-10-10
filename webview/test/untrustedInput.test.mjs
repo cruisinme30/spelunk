@@ -99,6 +99,56 @@ test("markup in results, previews, notes and banners shows as text and never run
   assert.deepEqual(pageErrors(page), []);
 });
 
+test("markup in owners, holes, context lines, revisions and facets shows as text and never runs", async (t) => {
+  const page = await openPanel(t);
+  await restore(page, [], { contextLines: 1 });
+  const atNode = { kind: "op", op: "at", value: "v1", match: "literal", span: { start: 0, end: 5 } };
+  const root = { kind: "and", children: [atNode, textNode("retry", 6)], span: { start: 0, end: 11 } };
+  const parsed = parsedQuery("at:v1 retry", root, { globals: { case: null, count: null, type: null, at: "v1" } });
+  const seq = await typeAndParse(page, "at:v1 retry", parsed);
+  const owners = [MARKUP, `@acme/${MARKUP}`];
+  const items = [
+    codeLine("l1", "retry", [{ start: 0, end: 5 }], {
+      line: 5,
+      owners,
+      contextBefore: [MARKUP],
+      contextAfter: [MARKUP],
+    }),
+    codeLine("l2", "retry", [], { path: "src/b.py", holes: [{ hole: 1, name: MARKUP, text: MARKUP }] }),
+  ];
+  await fromHost(page, "search.batch", { seq, searchId: "s1", items });
+  const revisions = [
+    { repoId: "r1", sha: MARKUP, date: MARKUP },
+    { repoId: "r2", problem: MARKUP },
+  ];
+  const buckets = [
+    { label: MARKUP, count: 1, filter: `owner:${MARKUP}` },
+    { label: "@jane", count: 1, filter: "owner:@jane" },
+  ];
+  await searchDone(page, seq, { total: 2, revisions, facets: [{ field: "owner", more: 0, buckets }] });
+  const { ref } = await waitForSent(page, "result.select");
+  const ownership = { owners: [MARKUP], file: MARKUP, line: 2 };
+  const preview = { kind: "file", path: "src/a.py", firstLine: 1, lines: ["retry"], focusLine: 1, hits: [] };
+  await fromHost(page, "preview.result", { ref, preview: { ...preview, dirtyLines: [], ownership } });
+
+  assert.equal(await markupTookEffect(page), false);
+  const owner = page.locator('[data-testid="results"] [data-testid="owner"]');
+  assert.equal(await owner.textContent(), `${MARKUP} +1`);
+  assert.equal(await owner.getAttribute("title"), `Owned by ${MARKUP}, @acme/${MARKUP}`);
+  const hole = page.locator('[data-ref="l2"] .hole-value');
+  assert.equal(await hole.locator(".hole-name").textContent(), `:[${MARKUP}]`);
+  assert.equal(await hole.locator("code").textContent(), MARKUP);
+  assert.equal(await hole.getAttribute("title"), `:[${MARKUP}] took ${MARKUP}`);
+  assert.deepEqual(await page.locator('[data-testid="context-line"] code').allTextContents(), [MARKUP, MARKUP]);
+  assert.equal(await page.locator('[data-testid="revision-problem"]').textContent(), MARKUP);
+  const mode = await page.locator('[data-testid="mode"]').textContent();
+  assert.ok(mode?.startsWith(`At v1 · ${MARKUP.slice(0, 7)} · `), mode ?? "");
+  assert.equal(await page.locator('[data-testid="facet-bucket"] .facet-label').first().textContent(), MARKUP);
+  assert.equal(await page.locator('[data-testid="ownership"] code').textContent(), MARKUP);
+  assert.match(await page.locator('[data-testid="ownership"]').textContent(), /line 2$/);
+  assert.deepEqual(pageErrors(page), []);
+});
+
 test("markup in diagnostics, chips, suggestions and recent queries shows as text", async (t) => {
   const page = await openPanel(t);
   await restore(page, [MARKUP]);
