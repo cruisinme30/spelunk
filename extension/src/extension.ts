@@ -293,7 +293,8 @@ async function savePinned(pinned: PinnedQuery[]): Promise<void> {
   const config = configuration();
   const inWorkspace = config.inspect("ui.pinnedQueries")?.workspaceValue !== undefined;
   const target = inWorkspace ? vscode.ConfigurationTarget.Workspace : vscode.ConfigurationTarget.Global;
-  await config.update("ui.pinnedQueries", pinned.length > 0 ? pinned : undefined, target);
+  // An empty workspace list stays, as []: removing it would show the user's own pins in its place.
+  await config.update("ui.pinnedQueries", pinned.length > 0 || inWorkspace ? pinned : undefined, target);
 }
 
 /**
