@@ -96,7 +96,12 @@ export class ReplaceBox {
   private plan: ReplacePlan | undefined;
   /** Each previewed line's replacements, in text order, by lineKey. */
   private readonly byLine = new Map<string, string[]>();
-  private applying = false;
+  /**
+   * The seq of the Replace all the host is running, until its replace.done
+   * comes back. It outlives the row closing (which drops what the answer
+   * would show), so a late answer still ends it.
+   */
+  private applySeq: number | undefined;
   private timer: ReturnType<typeof setTimeout> | undefined;
 
   private readonly row: ReplaceRow;
@@ -156,6 +161,7 @@ export class ReplaceBox {
     }
     clearTimeout(this.timer);
     this.seq++; // drops answers still on their way
+    this.refreshAfterApply = false; // opening again asks for a preview of its own
     this.clearPlan();
     this.hooks.onPreviewChanged();
     this.layout.input.focus();
@@ -165,12 +171,11 @@ export class ReplaceBox {
   refresh(): void {
     if (!this.isOpen) return;
     clearTimeout(this.timer);
-    if (this.applying) {
+    if (this.applySeq !== undefined) {
       this.refreshAfterApply = true;
       return;
     }
     this.seq++;
-    this.applying = false;
     this.clearPlan();
     this.row.note.replaceChildren(BEFORE_NOTE);
     const text = this.hooks.searchedText();
@@ -217,17 +222,20 @@ export class ReplaceBox {
 
   /** What Replace all did. */
   onDone(done: ReplaceDoneMessage): void {
-    if (done.seq !== this.seq) return;
-    this.applying = false;
+    if (done.seq !== this.applySeq) return;
+    this.applySeq = undefined;
+    // Closing the row meanwhile moved seq on: nothing of this answer shows, but the row may preview again.
+    const shown = done.seq === this.seq;
     if (this.refreshAfterApply) {
       this.refreshAfterApply = false;
-      // A new search, or a replacement typed meanwhile, needs a new preview; what was replaced still shows.
-      if (this.hooks.searchedText() !== this.text || this.row.input.value !== this.replacement) {
+      // Reopened, a new search, or a replacement typed meanwhile needs a new preview; what was replaced still shows.
+      if (!shown || this.hooks.searchedText() !== this.text || this.row.input.value !== this.replacement) {
         queueMicrotask(() => {
           this.refresh();
         });
       }
     }
+    if (!shown) return;
     if (done.error !== undefined) {
       this.show(sentence(done.error), this.plan !== undefined);
       return;
@@ -262,15 +270,15 @@ export class ReplaceBox {
   /** Replace all: asks the host to apply the replace the preview shows. */
   private apply(): void {
     const plan = this.plan;
-    if (!plan || this.applying) return;
+    if (!plan || this.applySeq !== undefined) return;
     clearTimeout(this.timer);
     // Typed since the preview: apply only what a preview showed, so show the new one first.
     if (this.row.input.value !== this.replacement) {
       this.refresh();
       return;
     }
-    this.applying = true;
     this.seq++;
+    this.applySeq = this.seq;
     this.show(`Replacing ${plural(plan.matches, "match", "matches")}…`);
     send("replace.apply", { seq: this.seq, text: this.text, replacement: this.replacement, matches: plan.matches });
   }

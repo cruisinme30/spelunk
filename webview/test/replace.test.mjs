@@ -116,6 +116,37 @@ test("Esc closes the Replace row, drops its preview and gives the query box the 
   assert.equal(await page.isVisible(ROW), true);
 });
 
+test("closing the row while Replace all runs leaves Replace working when it opens again", async (t) => {
+  const { page, request } = await previewReplace(t, "backoff");
+  await fromHost(page, "replace.plan", { seq: request.seq, plan: planFor("backoff") });
+  await page.focus(REPLACEMENT);
+  await page.keyboard.press("Meta+Enter");
+  const apply = await lastSent(page, "replace.apply");
+  await page.keyboard.press("Escape"); // before the host answers
+
+  // Opened again while the host still runs it: the row waits for that answer instead of previewing over it.
+  await page.click('[data-testid="toggle-replace"]');
+  const previews = (await sentMessages(page, "replace.preview")).length;
+  await fromHost(page, "replace.done", { seq: apply.seq, replaced: 1, files: 1, skipped: [] });
+  const next = await waitForSent(page, "replace.preview", { replacement: "backoff" });
+  assert.equal((await sentMessages(page, "replace.preview")).length, previews + 1);
+  assert.notEqual(next.seq, apply.seq);
+  await fromHost(page, "replace.plan", { seq: next.seq, plan: planFor("backoff") });
+  assert.equal(await page.textContent(SUMMARY), "1 match in 1 file");
+  assert.equal(await page.isDisabled(REPLACE_ALL), false);
+
+  // Closed for good before the answer: the next opening previews at once.
+  await page.focus(REPLACEMENT);
+  await page.keyboard.press("Meta+Enter");
+  const second = await lastSent(page, "replace.apply");
+  await page.keyboard.press("Escape");
+  await fromHost(page, "replace.done", { seq: second.seq, replaced: 1, files: 1, skipped: [] });
+  await page.click('[data-testid="toggle-replace"]');
+  await page.fill(REPLACEMENT, "delay");
+  await waitForSent(page, "replace.preview", { replacement: "delay" });
+  assert.deepEqual(pageErrors(page), []);
+});
+
 test("⌘↵ right after typing a new replacement previews it rather than applying text the rows never showed", async (t) => {
   const { page, request } = await previewReplace(t, "backoff");
   await fromHost(page, "replace.plan", { seq: request.seq, plan: planFor("backoff") });

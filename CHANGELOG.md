@@ -71,6 +71,8 @@ All notable changes to this project are documented here. The format follows
 - A facet bucket, the repo menu, **Aa** or **ab** on a query with OR at its top level put it in parentheses first, so
   the filter narrows every branch instead of only one (`retry OR timeout lang:python` meant `retry OR (timeout
   lang:python)`).
+- Closing the Replace row while **Replace all** ran left Replace stuck on "Replacing…" for as long as the panel stayed
+  open; the row now previews again once the replace finishes.
 
 ## [1.1.0] - 2026-10-05
 
