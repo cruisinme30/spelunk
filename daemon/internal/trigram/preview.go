@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/cruisinme30/spelunk/daemon/internal/lang"
 	"github.com/cruisinme30/spelunk/daemon/internal/protocol"
@@ -32,6 +33,13 @@ func Preview(repo *Repo, ref Ref, plan *query.Plan, contextLines int) (protocol.
 	if err != nil {
 		return protocol.Preview{}, ErrStale
 	}
+	return PreviewText(repo, ref, plan, contextLines, content, info.ModTime())
+}
+
+// PreviewText is Preview of a file whose text is already read: from a
+// commit's tree, for a result at a revision. modTime stands in for the
+// file's modification time.
+func PreviewText(repo *Repo, ref Ref, plan *query.Plan, contextLines int, content []byte, modTime time.Time) (protocol.Preview, error) {
 	lines := splitLines(content)
 	focus := ref.Line
 	if ref.IsFile() {
@@ -55,7 +63,7 @@ func Preview(repo *Repo, ref Ref, plan *query.Plan, contextLines int) (protocol.
 	// With type:file the words matched the file's name, not its text, so the
 	// text has nothing to mark.
 	if plan != nil && (!ref.IsFile() || plan.Kinds[query.KindLine]) {
-		doc := &Doc{Path: ref.Path, Lang: language, ModTime: info.ModTime(), Content: content}
+		doc := &Doc{Path: ref.Path, Lang: language, ModTime: modTime, Content: content}
 		terms = query.Contributing(plan.Pred, contentLeaf(repo, doc, newFileMatcher(doc, termCache{})))
 	}
 	// A term that spans lines is matched against the whole file; the others
@@ -127,6 +135,21 @@ func OpenTarget(repo *Repo, ref Ref) (protocol.OpenTarget, error) {
 	if _, err := os.Stat(full); err != nil {
 		return protocol.OpenTarget{}, ErrStale
 	}
+	return targetIn(full, ref), nil
+}
+
+// RevisionTarget is OpenTarget for a result at a revision, which opens
+// read-only with the file's text at that revision: path is where the file
+// is (or was) in the repo, and label names the revision in the editor's
+// title. The caller checks that the revision has the file.
+func RevisionTarget(repo *Repo, ref Ref, label string) protocol.OpenTarget {
+	target := targetIn(filepath.Join(repo.Root, filepath.FromSlash(ref.Path)), ref)
+	target.Revision, target.RevisionLabel = ref.Revision, label
+	return target
+}
+
+// targetIn is where opening ref goes in the file at full.
+func targetIn(full string, ref Ref) protocol.OpenTarget {
 	target := protocol.OpenTarget{Path: full, Line: 1, Column: 1}
 	if !ref.IsFile() {
 		// OpenTarget.Column is 1-based, like VS Code's UI; refs are 0-based.
@@ -135,7 +158,7 @@ func OpenTarget(repo *Repo, ref Ref) (protocol.OpenTarget, error) {
 			target.EndLine, target.EndColumn = ref.EndLine, ref.EndColumn+1
 		}
 	}
-	return target, nil
+	return target
 }
 
 // splitLines splits text into the lines a search sees: split on "\n",

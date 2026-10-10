@@ -24,9 +24,13 @@ type Ref struct {
 	// is then the rest of line Line); EndLine is 0 for any other result.
 	EndLine   int
 	EndColumn int
+	// Revision is the full sha of the commit whose version of the file the
+	// result is in (an at: search), or "" for the current file.
+	Revision string
 }
 
-// refPrefix starts every working-tree ref; history refs use another.
+// refPrefix starts every working-tree ref; history refs use another. A
+// ref at a revision starts with refPrefix, "@" and the commit's sha.
 const refPrefix = "tree"
 
 // IsFile reports whether the ref is a file-name result.
@@ -37,8 +41,12 @@ func (r Ref) Spans() bool { return r.EndLine > r.Line }
 
 // String encodes the ref; the path goes last because it may contain "|".
 func (r Ref) String() string {
+	prefix := refPrefix
+	if r.Revision != "" {
+		prefix += "@" + r.Revision
+	}
 	return strings.Join([]string{
-		refPrefix, strconv.Itoa(r.PlanID), r.RepoID,
+		prefix, strconv.Itoa(r.PlanID), r.RepoID,
 		strconv.Itoa(r.Line), strconv.Itoa(r.Column), strconv.Itoa(r.Length),
 		strconv.Itoa(r.EndLine), strconv.Itoa(r.EndColumn), r.Path,
 	}, "|")
@@ -47,7 +55,12 @@ func (r Ref) String() string {
 // ParseRef decodes a ref built by String. ok is false for anything else.
 func ParseRef(text string) (ref Ref, ok bool) {
 	parts := strings.SplitN(text, "|", 9)
-	if len(parts) != 9 || parts[0] != refPrefix || parts[2] == "" || parts[8] == "" {
+	if len(parts) != 9 || parts[2] == "" || parts[8] == "" {
+		return Ref{}, false
+	}
+	prefix, revision, atRevision := strings.Cut(parts[0], "@")
+	// The sha is handed to git, so it must be one: a full hexadecimal sha.
+	if prefix != refPrefix || atRevision && !isFullSHA(revision) {
 		return Ref{}, false
 	}
 	numbers := make([]int, 0, 6)
@@ -66,5 +79,20 @@ func ParseRef(text string) (ref Ref, ok bool) {
 	return Ref{
 		PlanID: numbers[0], RepoID: parts[2], Line: numbers[1],
 		Column: numbers[2], Length: numbers[3], EndLine: numbers[4], EndColumn: numbers[5], Path: parts[8],
+		Revision: revision,
 	}, true
+}
+
+// isFullSHA reports whether text is a full commit sha: 40 hexadecimal
+// digits, or 64 in a SHA-256 repo.
+func isFullSHA(text string) bool {
+	if len(text) != 40 && len(text) != 64 {
+		return false
+	}
+	for _, r := range text {
+		if !strings.ContainsRune("0123456789abcdef", r) {
+			return false
+		}
+	}
+	return true
 }

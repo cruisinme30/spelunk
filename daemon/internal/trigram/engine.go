@@ -34,6 +34,28 @@ type Repo struct {
 	Open map[string]bool
 	// Owners is the repo's CODEOWNERS file, for owner:; nil when it has none.
 	Owners *codeowners.File
+	// At is set when Shard holds the files of a past commit (an at:
+	// search) rather than the current files; nil otherwise.
+	At *AtRevision
+}
+
+// AtRevision is the commit whose files a repo's Shard holds.
+type AtRevision struct {
+	// SHA is the commit's full sha, which its results' refs carry.
+	SHA string
+	// Current maps the path of each current file to its text: a result in
+	// a file it doesn't have was deleted since, and one in a file whose
+	// text differs was changed. nil leaves results without a SinceRevision.
+	Current map[string][]byte
+}
+
+// revision is the full sha of the commit whose files the repo holds, or ""
+// for the current files.
+func (r *Repo) revision() string {
+	if r.At == nil {
+		return ""
+	}
+	return r.At.SHA
 }
 
 // FileHistory is what the working-tree engine needs from a repo's history:
@@ -58,6 +80,39 @@ func (r *Repo) shards() []*Shard {
 // overlay's docs always are, the built shard's unless masked.
 func (r *Repo) current(shard *Shard, doc *Doc) bool {
 	return shard != r.Shard || !r.Masked[doc.Path]
+}
+
+// sinceRevision says how a file of a repo at a revision differs in the
+// current files: deleted, changed, or "" when it is the same (or the repo
+// isn't at a revision).
+func (r *Repo) sinceRevision(doc *Doc) protocol.SinceRevision {
+	if r.At == nil || r.At.Current == nil {
+		return ""
+	}
+	now, ok := r.At.Current[doc.Path]
+	switch {
+	case !ok:
+		return protocol.SinceRevisionDeleted
+	case !bytes.Equal(now, doc.Content):
+		return protocol.SinceRevisionChanged
+	default:
+		return ""
+	}
+}
+
+// CurrentFiles maps the path of each of the repo's current files to its
+// text, as the index has it: the overlay's version of a file saved since
+// the shard was built. A repo at a revision uses it as its At.Current.
+func (r *Repo) CurrentFiles() map[string][]byte {
+	files := map[string][]byte{}
+	for _, shard := range r.shards() {
+		for i := range shard.Docs {
+			if doc := &shard.Docs[i]; r.current(shard, doc) {
+				files[doc.Path] = doc.Content
+			}
+		}
+	}
+	return files
 }
 
 // changedSince reports whether a file changed after a time, for since: on
@@ -338,9 +393,9 @@ func fileNameLeaf(repo *Repo, doc *Doc) func(query.Pred) bool {
 func (s *searcher) addFileName(repo *Repo, doc *Doc, rank docRank) {
 	leaf := fileNameLeaf(repo, doc)
 	item := protocol.ResultItem{
-		Kind: query.KindFile, Ref: Ref{PlanID: s.planID, RepoID: repo.ID, Path: doc.Path}.String(),
+		Kind: query.KindFile, Ref: Ref{PlanID: s.planID, RepoID: repo.ID, Path: doc.Path, Revision: repo.revision()}.String(),
 		RepoID: repo.ID, Path: doc.Path, NameHits: s.nameHits(doc.Path, query.Contributing(s.plan.Pred, leaf)),
-		RankReason: rank.reason, Owners: repo.ownersOf(doc.Path),
+		RankReason: rank.reason, Owners: repo.ownersOf(doc.Path), SinceRevision: repo.sinceRevision(doc),
 	}
 	if repo.History != nil {
 		item.Dirty = repo.History.Dirty(doc.Path)
@@ -493,7 +548,7 @@ func (s *searcher) symbolResult(repo *Repo, doc *Doc, symbol *symbols.Symbol) pr
 			}
 		})
 	}
-	ref := Ref{PlanID: s.planID, RepoID: repo.ID, Path: doc.Path, Line: symbol.Line, Length: utf16Len(symbol.Name)}
+	ref := Ref{PlanID: s.planID, RepoID: repo.ID, Path: doc.Path, Line: symbol.Line, Length: utf16Len(symbol.Name), Revision: repo.revision()}
 	if line, ok := lineOf(doc.Content, symbol.Line); ok {
 		if at := strings.Index(line, symbol.Name); at >= 0 {
 			ref.Column = utf16Len(line[:at])
@@ -501,7 +556,7 @@ func (s *searcher) symbolResult(repo *Repo, doc *Doc, symbol *symbols.Symbol) pr
 	}
 	return protocol.ResultItem{
 		Kind: query.KindSymbol, Ref: ref.String(), RepoID: repo.ID, Path: doc.Path, Line: symbol.Line,
-		Name: symbol.Name, SymbolKind: symbol.Kind, Hits: hits,
+		Name: symbol.Name, SymbolKind: symbol.Kind, Hits: hits, SinceRevision: repo.sinceRevision(doc),
 	}
 }
 
@@ -615,7 +670,7 @@ func narrowShard(shard *Shard, p query.Pred, caseSensitive bool) []uint32 {
 // ref runs to where it ends.
 func (s *searcher) lineResult(repo *Repo, doc *Doc, line matchedLine) protocol.ResultItem {
 	text, hits := clipLine(line.text, line.hits)
-	ref := Ref{PlanID: s.planID, RepoID: repo.ID, Path: doc.Path, Line: line.number}
+	ref := Ref{PlanID: s.planID, RepoID: repo.ID, Path: doc.Path, Line: line.number, Revision: repo.revision()}
 	if line.spans() {
 		ref.Column = line.startColumn
 		ref.Length = utf16Len(line.text) - ref.Column // the rest of the first line
@@ -630,7 +685,7 @@ func (s *searcher) lineResult(repo *Repo, doc *Doc, line matchedLine) protocol.R
 	}
 	item := protocol.ResultItem{
 		Kind: query.KindLine, Ref: ref.String(), RepoID: repo.ID, Path: doc.Path,
-		Line: line.number, Text: text, Hits: hits,
+		Line: line.number, Text: text, Hits: hits, SinceRevision: repo.sinceRevision(doc),
 	}
 	if line.structure != nil {
 		item.Holes = line.structure.holes

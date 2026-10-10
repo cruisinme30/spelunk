@@ -115,6 +115,22 @@ func Build(ctx context.Context, root string, files []File, opts BuildOptions) (*
 	return s, nil
 }
 
+// DocFromBlob makes the doc of a file read from somewhere other than disk,
+// such as a commit's tree, as Build would read it: ok is false for a
+// binary file, which Build leaves out. modTime stands in for the file's
+// modification time; opts.Symbols finds its definitions.
+func DocFromBlob(path string, raw []byte, modTime time.Time, opts BuildOptions) (Doc, bool) {
+	if isBinary(raw[:min(len(raw), binarySniffBytes)]) {
+		return Doc{}, false
+	}
+	content := decodeText(raw)
+	doc := Doc{Path: path, Lang: lang.Detect(path, content), ModTime: modTime, Content: content}
+	if opts.Symbols {
+		doc.Symbols = symbols.Extract(doc.Lang, content)
+	}
+	return doc, true
+}
+
 // NewShard indexes docs that are already read, keeping their order. The
 // indexer builds its overlay of re-read files with it.
 func NewShard(docs []Doc) *Shard {
