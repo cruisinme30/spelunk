@@ -409,17 +409,26 @@ func (s *searcher) countHidden(leaf func(query.Pred) bool, size func([]*query.Co
 }
 
 // addCodeLines adds a result for each matching line of each file that
-// satisfies the query (the "Code" section), and credits the lines of a
-// file that only one filter removed to that filter.
+// satisfies the query (the "Code" section), with the lines around it when
+// the plan asks for context, and credits the lines of a file that only one
+// filter removed to that filter.
 func (s *searcher) addCodeLines(repos []Repo) {
 	s.forEachCandidate(repos, func(c rankedCandidate, matcher *lineMatcher, leaf func(query.Pred) bool) {
 		if !query.Eval(s.plan.Pred, leaf) {
 			s.countHidden(leaf, func(terms []*query.Content) int { return len(matcher.lines(terms)) })
 			return
 		}
+		var starts []int // the file's line starts, found when a result first needs context
 		for _, line := range matcher.lines(query.Contributing(s.plan.Pred, leaf)) {
 			item := s.lineResult(c.repo, c.doc, line)
 			item.RankReason = c.rank.reason
+			// Only results on the page carry context; the rest are only counted.
+			if s.plan.ContextLines > 0 && s.plan.OnPage(s.counted) {
+				if starts == nil {
+					starts = lineStarts(c.doc.Content)
+				}
+				item.ContextBefore, item.ContextAfter = contextAround(c.doc.Content, starts, line.number, s.plan.ContextLines)
+			}
 			quality := 0
 			if s.holding {
 				quality = s.lineQuality(line)

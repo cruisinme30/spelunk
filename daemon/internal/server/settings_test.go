@@ -67,6 +67,29 @@ func TestChangedSettingsTakeEffectWithoutARestart(t *testing.T) {
 	}
 }
 
+func TestTheContextLinesSettingAddsLinesAroundCodeResults(t *testing.T) {
+	// @covers rpc:settings/update setting:results.contextLines
+	root := testutil.WriteTree(t, map[string]string{"a.py": "import time\n\ndef go():\n    retry()\n    return\n"})
+	client := newTestClient(t)
+	client.mustInitialize(t, protocol.Root{ID: "r", Path: root, Name: "app"})
+
+	if items, _ := search(t, client, "type:code retry"); len(items) != 1 || items[0].ContextBefore != nil || items[0].ContextAfter != nil {
+		t.Fatalf("without the setting: %+v, want one line without context", items)
+	}
+	updateSettings(t, client, func(s *protocol.Settings) { s.ContextLines = 2 })
+	waitUntil(t, "two lines of context", func() bool {
+		items, _ := search(t, client, "type:code retry")
+		return len(items) == 1 &&
+			slices.Equal(items[0].ContextBefore, []string{"", "def go():"}) &&
+			slices.Equal(items[0].ContextAfter, []string{"    return"})
+	})
+	updateSettings(t, client, func(s *protocol.Settings) { s.ContextLines = 99 })
+	waitUntil(t, "context capped at three lines", func() bool {
+		items, _ := search(t, client, "type:code retry")
+		return len(items) == 1 && len(items[0].ContextBefore) == 3
+	})
+}
+
 func TestSetRootsAddsAndDropsRepos(t *testing.T) {
 	// @covers rpc:workspace/setRoots
 	first := testutil.WriteTree(t, map[string]string{"one.txt": "needle\n"})
