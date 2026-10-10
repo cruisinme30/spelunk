@@ -258,6 +258,21 @@ Jason Kim and Marta Ruiz, and one uncommitted edit:
 | 33 | `cfg` | [fuzzy-file-names.png](proof/fuzzy-file-names.png) |
 | 34 | `type:added retry_policy`, over a history where one commit only removed `retry_policy` lines | [added-removed-lines.png](proof/added-removed-lines.png) |
 | 35 | `sym:retry kind:class`, `ref:RetryPolicy` | [symbol-kinds.png](proof/symbol-kinds.png), [references.png](proof/references.png) |
+| 36 | `type:code f:http/ retry` with `--setting results.contextLines=2` | [context-lines.png](proof/context-lines.png) |
 
 Mocks 16 (the opened file) and 18 (Settings) are VS Code's own editor and Settings UI, which the tool can't draw
 without VS Code, so they have no screenshot.
+
+## Context lines (1.2)
+
+Mock 36 (`context-lines`). Exit gate: with `spelunk.results.contextLines` above 0, every code result on the page
+carries the lines around its match, the panel shows them merged into runs, and the Context buttons change the setting
+end to end.
+
+- Daemon: `daemon/internal/trigram/context_test.go` (line ends, file edges, clipping, pages, best-match order, a
+  changed file's current text) and `TestTheContextLinesSettingAddsLinesAroundCodeResults` over `settings/update`.
+- Panel: `webview/test/contextLines.test.mjs` (runs, overlaps, Load more, files, out-of-order matches, ↑ ↓, screen
+  readers, the replace preview's indent, the Context buttons).
+- Host: `controller.test.ts` (`context.set` saves only a change, bad payloads are dropped) and `settings.test.ts`.
+- End to end in VS Code: "The panel's Context buttons save the setting, and the results gain context lines" in
+  `extension/src/e2e/commands.test.ts`.

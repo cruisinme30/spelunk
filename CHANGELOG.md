@@ -5,6 +5,13 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Context lines: **Context 0 · ±1 · ±2 · ±3** in the Code heading shows up to three dimmed lines above and below
+  each code match, so you can often tell what a match is without opening it. Matches close together share one run of
+  lines, and **⋯** marks the lines skipped between runs; ↑ ↓ still step from match to match. The buttons save
+  `spelunk.results.contextLines` (0 by default), where its value comes from.
+
 ## [1.1.0] - 2026-10-05
 
 ### Added

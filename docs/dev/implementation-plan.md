@@ -214,6 +214,7 @@ increases with each keystroke. Any response carrying an older `seq` than the new
 | `help.open` / `settings.open` | `{}` | Opens the help tab, or Settings filtered to `@ext:spelunk` |
 | `pinned.save` | `{ query, name? }` | Pins the query at the end of `spelunk.ui.pinnedQueries`, or renames it if it is pinned |
 | `pinned.remove` | `{ query }` | Unpins the query |
+| `context.set` | `{ lines }` | Writes `spelunk.results.contextLines` (the Context buttons); the settings change runs the query again |
 
 Debouncing lives in the webview, using `typingDelayMs`. Applying a fix-it, accepting a completion and toggling Aa or
 `.*` are text edits done in the webview, followed by a normal `query.changed`.
@@ -276,7 +277,8 @@ type ResultItem =
   | { kind: "file"; ref: string; repoId: string; path: string; nameHits: Range[];
       lastCommit?: { sha: string; author: string; at: string }; dirty: boolean }
   | { kind: "line"; ref: string; repoId: string; path: string; line: number;
-      text: string; hits: Hit[] }
+      text: string; hits: Hit[];
+      contextBefore?: string[]; contextAfter?: string[] }   // with spelunk.results.contextLines above 0
   | { kind: "symbol"; ref: string; repoId: string; path: string; line: number;
       name: string; symbolKind: "class" | "interface" | "function" | "method" | "type" | "other";
       hits: Range[] }
@@ -488,6 +490,7 @@ sync and per-workspace overrides. The extension builds no settings screen of its
 | `spelunk.ui.showParsedQuery` | boolean | `true` | application |
 | `spelunk.ui.recentQueries` | integer, 0–100 | `20` | application |
 | `spelunk.ui.pinnedQueries` | `{ query, name? }[]` | `[]` | window |
+| `spelunk.results.contextLines` | integer, 0–3 | `0` | resource |
 
 `resource` settings can differ per repo through `.vscode/settings.json`. `machine` settings never sync, because index
 paths differ between computers.
