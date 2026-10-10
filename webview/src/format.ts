@@ -341,6 +341,9 @@ export function codeLineText(
   return highlight(shown.text, shown.hits, replacements?.slice(shown.dropped));
 }
 
+/** Identifies a line of a file across repos: the Replace row files each line's replacements under it. */
+export const lineKey = (repoId: string, path: string, line: number): string => `${repoId}\n${path}\n${String(line)}`;
+
 /** The first seven characters of a commit sha, as Git shows them. */
 export function shortSha(sha: string): string {
   return sha.slice(0, 7);

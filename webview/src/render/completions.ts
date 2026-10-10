@@ -10,7 +10,7 @@ import type { Completion, OpName, ResultItem } from "../protocol.gen";
 import type { ViewState } from "../state";
 
 /** Result lines shown under the suggestions. */
-const GLIMPSE_LINES = 2;
+export const GLIMPSE_LINES = 2;
 
 /** What an operator's value suggestions are called, and a line on what else it takes. */
 const VALUE_LISTS: Partial<Record<OpName, { heading: string; hint?: string }>> = {

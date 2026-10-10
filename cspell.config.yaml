@@ -39,6 +39,7 @@ words:
   # Tools, libraries and formats
   - cacheinfo
   - chromium
+  - contentvisibilityautostatechange
   - codegen
   - conftest
   - creatordate

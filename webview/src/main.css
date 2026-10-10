@@ -847,6 +847,16 @@ ins {
   display: contents;
 }
 
+/*
+ * A full run of 100 rows of a section (render/chunkedList.ts). Out of sight, the browser skips laying it out and
+ * painting it, keeping the height it last had (or about 100 rows' worth before it ever showed), so streaming and
+ * redrawing thousands of results costs what is in view.
+ */
+.chunk.full {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 3200px;
+}
+
 .row {
   display: flex;
   flex-wrap: wrap;

@@ -40,7 +40,13 @@ import {
   renderFooter,
   renderIndexStatus,
 } from "./render/chrome";
-import { completionsVisible, pointAtActiveOption, renderCompletions, type ResultsGlimpse } from "./render/completions";
+import {
+  completionsVisible,
+  GLIMPSE_LINES,
+  pointAtActiveOption,
+  renderCompletions,
+  type ResultsGlimpse,
+} from "./render/completions";
 import { renderEmptyState } from "./render/emptyState";
 import { renderFacets } from "./render/facets";
 import { RepoMenu } from "./render/repoMenu";
@@ -74,8 +80,8 @@ export class SearchPanel {
     this.replace = new ReplaceBox(this.layout, {
       searchedText: () => this.searchedText(),
       typingDelayMs: () => this.state.ui.typingDelayMs,
-      onPreviewChanged: () => {
-        this.results?.showReplacements();
+      onPreviewChanged: (lines) => {
+        this.results?.showReplacements(lines);
         this.renderPreview();
       },
       onFocusChanged: () => {
@@ -625,9 +631,8 @@ export class SearchPanel {
   }
 
   private renderCompletions(): void {
-    const items = this.results?.items ?? [];
     const glimpse: ResultsGlimpse | undefined = this.results
-      ? { total: this.state.done?.total ?? items.length, lines: items.filter((item) => item.kind === "line") }
+      ? { total: this.state.done?.total ?? this.results.items.length, lines: this.results.firstLines(GLIMPSE_LINES) }
       : undefined;
     renderCompletions(this.layout, this.state, glimpse, {
       onPick: (index) => {
@@ -667,7 +672,7 @@ export class SearchPanel {
 
   private renderPreview(): void {
     if (!this.results) return;
-    const item = this.results.items.find((result) => result.ref === this.state.preview?.ref);
+    const item = this.state.preview ? this.results.itemFor(this.state.preview.ref) : undefined;
     renderPreview(this.results.preview, this.state, previewOf(this.state, item), {
       onOpen: (ref, where) => {
         send("result.open", { ref, where });

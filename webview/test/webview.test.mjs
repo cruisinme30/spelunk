@@ -358,6 +358,39 @@ test("the first result is selected and previewed; ↓ moves the selection", asyn
   assert.equal(await page.locator('[data-testid="preview"] mark').count(), 1);
 });
 
+test("↑↓ go through the sections top to bottom, in the order their batches came, and stop at either end", async (t) => {
+  const page = await panelWithResults(t);
+  const { seq } = await lastSent(page, "query.changed");
+  // A later batch adds to every section: the file name goes above the code lines that came before it.
+  await fromHost(page, "search.batch", {
+    seq,
+    searchId: "s1",
+    items: [
+      { ...CODE_LINE_RESULT, ref: "l2", line: 43 },
+      { ...FILE_NAME_RESULT, ref: "f2", path: "src/payments/retry.py" },
+      {
+        kind: "symbol",
+        ref: "s1",
+        repoId: "r1",
+        path: "a.py",
+        line: 3,
+        name: "retry",
+        symbolKind: "function",
+        hits: [],
+      },
+    ],
+  });
+  const selected = () => page.getAttribute('[aria-selected="true"]', "data-ref");
+  const walk = [];
+  for (let step = 0; step < 6; step++) {
+    walk.push(await selected());
+    await page.keyboard.press("ArrowDown");
+  }
+  assert.deepEqual(walk, ["f1", "f2", "s1", "l1", "l2", "l2"]);
+  for (let step = 0; step < 6; step++) await page.keyboard.press("ArrowUp");
+  assert.equal(await selected(), "f1");
+});
+
 test("under type:added, chips, commit rows and the hidden note speak of added lines", async (t) => {
   // @covers screen:added-removed-lines
   const page = await openPanel(t);

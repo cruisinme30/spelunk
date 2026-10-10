@@ -27,6 +27,8 @@ import type {
   SinceRevision,
 } from "../protocol.gen";
 import { repoName, type ViewState } from "../state";
+import { ChunkedList } from "./chunkedList";
+import { ResultIndex } from "./resultIndex";
 
 type ResultKind = ResultItem["kind"];
 type ItemOf<K extends ResultKind> = Extract<ResultItem, { kind: K }>;
@@ -65,10 +67,21 @@ const UNDO_LABEL: Partial<Record<HiddenNote["reason"], string>> = {
   kind: "Show every kind",
 };
 
+/** A result as appended to its section: `node` holds its `row`, after a file header for a code line. */
+interface Rendered {
+  node: HTMLElement;
+  row: HTMLElement;
+}
+
+/** A result whose row stands alone. */
+const asRendered = (row: HTMLElement): Rendered => ({ node: row, row });
+
 /** One section of the list (file names, definitions, code or commits). */
 interface Section {
   root: HTMLElement;
   list: HTMLElement;
+  /** The list's rows, in chunks the browser lays out only near the view. */
+  chunks: ChunkedList;
   count: HTMLElement;
 }
 
@@ -130,17 +143,17 @@ interface CodeBlock {
 
 /**
  * The result list and preview containers for one search. Rows are appended
- * per batch rather than re-rendered, so large result sets stream smoothly.
+ * per batch rather than re-rendered, in chunks laid out only near the view,
+ * and found through an index, so large result sets stream and step smoothly.
  */
 export class ResultsView {
-  /** Every result appended so far, in arrival order. */
-  readonly items: ResultItem[] = [];
   readonly list: HTMLElement;
   readonly preview: HTMLElement;
   private readonly sections: Record<ResultKind, Section>;
   private readonly notes: HTMLElement;
   private readonly loadMore: HTMLElement;
   private readonly lastGood: HTMLElement;
+  private readonly index = new ResultIndex();
   /** Results per kind so far; append() keeps it current, so counting never rescans `items`. */
   private readonly countByKind: Record<ResultKind, number> = { file: 0, line: 0, symbol: 0, commit: 0 };
   /** The files (fileKey) the code lines so far come from. */
@@ -207,59 +220,89 @@ export class ResultsView {
     );
   }
 
-  /** Every selectable row, in visual order. */
-  rows(): HTMLElement[] {
-    return [...this.list.querySelectorAll<HTMLElement>("[data-ref]")];
+  /** Every result appended so far, in arrival order. */
+  get items(): readonly ResultItem[] {
+    return this.index.items;
+  }
+
+  /** The result `ref` names, if it is on screen. */
+  itemFor(ref: string): ResultItem | undefined {
+    return this.index.placed(ref)?.item;
   }
 
   /** The row of the result `ref` names, if it is on screen. */
-  rowFor(ref: string): HTMLElement | null {
-    return this.list.querySelector<HTMLElement>(`#${rowId(ref)}`);
+  rowFor(ref: string): HTMLElement | undefined {
+    return this.index.placed(ref)?.row;
+  }
+
+  /** The top result of the list. */
+  firstRef(): string | undefined {
+    return this.index.firstRef();
+  }
+
+  /** The result `step` rows below or above `ref`, staying on the first or last row. */
+  refFrom(ref: string, step: 1 | -1): string | undefined {
+    return this.index.refFrom(ref, step);
+  }
+
+  /** The first `count` code results, for the glimpse under the suggestions. */
+  firstLines(count: number): ItemOf<"line">[] {
+    return this.index.firstLines(count);
   }
 
   /** Adds a batch of results to their sections, skipping any of a kind this webview doesn't know. */
   append(items: ResultItem[]): void {
     for (const item of items) {
       if (!Object.hasOwn(this.sections, item.kind)) continue;
-      let row: HTMLElement;
+      let rendered: Rendered;
       try {
-        row = this.renderItem(item);
+        rendered = this.renderItem(item);
       } catch {
         continue; // a malformed result is left out, not the rest of its batch
       }
-      this.items.push(item);
       this.countByKind[item.kind]++;
       this.repoIds.add(item.repoId);
       if (item.kind === "line") this.codeFileKeys.add(fileKey(item));
       const section = this.sections[item.kind];
       section.root.hidden = false;
-      section.list.append(row);
+      this.index.add(item, rendered.row, section.chunks.append(rendered.node));
     }
     this.updateSectionCounts();
   }
 
-  /** Redraws the code lines' text: replaced as the Replace row's preview shows, or marked again. */
-  showReplacements(): void {
-    for (const item of this.items) {
-      // A match that spans lines is never replaced, so it stays marked.
-      if (item.kind !== "line" || (item.spanLines?.length ?? 0) > 0) continue;
-      const text = this.list.querySelector(`#${rowId(item.ref)} .text`);
-      text?.replaceChildren(codeLineText(item, this.handlers.replacementsFor(item), this.indentByRef.get(item.ref)));
+  /**
+   * Redraws the code lines on the lines `keys` (lineKey) name, whose
+   * replacements the Replace row's preview changed: replaced, or marked
+   * again. A row out of sight is redrawn once it shows.
+   */
+  showReplacements(keys: Iterable<string>): void {
+    for (const key of new Set(keys)) {
+      for (const item of this.index.linesAt(key)) {
+        // A match that spans lines is never replaced, so it stays marked.
+        const placed = this.index.placed(item.ref);
+        if ((item.spanLines?.length ?? 0) > 0 || !placed) continue;
+        this.sections.line.chunks.redraw(placed.chunk, item.ref, () => {
+          placed.row
+            .querySelector(".text")
+            ?.replaceChildren(codeLineText(item, this.handlers.replacementsFor(item), this.indentByRef.get(item.ref)));
+        });
+      }
     }
   }
 
   /** Tags the commits on screen that a watch found since their query last ran (state.newCommits) as New. */
   markNew(): void {
-    for (const item of this.items) {
-      if (item.kind !== "commit" || !this.state.newCommits.has(item.sha)) continue;
-      const title = this.list.querySelector(`#${rowId(item.ref)} .commit-title`);
-      if (title && !title.querySelector(".new-commit")) title.querySelector(".sha")?.before(newTag());
+    for (const sha of this.state.newCommits) {
+      for (const row of this.index.commitRows(sha)) {
+        const title = row.querySelector(".commit-title");
+        if (title && !title.querySelector(".new-commit")) title.querySelector(".sha")?.before(newTag());
+      }
     }
   }
 
   /** Greys out a row whose file or commit no longer exists. */
   markStale(ref: string): void {
-    this.list.querySelector(`#${rowId(ref)}`)?.classList.add("stale");
+    this.rowFor(ref)?.classList.add("stale");
   }
 
   /** How many results are on screen, by kind, file and repo. */
@@ -385,19 +428,19 @@ export class ResultsView {
     this.sections.commit.count.textContent = String(counts.commit);
   }
 
-  private renderItem(item: ResultItem): HTMLElement {
+  private renderItem(item: ResultItem): Rendered {
     switch (item.kind) {
       case "file": {
-        return this.renderFileRow(item);
+        return asRendered(this.renderFileRow(item));
       }
       case "line": {
         return this.renderCodeRow(item);
       }
       case "symbol": {
-        return this.renderSymbolRow(item);
+        return asRendered(this.renderSymbolRow(item));
       }
       case "commit": {
-        return this.renderCommitRow(item);
+        return asRendered(this.renderCommitRow(item));
       }
     }
   }
@@ -431,7 +474,7 @@ export class ResultsView {
   }
 
   /** A code line, preceded by a file header when it starts a new file. */
-  private renderCodeRow(item: ItemOf<"line">): HTMLElement {
+  private renderCodeRow(item: ItemOf<"line">): Rendered {
     const group = element("div", { class: "contents" });
     const key = fileKey(item);
     if (this.openCodeFile?.key !== key) {
@@ -452,16 +495,14 @@ export class ResultsView {
     }
     this.openCodeFile.lineCount++;
     this.openCodeFile.countLabel.textContent = String(this.openCodeFile.lineCount);
-    if (this.withContext) {
-      this.appendWithContext(group, item, this.openCodeFile);
-    } else {
-      group.append(codeLineRow(item, this.rowAttributes(item), this.handlers.replacementsFor(item)));
-    }
-    return group;
+    if (this.withContext) return { node: group, row: this.appendWithContext(group, item, this.openCodeFile) };
+    const row = codeLineRow(item, this.rowAttributes(item), this.handlers.replacementsFor(item));
+    group.append(row);
+    return { node: group, row };
   }
 
   /**
-   * Appends a code result with the dimmed lines around it. When the file's
+   * Appends a code result with the dimmed lines around it, and returns its row. When the file's
    * last run of lines reaches this match's context, the two join: lines
    * already shown aren't repeated, and context the last match showed past
    * this one makes way for it. Otherwise "⋯" marks the lines skipped. A
@@ -469,7 +510,7 @@ export class ResultsView {
    * the indentation all its lines share, so a match joining it with less
    * redraws the lines before it.
    */
-  private appendWithContext(group: HTMLElement, item: ItemOf<"line">, file: OpenCodeFile): void {
+  private appendWithContext(group: HTMLElement, item: ItemOf<"line">, file: OpenCodeFile): HTMLElement {
     const before = item.contextBefore ?? [];
     const after = item.contextAfter ?? [];
     const lastLine = lastLineOf(item);
@@ -507,6 +548,7 @@ export class ResultsView {
       row: appendContext(lastLine + 1 + index, text),
     }));
     file.block = block;
+    return row;
   }
 
   private renderSymbolRow(item: ItemOf<"symbol">): HTMLElement {
@@ -746,5 +788,5 @@ function makeSection(title: string, testId: string, controls?: HTMLElement): Sec
     ),
     list,
   );
-  return { root, list, count };
+  return { root, list, chunks: new ChunkedList(list), count };
 }

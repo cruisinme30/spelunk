@@ -81,6 +81,11 @@ All notable changes to this project are documented here. The format follows
 - On the welcome page, moving through the shortcut choices with ↑ ↓ opened Keyboard Shortcuts on reaching **Choose my
   own**, and each saved choice redrew the page and lost the focus. Picking it now only clears the key; its **Open
   Keyboard Shortcuts** button opens the editor, and the focus stays on the choice.
+- Large result sets (up to `count:50000`) streamed, stepped and previewed Replace in time that grew with every row:
+  each batch laid out the whole list again, each ↑↓ searched every row, and each change in the Replace row redrew
+  every row. The list now lays out only the rows near the view, ↑↓ go straight to the next row, and Replace redraws
+  only the lines it changed, the ones out of sight as they come into view. At 50,000 results a batch takes 4 ms
+  instead of 65, ↑↓ under a millisecond instead of 12, and a Replace preview 24–53 ms instead of over a second.
 
 ## [1.1.0] - 2026-10-05
 

@@ -2,7 +2,7 @@
 // would change (the result rows show each match struck out and replaced),
 // and what it did. The host plans and applies a replace; the row only asks
 // and shows, so nothing here writes a file.
-import { button, element, icon, plural } from "./format";
+import { button, element, icon, lineKey, plural } from "./format";
 import { send } from "./host";
 import type { Layout } from "./layout";
 import type { ReplaceDoneMessage, ReplacePlan, ReplacePlanMessage } from "./protocol.gen";
@@ -62,8 +62,8 @@ interface ReplaceHooks {
   /** The query the results on screen are for, or undefined while there is none to replace. */
   searchedText(): string | undefined;
   typingDelayMs(): number;
-  /** The preview changed: the result rows and file preview show it, or stop showing it. */
-  onPreviewChanged(): void;
+  /** The preview changed on `lines` (lineKey): their result rows and the file preview show it, or stop showing it. */
+  onPreviewChanged(lines: string[]): void;
   /** The replacement gained or lost the focus, which changes the key hints. */
   onFocusChanged(): void;
 }
@@ -72,9 +72,6 @@ interface ReplaceHooks {
 function isReplaceShortcut(event: KeyboardEvent): boolean {
   return (event.code === "KeyF" && event.metaKey && event.altKey) || (event.code === "KeyH" && event.ctrlKey);
 }
-
-/** The key a line's replacements are filed under. */
-const lineKey = (repoId: string, path: string, line: number) => `${repoId}\n${path}\n${String(line)}`;
 
 /** "Replace needs exactly one search term." from the daemon's "replace needs exactly one search term". */
 function sentence(text: string): string {
@@ -96,6 +93,8 @@ export class ReplaceBox {
   private plan: ReplacePlan | undefined;
   /** Each previewed line's replacements, in text order, by lineKey. */
   private readonly byLine = new Map<string, string[]>();
+  /** The lines (lineKey) whose replacements changed since the panel was last told. */
+  private readonly changedLines = new Set<string>();
   /**
    * The seq of the Replace all the host is running, until its replace.done
    * comes back. It outlives the row closing (which drops what the answer
@@ -163,7 +162,7 @@ export class ReplaceBox {
     this.seq++; // drops answers still on their way
     this.refreshAfterApply = false; // opening again asks for a preview of its own
     this.clearPlan();
-    this.hooks.onPreviewChanged();
+    this.previewChanged();
     this.layout.input.focus();
   }
 
@@ -187,7 +186,7 @@ export class ReplaceBox {
       this.show("Finding matches…");
       send("replace.preview", { seq: this.seq, text, replacement: this.replacement });
     }
-    this.hooks.onPreviewChanged();
+    this.previewChanged();
   }
 
   /** The replacements of a line's matches, in text order, while the preview shows them. */
@@ -209,15 +208,17 @@ export class ReplaceBox {
       this.plan = plan;
       for (const file of plan.files) {
         for (const line of file.lines) {
+          const key = lineKey(file.repoId, file.path, line.line);
           this.byLine.set(
-            lineKey(file.repoId, file.path, line.line),
+            key,
             line.edits.map((edit) => edit.newText),
           );
+          this.changedLines.add(key);
         }
       }
       this.show(`${plural(plan.matches, "match", "matches")} in ${plural(plan.files.length, "file")}`, true);
     }
-    this.hooks.onPreviewChanged();
+    this.previewChanged();
   }
 
   /** What Replace all did. */
@@ -245,7 +246,7 @@ export class ReplaceBox {
       return; // the new preview came with it
     }
     this.clearPlan();
-    this.hooks.onPreviewChanged();
+    this.previewChanged();
     this.show(`Replaced ${plural(done.replaced, "match", "matches")} in ${plural(done.files, "file")}`);
     const parts: (Node | string)[] = [];
     if (done.files > 0) {
@@ -285,7 +286,15 @@ export class ReplaceBox {
 
   private clearPlan(): void {
     this.plan = undefined;
+    for (const key of this.byLine.keys()) this.changedLines.add(key);
     this.byLine.clear();
+  }
+
+  /** Tells the panel which lines' replacements changed, so it redraws those rows alone. */
+  private previewChanged(): void {
+    const lines = [...this.changedLines];
+    this.changedLines.clear();
+    this.hooks.onPreviewChanged(lines);
   }
 
   /** Says `text` in the summary; Replace all works only while there is a plan to apply. */

@@ -4,6 +4,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+  CODE_LINE_RESULT,
   fromHost,
   lastSent,
   pageErrors,
@@ -159,4 +160,44 @@ test("⌘↵ right after typing a new replacement previews it rather than applyi
   }, REPLACEMENT);
   assert.equal((await sentMessages(page, "replace.apply")).length, 0);
   assert.equal((await lastSent(page, "replace.preview")).replacement, "backoff_ms");
+});
+
+test("over a thousand results, a preview redraws only the rows that show, and the others as they come into view", async (t) => {
+  const page = await panelWithResults(t);
+  const { seq } = await lastSent(page, "query.changed");
+  const lines = Array.from({ length: 1000 }, (_, index) => index + 1);
+  const items = lines.map((line) => ({ ...CODE_LINE_RESULT, ref: `x${line}`, path: "src/many.py", line }));
+  await fromHost(page, "search.batch", { seq, searchId: "s1", items });
+  await page.click('[data-testid="toggle-replace"]');
+  await page.fill(REPLACEMENT, "backoff");
+  const request = await waitForSent(page, "replace.preview", { replacement: "backoff" });
+  const edits = [{ start: 5, end: 17, newText: "backoff" }];
+  const plan = {
+    matches: 1001,
+    truncated: false,
+    files: [
+      ...planFor("backoff").files,
+      {
+        repoId: "r1",
+        path: "src/many.py",
+        file: "/work/src/many.py",
+        lines: lines.map((line) => ({ line, text: CODE_LINE_RESULT.text, edits })),
+      },
+    ],
+  };
+  const replaced = (ref) => page.locator(`[data-ref="${ref}"] .text ins`).count();
+  // The rows count in chunks of a hundred, and the browser skips the chunks out of sight.
+  assert.equal(await page.locator('[data-testid="section-code"] .chunk.full').count(), 10);
+  await fromHost(page, "replace.plan", { seq: request.seq, plan });
+  assert.equal(await replaced("x1"), 1, "a row in view shows the replacement at once");
+  assert.equal(await replaced("x900"), 0, "a row far out of sight waits");
+  await page.locator('[data-ref="x900"]').scrollIntoViewIfNeeded();
+  await page.waitForFunction(() => document.querySelector('[data-ref="x900"] .text ins') !== null);
+  // Closing the row marks the rows as a search again: in view at once, out of sight once they show.
+  await page.keyboard.press("Escape");
+  assert.equal(await replaced("x900"), 0);
+  assert.equal(await page.locator('[data-ref="x900"] .text mark').count(), 1);
+  await page.locator('[data-ref="x1"]').scrollIntoViewIfNeeded();
+  await page.waitForFunction(() => document.querySelector('[data-ref="x1"] .text ins') === null);
+  assert.deepEqual(pageErrors(page), []);
 });

@@ -1,7 +1,7 @@
 // Which result is selected: ↑↓ and clicks move it, the selected row is
 // highlighted and scrolled into view, and the host is asked for its preview
 // while the preview pane shows.
-import { clamp, scrollIntoContainer } from "./format";
+import { scrollIntoContainer } from "./format";
 import { send } from "./host";
 import type { ResultsView } from "./render/results";
 import type { ViewState } from "./state";
@@ -79,18 +79,14 @@ export class ResultSelection {
 
   /** Results don't wrap: ↓ on the last row stays there. */
   move(step: 1 | -1): void {
-    const rows = this.hooks.results()?.rows() ?? [];
-    if (rows.length === 0) return;
-    const current = rows.findIndex((row) => row.dataset["ref"] === this.state.selectedRef);
-    const next = current === -1 ? 0 : clamp(current + step, 0, rows.length - 1);
-    const ref = rows[next]?.dataset["ref"];
+    const ref = this.hooks.results()?.refFrom(this.state.selectedRef, step);
     if (ref) this.select(ref);
   }
 
   /** Selects the first result, unless one is selected already. */
   selectFirst(): void {
     if (this.state.selectedRef) return;
-    const first = this.hooks.results()?.rows()[0]?.dataset["ref"];
+    const first = this.hooks.results()?.firstRef();
     if (first) this.select(first);
   }
 }
