@@ -5,28 +5,7 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
-### Fixed
-
-- Typing `since:6m` suggested only “6min · Last 6 minutes”, though `6m` means six months; a whole window you have
-  typed is now listed first as it reads (“6m · Last 6 months”), ahead of the units it could still become. The same
-  goes for `until:` and `at:`.
-- An operator suggestion said nearly the same thing twice: `struct:` read “Code shaped like a template, whose :[holes]
-  take any code” above “Code shaped like a template; each :[hole] takes any code.”, and `content:`, `message:`,
-  `owner:` and `at:` repeated their line word for word. Each now has a short title (**Structural search**, **File text
-  only** …) above its one-line explanation.
-- The preview of a file without an owner read “No owner in   .github/CODEOWNERS line 5”, with a wide gap and no
-  separator; it now reads “No owner · .github/CODEOWNERS line 5 names none”, or “No owner · no line of CODEOWNERS
-  matches this file”.
-- The empty box’s key hints offered **⌥W watch** whatever row was selected; they now offer it only on a pin that can
-  be watched (or **stop watching** on a watched one), and say **unpin** and **run pinned query** on a pin.
-- Esc runs the search again as typed, and ↑ ↓ pressed before its results came were undone when they arrived: the
-  selection jumped back to the first row. The result you were on now stays selected when the new results still have
-  it.
-- In a narrow results column a file name’s path was cut to a few letters (“src/p…”) to make room for its badges, last
-  author and repo; the path now comes first and those go on a line of their own, where the author and time give way
-  first. A highlight cut by the path’s ellipsis no longer leaves a stray bar of color after it.
-- A commit’s body line ran past the edge of the results column and was cut off there; it now ends in an ellipsis
-  inside its row, like other rows.
+## [2.0.0] - 2026-10-10
 
 ### Added
 
@@ -87,8 +66,54 @@ All notable changes to this project are documented here. The format follows
   `spelunk.results.count` and `spelunk.results.order`. A value saved under an old key moves to the new one by itself.
 - protoc's Python output (`*_pb2.py`) and any header that says `DO NOT EDIT` beside the word "generated" now count as
   generated code, so best-match ranking puts those files last too.
+- The repo facet and the repo menu write an anchored filter, `repo:^api$`, so picking `api` no longer also keeps
+  `payments-api`.
+- A minus before punctuation is text, not a negation: `word:yes ->` searches for `->`, and `-=` and `--verbose` work
+  the same. `-word`, `-2`, `-"phrase"`, `-/regex/` and `-(…)` still leave things out.
+- With a workspace folder opened inside another, its files belong to the inner folder alone, so each is found,
+  counted and replaced once; closing the inner folder gives them back to the outer one.
+- A folder that becomes a Git repo after it was opened (`git init`, or a clone into it) gets its history within
+  `spelunk.index.commitCheckSeconds`, and one whose `.git` goes away turns history off, without a reload.
+- History follows `spelunk.index.historyDepth` as time passes: commits older than the window drop out, and a history
+  saved under another depth or `index.exclude` is read again.
+- F4 and ⇧F4 leave VS Code's Search view, search editors and References lists alone, and Next and Previous Result are
+  listed in the Command Palette only while there are results.
+- `spelunk.index.location` takes an absolute path or one starting with `~` (`~\` on Windows too); anything else keeps
+  the indexes in the default place, with a line in the log.
+- Building Spelunk needs Go 1.24.
+- No search can hang the daemon any more: matching checks the time limit and cancellation as it goes inside a file,
+  and a file cut short marks the results as cut short. A regex that can cross lines, like `/[^;]*zz/`, is matched a
+  line at a time (33 s on an 8,000-line file before, 7 ms now), and `struct:` or a `\n` regex on a long minified
+  line takes milliseconds instead of minutes.
+- Saving files and adding folders no longer hold up searches: they are applied in the background, back-to-back saves
+  in one go (20 saves in a 50,000-file repo delayed the next search by 5 s; now by under a millisecond). A
+  `git checkout` that changes thousands of folders is applied in milliseconds instead of seconds.
+- Indexing reads each file once, several at a time: a 50,000-file workspace indexes in about 2 s instead of 5.
+- New commits merge into a few history segments instead of adding one per commit, so searching history stays as
+  fast after a day of commits as after a fresh read.
+- `at:` reads every repo's revision at once, so a workspace waits for its slowest repo, not the sum of them.
+- Replace all checks its files 16 at a time.
+- The extension stops writing to the daemon while it isn't reading, keeping only the newest settings and folders
+  while it waits.
 
 ### Fixed
+
+- A daemon that stops answering is restarted: while requests wait, 20 s of silence makes the extension ask it, and
+  no answer in 10 s restarts it. The connection also finds its place again after stray output, instead of every
+  later request waiting forever.
+- A folder created, copied in or renamed is searchable at once; a renamed folder's files used to vanish until the
+  next rebuild.
+- `since:` and `until:` suggestions count files as the search does, by their last commit, with uncommitted edits as
+  now.
+- A note saying how many matches case or whole words hid is left out when the search ran out of time to count them
+  all, instead of showing a number that stopped short.
+- A query of only `case:` or `count:` says it has nothing to search for, instead of saying every term is excluded.
+- A file a replace plan listed twice was edited twice, which VS Code refuses; it is edited once.
+- A result that doesn't open says why in a message and in the log.
+- Lowering `spelunk.ui.recentQueries` hides the extra saved queries at once, a query pinned twice keeps its watch, and
+  a pasted query too long to run isn't saved for next time.
+- The welcome page says that taking over the find-in-files key leaves VS Code's Search view without one, and the help
+  page's `struct:` example is a template the daemon accepts.
 
 - A code line, path or name wider than the results no longer pushes the preview off the side of the panel.
 - A facet bucket, the repo menu, **Aa** or **ab** on a query with OR at its top level put it in parentheses first, so
@@ -119,6 +144,31 @@ All notable changes to this project are documented here. The format follows
 - A facet’s **+N**, once clicked, stayed open for every later search; it now shows every bucket of that search only.
 - On the help page, screen readers heard each of the 32 **Try** buttons as just “Try”; each now says the query it
   runs.
+- Typing `since:6m` suggested only “6min · Last 6 minutes”, though `6m` means six months; a whole window you have
+  typed is now listed first as it reads (“6m · Last 6 months”), ahead of the units it could still become. The same
+  goes for `until:` and `at:`.
+- An operator suggestion said nearly the same thing twice: `struct:` read “Code shaped like a template, whose :[holes]
+  take any code” above “Code shaped like a template; each :[hole] takes any code.”, and `content:`, `message:`,
+  `owner:` and `at:` repeated their line word for word. Each now has a short title (**Structural search**, **File text
+  only** …) above its one-line explanation.
+- The preview of a file without an owner read “No owner in   .github/CODEOWNERS line 5”, with a wide gap and no
+  separator; it now reads “No owner · .github/CODEOWNERS line 5 names none”, or “No owner · no line of CODEOWNERS
+  matches this file”.
+- The empty box’s key hints offered **⌥W watch** whatever row was selected; they now offer it only on a pin that can
+  be watched (or **stop watching** on a watched one), and say **unpin** and **run pinned query** on a pin.
+- Esc runs the search again as typed, and ↑ ↓ pressed before its results came were undone when they arrived: the
+  selection jumped back to the first row. The result you were on now stays selected when the new results still have
+  it.
+- In a narrow results column a file name’s path was cut to a few letters (“src/p…”) to make room for its badges, last
+  author and repo; the path now comes first and those go on a line of their own, where the author and time give way
+  first. A highlight cut by the path’s ellipsis no longer leaves a stray bar of color after it.
+- A commit’s body line ran past the edge of the results column and was cut off there; it now ends in an ellipsis
+  inside its row, like other rows.
+
+### Security
+
+- A preview never follows a symbolic link out of its folder, even a folder replaced by a link after the search
+  checked it.
 
 ## [1.1.0] - 2026-10-05
 
@@ -319,7 +369,8 @@ All notable changes to this project are documented here. The format follows
 - The `case:` suggestion shows its description and values like the other operators.
 - `sym:` queries return no results instead of wrong ones until symbol search exists.
 
-[Unreleased]: https://github.com/cruisinme30/spelunk/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/cruisinme30/spelunk/compare/v2.0.0...HEAD
+[2.0.0]: https://github.com/cruisinme30/spelunk/compare/v1.1.0...v2.0.0
 [1.1.0]: https://github.com/cruisinme30/spelunk/compare/v1.0.1...v1.1.0
 [1.0.1]: https://github.com/cruisinme30/spelunk/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/cruisinme30/spelunk/compare/v0.2.0...v1.0.0
