@@ -37,12 +37,16 @@ for (const [, family, name, firstMs] of output.matchAll(/^(Benchmark\w+)\/(\S+?)
   console.log(`${verdict.padEnd(4)} ${family}/${name}: first result in ${firstMs} ms (budget ${budget} ms)`);
   if (verdict === "OVER") failures.push(`${family}/${name}`);
 }
+// A benchmark that didn't run (it failed to build, or panicked) must fail the check, not skip its budgets.
 const built = /indexed \d+ files in (\S+);/.exec(output);
 if (built) {
   console.log(`working tree indexed in ${built[1]}`);
   if (milliseconds(built[1]) > TREE_BUILD_MS) failures.push("working-tree build time");
+} else {
+  failures.push("no working-tree build time found");
 }
 const read = /read \d+ commits in (\S+) \(newest searchable after (\S+)\)/.exec(output);
+if (!read) failures.push("no history read time found");
 if (read) {
   const [, total, first] = read;
   console.log(`history read in ${total}, newest searchable after ${first}`);

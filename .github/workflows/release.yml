@@ -71,6 +71,7 @@ jobs:
 
       - name: Run the benchmarks
         working-directory: daemon
+        shell: bash # -o pipefail: a benchmark that fails must fail the step, not hide behind tee
         env:
           SPELUNK_BENCH_ROOT: ${{ runner.temp }}/bench
           SPELUNK_BENCH_REPO: ${{ runner.temp }}/bench
