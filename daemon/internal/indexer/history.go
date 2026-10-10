@@ -155,7 +155,10 @@ func (ix *Indexer) readHistory(job historyJob) {
 	}
 	published := false
 	ix.updateHistory(job, func(r *repo) {
-		r.cancelHistory, r.historyFull = nil, false
+		r.cancelHistory = nil
+		// A full read that failed is still owed: an incremental update of
+		// the old store would never apply the settings that asked for it.
+		r.historyFull = job.full && err != nil && !errors.Is(err, history.ErrNotGit)
 		switch {
 		case errors.Is(err, history.ErrNotGit):
 			r.history, r.historyState = nil, protocol.IndexStateOff

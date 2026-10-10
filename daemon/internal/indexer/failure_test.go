@@ -73,4 +73,11 @@ func TestAHistoryReadThatFailsPartWayPublishesNoPartialHistory(t *testing.T) {
 	if repos := ix.HistoryRepos(); len(repos) != 0 {
 		t.Errorf("HistoryRepos() after a failed read = %d commits up to %s, want no history", repos[0].Store.Commits(), repos[0].Store.Head)
 	}
+	// The next read reads it all again, rather than updating what it had.
+	ix.mu.Lock()
+	full := ix.repos["r1"].historyFull
+	ix.mu.Unlock()
+	if !full {
+		t.Error("after a failed full read, the next read would only update")
+	}
 }
