@@ -82,8 +82,14 @@ func TestSinceOffersEveryUnitForATypedNumber(t *testing.T) {
 	tests := map[string]string{
 		"since:3":    "3min 3h 3d 3w 3m 3y",
 		"since:45mi": "45min",
-		"since:2":    "2min 2h 2d 2w 2m 2y",
-		"since:y":    "yesterday",
+		// A whole window comes first, read as it parses: m is months, so 6m is
+		// "Last 6 months", and 6min is what it could still become.
+		"since:6m":    "6m 6min",
+		"until:6m":    "6m 6min",
+		"since:30d":   "30d",
+		"since:today": "today",
+		"since:2":     "2min 2h 2d 2w 2m 2y",
+		"since:y":     "yesterday",
 		// A date being typed isn't a number and a unit, so nothing fits it.
 		"since:2026-0":    "",
 		"since:2026-09-3": "",
@@ -93,6 +99,10 @@ func TestSinceOffersEveryUnitForATypedNumber(t *testing.T) {
 		if got := strings.Join(labels(text, len(text)), " "); got != want {
 			t.Errorf("Complete(%q) = %q, want %q", text, got, want)
 		}
+	}
+	sixMonths := Complete("since:6m", len("since:6m"), testResolver, fixedNow)
+	if got := sixMonths[0].Detail + " / " + sixMonths[1].Detail; got != "Last 6 months / Last 6 minutes" {
+		t.Errorf("since:6m reads %q, want %q", got, "Last 6 months / Last 6 minutes")
 	}
 	completions := Complete("since:1", len("since:1"), testResolver, fixedNow)
 	if got := completions[len(completions)-1].Detail; got != "Last year" {

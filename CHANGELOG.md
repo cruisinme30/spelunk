@@ -5,6 +5,12 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- Typing `since:6m` suggested only “6min · Last 6 minutes”, though `6m` means six months; a whole window you have
+  typed is now listed first as it reads (“6m · Last 6 months”), ahead of the units it could still become. The same
+  goes for `until:` and `at:`.
+
 ### Added
 
 - New settings for what was fixed before: `spelunk.search.timeLimitMs` (how long a search runs before it shows

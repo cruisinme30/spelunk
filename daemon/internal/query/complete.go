@@ -83,7 +83,7 @@ func valueCompletions(t token, resolver Resolver, now time.Time) []protocol.Comp
 		if len(completions) == maxValueCompletions {
 			break
 		}
-		if strings.EqualFold(candidate.value, t.value) {
+		if strings.EqualFold(candidate.value, t.value) && !candidate.asTyped {
 			continue // already typed in full: nothing to complete
 		}
 		written := t.name + ":" + quoteIfNeeded(candidate.value) // keeps the spelling typed: f: or file:

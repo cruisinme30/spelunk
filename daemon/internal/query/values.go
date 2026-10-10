@@ -21,6 +21,9 @@ type valueCandidate struct {
 	note    string // a short status at the end of the row: "5 files changed"
 	section string // a heading above it, when it starts a group
 	group   string // a protocol.Completion group
+	// asTyped is the value exactly as typed, offered anyway to say how it
+	// reads: since:6m is "Last 6 months", ahead of the 6min it could become.
+	asTyped bool
 }
 
 // valueCandidates lists the values of op that match fragment (lowercase),
@@ -415,13 +418,25 @@ var windowUnits = []string{"min", "h", "d", "w", "m", "y"}
 // the start of a unit ("3", "45mi").
 var partialDuration = regexp.MustCompile(`^([1-9]\d{0,4})([a-z]*)$`)
 
-// windowPicks offers the since: or until: values that fragment starts.
-// Dates aren't offered; a date being typed (2026-0) matches none.
+// windowPicks offers the since: or until: values that fragment starts, the
+// window fragment already is first. Dates aren't offered; a date being
+// typed (2026-0) matches none.
 func windowPicks(fragment string) []windowPick {
+	picks := windowPresetPicks(fragment)
 	if parts := partialDuration.FindStringSubmatch(fragment); parts != nil {
-		return windowUnitPicks(parts[1], parts[2])
+		picks = windowUnitPicks(parts[1], parts[2])
 	}
-	return windowPresetPicks(fragment)
+	// A whole preset (today) matches nothing else, so only a number's units
+	// are reordered, and they have no headings to keep in place.
+	for i, p := range picks {
+		if p.value == fragment {
+			p.typed = true
+			copy(picks[1:i+1], picks[:i])
+			picks[0] = p
+			break
+		}
+	}
+	return picks
 }
 
 func sinceCandidates(fragment string, files []FileStat, now time.Time) []valueCandidate {
@@ -436,13 +451,18 @@ func sinceCandidates(fragment string, files []FileStat, now time.Time) []valueCa
 			note:    changedFiles(files, start),
 			section: p.section,
 			group:   "value",
+			asTyped: p.typed,
 		}
 	}
 	return candidates
 }
 
-// windowPick is a since: or until: value to offer, with the heading it starts, if any.
-type windowPick struct{ value, section string }
+// windowPick is a since: or until: value to offer, with the heading it
+// starts, if any, and whether it is the value exactly as typed.
+type windowPick struct {
+	value, section string
+	typed          bool
+}
 
 // windowUnitPicks offers a typed number with each unit its typed letters
 // start: 3 → 3min, 3h … 3y; 45mi → 45min.
@@ -472,7 +492,7 @@ func windowPresetPicks(fragment string) []windowPick {
 		if section != shown {
 			heading, shown = section, section
 		}
-		picks = append(picks, windowPick{window.value, heading})
+		picks = append(picks, windowPick{value: window.value, section: heading})
 	}
 	return picks
 }
@@ -566,6 +586,7 @@ func untilCandidates(fragment string, files []FileStat, now time.Time) []valueCa
 			note:    unchangedFiles(files, end),
 			section: section,
 			group:   "value",
+			asTyped: p.typed,
 		}
 	}
 	return candidates
@@ -598,7 +619,7 @@ func atCandidates(fragment string, tags []TagStat, now time.Time) []valueCandida
 		}
 		candidate := valueCandidate{
 			value: p.value, detail: describeAgo(p.value), context: "Files as they were " + describeAsOf(until(now, p.value), now),
-			group: "value",
+			group: "value", asTyped: p.typed,
 		}
 		if times == 0 {
 			candidate.section = "Times"
