@@ -1315,6 +1315,12 @@ mark.hole {
   gap: 6px;
 }
 
+/* Compare with now, for a file deleted since or the same now. */
+.actions .btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
 .files {
   display: flex;
   flex-wrap: wrap;
