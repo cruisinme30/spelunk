@@ -124,11 +124,12 @@ func TestReplacePlanPastTheLimitHasNoEdits(t *testing.T) {
 func TestReplacePlanRefusesQueriesItCannotReplace(t *testing.T) {
 	client, _ := replaceClient(t, map[string]string{"a.py": "retry backoff\n"})
 	for _, text := range []string{
-		"retry OR backoff",   // two terms
-		"type:file retry",    // file names, not code
-		"author:alice retry", // commits
-		"f:a.py",             // no term
-		`/retry\n/`,          // spans lines: the host edits one line at a time
+		"retry OR backoff",     // two terms
+		"type:file retry",      // file names, not code
+		"author:alice retry",   // commits
+		"f:a.py",               // no term
+		`/retry\n/`,            // spans lines: the host edits one line at a time
+		`struct:"retry(:[a])"`, // a template: nothing says what its holes become
 	} {
 		err := client.call(protocol.MethodReplacePlan, protocol.ReplacePlanParams{Text: text, Replacement: "x"}, nil)
 		wantRPCCode(t, "replace/plan "+text, err, protocol.CodeQueryInvalid)
