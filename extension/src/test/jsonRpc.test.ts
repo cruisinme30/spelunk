@@ -68,6 +68,34 @@ test("stray output without a header end is bounded, and a frame after it still d
   assert.deepEqual(decoder.push(encodeFrame("[3]")), ["[3]"]);
 });
 
+test("output with no line end before a header is skipped, and the frames after it still decode", () => {
+  const badFrames: string[] = [];
+  const decoder = new FrameDecoder((header) => badFrames.push(header));
+  const stream = Buffer.concat([Buffer.from("warning: no newline"), encodeFrame("{}"), encodeFrame("[1]")]);
+  assert.deepEqual(decoder.push(stream), ["{}", "[1]"]);
+  assert.deepEqual(badFrames, ["warning: no newline"]);
+  assert.deepEqual(decoder.push(encodeFrame("[2]")), ["[2]"], "later frames decode too");
+});
+
+test("after an oversized frame's body, or a Content-Length that counts too few bytes, the next frames decode", () => {
+  const decoder = new FrameDecoder();
+  const oversized = Buffer.from(`Content-Length: ${MAX_FRAME_BYTES + 1}\r\n\r\n{"method":"search/batch"}`);
+  assert.deepEqual(decoder.push(Buffer.concat([oversized, encodeFrame("[2]"), encodeFrame("[3]")])), ["[2]", "[3]"]);
+
+  const body = '{"x":"é"}'; // 10 bytes in UTF-8, but 9 characters
+  const undercounted = Buffer.from(`Content-Length: ${body.length}\r\n\r\n${body}`);
+  const bodies = new FrameDecoder().push(Buffer.concat([undercounted, encodeFrame("[4]"), encodeFrame("[5]")]));
+  assert.deepEqual(bodies, ['{"x":"é"', "[4]", "[5]"], "only the miscounted frame is lost");
+});
+
+test("a Content-Length inside other output is a header only when its body is a message", () => {
+  const badFrames: string[] = [];
+  const decoder = new FrameDecoder((header) => badFrames.push(header));
+  const stream = Buffer.from("log: Content-Length: 3\r\n\r\nabcdef\nContent-Length: 2\r\n\r\n{}");
+  assert.deepEqual(decoder.push(stream), ["{}"]);
+  assert.deepEqual(badFrames, ["log: Content-Length: 3"]);
+});
+
 test("a big body arriving in many chunks is joined once, not once per chunk", (context) => {
   // Joining on every chunk copies the buffered bytes each time: quadratic in the body's size.
   const frame = encodeFrame(JSON.stringify({ text: "a".repeat(4 * 1024 * 1024) }));

@@ -25,6 +25,12 @@ const HEADER_END = "\r\n\r\n";
 /** A Content-Length header line; other header lines (Content-Type) are allowed and ignored. */
 const CONTENT_LENGTH_LINE = /^content-length:[ \t]*(\d+)[ \t]*\r?$/im;
 /**
+ * A Content-Length header that something else ran into: stray output with no
+ * line end, or the end of a body that was longer than its header said. Used
+ * only to find the stream's next frame again; the last one in a header wins.
+ */
+const CONTENT_LENGTH_ANYWHERE = /content-length:[ \t]*(\d+)[ \t]*\r?$/gim;
+/**
  * The largest body accepted. A bigger Content-Length is treated as a bad
  * header: waiting for that many bytes would swallow every later reply.
  */
@@ -46,8 +52,9 @@ export class FrameDecoder {
   private needed = 0;
 
   /**
-   * `onBadFrame` hears about each header it skips: one without a usable
-   * Content-Length, or stray output too long to be a header.
+   * `onBadFrame` hears about each header it skips (one without a usable
+   * Content-Length), stray output too long to be a header, and output that
+   * ran into the next frame's header.
    */
   constructor(private readonly onBadFrame: (header: string) => void = () => {}) {}
 
@@ -68,7 +75,7 @@ export class FrameDecoder {
       }
       const header = buffered.subarray(0, headerEnd).toString("latin1");
       const bodyStart = headerEnd + HEADER_END.length;
-      const bodyLength = Number(CONTENT_LENGTH_LINE.exec(header)?.[1] ?? Number.NaN);
+      const { length: bodyLength, stray } = contentLength(header);
       if (!(bodyLength <= MAX_FRAME_BYTES)) {
         buffered = buffered.subarray(bodyStart); // skip the bad header so the stream can recover
         this.onBadFrame(header);
@@ -78,7 +85,15 @@ export class FrameDecoder {
         this.needed = bodyStart + bodyLength;
         break;
       }
-      bodies.push(buffered.subarray(bodyStart, bodyStart + bodyLength).toString("utf8"));
+      const body = buffered.subarray(bodyStart, bodyStart + bodyLength);
+      if (stray !== undefined && !looksLikeMessage(body)) {
+        // What looked like a header after other output frames no message: skip it as before.
+        buffered = buffered.subarray(bodyStart);
+        this.onBadFrame(header);
+        continue;
+      }
+      if (stray) this.onBadFrame(stray);
+      bodies.push(body.toString("utf8"));
       buffered = buffered.subarray(bodyStart + bodyLength);
     }
     this.chunks = buffered.length > 0 ? [buffered] : [];
@@ -93,6 +108,28 @@ export class FrameDecoder {
     this.onBadFrame(`${buffered.subarray(0, 80).toString("latin1")}… (${dropped} bytes without a header end)`);
     return Buffer.from(buffered.subarray(dropped));
   }
+}
+
+/**
+ * The body length a header gives. A Content-Length line is the header; failing
+ * that, a Content-Length that other output ran into (the stream lost its
+ * place: stray output with no line end, or a body longer than its header
+ * said) is one too, if its body turns out to be a message, and `stray` is
+ * the output before it.
+ */
+function contentLength(header: string): { length: number; stray?: string } {
+  const line = CONTENT_LENGTH_LINE.exec(header);
+  if (line) return { length: Number(line[1]) };
+  const last = [...header.matchAll(CONTENT_LENGTH_ANYWHERE)].at(-1);
+  if (!last) return { length: Number.NaN };
+  return { length: Number(last[1]), stray: header.slice(0, last.index) };
+}
+
+/** Whether a body is shaped like a JSON-RPC message or batch: an object or an array. */
+function looksLikeMessage(body: Buffer): boolean {
+  const first = body.at(0);
+  const last = body.at(-1);
+  return (first === 0x7b && last === 0x7d) || (first === 0x5b && last === 0x5d); // {…} or […]
 }
 
 /** Frames one message body for the wire. */
