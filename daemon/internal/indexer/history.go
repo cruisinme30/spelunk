@@ -3,6 +3,7 @@ package indexer
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/cruisinme30/spelunk/daemon/internal/history"
@@ -214,7 +215,16 @@ func (ix *Indexer) updateHistory(job historyJob, change func(*repo)) {
 // index.historyDepth window, and no changed lines of the files
 // index.exclude leaves out of the working-tree index.
 func historyOptions(settings protocol.Settings, now time.Time) history.Options {
-	return history.Options{Since: depthStart(settings.HistoryDepth, now), Skip: trigram.NewExcluder(settings.Exclude).Excludes}
+	return history.Options{
+		Since: depthStart(settings.HistoryDepth, now), Skip: trigram.NewExcluder(settings.Exclude).Excludes,
+		Key: historyKey(settings),
+	}
+}
+
+// historyKey names the settings that decide what a history index holds:
+// the index.historyDepth window and the index.exclude patterns.
+func historyKey(settings protocol.Settings) string {
+	return strings.Join(append([]string{settings.HistoryDepth}, settings.Exclude...), "\x00")
 }
 
 // depthStart is where the index.historyDepth window starts: "6m" and "2y"

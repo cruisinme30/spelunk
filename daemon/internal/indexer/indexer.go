@@ -179,7 +179,10 @@ func (ix *Indexer) add(root protocol.Root, saved savedIndex) {
 		r.owners = saved.owners
 	}
 	if saved.history != nil {
-		r.history, r.historyState, r.historyFull = saved.history, protocol.IndexStateReady, false
+		// A history saved under another index.historyDepth or index.exclude
+		// serves searches until it is read again under these settings.
+		r.history, r.historyState = saved.history, protocol.IndexStateReady
+		r.historyFull = saved.history.Key != historyKey(ix.settings)
 	}
 	ix.treeQueue.add(root.ID)
 	ix.historyQueue.add(root.ID)

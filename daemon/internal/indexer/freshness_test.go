@@ -214,3 +214,44 @@ func TestDepthStart(t *testing.T) {
 		}
 	}
 }
+
+// A history saved under another index.historyDepth serves the next session
+// at once but is read again under the new window, though HEAD hasn't moved:
+// a wider window brings in commits the saved one never read.
+func TestAHistorySavedUnderAnotherDepthIsReadAgain(t *testing.T) {
+	root := testutil.WriteTree(t, map[string]string{"old.go": "package old\n"})
+	gitInit(t, root)
+	old := time.Now().AddDate(-3, 0, 0).Format(time.RFC3339)
+	cmd := exec.CommandContext(context.Background(), "git", "-C", root, "commit", "--quiet", "--amend", "--no-edit", "--date="+old)
+	cmd.Env = append(os.Environ(), "GIT_COMMITTER_DATE="+old)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("git commit --amend: %v\n%s", err, out)
+	}
+	testutil.WriteFiles(t, root, map[string]string{"new.go": "package new\n"})
+	for _, args := range [][]string{{"add", "--all"}, {"commit", "--quiet", "-m", "second commit"}} {
+		if out, err := exec.CommandContext(context.Background(), "git", append([]string{"-C", root}, args...)...).CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
+	}
+	settings := testSettings(t)
+	settings.HistoryDepth = "2y"
+	first := New(settings, nil)
+	first.SetRoots([]protocol.Root{{ID: "r1", Path: root, Name: "app"}})
+	waitFor(t, first, protocol.IndexStateReady)
+	if got := first.HistoryRepos()[0].Store.Commits(); got != 1 {
+		t.Fatalf("with 2y of history: %d commits, want the one from the last 2 years", got)
+	}
+	first.Close(time.Second)
+
+	settings.HistoryDepth = "all"
+	second := New(settings, nil)
+	defer second.Close(time.Second)
+	second.SetRoots([]protocol.Root{{ID: "r1", Path: root, Name: "app"}})
+	deadline := time.Now().Add(5 * time.Second)
+	for second.HistoryRepos()[0].Store.Commits() != 2 {
+		if time.Now().After(deadline) {
+			t.Fatalf("with all history: %d commits, want both", second.HistoryRepos()[0].Store.Commits())
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+}
