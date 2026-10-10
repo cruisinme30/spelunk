@@ -259,6 +259,7 @@ Jason Kim and Marta Ruiz, and one uncommitted edit:
 | 34 | `type:added retry_policy`, over a history where one commit only removed `retry_policy` lines | [added-removed-lines.png](proof/added-removed-lines.png) |
 | 35 | `sym:retry kind:class`, `ref:RetryPolicy` | [symbol-kinds.png](proof/symbol-kinds.png), [references.png](proof/references.png) |
 | 36 | `type:code f:http/ retry` with `--setting results.contextLines=2` | [context-lines.png](proof/context-lines.png) |
+| 37 | `RetryPolicy -is:generated -is:vendored`, replaced with `BackoffPolicy`, and `RetryPolicy -is:`, over the workspace plus a protoc `retry_pb2.py`, a `third_party/` copy and a `dist/` bundle | [generated-vendored.png](proof/generated-vendored.png), [generated-vendored-values.png](proof/generated-vendored-values.png) |
 
 Mocks 16 (the opened file) and 18 (Settings) are VS Code's own editor and Settings UI, which the tool can't draw
 without VS Code, so they have no screenshot.
@@ -276,3 +277,18 @@ end to end.
 - Host: `controller.test.ts` (`context.set` saves only a change, bad payloads are dropped) and `settings.test.ts`.
 - End to end in VS Code: "The panel's Context buttons save the setting, and the results gain context lines" in
   `extension/src/e2e/commands.test.ts`.
+
+## Generated and vendored files (1.2)
+
+Mock 37 (`generated-vendored`). Exit gate: `is:generated` and `is:vendored` keep or (negated) leave out the files a
+tool wrote and the ones copied in, by the same checks best-match ranking uses, in current files and in commits, and
+say what they left out.
+
+- Detection: `daemon/internal/lang/generated_test.go` (names, `DO NOT EDIT` and `@generated` headers, protoc's
+  Python output, a hand-written "do not edit" note, a marker past the first kilobyte).
+- Current files: `TestIsGeneratedAndIsVendoredFilterFiles` and `TestIsGeneratedAndIsVendoredSayWhatTheyLeftOut` in
+  `daemon/internal/trigram`.
+- Commits: `TestIsGeneratedAndIsVendoredInHistory` in `daemon/internal/history/history_test.go` (by path, and a
+  header-only generated file counting as written by people).
+- Suggestions: `TestGeneratedAndVendoredSuggestionsCountTheirFiles` in `daemon/internal/query/values_test.go`, and
+  `TestIsGeneratedReadsTheIndexedHeaders` over JSON-RPC in `daemon/internal/server/search_test.go`.
