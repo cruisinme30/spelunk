@@ -23,6 +23,7 @@ func check(src *source, query *protocol.ParsedQuery, problems *diagnostics) {
 	checkOrModes(query.Root, problems)
 	if query.Mode == protocol.ModeHistory {
 		reportWorkingTreeOperators(src, query.Root, problems)
+		reportMultilineInHistory(query.Root, problems)
 	}
 	if !hasPositiveTerm(query.Root) {
 		problems.errorf(DiagNoPositiveTerm, query.Root.Span, nil,

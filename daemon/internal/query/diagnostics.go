@@ -27,6 +27,9 @@ const (
 	DiagQueryTooLong    = "query_too_long"
 	DiagHistoryFullScan = "history_full_scan"
 	DiagPipeInWord      = "pipe_in_word"
+	// DiagMultilineInHistory warns that a regex with \n can't match in a
+	// history query, which matches one changed line at a time.
+	DiagMultilineInHistory = "multiline_in_history"
 )
 
 const (

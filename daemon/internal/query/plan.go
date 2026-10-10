@@ -156,6 +156,12 @@ type (
 		// a line that defines that name. The working-tree engine finds the
 		// file's definitions and drops those lines (see IsDefinitionOf).
 		Reference bool
+		// Multiline is set for a regex with \n in it (see multiline.go),
+		// which may match across lines: the working-tree engine matches it
+		// against a whole file, whose lines end in "\n" alone, rather than
+		// line by line. Re has the m flag, so ^ and $ still match at the
+		// start and end of each line.
+		Multiline bool
 		// resumable means Re can be matched from inside a text (canResume),
 		// so a match that isn't a whole word can be retried a rune later.
 		resumable bool
@@ -541,6 +547,9 @@ func (l *lowering) lower(node *protocol.Node) Pred {
 // term lowers a text term, or the name of a ref:, into a content term.
 func (l *lowering) term(node *protocol.Node, wholeWord bool, termIndex int) *Content {
 	content := &Content{Re: l.regex(node.Value, node.Match), IgnoreCase: !l.caseSensitive, WholeWord: wholeWord, TermIndex: termIndex}
+	if node.Match == protocol.MatchRegex && spansLines(node.Value) {
+		content.Re, content.Multiline = l.compile("(?m)"+node.Value), true
+	}
 	content.resumable = content.WholeWord && canResume(content.Re)
 	if node.Match != protocol.MatchRegex {
 		content.Literal = node.Value
@@ -796,7 +805,9 @@ func narrowsHistory(p *And) bool {
 }
 
 // RequiredLiteral returns the longest literal every match of re must
-// contain ("" if none is certain). Engines use it to narrow candidates.
+// contain ("" if none is certain). Engines use it to narrow candidates. It
+// never holds a newline: a file may end its lines in "\r\n", so a match of
+// a regex with \n doesn't have to contain the "\n" literally.
 func RequiredLiteral(re *regexp.Regexp) string {
 	parsed, err := syntax.Parse(re.String(), syntax.Perl)
 	if err != nil {
@@ -808,10 +819,11 @@ func RequiredLiteral(re *regexp.Regexp) string {
 func longestLiteral(re *syntax.Regexp) string {
 	switch re.Op {
 	case syntax.OpLiteral:
+		literal := string(re.Rune)
 		if re.Flags&syntax.FoldCase != 0 {
-			return strings.ToLower(string(re.Rune))
+			literal = strings.ToLower(literal)
 		}
-		return string(re.Rune)
+		return longestLine(literal)
 	case syntax.OpCapture:
 		return longestLiteral(re.Sub[0])
 	case syntax.OpPlus:
@@ -827,6 +839,17 @@ func longestLiteral(re *syntax.Regexp) string {
 	default: // alternation, repetition that may be empty, classes: nothing certain
 		return ""
 	}
+}
+
+// longestLine returns the longest line of text, split on "\n".
+func longestLine(text string) string {
+	best := ""
+	for _, line := range strings.Split(text, "\n") {
+		if len(line) > len(best) {
+			best = line
+		}
+	}
+	return best
 }
 
 // IgnoringCase returns a copy of the plan whose regexes ignore case, to
