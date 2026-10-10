@@ -409,7 +409,9 @@ function createUi({ panel, daemon, documents, openedStatus, globalState, logErro
     },
     saveFiles: (files) => {
       for (const file of files) {
-        const document = vscode.workspace.textDocuments.find((open) => open.uri.fsPath === file);
+        // As URIs, which normalize the drive letter's case that a path may spell either way.
+        const uri = vscode.Uri.file(file).toString();
+        const document = vscode.workspace.textDocuments.find((open) => open.uri.toString() === uri);
         if (document?.isDirty) void document.save().then(undefined, logError("save after replace"));
       }
     },
