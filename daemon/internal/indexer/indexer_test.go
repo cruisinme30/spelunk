@@ -3,6 +3,7 @@ package indexer
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"sync"
 	"testing"
@@ -204,5 +205,43 @@ func TestExpandHome(t *testing.T) {
 		if got := expandHome(in); got != want {
 			t.Errorf("expandHome(%q) = %q, want %q", in, got, want)
 		}
+	}
+}
+
+// A root opened inside another owns its files: the outer root leaves its
+// folder out, so each file is found, counted and replaced once, saves go
+// to the inner root alone, and closing the inner root gives its files back.
+func TestANestedRootOwnsItsFiles(t *testing.T) {
+	outer := testutil.WriteTree(t, map[string]string{"a.txt": "alpha\n", "sub/b.txt": "beta\n"})
+	sub := filepath.Join(outer, "sub")
+	ix := New(testSettings(t), nil)
+	defer ix.Close(time.Second)
+	both := []protocol.Root{{ID: "outer", Path: outer, Name: "outer"}, {ID: "sub", Path: sub, Name: "sub"}}
+	ix.SetRoots(both)
+	waitFor(t, ix, protocol.IndexStateReady)
+	pathsOf := func() map[string][]string {
+		got := map[string][]string{}
+		for _, repo := range ix.Repos() {
+			got[repo.ID] = docPaths(repo)
+			if repo.Overlay != nil {
+				for _, doc := range repo.Overlay.Docs {
+					got[repo.ID] = append(got[repo.ID], "overlay:"+doc.Path)
+				}
+			}
+		}
+		return got
+	}
+	if got := pathsOf(); !reflect.DeepEqual(got, map[string][]string{"outer": {"a.txt"}, "sub": {"b.txt"}}) {
+		t.Errorf("with sub open inside outer: %v", got)
+	}
+	testutil.WriteFiles(t, sub, map[string]string{"c.txt": "gamma\n"})
+	ix.FilesChanged([]protocol.FileChange{{Path: filepath.Join(sub, "c.txt"), Type: "created"}})
+	if got := pathsOf(); !reflect.DeepEqual(got, map[string][]string{"outer": {"a.txt"}, "sub": {"b.txt", "overlay:c.txt"}}) {
+		t.Errorf("after a save in sub: %v", got)
+	}
+	ix.SetRoots(both[:1])
+	waitFor(t, ix, protocol.IndexStateReady)
+	if got := pathsOf(); !reflect.DeepEqual(got, map[string][]string{"outer": {"a.txt", "sub/b.txt", "sub/c.txt"}}) {
+		t.Errorf("after closing sub: %v", got)
 	}
 }

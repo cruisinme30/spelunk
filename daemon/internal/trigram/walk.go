@@ -21,6 +21,21 @@ type WalkOptions struct {
 	Exclude        Excluder
 	IncludeIgnored bool
 	MaxFileBytes   int64
+	// Nested are folders (slash-separated, relative to the root) that are
+	// open roots of their own: their files belong to them, not to this
+	// root, so a file is found, counted and replaced once.
+	Nested []string
+}
+
+// leavesOut reports whether path (slash-separated, relative to the root)
+// is excluded or inside a nested root.
+func (o WalkOptions) leavesOut(path string) bool {
+	for _, nested := range o.Nested {
+		if path == nested || strings.HasPrefix(path, nested+"/") {
+			return true
+		}
+	}
+	return o.Exclude.Excludes(path)
 }
 
 // File is one file chosen for indexing.
@@ -46,7 +61,7 @@ func ListFiles(ctx context.Context, root string, opts WalkOptions) ([]File, erro
 			return nil, ctx.Err()
 		}
 		path := strings.TrimSuffix(paths[i], "/") // Git lists a nested repo as "dir/"
-		if opts.Exclude.Excludes(path) {
+		if opts.leavesOut(path) {
 			continue
 		}
 		full := filepath.Join(root, filepath.FromSlash(path))
@@ -106,7 +121,7 @@ func hasGitDir(dir string) bool {
 func SelectFiles(ctx context.Context, root string, paths []string, opts WalkOptions) []File {
 	local := make([]string, 0, len(paths))
 	for _, path := range paths {
-		if filepath.IsLocal(filepath.FromSlash(path)) && !opts.Exclude.Excludes(path) {
+		if filepath.IsLocal(filepath.FromSlash(path)) && !opts.leavesOut(path) {
 			local = append(local, path)
 		}
 	}

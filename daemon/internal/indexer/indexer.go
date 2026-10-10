@@ -146,6 +146,10 @@ func (ix *Indexer) OnNewCommits(f func(repo history.Repo, commits []history.Comm
 func (ix *Indexer) SetRoots(roots []protocol.Root) {
 	saved := ix.savedIndexes(roots)
 	ix.mu.Lock()
+	nestedBefore := map[string][]string{}
+	for _, id := range ix.order {
+		nestedBefore[id] = ix.nestedRoots(ix.repos[id].root.Path)
+	}
 	keep := map[string]bool{}
 	ix.order = ix.order[:0]
 	for _, root := range roots {
@@ -161,6 +165,12 @@ func (ix *Indexer) SetRoots(roots []protocol.Root) {
 	for id := range ix.repos {
 		if !keep[id] {
 			ix.drop(id)
+		}
+	}
+	// A root opened or closed inside another moves files between them.
+	for id, before := range nestedBefore {
+		if r, ok := ix.repos[id]; ok && !slices.Equal(before, ix.nestedRoots(r.root.Path)) {
+			ix.restart(id)
 		}
 	}
 	ix.mu.Unlock()

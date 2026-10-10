@@ -91,22 +91,27 @@ func (ix *Indexer) FilesChanged(changes []protocol.FileChange) {
 }
 
 // changedPaths groups changed paths by the root they are in, as
-// slash-separated paths relative to it. Paths inside .git are skipped.
+// slash-separated paths relative to it: the innermost root, when open
+// roots nest, since a file is indexed only there. Paths inside .git are
+// skipped.
 func (ix *Indexer) changedPaths(changes []protocol.FileChange) map[string][]string {
 	ix.mu.Lock()
 	defer ix.mu.Unlock()
 	byRepo := map[string][]string{}
 	for _, change := range changes {
+		owner, path, depth := "", "", -1
 		for _, id := range ix.order {
 			root := ix.repos[id].root.Path
 			relative, err := filepath.Rel(root, change.Path)
 			if err != nil || !filepath.IsLocal(relative) {
 				continue
 			}
-			relative = filepath.ToSlash(relative)
-			if relative != ".git" && !strings.HasPrefix(relative, ".git/") {
-				byRepo[id] = append(byRepo[id], relative)
+			if d := len(filepath.Clean(root)); d > depth {
+				owner, path, depth = id, filepath.ToSlash(relative), d
 			}
+		}
+		if owner != "" && path != ".git" && !strings.HasPrefix(path, ".git/") {
+			byRepo[owner] = append(byRepo[owner], path)
 		}
 	}
 	return byRepo
@@ -121,12 +126,12 @@ func (ix *Indexer) reread(id string, paths []string) {
 		ix.mu.Unlock()
 		return
 	}
-	root, settings, inGit := r.root, ix.settings, r.history != nil
+	root, settings, inGit, nested := r.root, ix.settings, r.history != nil, ix.nestedRoots(r.root.Path)
 	masked := withFilesUnder(paths, r.shard)
 	ix.mu.Unlock()
 
 	ctx := ix.life
-	walk := walkOptions(settings)
+	walk := walkOptions(settings, nested)
 	files := trigram.SelectFiles(ctx, root.Path, masked, walk)
 	read, err := trigram.Build(ctx, root.Path, files, trigram.BuildOptions{Symbols: settings.Symbols, MaxFileBytes: walk.MaxFileBytes})
 	if err != nil {

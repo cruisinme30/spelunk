@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
+	"slices"
 	"time"
 
 	"github.com/cruisinme30/spelunk/daemon/internal/codeowners"
@@ -61,6 +63,7 @@ type buildJob struct {
 	root       protocol.Root
 	generation int
 	settings   protocol.Settings
+	nested     []string // the open roots inside this one
 	shardPath  string
 	started    time.Time
 	before     func(id string) // Indexer.beforeBuild
@@ -83,7 +86,7 @@ func (ix *Indexer) nextBuild(ctx context.Context) (buildJob, bool) {
 	}
 	return buildJob{
 		ctx: buildCtx, done: cancel, id: id, root: r.root, generation: r.generation,
-		settings: ix.settings, shardPath: shardPath(ix.settings.Location, r.root), started: time.Now(),
+		settings: ix.settings, nested: ix.nestedRoots(r.root.Path), shardPath: shardPath(ix.settings.Location, r.root), started: time.Now(),
 		before: ix.beforeBuild,
 	}, true
 }
@@ -148,7 +151,7 @@ func buildShard(job buildJob, progress func(float64)) (*trigram.Shard, error) {
 	if err != nil || !info.IsDir() {
 		return nil, fmt.Errorf("folder not found: %s", job.root.Path)
 	}
-	walk := walkOptions(job.settings)
+	walk := walkOptions(job.settings, job.nested)
 	files, err := trigram.ListFiles(job.ctx, job.root.Path, walk)
 	if err != nil {
 		return nil, fmt.Errorf("list files: %w", err)
@@ -158,11 +161,36 @@ func buildShard(job buildJob, progress func(float64)) (*trigram.Shard, error) {
 	})
 }
 
-// walkOptions are the index.* settings that decide which files are indexed.
-func walkOptions(settings protocol.Settings) trigram.WalkOptions {
+// walkOptions are the index.* settings that decide which files are
+// indexed, leaving out the nested roots' folders.
+func walkOptions(settings protocol.Settings, nested []string) trigram.WalkOptions {
 	return trigram.WalkOptions{
 		Exclude:        trigram.NewExcluder(settings.Exclude),
 		IncludeIgnored: settings.IncludeIgnored,
 		MaxFileBytes:   int64(settings.MaxFileSizeKB) * 1024,
+		Nested:         nested,
 	}
+}
+
+// nestedRoots lists the open roots inside root, as slash-separated paths
+// relative to it, sorted. Callers hold mu.
+func (ix *Indexer) nestedRoots(root string) []string {
+	var nested []string
+	for _, id := range ix.order {
+		if relative, ok := inside(root, ix.repos[id].root.Path); ok {
+			nested = append(nested, relative)
+		}
+	}
+	slices.Sort(nested)
+	return nested
+}
+
+// inside returns path relative to root, slash-separated, when path is
+// strictly inside root.
+func inside(root, path string) (string, bool) {
+	relative, err := filepath.Rel(root, path)
+	if err != nil || relative == "." || !filepath.IsLocal(relative) {
+		return "", false
+	}
+	return filepath.ToSlash(relative), true
 }
