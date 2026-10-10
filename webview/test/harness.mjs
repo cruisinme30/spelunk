@@ -48,9 +48,25 @@ export const openWelcome = (testContext) => openPage(testContext, "welcome.html"
 /** Uncaught exceptions and console errors of each open page, in order. */
 const errorsByPage = new WeakMap();
 
+/**
+ * Opens one of the built pages. The page runs under the content security policy VS Code's has; anything the policy
+ * blocks (an inline style or script, a resource from elsewhere) fails the test when it ends.
+ */
 async function openPage(testContext, file, savedState) {
   const page = await browser.newPage();
-  testContext.after(() => page.close());
+  testContext.after(async () => {
+    const violations = await page.evaluate(() => globalThis.__cspViolations).catch(() => []);
+    await page.close();
+    if (violations.length > 0) {
+      throw new Error(`the content security policy blocked: ${violations.join("; ")}`);
+    }
+  });
+  await page.addInitScript(() => {
+    globalThis.__cspViolations = [];
+    document.addEventListener("securitypolicyviolation", (event) => {
+      globalThis.__cspViolations.push(`${event.violatedDirective} ${event.blockedURI || "inline"} ${event.sample}`);
+    });
+  });
   const errors = [];
   errorsByPage.set(page, errors);
   page.on("pageerror", (error) => errors.push(error.message));
