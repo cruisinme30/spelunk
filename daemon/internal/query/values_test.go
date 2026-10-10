@@ -175,6 +175,8 @@ func TestFileStateSuggestionsCountTheirFiles(t *testing.T) {
 		"open | Files open in the editor | client.py, retry_policy.py | 2 files",
 		"changed | Files with uncommitted changes | client.py | 1 file",
 		"test | Test files | test_*.py, *_test.go, *.spec.ts, tests/ folders | 3 files",
+		`generated | Files written by a tool | *.pb.go, *_pb2.py, *.min.js, "DO NOT EDIT" or @generated headers | 0 files`,
+		"vendored | Someone else's code, or a build's | vendor/, node_modules/, third_party/ and dist/ folders | 0 files",
 	}, "\n")
 	if got := shown(Complete("is:", len("is:"), testResolver, fixedNow)); got != want {
 		t.Errorf("Complete(is:) =\n%s\nwant\n%s", got, want)
@@ -182,6 +184,28 @@ func TestFileStateSuggestionsCountTheirFiles(t *testing.T) {
 	outsideGit := fakeResolver{repos: []RepoStat{{Name: "notes"}}}
 	if got, want := shown(Complete("is:c", len("is:c"), outsideGit, fixedNow)), "changed | Files with uncommitted changes | Edited, added or staged since the last commit | No Git repo"; got != want {
 		t.Errorf("Complete(is:c) outside Git = %q, want %q", got, want)
+	}
+}
+
+func TestGeneratedAndVendoredSuggestionsCountTheirFiles(t *testing.T) {
+	// @covers op:is screen:generated-vendored
+	resolver := fakeResolver{files: []FileStat{
+		{Repo: "payments-api", Path: "src/payments/retry_policy.py"},
+		{Repo: "payments-api", Path: "src/payments/proto/retry_pb2.py", Generated: true},
+		{Repo: "web-checkout", Path: "src/api/schema.ts", Generated: true},
+		{Repo: "shared-libs", Path: "third_party/stripe_compat/retry.py"},
+		{Repo: "web-checkout", Path: "dist/checkout.bundle.js"},
+		{Repo: "web-checkout", Path: "dist/checkout.bundle.min.js", Generated: true},
+	}}
+	want := strings.Join([]string{
+		`generated | Files written by a tool | *.pb.go, *_pb2.py, *.min.js, "DO NOT EDIT" or @generated headers | 3 files`,
+	}, "\n")
+	if got := shown(Complete("-is:g", len("-is:g"), resolver, fixedNow)); got != want {
+		t.Errorf("Complete(-is:g) =\n%s\nwant\n%s", got, want)
+	}
+	want = "vendored | Someone else's code, or a build's | vendor/, node_modules/, third_party/ and dist/ folders | 3 files"
+	if got := shown(Complete("is:v", len("is:v"), resolver, fixedNow)); got != want {
+		t.Errorf("Complete(is:v) = %q, want %q: a minified bundle in dist/ is both, and counts in each", got, want)
 	}
 }
 

@@ -624,7 +624,7 @@ const maxStateNames = 3
 // stateCandidates offers the file states of is:, each with how many files
 // are in it now and, for open and changed, which ones: "client.py, retry.py".
 func stateCandidates(fragment string, resolver Resolver) []valueCandidate {
-	var open, changed, tests []string
+	var open, changed, tests, generated, vendored []string
 	for _, file := range resolver.Files() {
 		if file.Open {
 			open = append(open, file.Path)
@@ -635,6 +635,12 @@ func stateCandidates(fragment string, resolver Resolver) []valueCandidate {
 		if lang.IsTest(file.Path) {
 			tests = append(tests, file.Path)
 		}
+		if file.Generated {
+			generated = append(generated, file.Path)
+		}
+		if lang.IsVendored(file.Path) {
+			vendored = append(vendored, file.Path)
+		}
 	}
 	changedNote := plural(len(changed), "file")
 	if !slices.ContainsFunc(resolver.Repos(), func(repo RepoStat) bool { return repo.Git }) {
@@ -644,6 +650,8 @@ func stateCandidates(fragment string, resolver Resolver) []valueCandidate {
 		{value: StateOpen, detail: "Files open in the editor", context: fileNames(open, "None open"), note: plural(len(open), "file")},
 		{value: StateChanged, detail: "Files with uncommitted changes", context: fileNames(changed, "Edited, added or staged since the last commit"), note: changedNote},
 		{value: StateTest, detail: "Test files", context: "test_*.py, *_test.go, *.spec.ts, tests/ folders", note: plural(len(tests), "file")},
+		{value: StateGenerated, detail: "Files written by a tool", context: `*.pb.go, *_pb2.py, *.min.js, "DO NOT EDIT" or @generated headers`, note: plural(len(generated), "file")},
+		{value: StateVendored, detail: "Someone else's code, or a build's", context: "vendor/, node_modules/, third_party/ and dist/ folders", note: plural(len(vendored), "file")},
 	}
 	var candidates []valueCandidate
 	for _, candidate := range all {

@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/cruisinme30/spelunk/daemon/internal/lang"
 	"github.com/cruisinme30/spelunk/daemon/internal/protocol"
 	"github.com/cruisinme30/spelunk/daemon/internal/query"
 	"github.com/cruisinme30/spelunk/daemon/internal/trigram"
@@ -181,7 +182,8 @@ func (r workspaceResolver) Repos() []query.RepoStat {
 }
 
 // Files lists every file in the published working-tree indexes, and which
-// of them are open in the editor or have uncommitted changes.
+// of them are open in the editor, have uncommitted changes or were written
+// by a tool.
 func (r workspaceResolver) Files() []query.FileStat {
 	var files []query.FileStat
 	for _, repo := range r.server.index.Repos() {
@@ -191,6 +193,7 @@ func (r workspaceResolver) Files() []query.FileStat {
 			files = append(files, query.FileStat{
 				Repo: repo.Name, Path: doc.Path, Lang: doc.Lang, ModTime: doc.ModTime,
 				Open: open[doc.Path], Changed: repo.History != nil && repo.History.Dirty(doc.Path),
+				Generated: lang.IsGenerated(doc.Path, doc.Content),
 			})
 		}
 	}

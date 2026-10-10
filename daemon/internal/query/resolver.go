@@ -72,6 +72,9 @@ type FileStat struct {
 	ModTime time.Time
 	Open    bool // open in an editor tab (is:open)
 	Changed bool // has uncommitted changes (is:changed)
+	// Generated says a tool wrote the file (is:generated), by its name or a
+	// header only the index has read.
+	Generated bool
 }
 
 // noResolver knows no authors, repos or files.
