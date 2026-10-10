@@ -255,3 +255,42 @@ func TestAHistorySavedUnderAnotherDepthIsReadAgain(t *testing.T) {
 		time.Sleep(5 * time.Millisecond)
 	}
 }
+
+// A folder opened outside Git that becomes a repo later (git init, or a
+// clone into it) gets its history and .gitignore without a restart, and
+// one that stops being a repo turns history off.
+func TestAFolderThatBecomesAGitRepoIsNoticed(t *testing.T) {
+	root := testutil.WriteTree(t, map[string]string{"main.go": "package main\n", ".gitignore": "build/\n", "build/out.go": "package out\n"})
+	settings := testSettings(t)
+	settings.CommitCheckSeconds = 1
+	ix := New(settings, nil)
+	defer ix.Close(time.Second)
+	ix.SetRoots([]protocol.Root{{ID: "r1", Path: root, Name: "app"}})
+	if statuses := waitFor(t, ix, protocol.IndexStateReady); statuses[0].History != protocol.IndexStateOff {
+		t.Fatalf("history outside Git = %s, want off", statuses[0].History)
+	}
+	gitInit(t, root)
+	eventually(t, "the new repo's history is read and build/ is ignored", func() bool {
+		repos := ix.HistoryRepos()
+		return len(repos) == 1 && repos[0].Store.Commits() == 1 && !slices.Contains(docPaths(ix.Repos()[0]), "build/out.go")
+	})
+	if err := os.RemoveAll(filepath.Join(root, ".git")); err != nil {
+		t.Fatal(err)
+	}
+	eventually(t, "history is off once the folder is no repo", func() bool {
+		return len(ix.HistoryRepos()) == 0 && ix.Status()[0].History == protocol.IndexStateOff
+	})
+}
+
+// eventually polls done for a few seconds, failing the test with what it
+// waited for when it never holds.
+func eventually(t *testing.T, what string, done func() bool) {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for !done() {
+		if time.Now().After(deadline) {
+			t.Fatalf("never: %s", what)
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+}

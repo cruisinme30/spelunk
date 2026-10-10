@@ -3,6 +3,8 @@ package indexer
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -74,24 +76,74 @@ func (ix *Indexer) restartHistory(id string) {
 }
 
 // queueMovedHeads queues an update for each repo whose HEAD is no longer
-// the commit its history index is up to date with.
+// the commit its history index is up to date with, and a history read and
+// a quiet rebuild for each folder that became a Git repo (git init, or a
+// clone into it) or stopped being one: history search turns on or off,
+// and .gitignore starts or stops deciding what the index holds.
 func (ix *Indexer) queueMovedHeads(ctx context.Context) {
-	ix.mu.Lock()
-	known := map[string]string{}
-	roots := map[string]string{}
-	for _, id := range ix.order {
-		if r := ix.repos[id]; r.history != nil && r.cancelHistory == nil {
-			known[id], roots[id] = r.history.Head, r.root.Path
+	known, outside, roots := ix.historyHeads()
+	var moved, changedGit []string
+	for id, head := range known {
+		now, err := history.Head(ctx, roots[id])
+		switch {
+		case errors.Is(err, history.ErrNotGit):
+			changedGit = append(changedGit, id)
+		case err == nil && now != head:
+			moved = append(moved, id)
 		}
 	}
-	ix.mu.Unlock()
-	for id, head := range known {
-		if now, err := history.Head(ctx, roots[id]); err == nil && now != head {
-			ix.mu.Lock()
-			if _, ok := ix.repos[id]; ok {
-				ix.historyQueue.add(id)
+	for _, id := range outside {
+		// Looking for a .git costs a few stats; asking git, a process.
+		if insideGit(roots[id]) {
+			if _, err := history.Head(ctx, roots[id]); err == nil {
+				changedGit = append(changedGit, id)
 			}
-			ix.mu.Unlock()
+		}
+	}
+	ix.mu.Lock()
+	defer ix.mu.Unlock()
+	for _, id := range moved {
+		if _, ok := ix.repos[id]; ok {
+			ix.historyQueue.add(id)
+		}
+	}
+	for _, id := range changedGit {
+		if r, ok := ix.repos[id]; ok && r.root.Path == roots[id] {
+			ix.restartHistory(id)
+			ix.refresh(id)
+		}
+	}
+}
+
+// historyHeads returns the HEAD each repo's history is up to date with,
+// the repos that were outside Git when last read, and every one's folder.
+// Repos whose history is being read are in neither.
+func (ix *Indexer) historyHeads() (known map[string]string, outside []string, roots map[string]string) {
+	ix.mu.Lock()
+	defer ix.mu.Unlock()
+	known, roots = map[string]string{}, map[string]string{}
+	for _, id := range ix.order {
+		r := ix.repos[id]
+		switch {
+		case r.cancelHistory != nil:
+		case r.history != nil:
+			known[id], roots[id] = r.history.Head, r.root.Path
+		case r.historyState == protocol.IndexStateOff:
+			outside, roots[id] = append(outside, id), r.root.Path
+		}
+	}
+	return known, outside, roots
+}
+
+// insideGit reports whether root or a folder above it holds a .git (a
+// folder, or a file in a worktree or submodule).
+func insideGit(root string) bool {
+	for dir := filepath.Clean(root); ; dir = filepath.Dir(dir) {
+		if _, err := os.Lstat(filepath.Join(dir, ".git")); err == nil {
+			return true
+		}
+		if filepath.Dir(dir) == dir {
+			return false
 		}
 	}
 }
