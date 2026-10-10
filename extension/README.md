@@ -11,7 +11,8 @@ One search box for file names, code and Git history, across every repo in your w
    repo's indexing. **Spelunk: Show Welcome** opens it again. The status bar shows indexing progress until
    the index is ready, then "Spelunk".
 2. Press **⌘P** (Ctrl+P on Windows and Linux) and type. Quick Open moves to ⌥⌘P (Ctrl+Alt+P). To keep ⌘P for Quick
-   Open, pick ⇧⌘F or your own key on the welcome page, or set `spelunk.shortcut.preset`.
+   Open, pick ⇧⌘F (VS Code's Search view then has no key of its own) or your own key on the welcome page, or set
+   `spelunk.shortcut.preset`.
 3. Click a result to preview it, press ↵ to open it at the match, ⌘↵ to open it to the side, and F4 or ⇧F4 to step
    through results without the panel.
 

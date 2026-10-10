@@ -131,7 +131,7 @@
             "scope": "application",
             "enumDescriptions": [
               "⌘P / Ctrl+P opens Spelunk; Quick Open moves to ⌥⌘P / Ctrl+Alt+P.",
-              "⇧⌘F / Ctrl+Shift+F opens Spelunk; Quick Open is unchanged.",
+              "⇧⌘F / Ctrl+Shift+F opens Spelunk; Quick Open is unchanged. VS Code's Search view then has no key: open it from the Activity Bar, or bind workbench.view.search yourself.",
               "No default shortcut. Bind spelunk.open yourself."
             ],
             "description": "Which key opens Spelunk."
