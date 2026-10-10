@@ -61,5 +61,9 @@ func replacedTerm(plan *query.Plan) (*query.Content, error) {
 	if len(terms) != 1 {
 		return nil, rpc.Errorf(protocol.CodeQueryInvalid, "replace needs exactly one search term")
 	}
+	if terms[0].Multiline {
+		// The host checks and edits one line at a time (see Invariants).
+		return nil, rpc.Errorf(protocol.CodeQueryInvalid, "replace changes one line at a time, so it can't replace a regex with \\n")
+	}
 	return terms[0], nil
 }

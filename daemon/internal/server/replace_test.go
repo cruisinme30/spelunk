@@ -128,6 +128,7 @@ func TestReplacePlanRefusesQueriesItCannotReplace(t *testing.T) {
 		"type:file retry",    // file names, not code
 		"author:alice retry", // commits
 		"f:a.py",             // no term
+		`/retry\n/`,          // spans lines: the host edits one line at a time
 	} {
 		err := client.call(protocol.MethodReplacePlan, protocol.ReplacePlanParams{Text: text, Replacement: "x"}, nil)
 		wantRPCCode(t, "replace/plan "+text, err, protocol.CodeQueryInvalid)
