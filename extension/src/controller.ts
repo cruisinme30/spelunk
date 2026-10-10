@@ -1,11 +1,13 @@
 // Host side of the search panel: turns panel messages into daemon calls and
 // streams results back. It has no vscode import: extension.ts supplies the
 // Ui, and tests drive the controller against the real daemon in plain Node.
+import type { DaemonState } from "./daemon";
 import { CancelSource, RpcError, errorMessage } from "./jsonRpc";
 import {
   type Completion,
   ErrorCodes,
   type HostToWebview,
+  type IndexState,
   type IndexStatusResult,
   type OpenTarget,
   type OpenWhere,
@@ -60,7 +62,12 @@ function hasErrors(query: ParsedQuery): boolean {
   return query.diagnostics.some((diagnostic) => diagnostic.severity === "error");
 }
 
-/** What the controller needs from the daemon: requests plus streamed batches. */
+/** Whether a repo's index is still being built. */
+function isIndexing(state: IndexState): boolean {
+  return state === "queued" || state === "indexing";
+}
+
+/** What the controller needs from the daemon: requests, streamed batches, and its state. */
 export interface Backend {
   request<M extends keyof RpcRequests>(
     method: M,
@@ -70,6 +77,7 @@ export interface Backend {
   on(event: "batch", listener: (batch: SearchBatchParams) => void): unknown;
   on(event: "progress", listener: (progress: IndexStatusResult) => void): unknown;
   on(event: "watch", listener: (match: WatchMatchedParams) => void): unknown;
+  on(event: "state", listener: (state: DaemonState) => void): unknown;
 }
 
 /** The pop-up button that opens a watch's query. */
@@ -178,7 +186,11 @@ export class SearchController {
   private lastProgress: IndexStatusResult | undefined;
   /** The files the last replace changed, which Save saves. */
   private replacedFiles: string[] = [];
-  /** Whether each query text searches history (and so can be watched), as the daemon parsed it. */
+  /**
+   * Whether each query text searches history (and so can be watched), as
+   * the daemon parsed it. Forgotten when the daemon restarts or finishes
+   * indexing, either of which can change how it parses a query.
+   */
   private readonly searchesHistoryByText = new Map<string, boolean>();
   /** The last change to the pinned list; the next waits for it, so neither overwrites the other. */
   private pinnedUpdate: Promise<void> = Promise.resolve();
@@ -203,6 +215,9 @@ export class SearchController {
     });
     backend.on("watch", (match) => {
       void this.onWatchMatched(match);
+    });
+    backend.on("state", (state) => {
+      if (state === "ok") this.searchesHistoryByText.clear();
     });
   }
 
@@ -577,10 +592,14 @@ export class SearchController {
 
   /**
    * Runs the current search again when a repo finishes indexing: a search
-   * typed while it was indexing could not include its results.
+   * typed while it was indexing could not include its results. Once no repo
+   * is indexing, which queries search history is asked again.
    */
   private onIndexProgress(progress: IndexStatusResult): void {
     this.lastProgress = progress;
+    if (!progress.repos.some((repo) => isIndexing(repo.tree) || isIndexing(repo.history))) {
+      this.searchesHistoryByText.clear();
+    }
     const ready = progress.repos.filter((repo) => repo.tree === "ready").map((repo) => repo.repoId);
     const newlyReady = ready.some((id) => !this.readyRepos.has(id));
     this.readyRepos = new Set(ready);

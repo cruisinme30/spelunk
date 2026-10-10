@@ -958,6 +958,37 @@ test("an announcement for a query no longer watched is ignored, and watch.notify
   controller.restore();
 });
 
+test("whether a pin can be watched is asked again once the daemon restarts or finishes indexing", async () => {
+  // @covers msg:watch.state
+  const parsed: string[] = [];
+  const { backend, listeners } = scriptedBackend((_method, { text }) => {
+    parsed.push(text);
+    return { query: { ...parsedQuery(text, true), mode: "history" }, completions: [] };
+  });
+  const host = recordingUi();
+  const controller = newController(backend, host.ui, { pinnedQueries: () => [{ query: "msg:revert" }] });
+  const restored = async () => {
+    controller.restore();
+    await nextTurn();
+  };
+  const progress = (history: IndexState) => {
+    listeners.get("progress")?.({ repos: [{ repoId: "r1", name: "r", tree: "ready", history }] });
+  };
+
+  await restored();
+  await restored();
+  assert.equal(parsed.length, 1, "remembered");
+  progress("indexing");
+  await restored();
+  assert.equal(parsed.length, 1, "still indexing: still remembered");
+  progress("ready");
+  await restored();
+  assert.equal(parsed.length, 2, "asked again once indexing finished");
+  listeners.get("state")?.("ok");
+  await restored();
+  assert.equal(parsed.length, 3, "asked again after a restart");
+});
+
 test("only a pinned query that searches history can be watched, and renaming keeps its watch", async () => {
   // @covers msg:pinned.watch screen:query-watches
   let pinned: PinnedQuery[] = [{ query: "sym:RetryPolicy" }, { query: "msg:revert" }];
