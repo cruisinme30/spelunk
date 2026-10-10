@@ -183,9 +183,18 @@ export function scopeToRepo(text: string, query: ParsedQuery | undefined, repoNa
     topLevelOperators(query, "repo").map((node) => node.span),
   ).text;
   if (repoName === undefined) return { text: rest, cursor: rest.length };
-  const operator = `repo:${escapeRegex(repoName, new RegExp(REGEX_SPECIAL.source, "g"))}`;
+  const operator = `repo:${regexValue(escapeRegex(repoName, new RegExp(REGEX_SPECIAL.source, "g")))}`;
   const result = rest ? `${operator} ${rest}` : operator;
   return { text: result, cursor: result.length };
+}
+
+/**
+ * A regex as an operator value: bare, unless it has a space, quote or
+ * parenthesis, which would end a bare value; then /delimited/, with its
+ * slashes escaped. The daemon writes facet filters the same way.
+ */
+function regexValue(regex: string): string {
+  return /[\s"()]/.test(regex) ? `/${regex.replaceAll("/", String.raw`\/`)}/` : regex;
 }
 
 /** Whether a facet bucket's filter is in the query: kept (repo:x), left out (-repo:x), or neither. */
@@ -193,10 +202,11 @@ export type FacetState = "kept" | "left-out" | "none";
 
 /**
  * The filters a facet bucket's filter is made of: "since:2026-09 until:2026-09"
- * is two. The daemon writes these, quoting any value with a space.
+ * is two. The daemon writes these, quoting any value with a space or
+ * writing it as a /regex/.
  */
 function filterParts(filter: string): string[] {
-  return filter.match(/(?:[^\s"]|"(?:\\.|[^"\\])*")+/g) ?? [];
+  return filter.match(/(?:[^\s"/]|"(?:\\.|[^"\\])*"|\/(?:\\.|[^/\\])*\/|\/)+/g) ?? [];
 }
 
 /** The filter that leaves a bucket out: -repo:x, or -(since:… until:…) for one of several parts. */

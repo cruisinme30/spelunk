@@ -166,9 +166,11 @@ test(".* turns a regex with a space back into a quoted phrase", () => {
 
 test("the repo menu writes a repo: scope into an empty box and escapes the name", () => {
   assert.deepEqual(scopeToRepo(""), { text: "", cursor: 0 });
-  assert.deepEqual(scopeToRepo("", undefined, "a.b(c)"), {
-    text: String.raw`repo:a\.b\(c\)`,
-    cursor: 14,
+  assert.deepEqual(scopeToRepo("", undefined, "a.b"), { text: String.raw`repo:a\.b`, cursor: 9 });
+  // A space or parenthesis would end a bare value, so the name becomes a /regex/.
+  assert.deepEqual(scopeToRepo("", undefined, "My a/b (old)"), {
+    text: String.raw`repo:/My a\/b \(old\)/`,
+    cursor: 22,
   });
   assert.deepEqual(scopeToRepo("repo:x", parsed("repo:x", operator("repo", "x", 0)), "😀"), {
     text: "repo:😀",
@@ -192,6 +194,10 @@ test("a facet click adds its filter at the end, and Alt-click the filter that le
   // A bucket of several filters is left out as a group.
   const month = "since:2026-09 until:2026-09";
   assert.deepEqual(toggleFacet("retry", query, month, true).text, `retry -(${month})`);
+  // A /regex/ with a space, or a bare value ending in a slash, is one filter.
+  assert.equal(toggleFacet("retry", query, "repo:/My Project/", true).text, "retry -repo:/My Project/");
+  assert.equal(toggleFacet("retry", query, String.raw`f:/^My Docs\//`, true).text, String.raw`retry -f:/^My Docs\//`);
+  assert.equal(toggleFacet("retry", query, "f:^src/", true).text, "retry -f:^src/");
   assert.deepEqual(toggleFacet("", undefined, `author:"Jane Doe"`, false), {
     text: `author:"Jane Doe"`,
     cursor: 17,
