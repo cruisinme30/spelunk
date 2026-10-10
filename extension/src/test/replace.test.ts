@@ -9,7 +9,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { SearchController, type STOP_WATCHING, type Ui } from "../controller";
 import type { HostToWebview, ReplacePlan, UiSettings } from "../protocol.gen";
-import { checkReplace, type DocumentLines, type LineEdit } from "../replaceEdits";
+import { checkReplace, type DocumentLines, type LineEdit, OPEN_AT_ONCE } from "../replaceEdits";
 import { makeRoot } from "../roots";
 import { MESSAGE_VERSION } from "../webviewMessages";
 import { newTestDaemon, SKIP_WITHOUT_DAEMON as skip, untilIndexed } from "./realDaemon";
@@ -176,4 +176,27 @@ test("Replace all applies what the preview showed through the real daemon", { sk
   } finally {
     await daemon.stop();
   }
+});
+
+test("a replace reads its files several at a time, in the plan's order", async () => {
+  const files = Array.from({ length: 40 }, (_, index) => ({
+    repoId: "r1",
+    path: `f${index}.py`,
+    file: `/work/f${index}.py`,
+    lines: [{ line: 1, text: "Retry", edits: [{ start: 0, end: 5, newText: "Backoff" }] }],
+  }));
+  let reading = 0;
+  let most = 0;
+  const checked = await checkReplace({ matches: files.length, truncated: false, files }, async (file) => {
+    most = Math.max(most, ++reading);
+    // The later files are read faster, so finishing order isn't the plan's.
+    await new Promise((resolve) => setTimeout(resolve, 50 - Number(/\d+/.exec(file)?.[0])));
+    reading--;
+    return documentOf("Retry");
+  });
+  assert.equal(most, OPEN_AT_ONCE, "reads overlap, up to OPEN_AT_ONCE");
+  assert.deepEqual(
+    checked.files,
+    files.map((file) => file.file),
+  );
 });

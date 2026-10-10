@@ -30,19 +30,28 @@ interface CheckedReplace {
 }
 
 /**
+ * How many documents a replace reads at once: enough that reading hundreds
+ * of files isn't one after another, few enough not to swamp the extension
+ * host, which loads each document it opens.
+ */
+export const OPEN_AT_ONCE = 16;
+
+/**
  * Keeps the files of `plan` whose every planned line still reads as the
  * daemon read it. A file edited since it was indexed (unsaved, or saved
  * but not yet re-indexed) is skipped whole: its ranges might cut the wrong
  * characters, and half a file's matches replaced would be worse than none.
- * `open` reads a document, or returns undefined when it can't be read.
+ * `open` reads a document, or returns undefined when it can't be read; up
+ * to OPEN_AT_ONCE are read at a time, and the result keeps the plan's order.
  */
 export async function checkReplace(
   plan: ReplacePlan,
   open: (file: string) => Promise<DocumentLines | undefined>,
 ): Promise<CheckedReplace> {
   const checked: CheckedReplace = { edits: [], files: [], skipped: [] };
-  for (const file of plan.files) {
-    const document = await open(file.file);
+  const documents = await mapAtMost(plan.files, OPEN_AT_ONCE, (file) => open(file.file));
+  for (const [index, file] of plan.files.entries()) {
+    const document = documents[index];
     if (!document || !unchanged(file, document)) {
       checked.skipped.push(file.path);
       continue;
@@ -62,4 +71,18 @@ function unchanged(file: ReplaceFile, document: DocumentLines): boolean {
   return file.lines.every(
     ({ line, text }) => line >= 1 && line <= document.lineCount && document.lineText(line - 1) === text,
   );
+}
+
+/** Maps `items` through `map`, running at most `limit` at a time, keeping their order. */
+async function mapAtMost<T, R>(items: readonly T[], limit: number, map: (item: T) => Promise<R>): Promise<R[]> {
+  const results: R[] = Array.from({ length: items.length });
+  let next = 0;
+  const worker = async () => {
+    while (next < items.length) {
+      const index = next++;
+      results[index] = await map(items[index] as T);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return results;
 }
