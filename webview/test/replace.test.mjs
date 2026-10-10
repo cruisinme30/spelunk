@@ -122,10 +122,10 @@ test("⌘↵ right after typing a new replacement previews it rather than applyi
   // Typed and applied before the typing delay asks for the new preview.
   await page.evaluate((selector) => {
     const input = document.querySelector(selector);
-    input.value = "backoffs";
+    input.value = "backoff_ms";
     input.dispatchEvent(new Event("input"));
     input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", metaKey: true, ctrlKey: true }));
   }, REPLACEMENT);
   assert.equal((await sentMessages(page, "replace.apply")).length, 0);
-  assert.equal((await lastSent(page, "replace.preview")).replacement, "backoffs");
+  assert.equal((await lastSent(page, "replace.preview")).replacement, "backoff_ms");
 });

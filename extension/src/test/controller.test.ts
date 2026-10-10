@@ -315,7 +315,7 @@ test("recent queries are deduplicated, newest first, and capped", () => {
 test("a settings change sends the settings and pins, but not the box's text, which lags the typing", async () => {
   const host = recordingUi();
   const controller = newController(parseOnlyBackend().backend, host.ui, { pinnedQueries: () => [{ query: "retry" }] });
-  await controller.handle(queryChanged("timeo", 1));
+  await controller.handle(queryChanged("timeout", 1));
   controller.settingsChanged();
   const sent = host.payloads("state.restore").at(-1);
   assert.equal(sent?.text, undefined);
