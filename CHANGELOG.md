@@ -110,6 +110,16 @@ All notable changes to this project are documented here. The format follows
   repo, author and month. Click a bucket to keep only it (`repo:payments-api`, `f:^src/`,
   `since:2026-09 until:2026-09`), Alt-click to leave it out; a bucket the query keeps shows pressed, one it leaves
   out stays struck through, and clicking either takes its filter back out.
+- Results from current files come best match first: files that define what you searched for, are open in the editor
+  or are named after it lead, then recently changed ones, and tests, vendored and generated files come last. Each
+  section title says the order, and a badge says why a file moved (**definition**, **open**, **test**, **vendored**
+  or **generated**). `order:path` (short form `o:`), or the `spelunk.order` setting, keeps the old repo, path and line
+  order. Commits stay newest first.
+- Replace in results: **⇄** beside **.\*** (or ⌥⌘F) opens a Replace row. Each code match shows struck out with its
+  replacement after it, in the results and the preview, and the row counts the matches and files; with a `/regex/`,
+  `$1` or `${name}` inserts what a group matched. **Replace all** (⌘↵) changes every match of a one-term query in
+  current files as one edit that ⌘Z undoes in every file, leaves the files unsaved, and skips whole any file edited
+  since it was indexed.
 
 ### Fixed
 
