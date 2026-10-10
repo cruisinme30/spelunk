@@ -388,6 +388,7 @@ export class ResultsView {
       { ...this.rowAttributes(item), class: `row file${demoted(item.rankReason)}`, title: item.path },
       element("span", { class: "path" }, highlight(item.path, item.nameHits)),
       rankBadge(item.rankReason),
+      ownerBadge(item.owners),
       item.dirty ? element("span", { class: "badge warn" }, "Uncommitted changes") : null,
       item.lastCommit
         ? element("span", { class: "meta" }, `${item.lastCommit.author} · ${timeAgo(item.lastCommit.at)}`)
@@ -408,6 +409,7 @@ export class ResultsView {
           { class: `group${demoted(item.rankReason)}`, "data-testid": "code-group" },
           element("span", { class: "path" }, item.path),
           rankBadge(item.rankReason),
+          ownerBadge(item.owners),
           element("span", { class: "repo" }, repoName(this.state, item.repoId)),
           countLabel,
         ),
@@ -551,6 +553,21 @@ function rankBadge(reason: RankReason | undefined): HTMLElement | null {
   return reason
     ? element("span", { class: `badge rank-${reason}`, "data-testid": "rank-reason" }, RANK_BADGE[reason])
     : null;
+}
+
+/**
+ * The badge naming who owns a result's file by its repo's CODEOWNERS file:
+ * the first owner, then "+1" for each other one, all of them in its tooltip.
+ */
+function ownerBadge(owners: string[] | undefined): HTMLElement | null {
+  const [first, ...others] = owners ?? [];
+  if (first === undefined) return null;
+  const label = others.length > 0 ? `${first} +${others.length}` : first;
+  return element(
+    "span",
+    { class: "badge owner", title: `Owned by ${owners?.join(", ")}`, "data-testid": "owner" },
+    label,
+  );
 }
 
 /**

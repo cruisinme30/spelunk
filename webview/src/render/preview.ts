@@ -1,7 +1,7 @@
 // The preview pane: a file excerpt around the match, or a commit's diff.
 import { button, element, fileStat, highlight, plural, scrollIntoContainer, shortSha, timeAgo } from "../format";
 import { textTerms } from "../parsedQuery";
-import type { OpenWhere, Preview } from "../protocol.gen";
+import type { OpenWhere, Ownership, Preview } from "../protocol.gen";
 import { repoName, type ViewState } from "../state";
 
 type FilePreview = Extract<Preview, { kind: "file" }>;
@@ -87,6 +87,7 @@ function renderFilePreview(
       actions,
     ),
   );
+  if (preview.ownership) container.append(ownershipLine(preview.ownership));
   const hitsByLine = new Map(preview.hits.map((hits) => [hits.line, hits.ranges]));
   const dirtyLines = new Set(preview.dirtyLines);
   const code = element("div", { class: "code" });
@@ -115,6 +116,19 @@ function renderFilePreview(
     const names = preview.symbols.slice(0, MAX_OUTLINE_SYMBOLS).map((symbol) => element("code", {}, symbol.name));
     container.append(element("div", { class: "outline muted" }, "In this file: ", ...names));
   }
+}
+
+/** "Owned by @acme/payments-core @jane · .github/CODEOWNERS line 4", under a file preview's header. */
+function ownershipLine({ owners, file, line }: Ownership): HTMLElement {
+  const where = line > 0 ? `${file} line ${line}` : file;
+  const who = owners.length > 0 ? ["Owned by ", ...owners.map((owner) => element("code", {}, owner))] : ["No owner in"];
+  return element(
+    "div",
+    { class: "ownership muted", "data-testid": "ownership" },
+    ...who,
+    element("span", { "aria-hidden": "true" }, owners.length > 0 ? "·" : ""),
+    element("span", {}, where),
+  );
 }
 
 /** Whether a commit preview lists the files its file filters hid, and how to ask for them. */

@@ -205,6 +205,8 @@ export type ResultItem =
       nameHits: Range[];
       lastCommit?: LastCommit;
       dirty: boolean;
+      /** Who the repo's CODEOWNERS file says owns the file, as it writes them; absent when nobody does or the repo has no CODEOWNERS file. */
+      owners?: string[];
       rankReason?: RankReason;
     }
   | {
@@ -215,6 +217,8 @@ export type ResultItem =
       line: number;
       text: string;
       hits: Hit[];
+      /** Who the repo's CODEOWNERS file says owns the file, as it writes them; absent when nobody does or the repo has no CODEOWNERS file. */
+      owners?: string[];
       rankReason?: RankReason;
       /** The lines just above the match, top first, when the contextLines setting asks for them; fewer near the start of the file. */
       contextBefore?: string[];
@@ -278,6 +282,16 @@ export interface Hunk {
   lines: DiffLine[];
 }
 
+/** Ownership is who owns a file by its repo's CODEOWNERS file, and which line of it says so. */
+export interface Ownership {
+  /** The owners, as the file writes them; empty when the deciding line names none, or no line matches. */
+  owners: string[];
+  /** Where the CODEOWNERS file is, relative to the repo: .github/CODEOWNERS */
+  file: string;
+  /** The line that decides, 1-based; 0 when no line matches the file. */
+  line: number;
+}
+
 /** Preview is the right-hand pane's content for a selected result. */
 export type Preview =
   | {
@@ -288,6 +302,7 @@ export type Preview =
       focusLine: number;
       hits: LineHits[];
       dirtyLines: number[];
+      ownership?: Ownership;
       symbols?: OutlineSymbol[];
     }
   | {
@@ -305,7 +320,7 @@ export type Preview =
 
 /** Facet counts a search's results by one field, biggest bucket first, for the buttons that narrow the results. */
 export interface Facet {
-  field: "repo" | "lang" | "folder" | "author" | "month";
+  field: "repo" | "lang" | "folder" | "owner" | "author" | "month";
   buckets: FacetBucket[];
   /** How many smaller buckets were left out */
   more: number;
@@ -313,7 +328,7 @@ export interface Facet {
 
 /** FacetBucket is one value of a facet: how many results have it, and the filter that keeps only them. */
 export interface FacetBucket {
-  /** The value as shown, e.g. payments-api, Python, src/, Jane Doe, Sep 2026 */
+  /** The value as shown, e.g. payments-api, Python, src/, @acme/payments-core, Jane Doe, Sep 2026 */
   label: string;
   count: number;
   /** The filter that keeps only this bucket, as it would be typed, e.g. repo:payments-api; a - before it leaves the bucket out */

@@ -359,6 +359,7 @@ type ResultItem struct {
 	NameHits      []Range      `json:"nameHits,omitempty"`
 	LastCommit    *LastCommit  `json:"lastCommit,omitempty"`
 	Dirty         bool         `json:"dirty,omitempty"`
+	Owners        []string     `json:"owners,omitempty"`
 	RankReason    RankReason   `json:"rankReason,omitempty"`
 	Line          int          `json:"line,omitempty"`
 	Text          string       `json:"text,omitempty"`
@@ -404,6 +405,9 @@ func (v ResultItem) MarshalJSON() ([]byte, error) {
 			fields["lastCommit"] = v.LastCommit
 		}
 		fields["dirty"] = v.Dirty
+		if len(v.Owners) > 0 {
+			fields["owners"] = v.Owners
+		}
 		if v.RankReason != "" {
 			fields["rankReason"] = v.RankReason
 		}
@@ -417,6 +421,9 @@ func (v ResultItem) MarshalJSON() ([]byte, error) {
 			fields["hits"] = []Hit{}
 		} else {
 			fields["hits"] = v.Hits
+		}
+		if len(v.Owners) > 0 {
+			fields["owners"] = v.Owners
 		}
 		if v.RankReason != "" {
 			fields["rankReason"] = v.RankReason
@@ -531,6 +538,26 @@ func (v Hunk) MarshalJSON() ([]byte, error) {
 	return json.Marshal(p)
 }
 
+// Ownership is who owns a file by its repo's CODEOWNERS file, and which line of it says so.
+type Ownership struct {
+	// Owners is the owners, as the file writes them; empty when the deciding line names none, or no line matches.
+	Owners []string `json:"owners"`
+	// File is where the CODEOWNERS file is, relative to the repo: .github/CODEOWNERS
+	File string `json:"file"`
+	// Line is the line that decides, 1-based; 0 when no line matches the file.
+	Line int `json:"line"`
+}
+
+// MarshalJSON emits [] rather than null for required arrays.
+func (v Ownership) MarshalJSON() ([]byte, error) {
+	type plain Ownership
+	p := plain(v)
+	if p.Owners == nil {
+		p.Owners = []string{}
+	}
+	return json.Marshal(p)
+}
+
 // Preview is the right-hand pane's content for a selected result.
 type Preview struct {
 	Kind        string          `json:"kind,omitempty"`
@@ -540,6 +567,7 @@ type Preview struct {
 	FocusLine   int             `json:"focusLine,omitempty"`
 	Hits        []LineHits      `json:"hits,omitempty"`
 	DirtyLines  []int           `json:"dirtyLines,omitempty"`
+	Ownership   *Ownership      `json:"ownership,omitempty"`
 	Symbols     []OutlineSymbol `json:"symbols,omitempty"`
 	SHA         string          `json:"sha,omitempty"`
 	Subject     string          `json:"subject,omitempty"`
@@ -580,6 +608,9 @@ func (v Preview) MarshalJSON() ([]byte, error) {
 			fields["dirtyLines"] = []int{}
 		} else {
 			fields["dirtyLines"] = v.DirtyLines
+		}
+		if v.Ownership != nil {
+			fields["ownership"] = v.Ownership
 		}
 		if len(v.Symbols) > 0 {
 			fields["symbols"] = v.Symbols
@@ -634,7 +665,7 @@ func (v Facet) MarshalJSON() ([]byte, error) {
 
 // FacetBucket is one value of a facet: how many results have it, and the filter that keeps only them.
 type FacetBucket struct {
-	// Label is the value as shown, e.g. payments-api, Python, src/, Jane Doe, Sep 2026
+	// Label is the value as shown, e.g. payments-api, Python, src/, @acme/payments-core, Jane Doe, Sep 2026
 	Label string `json:"label"`
 	Count int    `json:"count"`
 	// Filter is the filter that keeps only this bucket, as it would be typed, e.g. repo:payments-api; a - before it leaves the bucket out

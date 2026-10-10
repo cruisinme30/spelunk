@@ -17,6 +17,7 @@ const (
 	FacetRepo   = "repo"
 	FacetLang   = "lang"
 	FacetFolder = "folder"
+	FacetOwner  = "owner"
 	FacetAuthor = "author"
 	FacetMonth  = "month"
 )
@@ -102,6 +103,19 @@ func (f *Facets) CountLang(name string) {
 func (f *Facets) CountFolder(path string) {
 	if folder, _, ok := strings.Cut(path, "/"); ok {
 		f.Count(FacetFolder, folder+"/", "f:^"+regexp.QuoteMeta(folder)+"/")
+	}
+}
+
+// CountOwners counts a result in the bucket of each owner its repo's
+// CODEOWNERS file gives its file, owner:@acme/payments-core, or in the
+// owner:none bucket when it gives none. Call it only for repos that have
+// a CODEOWNERS file.
+func (f *Facets) CountOwners(owners []string) {
+	if len(owners) == 0 {
+		f.Count(FacetOwner, "No owner", "owner:none")
+	}
+	for _, owner := range owners {
+		f.Count(FacetOwner, owner, "owner:"+owner)
 	}
 }
 

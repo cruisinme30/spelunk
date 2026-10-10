@@ -57,6 +57,15 @@ func (r *Repo) inState(doc *Doc, state string) bool {
 	}
 }
 
+// ownersOf returns who the repo's CODEOWNERS file says owns the file at
+// path, for its result's badge; nil when nobody does or there's no file.
+func (r *Repo) ownersOf(path string) []string {
+	if r.Owners == nil {
+		return nil
+	}
+	return r.Owners.Owners(path)
+}
+
 // ownedBy reports whether the repo's CODEOWNERS file gives the file at path
 // an owner that an owner: value names (see codeowners.SameOwner), or, for
 // owner:none, no owner at all. It is false in a repo without the file.
@@ -64,7 +73,7 @@ func (r *Repo) ownedBy(path, name string) bool {
 	if r.Owners == nil {
 		return false
 	}
-	owners := r.Owners.Owners(path)
+	owners := r.ownersOf(path)
 	if strings.EqualFold(name, query.OwnerNone) {
 		return len(owners) == 0
 	}

@@ -1,5 +1,6 @@
 // The facet row between the chips and the results: the search's results
-// counted by repo, language and top folder (author and month for commits).
+// counted by repo, language, CODEOWNERS owner and top folder (author and
+// month for commits).
 // A click keeps only a bucket's results, Alt-click leaves them out, and a
 // bucket the query already keeps or leaves out takes its filter back out.
 import { element, plural } from "../format";
@@ -14,6 +15,7 @@ const FIELD_LABELS: Record<Facet["field"], string> = {
   repo: "Repo",
   lang: "Language",
   folder: "Folder",
+  owner: "Owner",
   author: "Author",
   month: "Month",
 };

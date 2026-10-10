@@ -984,6 +984,12 @@ ins {
   border-color: var(--tone-scope);
 }
 
+/* Who owns the file, by its repo's CODEOWNERS file. */
+.badge.owner {
+  flex: none;
+  color: var(--fg);
+}
+
 /* A commit a watch found since its query last ran, and a pin's count of them. */
 .badge.new-commit,
 .unseen {
@@ -1242,6 +1248,16 @@ pre.body {
 
 .hunk {
   padding: 6px 14px 2px;
+}
+
+.ownership {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  padding: 8px 14px;
+  font-size: 12px;
+  border-bottom: 1px solid var(--line);
 }
 
 .outline {

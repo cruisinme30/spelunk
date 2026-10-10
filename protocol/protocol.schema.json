@@ -513,6 +513,13 @@
             "dirty": {
               "type": "boolean"
             },
+            "owners": {
+              "description": "Who the repo's CODEOWNERS file says owns the file, as it writes them; absent when nobody does or the repo has no CODEOWNERS file.",
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
             "rankReason": {
               "$ref": "#/$defs/RankReason"
             }
@@ -544,6 +551,13 @@
               "type": "array",
               "items": {
                 "$ref": "#/$defs/Hit"
+              }
+            },
+            "owners": {
+              "description": "Who the repo's CODEOWNERS file says owns the file, as it writes them; absent when nobody does or the repo has no CODEOWNERS file.",
+              "type": "array",
+              "items": {
+                "type": "string"
               }
             },
             "rankReason": {
@@ -746,6 +760,28 @@
       },
       "required": ["path", "header", "lines"]
     },
+    "Ownership": {
+      "description": "Ownership is who owns a file by its repo's CODEOWNERS file, and which line of it says so.",
+      "type": "object",
+      "properties": {
+        "owners": {
+          "description": "The owners, as the file writes them; empty when the deciding line names none, or no line matches.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "file": {
+          "description": "Where the CODEOWNERS file is, relative to the repo: .github/CODEOWNERS",
+          "type": "string"
+        },
+        "line": {
+          "description": "The line that decides, 1-based; 0 when no line matches the file.",
+          "type": "integer"
+        }
+      },
+      "required": ["owners", "file", "line"]
+    },
     "Preview": {
       "description": "Preview is the right-hand pane's content for a selected result.",
       "oneOf": [
@@ -781,6 +817,9 @@
               "items": {
                 "type": "integer"
               }
+            },
+            "ownership": {
+              "$ref": "#/$defs/Ownership"
             },
             "symbols": {
               "type": "array",
@@ -846,7 +885,7 @@
       "type": "object",
       "properties": {
         "field": {
-          "enum": ["repo", "lang", "folder", "author", "month"]
+          "enum": ["repo", "lang", "folder", "owner", "author", "month"]
         },
         "buckets": {
           "type": "array",
@@ -867,7 +906,7 @@
       "properties": {
         "label": {
           "type": "string",
-          "description": "The value as shown, e.g. payments-api, Python, src/, Jane Doe, Sep 2026"
+          "description": "The value as shown, e.g. payments-api, Python, src/, @acme/payments-core, Jane Doe, Sep 2026"
         },
         "count": {
           "type": "integer"

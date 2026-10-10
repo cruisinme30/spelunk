@@ -137,7 +137,7 @@ type searcher struct {
 
 	counted   int
 	truncated bool
-	// facets count the results by repo, language and top folder.
+	// facets count the results by repo, language, owner and top folder.
 	facets *engine.Facets
 	// hidden counts, per filter index, results that only that filter removed.
 	hidden map[int]int
@@ -162,7 +162,7 @@ type searcher struct {
 func newSearcher(ctx context.Context, plan *query.Plan, planID int, emit func(protocol.ResultItem)) *searcher {
 	s := &searcher{
 		ctx: ctx, plan: plan, planID: planID, emit: emit, hidden: map[int]int{}, terms: termCache{},
-		facets:  engine.NewFacets(engine.FacetRepo, engine.FacetLang, engine.FacetFolder),
+		facets:  engine.NewFacets(engine.FacetRepo, engine.FacetLang, engine.FacetOwner, engine.FacetFolder),
 		started: time.Now(), literals: map[int]string{},
 	}
 	s.holding = s.ranking()
@@ -205,6 +205,9 @@ func (s *searcher) add(repo *Repo, doc *Doc, item protocol.ResultItem, score, qu
 	s.counted++
 	s.facets.CountRepo(repo.Name)
 	s.facets.CountLang(doc.Lang)
+	if repo.Owners != nil && item.Kind != query.KindSymbol {
+		s.facets.CountOwners(item.Owners)
+	}
 	s.facets.CountFolder(doc.Path)
 	if s.holding && s.counted == s.plan.Offset+s.plan.Limit {
 		s.sendHeld()
@@ -334,7 +337,7 @@ func (s *searcher) addFileName(repo *Repo, doc *Doc, rank docRank) {
 	item := protocol.ResultItem{
 		Kind: query.KindFile, Ref: Ref{PlanID: s.planID, RepoID: repo.ID, Path: doc.Path}.String(),
 		RepoID: repo.ID, Path: doc.Path, NameHits: s.nameHits(doc.Path, query.Contributing(s.plan.Pred, leaf)),
-		RankReason: rank.reason,
+		RankReason: rank.reason, Owners: repo.ownersOf(doc.Path),
 	}
 	if repo.History != nil {
 		item.Dirty = repo.History.Dirty(doc.Path)
@@ -424,9 +427,10 @@ func (s *searcher) addCodeLines(repos []Repo) {
 			return
 		}
 		var starts []int // the file's line starts, found when a result first needs context
+		owners := c.repo.ownersOf(c.doc.Path)
 		for _, line := range matcher.lines(query.Contributing(s.plan.Pred, leaf)) {
 			item := s.lineResult(c.repo, c.doc, line)
-			item.RankReason = c.rank.reason
+			item.RankReason, item.Owners = c.rank.reason, owners
 			// Only results on the page carry context; the rest are only counted.
 			if s.plan.ContextLines > 0 && s.plan.OnPage(s.counted) {
 				if starts == nil {

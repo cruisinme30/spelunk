@@ -64,7 +64,19 @@ func Preview(repo *Repo, ref Ref, plan *query.Plan, contextLines int) (protocol.
 	return protocol.Preview{
 		Kind: protocol.PreviewKindFile, Path: ref.Path, FirstLine: first, Lines: shown,
 		FocusLine: focus, Hits: hits, DirtyLines: []int{}, Symbols: outline(symbols.Extract(language, content), focus),
+		Ownership: ownership(repo, ref.Path),
 	}, nil
+}
+
+// ownership says who owns the file at path and which CODEOWNERS line says
+// so, for the preview's "Owned by" line; nil when the repo has no
+// CODEOWNERS file.
+func ownership(repo *Repo, path string) *protocol.Ownership {
+	if repo.Owners == nil {
+		return nil
+	}
+	rule, _ := repo.Owners.Match(path)
+	return &protocol.Ownership{Owners: rule.Owners, File: repo.Owners.Path, Line: rule.Line}
 }
 
 // outline lists the definitions a preview names under the code: the

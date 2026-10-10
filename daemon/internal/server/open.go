@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/cruisinme30/spelunk/daemon/internal/codeowners"
 	"github.com/cruisinme30/spelunk/daemon/internal/history"
 	"github.com/cruisinme30/spelunk/daemon/internal/protocol"
 	"github.com/cruisinme30/spelunk/daemon/internal/rpc"
@@ -82,9 +83,20 @@ func (s *Server) repoForRef(text string) (*trigram.Repo, trigram.Ref, error) {
 		if err := insideRoot(root.Path, ref.Path); err != nil {
 			return nil, trigram.Ref{}, err
 		}
-		return &trigram.Repo{ID: root.ID, Name: root.Name, Root: root.Path}, ref, nil
+		return &trigram.Repo{ID: root.ID, Name: root.Name, Root: root.Path, Owners: s.codeOwners(root.ID)}, ref, nil
 	}
 	return nil, trigram.Ref{}, rpc.Errorf(protocol.CodeRefStale, "repo no longer open")
+}
+
+// codeOwners is the CODEOWNERS file the index read for the root with id,
+// for owner: in a preview and its "Owned by" line; nil when it has none.
+func (s *Server) codeOwners(id string) *codeowners.File {
+	for _, repo := range s.index.Repos() {
+		if repo.ID == id {
+			return repo.Owners
+		}
+	}
+	return nil
 }
 
 // insideRoot checks that the file a ref names is a regular file inside
