@@ -65,3 +65,11 @@ test("the moved settings only the user may hold are the application-scoped ones"
   const userOnly = Object.values(MOVED_SETTINGS).filter((key) => setting(`spelunk.${key}`)?.scope === "application");
   assert.deepEqual([...USER_ONLY_SETTINGS].sort(), userOnly.sort());
 });
+
+test("no setting offers a folder's value, since one value serves the whole window", () => {
+  for (const section of manifest.contributes.configuration) {
+    for (const [key, property] of Object.entries(section.properties)) {
+      assert.notEqual(property.scope, "resource", `${key} is read once for the window`);
+    }
+  }
+});

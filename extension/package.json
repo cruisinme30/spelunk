@@ -151,7 +151,7 @@
               "smart"
             ],
             "default": "off",
-            "scope": "resource",
+            "scope": "window",
             "enumDescriptions": [
               "Ignore case: retry also finds Retry and RETRY.",
               "Match case: retry finds only retry.",
@@ -162,7 +162,7 @@
           "spelunk.search.wholeWord": {
             "type": "boolean",
             "default": false,
-            "scope": "resource",
+            "scope": "window",
             "description": "Match whole words by default, so retry doesn't match retryCount. A word: operator in the query always wins."
           },
           "spelunk.search.typingDelayMs": {
@@ -178,7 +178,7 @@
             "default": 2000,
             "minimum": 100,
             "maximum": 60000,
-            "scope": "resource",
+            "scope": "window",
             "description": "How long one search may run, in milliseconds, before it shows what it found so far and says the results are truncated. Raise it for very large workspaces."
           },
           "spelunk.caseSensitive": {
@@ -186,19 +186,19 @@
               "string",
               "boolean"
             ],
-            "scope": "resource",
+            "scope": "window",
             "deprecationMessage": "Moved to spelunk.search.caseSensitive. Spelunk moves a value saved here when it starts.",
             "markdownDeprecationMessage": "Moved to `#spelunk.search.caseSensitive#`. Spelunk moves a value saved here when it starts."
           },
           "spelunk.wholeWord": {
             "type": "boolean",
-            "scope": "resource",
+            "scope": "window",
             "deprecationMessage": "Moved to spelunk.search.wholeWord. Spelunk moves a value saved here when it starts.",
             "markdownDeprecationMessage": "Moved to `#spelunk.search.wholeWord#`. Spelunk moves a value saved here when it starts."
           },
           "spelunk.typingDelayMs": {
             "type": "integer",
-            "scope": "resource",
+            "scope": "window",
             "deprecationMessage": "Moved to spelunk.search.typingDelayMs. Spelunk moves a value saved here when it starts.",
             "markdownDeprecationMessage": "Moved to `#spelunk.search.typingDelayMs#`. Spelunk moves a value saved here when it starts."
           }
@@ -214,7 +214,7 @@
             "default": 500,
             "minimum": 1,
             "maximum": 50000,
-            "scope": "resource",
+            "scope": "window",
             "description": "Results per page when the query has no count: operator."
           },
           "spelunk.results.order": {
@@ -228,7 +228,7 @@
               "Repo by repo, then by path, then by line."
             ],
             "default": "best",
-            "scope": "resource",
+            "scope": "window",
             "description": "How results from current files are sorted when the query has no order: operator. Commits are always newest first."
           },
           "spelunk.results.contextLines": {
@@ -236,18 +236,18 @@
             "default": 0,
             "minimum": 0,
             "maximum": 3,
-            "scope": "resource",
+            "scope": "window",
             "description": "Lines to show above and below each code match in the results, from 0 to 3. The Context buttons in the Code heading set it too."
           },
           "spelunk.defaultCount": {
             "type": "integer",
-            "scope": "resource",
+            "scope": "window",
             "deprecationMessage": "Moved to spelunk.results.count. Spelunk moves a value saved here when it starts.",
             "markdownDeprecationMessage": "Moved to `#spelunk.results.count#`. Spelunk moves a value saved here when it starts."
           },
           "spelunk.order": {
             "type": "string",
-            "scope": "resource",
+            "scope": "window",
             "deprecationMessage": "Moved to spelunk.results.order. Spelunk moves a value saved here when it starts.",
             "markdownDeprecationMessage": "Moved to `#spelunk.results.order#`. Spelunk moves a value saved here when it starts."
           }
@@ -295,7 +295,7 @@
               "all"
             ],
             "default": "2y",
-            "scope": "resource",
+            "scope": "window",
             "enumDescriptions": [
               "Last 6 months",
               "Last 2 years",
@@ -306,7 +306,7 @@
           "spelunk.index.symbols": {
             "type": "boolean",
             "default": true,
-            "scope": "resource",
+            "scope": "window",
             "description": "Index symbol definitions for symbol: (s:) and kind: (k:)."
           },
           "spelunk.index.exclude": {
@@ -319,13 +319,13 @@
               "**/node_modules/**",
               "**/*.min.js"
             ],
-            "scope": "resource",
+            "scope": "window",
             "description": "Glob patterns never indexed, in current files or in history. A pattern without a slash matches at any depth, a trailing slash names a folder (node_modules/), and a leading slash anchors it at the repo root (/build)."
           },
           "spelunk.index.includeIgnored": {
             "type": "boolean",
             "default": false,
-            "scope": "resource",
+            "scope": "window",
             "description": "Also index files matched by .gitignore."
           },
           "spelunk.index.maxFileSizeKB": {
@@ -333,7 +333,7 @@
             "default": 1024,
             "minimum": 1,
             "maximum": 1048576,
-            "scope": "resource",
+            "scope": "window",
             "description": "Skip files larger than this."
           },
           "spelunk.index.location": {
@@ -353,7 +353,7 @@
               "third_party",
               "dist"
             ],
-            "scope": "resource",
+            "scope": "window",
             "description": "Folder names, at any depth, that hold someone else's code or a build's. Their files match is:vendored and rank last."
           },
           "spelunk.index.generatedSuffixes": {
@@ -372,7 +372,7 @@
               ".min.js",
               ".min.css"
             ],
-            "scope": "resource",
+            "scope": "window",
             "description": "File name endings that mark files a tool wrote. Those files, and files with @generated or a DO NOT EDIT … generated note near the top, match is:generated and rank low."
           },
           "spelunk.index.codeownersFiles": {
@@ -385,7 +385,7 @@
               "CODEOWNERS",
               "docs/CODEOWNERS"
             ],
-            "scope": "resource",
+            "scope": "window",
             "description": "Where to look for each repo's CODEOWNERS file, relative to its root, for owner:. The first one found is used."
           },
           "spelunk.index.commitCheckSeconds": {
@@ -393,7 +393,7 @@
             "default": 5,
             "minimum": 1,
             "maximum": 3600,
-            "scope": "resource",
+            "scope": "window",
             "description": "How often, in seconds, to check Git for new commits, so history search and watches see them."
           }
         }
@@ -422,7 +422,7 @@
             "default": 7,
             "minimum": 0,
             "maximum": 100,
-            "scope": "resource",
+            "scope": "window",
             "description": "Lines the file preview shows above and below the selected match."
           },
           "spelunk.ui.pinnedQueries": {

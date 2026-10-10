@@ -240,10 +240,10 @@ function moveSettingsSoon(onError: (error: unknown) => void): void {
 /**
  * Moves each value saved under a setting's old key (MOVED_SETTINGS) to its
  * new key, in the user's, the workspace's and each folder's settings, and
- * removes the old key there. A value already under the new key wins. A new
- * key only the user's settings may hold (USER_ONLY_SETTINGS) takes no
- * workspace or folder value: the old key is only removed there. A move that
- * fails is reported and the others go on.
+ * removes the old key there. A value already under the new key wins. No
+ * setting takes a folder's value, and one only the user's settings may hold
+ * (USER_ONLY_SETTINGS) takes no workspace value either: there the old key is
+ * only removed. A move that fails is reported and the others go on.
  */
 async function moveSettings(onError: (error: unknown) => void): Promise<void> {
   const targets = vscode.ConfigurationTarget;
@@ -274,7 +274,8 @@ async function moveSetting(
   target: vscode.ConfigurationTarget,
 ): Promise<void> {
   const moved = movedValue(oldKey, saved, current);
-  const takesIt = target === vscode.ConfigurationTarget.Global || !USER_ONLY_SETTINGS.has(newKey);
+  const targets = vscode.ConfigurationTarget;
+  const takesIt = target === targets.Global || (target === targets.Workspace && !USER_ONLY_SETTINGS.has(newKey));
   if (moved !== undefined && takesIt) await config.update(newKey, moved, target);
   await config.update(oldKey, undefined, target);
 }
