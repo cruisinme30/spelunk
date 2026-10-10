@@ -418,8 +418,9 @@ as they are now, and Replace refuse it in words.
   sha, the badges, repos without the revision, the read-only preview and Compare with now, on and off).
 - End to end in VS Code: "Opening a result at a revision shows the file as it was, read-only, or compared with the
   file now" in `extension/src/e2e/commands.test.ts`.
-- Cost: nothing is indexed ahead of time. The first search of a revision reads its files with one `git ls-tree` and
-  one `git cat-file --batch` and indexes them in memory (this repo's 364 files at `HEAD~30`: under 0.1 s of Git);
+- Cost: nothing is indexed ahead of time. The first search of a revision reads each repo's files with one `git ls-tree`
+  and one `git cat-file --batch`, all repos in parallel (`TestAtReadsTheReposRevisionsInParallel`), and indexes them in
+  memory (this repo's 364 files at `HEAD~30`: under 0.1 s of Git);
   later searches of it reuse that shard, and the two newest are kept. It hasn't been timed on a large repo yet.
 - Built: `docs/dev/proof/past-revision.png` and `docs/dev/proof/past-revision-values.png`, from
   `node scripts/screenshotPanel.mjs --workspace <the tagged copy> --query 'at:v1.0.0 retry_after' --select 1` and

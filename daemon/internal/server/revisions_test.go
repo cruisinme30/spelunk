@@ -2,14 +2,17 @@ package server
 
 import (
 	"context"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
+	"github.com/cruisinme30/spelunk/daemon/internal/history"
 	"github.com/cruisinme30/spelunk/daemon/internal/protocol"
 	"github.com/cruisinme30/spelunk/daemon/internal/testutil"
 	"github.com/cruisinme30/spelunk/daemon/internal/trigram"
@@ -416,4 +419,52 @@ func TestAtResultsNameNoOwners(t *testing.T) {
 			t.Errorf("the preview of %s at v1.0.0 names owners %+v", item.Path, preview.Ownership)
 		}
 	}
+}
+
+// The repos of a workspace are read at a revision in parallel: each read
+// here waits until every repo's read has started, which reads one after
+// another never reach.
+func TestAtReadsTheReposRevisionsInParallel(t *testing.T) {
+	client := newTestClient(t)
+	batches := collectBatches(client)
+	var roots []protocol.Root
+	for _, id := range []string{"r1", "r2", "r3"} {
+		root, _ := revisionRepo(t)
+		roots = append(roots, protocol.Root{ID: id, Path: root, Name: "payments-" + id})
+	}
+	client.mustInitialize(t, roots...)
+	var started sync.WaitGroup
+	started.Add(len(roots))
+	client.server.revisions.read = func(ctx context.Context, root string, revision history.Revision, settings protocol.Settings) (*trigram.Shard, error) {
+		started.Done()
+		all := make(chan struct{})
+		go func() { started.Wait(); close(all) }()
+		select {
+		case <-all:
+		case <-time.After(5 * time.Second):
+			return nil, errors.New("the other repos' reads never started")
+		}
+		return readRevision(ctx, root, revision, settings)
+	}
+	result, items := searchAt(t, client, batches, "s1", "at:v1.0.0 parse_retry_after")
+	for _, info := range result.Revisions {
+		if info.Problem != "" {
+			t.Errorf("%s: %s", info.RepoID, info.Problem)
+		}
+	}
+	if len(items) != 2*len(roots) {
+		t.Errorf("found %d results, want backoff.py and client.py in each of %d repos", len(items), len(roots))
+	}
+	if ids := revisionRepoIDs(result.Revisions); !slices.Equal(ids, []string{"r1", "r2", "r3"}) {
+		t.Errorf("revisions are listed for %v, want the repos in order", ids)
+	}
+}
+
+// revisionRepoIDs lists the repos a search's revisions are for.
+func revisionRepoIDs(infos []protocol.RevisionInfo) []string {
+	var ids []string
+	for _, info := range infos {
+		ids = append(ids, info.RepoID)
+	}
+	return ids
 }

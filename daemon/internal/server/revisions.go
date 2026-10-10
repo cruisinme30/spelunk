@@ -34,43 +34,67 @@ const (
 // revisionRepos resolves the plan's revision in each open repo and returns
 // the repos at it, to search, and what each repo read, for the panel. A
 // repo without that revision, or outside Git, is left out, saying why.
+// Repos are resolved and read in parallel: each read is its own git
+// processes, so a workspace of several repos waits for the slowest, not
+// for their sum.
 func (s *Server) revisionRepos(ctx context.Context, plan *query.Plan) ([]trigram.Repo, []protocol.RevisionInfo, error) {
 	settings := s.Settings()
+	var open []trigram.Repo
+	for _, current := range s.index.Repos() {
+		if !plan.ExcludesRepo(current.Name) {
+			open = append(open, current)
+		}
+	}
+	type outcome struct {
+		repo *trigram.Repo // nil when the repo has no such revision
+		info protocol.RevisionInfo
+	}
+	outcomes := make([]outcome, len(open))
+	var wg sync.WaitGroup
+	for i, current := range open {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			repo, info := s.revisionRepo(ctx, plan, current, settings)
+			outcomes[i] = outcome{repo, info}
+		}()
+	}
+	wg.Wait()
+	if ctx.Err() != nil {
+		return nil, nil, context.Cause(ctx)
+	}
 	var repos []trigram.Repo
 	var infos []protocol.RevisionInfo
-	for _, current := range s.index.Repos() {
-		if plan.ExcludesRepo(current.Name) {
-			continue
+	for _, outcome := range outcomes {
+		infos = append(infos, outcome.info)
+		if outcome.repo != nil {
+			repos = append(repos, *outcome.repo)
 		}
-		info := protocol.RevisionInfo{RepoID: current.ID}
-		revision, err := resolveRevision(ctx, current.Root, plan)
-		if err != nil {
-			if ctx.Err() != nil {
-				return nil, nil, context.Cause(ctx)
-			}
-			info.Problem = revisionProblem(err, plan, current.Name)
-			infos = append(infos, info)
-			continue
-		}
-		shard, err := s.revisions.shard(ctx, current.Root, revision, settings)
-		if err != nil {
-			if ctx.Err() != nil {
-				return nil, nil, context.Cause(ctx)
-			}
-			info.Problem = fmt.Sprintf("Couldn't read %s at %s: %v", current.Name, short(revision.SHA), err)
-			infos = append(infos, info)
-			continue
-		}
-		info.SHA, info.Date = revision.SHA, revision.At.UTC().Format(time.RFC3339)
-		infos = append(infos, info)
-		repos = append(repos, trigram.Repo{
-			// No Owners: owner: reads today's CODEOWNERS file, which can't
-			// speak for the revision's files.
-			ID: current.ID, Name: current.Name, Root: current.Root, Shard: shard,
-			At: &trigram.AtRevision{SHA: revision.SHA, Current: current.CurrentFiles()},
-		})
 	}
 	return repos, infos, nil
+}
+
+// revisionRepo resolves the plan's revision in one repo and reads its
+// files there: the repo at the revision, or nil and the problem to show.
+func (s *Server) revisionRepo(ctx context.Context, plan *query.Plan, current trigram.Repo, settings protocol.Settings) (*trigram.Repo, protocol.RevisionInfo) {
+	info := protocol.RevisionInfo{RepoID: current.ID}
+	revision, err := resolveRevision(ctx, current.Root, plan)
+	if err != nil {
+		info.Problem = revisionProblem(err, plan, current.Name)
+		return nil, info
+	}
+	shard, err := s.revisions.shard(ctx, current.Root, revision, settings)
+	if err != nil {
+		info.Problem = fmt.Sprintf("Couldn't read %s at %s: %v", current.Name, short(revision.SHA), err)
+		return nil, info
+	}
+	info.SHA, info.Date = revision.SHA, revision.At.UTC().Format(time.RFC3339)
+	return &trigram.Repo{
+		// No Owners: owner: reads today's CODEOWNERS file, which can't
+		// speak for the revision's files.
+		ID: current.ID, Name: current.Name, Root: current.Root, Shard: shard,
+		At: &trigram.AtRevision{SHA: revision.SHA, Current: current.CurrentFiles()},
+	}, info
 }
 
 // resolveRevision finds the commit the plan's at: names in the repo at root.
@@ -116,6 +140,8 @@ type revisionKey struct {
 type revisionCache struct {
 	mu      sync.Mutex
 	entries []*revisionEntry // most recently used first
+	// read reads a revision's files; nil is readRevision. Tests replace it.
+	read func(ctx context.Context, root string, revision history.Revision, settings protocol.Settings) (*trigram.Shard, error)
 }
 
 type revisionEntry struct {
@@ -134,9 +160,13 @@ func (c *revisionCache) shard(ctx context.Context, root string, revision history
 		root: root, sha: revision.SHA, symbols: settings.Symbols,
 		exclude: strings.Join(settings.Exclude, "\x00"), maxBytes: int64(settings.MaxFileSizeKB) * 1024,
 	}
+	read := c.read
+	if read == nil {
+		read = readRevision
+	}
 	// The read outlives ctx, which the next keystroke's search cancels.
 	entry := c.entry(context.WithoutCancel(ctx), key, func(readCtx context.Context, entry *revisionEntry) {
-		entry.shard, entry.err = readRevision(readCtx, root, revision, settings)
+		entry.shard, entry.err = read(readCtx, root, revision, settings)
 	})
 	select {
 	case <-entry.ready:
