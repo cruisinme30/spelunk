@@ -35,6 +35,14 @@ All notable changes to this project are documented here. The format follows
   match the same, and every other regex still matches one line at a time. Current files only: commits are matched one
   changed line at a time, so a history query warns, and Replace explains it can't change such a match.
 
+- Structural search: `struct:"backoff(:[call], tries=:[n])"` finds code by its shape. A template is code with holes,
+  and a hole takes any code whose brackets pair up, so the template finds a call however its arguments are laid out
+  over lines. Spaces don't matter except between words, and code in comments and strings never matches, by each
+  file's language; a name used twice must take the same code, and `:[_]` takes anything. Each match is one code
+  result showing the lines it spans, the template's code marked in the term's color and each hole's code in its own,
+  with a chip for what each hole took; the preview marks the same and opening it selects the whole match. Current
+  files only, and Replace explains it can't change a template.
+
 ### Changed
 
 - protoc's Python output (`*_pb2.py`) and any header that says `DO NOT EDIT` beside the word "generated" now count as

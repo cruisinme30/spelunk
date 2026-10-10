@@ -134,6 +134,7 @@ bare     = 1*( any char except space, "(", ")", '"' ) ;
 | `sym:` | Literal or `/regex/` | Symbol definition names | Working tree only |
 | `kind:` | `function`, `method`, `class`, `interface`, `type` or `other` | What a symbol definition is | Working tree only |
 | `ref:` | Name or quoted name | Whole-word uses of the name, minus the lines that define it | Working tree only |
+| `struct:` | Quoted template: code with `:[name]` holes | File text read as tokens by the file's language (words, punctuation, brackets, whole strings; comments dropped). A hole takes code whose brackets pair up, as little as it can; inside the template's brackets it may run over lines, outside them it stays on its first line. Spaces don't matter except between words; a name used twice takes the same code; `:[_]` takes anything. Never file names. Narrowed by the words every language's reading of the template has | Working tree only |
 | `author:` | Substring, or quoted full name | Author name and email, after `.mailmap` | History only |
 | `msg:` | Literal, phrase or regex | Commit subject and body | History only |
 | (none) | Literal, phrase or regex | File names (a bare word also by its letters in order, as Quick Open does) and lines; in history, changed lines or the commit subject and body | Both |
@@ -170,11 +171,11 @@ type Node =
   | { kind: "and" | "or"; children: Node[]; span: Span }
   | { kind: "not"; child: Node; span: Span }
   | { kind: "text"; value: string; match: Match; termIndex: number; span: Span;
-      contentOnly?: boolean }        // content:x: file text only, never names or commit messages
+      contentOnly?: boolean }        // content:x or struct:"x": file text only, never names or commit messages
   | { kind: "op"; op: OpName; value: string; match: Match; span: Span;
       resolved?: { label: string } };  // e.g. "jane" -> "Jane Doe", "web" -> "web-checkout"
 
-type Match = "literal" | "phrase" | "regex";
+type Match = "literal" | "phrase" | "regex" | "glob" | "structural";   // structural: a struct: template
 type Span = { start: number; end: number };   // UTF-16 offsets into raw
 type Diagnostic = { severity: "error" | "warning"; code: string;
                     message: string; span: Span; fixes: Fix[] };
@@ -288,6 +289,7 @@ type ResultItem =
   | { kind: "line"; ref: string; repoId: string; path: string; line: number;
       text: string; hits: Hit[];
       spanLines?: { text: string; hits: Hit[] }[]; endLine?: number   // a match across lines: up to 10 more lines
+      holes?: { hole: number; name: string; text: string }[]            // struct: what each named hole took
       contextBefore?: string[]; contextAfter?: string[] }   // with spelunk.results.contextLines above 0
   | { kind: "symbol"; ref: string; repoId: string; path: string; line: number;
       name: string; symbolKind: "class" | "interface" | "function" | "method" | "type" | "other";
@@ -298,7 +300,7 @@ type ResultItem =
       diffHits: number; matchedTerms: number[]; subjectHits: Range[] };
 
 type Range = { start: number; end: number };              // UTF-16 offsets in the shown text
-type Hit = Range & { termIndex: number };                 // which text term matched, for colors
+type Hit = Range & { termIndex: number; hole?: number };  // which text term matched, for colors; hole: a struct: hole's code
 
 type Preview =
   | { kind: "file"; path: string; firstLine: number; lines: string[];

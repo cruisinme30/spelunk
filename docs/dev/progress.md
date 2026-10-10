@@ -356,3 +356,33 @@ Replace says why it can't change such a match.
 - End to end in VS Code: "Opening a match across lines selects all of it" in `extension/src/e2e/commands.test.ts`.
 - Built: `docs/dev/proof/multiline-regex.png`, from
   `node scripts/screenshotPanel.mjs --query '/for attempt in .*:\n\s*try:/' --setting results.contextLines=1`.
+
+## Structural search (1.2)
+
+Mock 40 (`structural-search`). Exit gate: `struct:"…"` takes a template of code with `:[holes]` and finds code of that
+shape in current files, read by each file's language, so a call is found however its arguments are laid out over
+lines, and code in comments and strings that looks like it is not. Each match is one code result showing the lines it
+spans, with the template's code and each hole's code marked apart and a chip for what each hole took; the preview
+marks the same and opening it selects the whole match. Bad templates and history queries say what's wrong, Replace
+says why it can't change a template, and no template can hold a search.
+
+- Matcher: `daemon/internal/structural/` — `template_test.go` (hole names, what makes a template bad, unpaired
+  brackets, the words narrowing uses), `lex_test.go` (every language's strings and comments, unclosed quotes, escaped
+  line ends, lines and joins, Unicode words, bracket pairs), `match_test.go` (holes over lines, spaces, joined
+  punctuation, strings and comments, laziness, empty holes, repeated names, the line rule, case, overlap, limits, code
+  ranges, CRLF, the step budget and a 40,000-line file in bounded time, side-by-side use), and `FuzzLex` and
+  `FuzzFind` (ran for a minute each: tokens in order, matches apart and inside the text, and every match holding the
+  template's words, which keeps narrowing sound).
+- Query: `daemon/internal/query/structural_test.go` (the text term, bad values in words, the history error, the
+  lowered term and its narrowing literal, plain-text Find methods, `word:yes`).
+- Current files: `daemon/internal/trigram/structure_test.go` (marks and hole values across lines, the one-line
+  selection, squeezed and cut values, joined matches, NOT, `lang:`, `f:`, `case:`, file names, CRLF, context, the
+  preview, a slow template), the fixture query in `designs_test.go`, `TestAStructMatchRoundTrips` in
+  `daemon/internal/server/search_test.go` (search, preview and open over JSON-RPC), and the replace refusal in
+  `replace_test.go`.
+- Panel: `webview/test/structuralSearch.test.mjs` (rows, hole colors and chips, the chip label, the preview, Replace,
+  the sheet's insert), the `.*` toggle in `queryEdit.test.mjs`, and the sheet's example over the fixture in
+  `extension/src/test/helpExamples.test.ts`.
+- End to end in VS Code: "Opening a struct: match selects all of it" in `extension/src/e2e/commands.test.ts`.
+- Built: `docs/dev/proof/structural-search.png`, from
+  `node scripts/screenshotPanel.mjs --query 'struct:"backoff(:[call], tries=:[n])"'`.
