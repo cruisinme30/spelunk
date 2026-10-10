@@ -47,4 +47,5 @@ covered.
 | 37 | `-is:generated` / `-is:vendored` leave tool-written and third-party files out | `generated-vendored` | `GeneratedVendored` | 1.2 |
 | 38 | Query watches: a bell on a pinned history query; new matching commits get a count, a notification and a New tag | `query-watches` | `QueryWatches` | 1.2 |
 | 39 | Multiline regex: a regex with `\n` matches across lines, one result per match | `multiline-regex` | `MultilineRegex` | 1.2 |
+| 40 | `struct:` finds code by its shape: a template's holes take any code, over lines | `structural-search` | `Structural` | 1.2 |
 | 42 | `owner:` keeps the files a team owns in CODEOWNERS | `owner-filter` | `OwnerFilter` | 1.2 |

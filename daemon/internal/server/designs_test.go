@@ -101,6 +101,15 @@ func TestDesignQueriesFindWhatTheDesignsShow(t *testing.T) {
 			},
 			hidden: []string{"type:type:file:17"},
 		},
+		{
+			// @covers screen:structural-search op:struct
+			screen: "structural-search", query: `struct:"backoff(:[call], tries=:[n])"`,
+			want: []string{
+				"shared-libs/http/webhooks.py:7",  // over three lines
+				"shared-libs/http/webhooks.py:13", // over two
+				"shared-libs/http/webhooks.py:19", // not the comment on 6 or the string on 18
+			},
+		},
 	}
 	client := newTestClient(t)
 	batches := collectBatches(client)
