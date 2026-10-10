@@ -57,6 +57,12 @@ func TestAtPlansTheRevisionOrTheTimeItEnds(t *testing.T) {
 			t.Errorf("at:%s plans At %q AtTime %v, want AtTime %v", value, plan.At, plan.AtTime, want)
 		}
 	}
+	for _, value := range []string{"6m", "today", "2026-01-31"} {
+		// Quoted, the value names a branch or tag, as asRevision reads it.
+		if plan := mustPlan(t, `at:"`+value+`" retry`, defaultSettings); plan.At != value || !plan.AtTime.IsZero() {
+			t.Errorf(`at:"%s" plans At %q AtTime %v, want the name and no time`, value, plan.At, plan.AtTime)
+		}
+	}
 	if plan := mustPlan(t, "retry", defaultSettings); plan.At != "" || !plan.AtTime.IsZero() {
 		t.Errorf("a plan without at: has At %q AtTime %v", plan.At, plan.AtTime)
 	}

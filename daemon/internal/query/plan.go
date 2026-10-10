@@ -320,10 +320,10 @@ func NewPlan(q protocol.ParsedQuery, settings protocol.Settings, now time.Time, 
 		plan.WholeWord = q.Globals.Word == "yes"
 	}
 	plan.Order = resultOrder(q.Globals.Order, settings.Order)
-	plan.At, plan.AtTime = revisionOf(q.Globals.At, now)
+	src := newSource(q.Raw)
+	plan.At, plan.AtTime = revisionOf(q.Globals.At, atQuoted(q.Root, src), now)
 
 	l := lowering{caseSensitive: plan.CaseSensitive, wholeWord: plan.WholeWord, now: now, plan: plan, nextRefIndex: textTermCount(q.Root)}
-	src := newSource(q.Raw)
 	for _, node := range topLevel(q.Root) {
 		pred := l.lower(node)
 		if pred == nil { // a global: case:, word:, count:, type: or order:
@@ -513,9 +513,10 @@ func timeLimit(ms int) time.Duration {
 
 // revisionOf is the revision an at: value names, and, when it names a time,
 // when that time ends: at most now, since the end of today is the files
-// as they are by now.
-func revisionOf(at string, now time.Time) (string, time.Time) {
-	if at == "" || !atTime(at) {
+// as they are by now. A quoted value is always a revision, as asRevision
+// reads it: at:"6m" is a branch or tag called 6m.
+func revisionOf(at string, quoted bool, now time.Time) (string, time.Time) {
+	if at == "" || quoted || !atTime(at) {
 		return at, time.Time{}
 	}
 	end := until(now, at)
@@ -523,6 +524,19 @@ func revisionOf(at string, now time.Time) (string, time.Time) {
 		end = now
 	}
 	return at, end
+}
+
+// atQuoted reports whether the query's top-level at: value is written in
+// quotes. Globals keep only the value, so this reads how it was written.
+func atQuoted(root *protocol.Node, src *source) bool {
+	for _, node := range topLevel(root) {
+		if node.Kind == protocol.NodeKindOp && node.Op == protocol.OpNameAt {
+			written := src.slice(node.Span.Start, node.Span.End)
+			colon := strings.IndexByte(written, ':')
+			return colon >= 0 && strings.HasPrefix(written[colon+1:], `"`)
+		}
+	}
+	return false
 }
 
 // resultKinds decides which kinds of result the query returns.
