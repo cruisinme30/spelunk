@@ -87,7 +87,7 @@ func TestBestMatchPutsDefinitionsAndNamesFirstAndTestsVendoredAndGeneratedLast(t
 }
 
 func TestOrderPathKeepsResultsInPathOrder(t *testing.T) {
-	// @covers op:order setting:order
+	// @covers op:order setting:results.order
 	byOperator, _ := runItems(t, "order:path retry", bestMatchSettings, "", rankedRepo())
 	bySetting, _ := runItems(t, "retry", defaultSettings, "", rankedRepo())
 	want := []string{

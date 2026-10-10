@@ -67,10 +67,11 @@ Pins live in `spelunk.ui.pinnedQueries`, so they sync with your settings, and a 
 
 ## Settings
 
-Search for "Spelunk" in Settings. The most useful ones:
+Search for "Spelunk" in Settings, where they're grouped as Shortcut, Search, Results, Opening results, Indexing,
+Display and Watches. The most useful ones:
 
 - `spelunk.shortcut.preset`: which key opens the panel.
-- `spelunk.caseSensitive`: `off`, `on`, or `smart` to match case only when the query has a capital letter.
+- `spelunk.search.caseSensitive`: `off`, `on`, or `smart` to match case only when the query has a capital letter.
 - `spelunk.index.exclude`: glob patterns never indexed (by default `vendor`, `node_modules` and `*.min.js`).
   History keeps these files' line counts but not their lines.
 - `spelunk.index.historyDepth`: how much Git history to index: `6m`, `2y` (the default) or `all`.

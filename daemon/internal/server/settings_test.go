@@ -27,7 +27,7 @@ func updateSettings(t *testing.T, client *testClient, change func(*protocol.Sett
 }
 
 func TestChangedSettingsTakeEffectWithoutARestart(t *testing.T) {
-	// @covers rpc:settings/update screen:settings setting:caseSensitive setting:defaultCount
+	// @covers rpc:settings/update screen:settings setting:search.caseSensitive setting:results.count
 	root := testutil.WriteTree(t, map[string]string{
 		"src/a.py": "retry = 1\nRetry = 2\n",
 		"gen/b.py": "retry = 3\n",

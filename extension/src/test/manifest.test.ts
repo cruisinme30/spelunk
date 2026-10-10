@@ -1,4 +1,4 @@
-// The extension manifest: the keys each shortcut preset binds.
+// The extension manifest: the keys each shortcut preset binds, and how settings are grouped.
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -14,11 +14,16 @@ interface Keybinding {
 interface Manifest {
   contributes: {
     keybindings: Keybinding[];
-    configuration: { properties: Record<string, { enum?: string[] }> };
+    configuration: { title: string; properties: Record<string, { enum?: string[]; deprecationMessage?: string }> }[];
   };
 }
 
 const manifest = JSON.parse(readFileSync(join(__dirname, "../package.json"), "utf8")) as Manifest;
+
+/** The setting key declares, from whichever section holds it. */
+function setting(key: string): { enum?: string[] } | undefined {
+  return manifest.contributes.configuration.find((section) => key in section.properties)?.properties[key];
+}
 
 /** The "command key/mac" pairs bound while a preset is chosen. */
 function boundFor(preset: string): string[] {
@@ -29,7 +34,7 @@ function boundFor(preset: string): string[] {
 
 test("each shortcut preset binds its keys, and none binds nothing", () => {
   // @covers setting:shortcut.preset
-  const presets = manifest.contributes.configuration.properties["spelunk.shortcut.preset"]?.enum;
+  const presets = setting("spelunk.shortcut.preset")?.enum;
   assert.deepEqual(presets, ["quickOpen", "findInFiles", "none"]);
   assert.deepEqual(boundFor("quickOpen"), [
     "spelunk.open ctrl+p/cmd+p",
@@ -37,4 +42,17 @@ test("each shortcut preset binds its keys, and none binds nothing", () => {
   ]);
   assert.deepEqual(boundFor("findInFiles"), ["spelunk.open ctrl+shift+f/cmd+shift+f"]);
   assert.deepEqual(boundFor("none"), []);
+});
+
+test("settings are grouped in sections, each key under the section its name starts with, or moved there", () => {
+  const sections = manifest.contributes.configuration;
+  assert.deepEqual(
+    sections.map((section) => section.title),
+    ["Shortcut", "Search", "Results", "Opening results", "Indexing", "Display", "Watches"],
+  );
+  for (const section of sections) {
+    const current = Object.entries(section.properties).filter(([, property]) => !property.deprecationMessage);
+    const prefixes = new Set(current.map(([key]) => key.split(".").slice(0, 2).join(".")));
+    assert.equal(prefixes.size, 1, `${section.title} mixes ${[...prefixes].join(", ")}`);
+  }
 });

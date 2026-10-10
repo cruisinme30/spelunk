@@ -17,7 +17,7 @@ import {
 useBrowser();
 
 test("the panel waits typingDelayMs after the last keystroke before it asks for a search", async (t) => {
-  // @covers setting:typingDelayMs
+  // @covers setting:search.typingDelayMs
   const page = await openPanel(t);
   await restore(page, [], { typingDelayMs: 300 });
   await page.fill(QUERY, "retry");

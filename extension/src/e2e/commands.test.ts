@@ -214,6 +214,21 @@ const TESTS: [name: string, run: () => Promise<void>][] = [
     },
   ],
   [
+    "A setting saved under its old key moves to its section",
+    async () => {
+      // @covers setting:results.count
+      const config = () => vscode.workspace.getConfiguration("spelunk");
+      const global = vscode.ConfigurationTarget.Global;
+      await config().update("defaultCount", 42, global);
+      await poll(
+        "the value to move to results.count",
+        () => [config().inspect("results.count")?.globalValue, config().inspect("defaultCount")?.globalValue],
+        ([moved, old]) => moved === 42 && old === undefined,
+      );
+      await config().update("results.count", undefined, global);
+    },
+  ],
+  [
     "Restart Search restarts the daemon and search keeps working",
     async () => {
       // @covers command:restartDaemon

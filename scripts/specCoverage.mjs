@@ -42,7 +42,12 @@ add("rpc", Object.keys(schema["x-rpc-methods"]));
 add("msg", Object.keys(schema["x-webview-messages"]));
 add(
   "setting",
-  Object.keys(manifest.contributes.configuration.properties).map((key) => withoutPrefix(key)),
+  // A deprecated key only says where its setting moved; the new key is the one tests prove.
+  manifest.contributes.configuration.flatMap((section) =>
+    Object.entries(section.properties)
+      .filter(([, property]) => !property.deprecationMessage)
+      .map(([key]) => withoutPrefix(key)),
+  ),
 );
 add(
   "command",

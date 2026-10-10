@@ -81,7 +81,7 @@ declare module "vscode" {
   }
 
   export interface WorkspaceFolder { readonly uri: Uri; readonly name: string; readonly index: number }
-  export interface WorkspaceConfiguration { get<T>(section: string): T | undefined; get<T>(section: string, defaultValue: T): T; update(section: string, value: unknown, target?: ConfigurationTarget | boolean): Thenable<void>; inspect<T>(section: string): { key: string; defaultValue?: T; globalValue?: T; workspaceValue?: T } | undefined }
+  export interface WorkspaceConfiguration { get<T>(section: string): T | undefined; get<T>(section: string, defaultValue: T): T; update(section: string, value: unknown, target?: ConfigurationTarget | boolean): Thenable<void>; inspect<T>(section: string): { key: string; defaultValue?: T; globalValue?: T; workspaceValue?: T; workspaceFolderValue?: T } | undefined }
   export interface ConfigurationChangeEvent { affectsConfiguration(section: string): boolean }
   export interface FileSystemWatcher extends Disposable { onDidChange: Event<Uri>; onDidCreate: Event<Uri>; onDidDelete: Event<Uri> }
   export interface WorkspaceFoldersChangeEvent { readonly added: readonly WorkspaceFolder[]; readonly removed: readonly WorkspaceFolder[] }

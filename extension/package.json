@@ -114,279 +114,358 @@
         "when": "spelunk.hasResults && !searchViewletFocus"
       }
     ],
-    "configuration": {
-      "title": "Spelunk",
-      "properties": {
-        "spelunk.shortcut.preset": {
-          "type": "string",
-          "enum": [
-            "quickOpen",
-            "findInFiles",
-            "none"
-          ],
-          "default": "quickOpen",
-          "scope": "application",
-          "enumDescriptions": [
-            "⌘P / Ctrl+P opens Spelunk; Quick Open moves to ⌥⌘P / Ctrl+Alt+P.",
-            "⇧⌘F / Ctrl+Shift+F opens Spelunk; Quick Open is unchanged.",
-            "No default shortcut. Bind spelunk.open yourself."
-          ],
-          "description": "Which key opens Spelunk."
-        },
-        "spelunk.caseSensitive": {
-          "type": "string",
-          "enum": [
-            "off",
-            "on",
-            "smart"
-          ],
-          "default": "off",
-          "scope": "resource",
-          "enumDescriptions": [
-            "Ignore case: retry also finds Retry and RETRY.",
-            "Match case: retry finds only retry.",
-            "Match case only when the query has a capital letter: retry finds Retry, but RetryPolicy doesn't find retrypolicy."
-          ],
-          "description": "How capital letters match by default. A case: operator in the query always wins."
-        },
-        "spelunk.wholeWord": {
-          "type": "boolean",
-          "default": false,
-          "scope": "resource",
-          "description": "Match whole words by default, so retry doesn't match retryCount. A word: operator in the query always wins."
-        },
-        "spelunk.defaultCount": {
-          "type": "integer",
-          "default": 500,
-          "minimum": 1,
-          "maximum": 50000,
-          "scope": "resource",
-          "description": "Results per page when the query has no count: operator."
-        },
-        "spelunk.order": {
-          "type": "string",
-          "enum": [
-            "best",
-            "path"
-          ],
-          "enumDescriptions": [
-            "Best match first: definitions and file-name matches first; tests, vendored and generated files last.",
-            "Repo by repo, then by path, then by line."
-          ],
-          "default": "best",
-          "scope": "resource",
-          "description": "How results from current files are sorted when the query has no order: operator. Commits are always newest first."
-        },
-        "spelunk.results.contextLines": {
-          "type": "integer",
-          "default": 0,
-          "minimum": 0,
-          "maximum": 3,
-          "scope": "resource",
-          "description": "Lines to show above and below each code match in the results, from 0 to 3. The Context buttons in the Code heading set it too."
-        },
-        "spelunk.typingDelayMs": {
-          "type": "integer",
-          "default": 120,
-          "minimum": 0,
-          "maximum": 1000,
-          "scope": "application",
-          "description": "Milliseconds to wait after a keystroke before searching."
-        },
-        "spelunk.search.timeLimitMs": {
-          "type": "integer",
-          "default": 2000,
-          "minimum": 100,
-          "maximum": 60000,
-          "scope": "resource",
-          "description": "How long one search may run, in milliseconds, before it shows what it found so far and says the results are truncated. Raise it for very large workspaces."
-        },
-        "spelunk.open.trigger": {
-          "type": "string",
-          "enum": [
-            "doubleClick",
-            "singleClick"
-          ],
-          "default": "doubleClick",
-          "scope": "application",
-          "description": "Whether a single click or a double click opens a result. A single click always previews."
-        },
-        "spelunk.open.preview": {
-          "type": "boolean",
-          "default": true,
-          "scope": "application",
-          "description": "Open results in a preview editor that the next result replaces."
-        },
-        "spelunk.open.closeOnOpen": {
-          "type": "boolean",
-          "default": true,
-          "scope": "application",
-          "description": "Hide the search panel after opening a result, except to the side. F4 keeps stepping through the results."
-        },
-        "spelunk.ui.previewContextLines": {
-          "type": "integer",
-          "default": 7,
-          "minimum": 0,
-          "maximum": 100,
-          "scope": "resource",
-          "description": "Lines the file preview shows above and below the selected match."
-        },
-        "spelunk.index.historyDepth": {
-          "type": "string",
-          "enum": [
-            "6m",
-            "2y",
-            "all"
-          ],
-          "default": "2y",
-          "scope": "resource",
-          "enumDescriptions": [
-            "Last 6 months",
-            "Last 2 years",
-            "Everything"
-          ],
-          "description": "How much Git history to index for author:, msg: and history search."
-        },
-        "spelunk.index.symbols": {
-          "type": "boolean",
-          "default": true,
-          "scope": "resource",
-          "description": "Index symbol definitions for symbol: (s:) and kind: (k:)."
-        },
-        "spelunk.index.exclude": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "default": [
-            "**/vendor/**",
-            "**/node_modules/**",
-            "**/*.min.js"
-          ],
-          "scope": "resource",
-          "description": "Glob patterns never indexed, in current files or in history."
-        },
-        "spelunk.index.includeIgnored": {
-          "type": "boolean",
-          "default": false,
-          "scope": "resource",
-          "description": "Also index files matched by .gitignore."
-        },
-        "spelunk.index.maxFileSizeKB": {
-          "type": "integer",
-          "default": 1024,
-          "minimum": 1,
-          "scope": "resource",
-          "description": "Skip files larger than this."
-        },
-        "spelunk.index.location": {
-          "type": "string",
-          "default": "~/.spelunk/index",
-          "scope": "machine",
-          "description": "Where indexes are stored. Never synced, because paths differ between computers."
-        },
-        "spelunk.index.vendoredFolders": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "default": [
-            "vendor",
-            "node_modules",
-            "third_party",
-            "dist"
-          ],
-          "scope": "resource",
-          "description": "Folder names, at any depth, that hold someone else's code or a build's. Their files match is:vendored and rank last."
-        },
-        "spelunk.index.generatedSuffixes": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "default": [
-            ".pb.go",
-            "_gen.go",
-            ".gen.go",
-            ".gen.ts",
-            "_pb2.py",
-            "_pb2_grpc.py",
-            "_pb2.pyi",
-            ".min.js",
-            ".min.css"
-          ],
-          "scope": "resource",
-          "description": "File name endings that mark files a tool wrote. Those files, and files with @generated or a DO NOT EDIT … generated note near the top, match is:generated and rank low."
-        },
-        "spelunk.index.codeownersFiles": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "default": [
-            ".github/CODEOWNERS",
-            "CODEOWNERS",
-            "docs/CODEOWNERS"
-          ],
-          "scope": "resource",
-          "description": "Where to look for each repo's CODEOWNERS file, relative to its root, for owner:. The first one found is used."
-        },
-        "spelunk.index.commitCheckSeconds": {
-          "type": "integer",
-          "default": 5,
-          "minimum": 1,
-          "maximum": 3600,
-          "scope": "resource",
-          "description": "How often, in seconds, to check Git for new commits, so history search and watches see them."
-        },
-        "spelunk.ui.showParsedQuery": {
-          "type": "boolean",
-          "default": true,
-          "scope": "application",
-          "description": "Show the parsed query as chips under the search box."
-        },
-        "spelunk.ui.recentQueries": {
-          "type": "integer",
-          "default": 20,
-          "minimum": 0,
-          "maximum": 100,
-          "scope": "application",
-          "description": "How many recent queries to remember."
-        },
-        "spelunk.ui.pinnedQueries": {
-          "type": "array",
-          "default": [],
-          "scope": "window",
-          "items": {
-            "type": "object",
-            "properties": {
-              "query": {
-                "type": "string",
-                "description": "The query, as typed in the search box."
-              },
-              "name": {
-                "type": "string",
-                "description": "What the empty box calls it; the query itself when left out."
-              },
-              "watch": {
-                "type": "boolean",
-                "description": "Tell me when new commits match it (history queries only): the bell in the empty box."
-              }
-            },
-            "required": [
-              "query"
+    "configuration": [
+      {
+        "id": "spelunk.shortcut",
+        "title": "Shortcut",
+        "order": 1,
+        "properties": {
+          "spelunk.shortcut.preset": {
+            "type": "string",
+            "enum": [
+              "quickOpen",
+              "findInFiles",
+              "none"
             ],
-            "additionalProperties": false
+            "default": "quickOpen",
+            "scope": "application",
+            "enumDescriptions": [
+              "⌘P / Ctrl+P opens Spelunk; Quick Open moves to ⌥⌘P / Ctrl+Alt+P.",
+              "⇧⌘F / Ctrl+Shift+F opens Spelunk; Quick Open is unchanged.",
+              "No default shortcut. Bind spelunk.open yourself."
+            ],
+            "description": "Which key opens Spelunk."
+          }
+        }
+      },
+      {
+        "id": "spelunk.search",
+        "title": "Search",
+        "order": 2,
+        "properties": {
+          "spelunk.search.caseSensitive": {
+            "type": "string",
+            "enum": [
+              "off",
+              "on",
+              "smart"
+            ],
+            "default": "off",
+            "scope": "resource",
+            "enumDescriptions": [
+              "Ignore case: retry also finds Retry and RETRY.",
+              "Match case: retry finds only retry.",
+              "Match case only when the query has a capital letter: retry finds Retry, but RetryPolicy doesn't find retrypolicy."
+            ],
+            "description": "How capital letters match by default. A case: operator in the query always wins."
           },
-          "description": "Queries starred in the empty box, top first, each with an optional name. Set it in a workspace's settings to share the pins with everyone who opens the workspace; pinning then saves there."
-        },
-        "spelunk.watch.notify": {
-          "type": "boolean",
-          "default": true,
-          "scope": "window",
-          "description": "Pop up a notification when new commits by others match a watched pinned query. Off, the pin's count of new commits still shows in the empty box."
+          "spelunk.search.wholeWord": {
+            "type": "boolean",
+            "default": false,
+            "scope": "resource",
+            "description": "Match whole words by default, so retry doesn't match retryCount. A word: operator in the query always wins."
+          },
+          "spelunk.search.typingDelayMs": {
+            "type": "integer",
+            "default": 120,
+            "minimum": 0,
+            "maximum": 1000,
+            "scope": "application",
+            "description": "Milliseconds to wait after a keystroke before searching."
+          },
+          "spelunk.search.timeLimitMs": {
+            "type": "integer",
+            "default": 2000,
+            "minimum": 100,
+            "maximum": 60000,
+            "scope": "resource",
+            "description": "How long one search may run, in milliseconds, before it shows what it found so far and says the results are truncated. Raise it for very large workspaces."
+          },
+          "spelunk.caseSensitive": {
+            "type": [
+              "string",
+              "boolean"
+            ],
+            "scope": "resource",
+            "deprecationMessage": "Moved to spelunk.search.caseSensitive. Spelunk moves a value saved here when it starts.",
+            "markdownDeprecationMessage": "Moved to `#spelunk.search.caseSensitive#`. Spelunk moves a value saved here when it starts."
+          },
+          "spelunk.wholeWord": {
+            "type": "boolean",
+            "scope": "resource",
+            "deprecationMessage": "Moved to spelunk.search.wholeWord. Spelunk moves a value saved here when it starts.",
+            "markdownDeprecationMessage": "Moved to `#spelunk.search.wholeWord#`. Spelunk moves a value saved here when it starts."
+          },
+          "spelunk.typingDelayMs": {
+            "type": "integer",
+            "scope": "resource",
+            "deprecationMessage": "Moved to spelunk.search.typingDelayMs. Spelunk moves a value saved here when it starts.",
+            "markdownDeprecationMessage": "Moved to `#spelunk.search.typingDelayMs#`. Spelunk moves a value saved here when it starts."
+          }
+        }
+      },
+      {
+        "id": "spelunk.results",
+        "title": "Results",
+        "order": 3,
+        "properties": {
+          "spelunk.results.count": {
+            "type": "integer",
+            "default": 500,
+            "minimum": 1,
+            "maximum": 50000,
+            "scope": "resource",
+            "description": "Results per page when the query has no count: operator."
+          },
+          "spelunk.results.order": {
+            "type": "string",
+            "enum": [
+              "best",
+              "path"
+            ],
+            "enumDescriptions": [
+              "Best match first: definitions and file-name matches first; tests, vendored and generated files last.",
+              "Repo by repo, then by path, then by line."
+            ],
+            "default": "best",
+            "scope": "resource",
+            "description": "How results from current files are sorted when the query has no order: operator. Commits are always newest first."
+          },
+          "spelunk.results.contextLines": {
+            "type": "integer",
+            "default": 0,
+            "minimum": 0,
+            "maximum": 3,
+            "scope": "resource",
+            "description": "Lines to show above and below each code match in the results, from 0 to 3. The Context buttons in the Code heading set it too."
+          },
+          "spelunk.defaultCount": {
+            "type": "integer",
+            "scope": "resource",
+            "deprecationMessage": "Moved to spelunk.results.count. Spelunk moves a value saved here when it starts.",
+            "markdownDeprecationMessage": "Moved to `#spelunk.results.count#`. Spelunk moves a value saved here when it starts."
+          },
+          "spelunk.order": {
+            "type": "string",
+            "scope": "resource",
+            "deprecationMessage": "Moved to spelunk.results.order. Spelunk moves a value saved here when it starts.",
+            "markdownDeprecationMessage": "Moved to `#spelunk.results.order#`. Spelunk moves a value saved here when it starts."
+          }
+        }
+      },
+      {
+        "id": "spelunk.open",
+        "title": "Opening results",
+        "order": 4,
+        "properties": {
+          "spelunk.open.trigger": {
+            "type": "string",
+            "enum": [
+              "doubleClick",
+              "singleClick"
+            ],
+            "default": "doubleClick",
+            "scope": "application",
+            "description": "Whether a single click or a double click opens a result. A single click always previews."
+          },
+          "spelunk.open.preview": {
+            "type": "boolean",
+            "default": true,
+            "scope": "application",
+            "description": "Open results in a preview editor that the next result replaces."
+          },
+          "spelunk.open.closeOnOpen": {
+            "type": "boolean",
+            "default": true,
+            "scope": "application",
+            "description": "Hide the search panel after opening a result, except to the side. F4 keeps stepping through the results."
+          }
+        }
+      },
+      {
+        "id": "spelunk.index",
+        "title": "Indexing",
+        "order": 5,
+        "properties": {
+          "spelunk.index.historyDepth": {
+            "type": "string",
+            "enum": [
+              "6m",
+              "2y",
+              "all"
+            ],
+            "default": "2y",
+            "scope": "resource",
+            "enumDescriptions": [
+              "Last 6 months",
+              "Last 2 years",
+              "Everything"
+            ],
+            "description": "How much Git history to index for author:, msg: and history search."
+          },
+          "spelunk.index.symbols": {
+            "type": "boolean",
+            "default": true,
+            "scope": "resource",
+            "description": "Index symbol definitions for symbol: (s:) and kind: (k:)."
+          },
+          "spelunk.index.exclude": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "default": [
+              "**/vendor/**",
+              "**/node_modules/**",
+              "**/*.min.js"
+            ],
+            "scope": "resource",
+            "description": "Glob patterns never indexed, in current files or in history."
+          },
+          "spelunk.index.includeIgnored": {
+            "type": "boolean",
+            "default": false,
+            "scope": "resource",
+            "description": "Also index files matched by .gitignore."
+          },
+          "spelunk.index.maxFileSizeKB": {
+            "type": "integer",
+            "default": 1024,
+            "minimum": 1,
+            "scope": "resource",
+            "description": "Skip files larger than this."
+          },
+          "spelunk.index.location": {
+            "type": "string",
+            "default": "~/.spelunk/index",
+            "scope": "machine",
+            "description": "Where indexes are stored. Never synced, because paths differ between computers."
+          },
+          "spelunk.index.vendoredFolders": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "default": [
+              "vendor",
+              "node_modules",
+              "third_party",
+              "dist"
+            ],
+            "scope": "resource",
+            "description": "Folder names, at any depth, that hold someone else's code or a build's. Their files match is:vendored and rank last."
+          },
+          "spelunk.index.generatedSuffixes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "default": [
+              ".pb.go",
+              "_gen.go",
+              ".gen.go",
+              ".gen.ts",
+              "_pb2.py",
+              "_pb2_grpc.py",
+              "_pb2.pyi",
+              ".min.js",
+              ".min.css"
+            ],
+            "scope": "resource",
+            "description": "File name endings that mark files a tool wrote. Those files, and files with @generated or a DO NOT EDIT … generated note near the top, match is:generated and rank low."
+          },
+          "spelunk.index.codeownersFiles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "default": [
+              ".github/CODEOWNERS",
+              "CODEOWNERS",
+              "docs/CODEOWNERS"
+            ],
+            "scope": "resource",
+            "description": "Where to look for each repo's CODEOWNERS file, relative to its root, for owner:. The first one found is used."
+          },
+          "spelunk.index.commitCheckSeconds": {
+            "type": "integer",
+            "default": 5,
+            "minimum": 1,
+            "maximum": 3600,
+            "scope": "resource",
+            "description": "How often, in seconds, to check Git for new commits, so history search and watches see them."
+          }
+        }
+      },
+      {
+        "id": "spelunk.ui",
+        "title": "Display",
+        "order": 6,
+        "properties": {
+          "spelunk.ui.showParsedQuery": {
+            "type": "boolean",
+            "default": true,
+            "scope": "application",
+            "description": "Show the parsed query as chips under the search box."
+          },
+          "spelunk.ui.recentQueries": {
+            "type": "integer",
+            "default": 20,
+            "minimum": 0,
+            "maximum": 100,
+            "scope": "application",
+            "description": "How many recent queries to remember."
+          },
+          "spelunk.ui.previewContextLines": {
+            "type": "integer",
+            "default": 7,
+            "minimum": 0,
+            "maximum": 100,
+            "scope": "resource",
+            "description": "Lines the file preview shows above and below the selected match."
+          },
+          "spelunk.ui.pinnedQueries": {
+            "type": "array",
+            "default": [],
+            "scope": "window",
+            "items": {
+              "type": "object",
+              "properties": {
+                "query": {
+                  "type": "string",
+                  "description": "The query, as typed in the search box."
+                },
+                "name": {
+                  "type": "string",
+                  "description": "What the empty box calls it; the query itself when left out."
+                },
+                "watch": {
+                  "type": "boolean",
+                  "description": "Tell me when new commits match it (history queries only): the bell in the empty box."
+                }
+              },
+              "required": [
+                "query"
+              ],
+              "additionalProperties": false
+            },
+            "description": "Queries starred in the empty box, top first, each with an optional name. Set it in a workspace's settings to share the pins with everyone who opens the workspace; pinning then saves there."
+          }
+        }
+      },
+      {
+        "id": "spelunk.watch",
+        "title": "Watches",
+        "order": 7,
+        "properties": {
+          "spelunk.watch.notify": {
+            "type": "boolean",
+            "default": true,
+            "scope": "window",
+            "description": "Pop up a notification when new commits by others match a watched pinned query. Off, the pin's count of new commits still shows in the empty box."
+          }
         }
       }
-    }
+    ]
   }
 }

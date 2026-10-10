@@ -503,31 +503,45 @@ a migration.
 Everything users configure is declared in `package.json`, so VS Code provides the Settings UI, `settings.json`, settings
 sync and per-workspace overrides. The extension builds no settings screen of its own.
 
-**Settings** (`contributes.configuration`)
+**Settings** (`contributes.configuration`), in one section each, so the Settings UI lists them as Shortcut, Search,
+Results, Opening results, Indexing, Display and Watches. A key belongs to the section its name starts with.
 
-| Key | Type | Default | Scope |
-| --- | --- | --- | --- |
-| `spelunk.shortcut.preset` | `"quickOpen"` \| `"findInFiles"` \| `"none"` | `"quickOpen"` | application |
-| `spelunk.caseSensitive` | `"off"` \| `"on"` \| `"smart"` | `"off"` | resource |
-| `spelunk.defaultCount` | integer, 1–50000 | `500` | resource |
-| `spelunk.typingDelayMs` | integer, 0–1000 | `120` | application |
-| `spelunk.open.trigger` | `"doubleClick"` \| `"singleClick"` | `"doubleClick"` | application |
-| `spelunk.open.preview` | boolean | `true` | application |
-| `spelunk.open.closeOnOpen` | boolean | `true` | application |
-| `spelunk.index.historyDepth` | `"6m"` \| `"2y"` \| `"all"` | `"2y"` | resource |
-| `spelunk.index.symbols` | boolean | `true` | resource |
-| `spelunk.index.exclude` | string\[\] of globs | `["**/vendor/**", "**/node_modules/**", "**/*.min.js"]` | resource |
-| `spelunk.index.includeIgnored` | boolean | `false` | resource |
-| `spelunk.index.maxFileSizeKB` | integer | `1024` | resource |
-| `spelunk.index.location` | string, path | `~/.spelunk/index` | machine |
-| `spelunk.ui.showParsedQuery` | boolean | `true` | application |
-| `spelunk.ui.recentQueries` | integer, 0–100 | `20` | application |
-| `spelunk.ui.pinnedQueries` | `{ query, name?, watch? }[]` | `[]` | window |
-| `spelunk.watch.notify` | boolean | `true` | window |
-| `spelunk.results.contextLines` | integer, 0–3 | `0` | resource |
+| Section | Key | Type | Default | Scope |
+| --- | --- | --- | --- | --- |
+| Shortcut | `spelunk.shortcut.preset` | `"quickOpen"` \| `"findInFiles"` \| `"none"` | `"quickOpen"` | application |
+| Search | `spelunk.search.caseSensitive` | `"off"` \| `"on"` \| `"smart"` | `"off"` | resource |
+| Search | `spelunk.search.wholeWord` | boolean | `false` | resource |
+| Search | `spelunk.search.typingDelayMs` | integer, 0–1000 | `120` | application |
+| Search | `spelunk.search.timeLimitMs` | integer, 100–60000 | `2000` | resource |
+| Results | `spelunk.results.count` | integer, 1–50000 | `500` | resource |
+| Results | `spelunk.results.order` | `"best"` \| `"path"` | `"best"` | resource |
+| Results | `spelunk.results.contextLines` | integer, 0–3 | `0` | resource |
+| Opening results | `spelunk.open.trigger` | `"doubleClick"` \| `"singleClick"` | `"doubleClick"` | application |
+| Opening results | `spelunk.open.preview` | boolean | `true` | application |
+| Opening results | `spelunk.open.closeOnOpen` | boolean | `true` | application |
+| Indexing | `spelunk.index.historyDepth` | `"6m"` \| `"2y"` \| `"all"` | `"2y"` | resource |
+| Indexing | `spelunk.index.symbols` | boolean | `true` | resource |
+| Indexing | `spelunk.index.exclude` | string\[\] of globs | `["**/vendor/**", "**/node_modules/**", "**/*.min.js"]` | resource |
+| Indexing | `spelunk.index.includeIgnored` | boolean | `false` | resource |
+| Indexing | `spelunk.index.maxFileSizeKB` | integer, at least 1 | `1024` | resource |
+| Indexing | `spelunk.index.location` | string, path | `"~/.spelunk/index"` | machine |
+| Indexing | `spelunk.index.vendoredFolders` | string\[\] | `["vendor", "node_modules", "third_party", "dist"]` | resource |
+| Indexing | `spelunk.index.generatedSuffixes` | string\[\] | `[".pb.go", "_gen.go", ".gen.go", ".gen.ts", "_pb2.py", "_pb2_grpc.py", "_pb2.pyi", ".min.js", ".min.css"]` | resource |
+| Indexing | `spelunk.index.codeownersFiles` | string\[\] | `[".github/CODEOWNERS", "CODEOWNERS", "docs/CODEOWNERS"]` | resource |
+| Indexing | `spelunk.index.commitCheckSeconds` | integer, 1–3600 | `5` | resource |
+| Display | `spelunk.ui.showParsedQuery` | boolean | `true` | application |
+| Display | `spelunk.ui.recentQueries` | integer, 0–100 | `20` | application |
+| Display | `spelunk.ui.previewContextLines` | integer, 0–100 | `7` | resource |
+| Display | `spelunk.ui.pinnedQueries` | `{ query, name?, watch? }[]` | `[]` | window |
+| Watches | `spelunk.watch.notify` | boolean | `true` | window |
 
 `resource` settings can differ per repo through `.vscode/settings.json`. `machine` settings never sync, because index
 paths differ between computers.
+
+Five keys moved into their sections: `spelunk.caseSensitive`, `spelunk.wholeWord` and `spelunk.typingDelayMs` to
+`spelunk.search.*`, and `spelunk.defaultCount` and `spelunk.order` to `spelunk.results.count` and `spelunk.results.order`.
+The old keys stay declared, deprecated, and the extension moves a value saved under one, at every scope, when it starts
+or when the value appears (a value already under the new key wins).
 
 **Commands** (`contributes.commands`)
 

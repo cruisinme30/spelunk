@@ -37,7 +37,8 @@ import { makeRoot } from "./roots";
 import {
   closeOnOpen,
   daemonSettings,
-  migratedCaseSetting,
+  MOVED_SETTINGS,
+  movedValue,
   pinnedQueries,
   previewContextLines,
   recentQueriesLimit,
@@ -133,6 +134,8 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi {
     }),
     vscode.workspace.onDidChangeConfiguration((event) => {
       if (!event.affectsConfiguration("spelunk")) return;
+      // A value saved under an old key (by hand, or synced from an older version) moves at once.
+      if (touchesMovedSetting(event)) moveSettings().catch(logError("settings"));
       daemon.updateSettings(daemonSettings(configuration(), homedir()));
       daemon.setWatches(watchedQueries(configuration()));
       if (panel.isOpen) controller.restore(); // sends the new settings to the panel
@@ -140,7 +143,7 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi {
     }),
   );
 
-  migrateCaseSetting().catch(logError("settings"));
+  moveSettings().catch(logError("settings"));
   daemon.start().catch(logError("daemon start"));
   if (!context.globalState.get<boolean>(WELCOMED_KEY)) {
     welcome.show();
@@ -226,27 +229,37 @@ async function saveWelcomeChoice(choice: WelcomeChoice): Promise<void> {
 }
 
 /**
- * Rewrites a spelunk.caseSensitive saved as true or false, from before it
- * had a smart value, as on or off, so settings.json shows no type warning.
- * The value is read the same either way.
+ * Moves each value saved under a setting's old key (MOVED_SETTINGS) to its
+ * new key, in the user's, the workspace's and each folder's settings, and
+ * removes the old key there. A value already under the new key wins.
  */
-async function migrateCaseSetting(): Promise<void> {
+async function moveSettings(): Promise<void> {
   const targets = vscode.ConfigurationTarget;
   const scopes = [undefined, ...(vscode.workspace.workspaceFolders ?? []).map((folder) => folder.uri)];
   for (const scope of scopes) {
     const config = vscode.workspace.getConfiguration("spelunk", scope);
-    const saved = config.inspect("caseSensitive");
-    const values = scope
-      ? ([[saved?.workspaceFolderValue, targets.WorkspaceFolder]] as const)
-      : ([
-          [saved?.globalValue, targets.Global],
-          [saved?.workspaceValue, targets.Workspace],
-        ] as const);
-    for (const [value, target] of values) {
-      const migrated = migratedCaseSetting(value);
-      if (migrated) await config.update("caseSensitive", migrated, target);
+    for (const [oldKey, newKey] of Object.entries(MOVED_SETTINGS)) {
+      const old = config.inspect(oldKey);
+      const now = config.inspect(newKey);
+      const values = scope
+        ? ([[old?.workspaceFolderValue, now?.workspaceFolderValue, targets.WorkspaceFolder]] as const)
+        : ([
+            [old?.globalValue, now?.globalValue, targets.Global],
+            [old?.workspaceValue, now?.workspaceValue, targets.Workspace],
+          ] as const);
+      for (const [saved, current, target] of values) {
+        if (saved === undefined) continue;
+        const moved = movedValue(oldKey, saved, current);
+        if (moved !== undefined) await config.update(newKey, moved, target);
+        await config.update(oldKey, undefined, target);
+      }
     }
   }
+}
+
+/** Whether a settings change touched a key that has moved, so moveSettings has work. */
+function touchesMovedSetting(event: vscode.ConfigurationChangeEvent): boolean {
+  return Object.keys(MOVED_SETTINGS).some((key) => event.affectsConfiguration(`spelunk.${key}`));
 }
 
 /**

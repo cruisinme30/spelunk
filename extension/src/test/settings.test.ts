@@ -5,7 +5,8 @@ import { rootId } from "../roots";
 import {
   closeOnOpen,
   daemonSettings,
-  migratedCaseSetting,
+  MOVED_SETTINGS,
+  movedValue,
   pinnedQueries,
   previewContextLines,
   recentQueriesLimit,
@@ -25,13 +26,13 @@ test("root ids are the first 12 hex digits of sha256(path)", () => {
 });
 
 test("daemon settings clamp counts and reject unknown history depths", () => {
-  const settings = daemonSettings(configWith({ defaultCount: 999_999, "index.historyDepth": "bogus" }), "/home/u");
+  const settings = daemonSettings(configWith({ "results.count": 999_999, "index.historyDepth": "bogus" }), "/home/u");
   assert.equal(settings.defaultCount, 50_000);
   assert.equal(settings.historyDepth, "2y");
 });
 
 test("the order setting reaches both the daemon and the panel", () => {
-  const config = configWith({ order: "path" });
+  const config = configWith({ "results.order": "path" });
   assert.equal(daemonSettings(config, "/home/u").order, "path");
   assert.equal(uiSettings(config).order, "path");
 });
@@ -93,18 +94,31 @@ test("the index location expands ~ and ~/ but not ~user", () => {
   assert.equal(location("~alice/idx"), "~alice/idx");
 });
 
-test("caseSensitive is off, on or smart, and reads the boolean it used to be", () => {
-  // @covers setting:caseSensitive
+test("search.caseSensitive is off, on or smart", () => {
+  // @covers setting:search.caseSensitive
   for (const value of ["off", "on", "smart"]) {
-    assert.equal(daemonSettings(configWith({ caseSensitive: value }), "/h").caseSensitive, value);
-    assert.equal(uiSettings(configWith({ caseSensitive: value })).caseSensitive, value);
+    assert.equal(daemonSettings(configWith({ "search.caseSensitive": value }), "/h").caseSensitive, value);
+    assert.equal(uiSettings(configWith({ "search.caseSensitive": value })).caseSensitive, value);
   }
-  assert.equal(daemonSettings(configWith({ caseSensitive: true }), "/h").caseSensitive, "on");
-  assert.equal(uiSettings(configWith({ caseSensitive: false })).caseSensitive, "off");
-  assert.equal(migratedCaseSetting(true), "on");
-  assert.equal(migratedCaseSetting(false), "off");
-  assert.equal(migratedCaseSetting("smart"), undefined, "already migrated");
-  assert.equal(migratedCaseSetting(null), undefined, "not a boolean");
+  assert.equal(uiSettings(configWith({ "search.caseSensitive": true })).caseSensitive, "off", "not a value it takes");
+});
+
+test("a setting saved under its old key moves to its section, unless the new key has a value", () => {
+  assert.deepEqual(MOVED_SETTINGS, {
+    caseSensitive: "search.caseSensitive",
+    wholeWord: "search.wholeWord",
+    typingDelayMs: "search.typingDelayMs",
+    defaultCount: "results.count",
+    order: "results.order",
+  });
+  assert.equal(movedValue("defaultCount", 200), 200);
+  assert.equal(movedValue("order", "path"), "path");
+  assert.equal(movedValue("caseSensitive", "smart"), "smart");
+  assert.equal(movedValue("caseSensitive", true), "on", "the boolean it was before smart");
+  assert.equal(movedValue("caseSensitive", false), "off");
+  assert.equal(movedValue("wholeWord", false), false, "false is a value too");
+  assert.equal(movedValue("defaultCount", 200, 50), undefined, "the new key's value wins");
+  assert.equal(movedValue("defaultCount"), undefined, "nothing saved");
 });
 
 test("the welcome page shows the saved preset and index choices, and an unknown preset as the default", () => {
@@ -119,18 +133,18 @@ test("the welcome page shows the saved preset and index choices, and an unknown 
 });
 
 test("settings of the wrong type or out of range fall back to defaults the daemon accepts", () => {
-  // @covers setting:defaultCount setting:index.maxFileSizeKB setting:index.exclude setting:caseSensitive setting:wholeWord
+  // @covers setting:results.count setting:index.maxFileSizeKB setting:index.exclude setting:search.caseSensitive setting:search.wholeWord
   const wrong = configWith({
-    caseSensitive: "yes",
-    wholeWord: 1,
-    defaultCount: "lots",
+    "search.caseSensitive": "yes",
+    "search.wholeWord": 1,
+    "results.count": "lots",
     "index.symbols": 1,
     "index.exclude": "**/dist/**",
     "index.includeIgnored": null,
     "index.maxFileSizeKB": 1.5,
     "index.location": 42,
     "index.historyDepth": ["all"],
-    order: "random",
+    "results.order": "random",
     "results.contextLines": "two",
     "search.timeLimitMs": "slow",
     "index.vendoredFolders": "vendor",
@@ -168,7 +182,7 @@ test("settings of the wrong type or out of range fall back to defaults the daemo
   });
   const extremes = daemonSettings(
     configWith({
-      defaultCount: -5,
+      "results.count": -5,
       "index.maxFileSizeKB": 1e300,
       "index.exclude": ["a", 3, null, "b"],
       "index.location": "",
@@ -179,21 +193,24 @@ test("settings of the wrong type or out of range fall back to defaults the daemo
   assert.equal(extremes.maxFileSizeKB, 1024 * 1024, "kept inside the daemon's int");
   assert.deepEqual(extremes.exclude, ["a", "b"]);
   assert.equal(extremes.location, "/home/u/.spelunk/index", "an empty location means the default");
-  assert.equal(JSON.stringify(daemonSettings(configWith({ defaultCount: Number.NaN }), "/h")).includes("null"), false);
+  assert.equal(
+    JSON.stringify(daemonSettings(configWith({ "results.count": Number.NaN }), "/h")).includes("null"),
+    false,
+  );
 });
 
 test("panel settings of the wrong type fall back to their defaults", () => {
-  // @covers setting:typingDelayMs setting:open.trigger setting:ui.recentQueries
+  // @covers setting:search.typingDelayMs setting:open.trigger setting:ui.recentQueries
   const wrong = configWith({
-    typingDelayMs: "fast",
+    "search.typingDelayMs": "fast",
     "open.trigger": 2,
     "open.preview": "no",
     "ui.showParsedQuery": 0,
-    caseSensitive: "true",
-    wholeWord: "true",
+    "search.caseSensitive": "true",
+    "search.wholeWord": "true",
     "ui.recentQueries": "many",
     "open.closeOnOpen": "false",
-    order: 1,
+    "results.order": 1,
     "results.contextLines": true,
   });
   assert.deepEqual(uiSettings(wrong), {
@@ -210,7 +227,7 @@ test("panel settings of the wrong type fall back to their defaults", () => {
   assert.equal(closeOnOpen(wrong), true);
   assert.equal(recentQueriesLimit(configWith({ "ui.recentQueries": -3 })), 0);
   assert.equal(recentQueriesLimit(configWith({ "ui.recentQueries": 2.6 })), 3);
-  assert.equal(uiSettings(configWith({ typingDelayMs: Number.POSITIVE_INFINITY })).typingDelayMs, 120);
+  assert.equal(uiSettings(configWith({ "search.typingDelayMs": Number.POSITIVE_INFINITY })).typingDelayMs, 120);
 });
 
 test("pinned queries keep their order, drop bad entries and blank names, and keep a query once", () => {

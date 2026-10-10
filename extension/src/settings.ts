@@ -93,15 +93,35 @@ function boolean(value: unknown, fallback: boolean): boolean {
   return typeof value === "boolean" ? value : fallback;
 }
 
-/** caseSensitive was a boolean before it had a smart value: true is on, false is off. */
-export function migratedCaseSetting(value: unknown): CaseSetting | undefined {
-  if (typeof value !== "boolean") return undefined;
-  return value ? "on" : "off";
+/** spelunk.search.caseSensitive. */
+function caseSetting(value: unknown): CaseSetting {
+  return oneOf(value, CASE_SETTINGS, DEFAULTS.caseSensitive);
 }
 
-/** spelunk.caseSensitive, reading the boolean it used to be. */
-function caseSetting(value: unknown): CaseSetting {
-  return migratedCaseSetting(value) ?? oneOf(value, CASE_SETTINGS, DEFAULTS.caseSensitive);
+/**
+ * The settings that moved into a section, by their old key: the key each
+ * is read from now. The old keys stay declared, deprecated, so a value
+ * saved under one can be moved (see movedValue) and then removed.
+ */
+export const MOVED_SETTINGS: Readonly<Record<string, string>> = {
+  caseSensitive: "search.caseSensitive",
+  wholeWord: "search.wholeWord",
+  typingDelayMs: "search.typingDelayMs",
+  defaultCount: "results.count",
+  order: "results.order",
+};
+
+/**
+ * The value to save under a moved setting's new key, at a scope where its
+ * old key holds `old` and its new key `current`: undefined when there is
+ * nothing to move, or the new key already has a value there, which wins. A
+ * caseSensitive saved as a boolean, from before it had a smart value,
+ * moves as on or off.
+ */
+export function movedValue(oldKey: string, old?: unknown, current?: unknown): unknown {
+  if (old === undefined || current !== undefined) return undefined;
+  if (oldKey === "caseSensitive" && typeof old === "boolean") return old ? "on" : "off";
+  return old;
 }
 
 function string(value: unknown, fallback: string): string {
@@ -125,9 +145,9 @@ function expandHome(path: string, home: string): string {
 export function daemonSettings(config: ConfigReader, home: string): Settings {
   const read = (key: string, fallback: unknown) => config.get<unknown>(key, fallback);
   return {
-    caseSensitive: caseSetting(read("caseSensitive", DEFAULTS.caseSensitive)),
-    wholeWord: boolean(read("wholeWord", DEFAULTS.wholeWord), DEFAULTS.wholeWord),
-    defaultCount: clamp(read("defaultCount", DEFAULTS.defaultCount), 1, MAX_DEFAULT_COUNT, DEFAULTS.defaultCount),
+    caseSensitive: caseSetting(read("search.caseSensitive", DEFAULTS.caseSensitive)),
+    wholeWord: boolean(read("search.wholeWord", DEFAULTS.wholeWord), DEFAULTS.wholeWord),
+    defaultCount: clamp(read("results.count", DEFAULTS.defaultCount), 1, MAX_DEFAULT_COUNT, DEFAULTS.defaultCount),
     historyDepth: oneOf(read("index.historyDepth", DEFAULTS.historyDepth), HISTORY_DEPTHS, DEFAULTS.historyDepth),
     symbols: boolean(read("index.symbols", DEFAULTS.symbols), DEFAULTS.symbols),
     exclude: strings(read("index.exclude", DEFAULTS.exclude), DEFAULTS.exclude),
@@ -142,7 +162,7 @@ export function daemonSettings(config: ConfigReader, home: string): Settings {
       string(read("index.location", DEFAULTS.location), DEFAULTS.location) || DEFAULTS.location,
       home,
     ),
-    order: oneOf(read("order", DEFAULTS.order), ORDERS, DEFAULTS.order),
+    order: oneOf(read("results.order", DEFAULTS.order), ORDERS, DEFAULTS.order),
     contextLines: contextLines(config),
     timeLimitMs: clamp(
       read("search.timeLimitMs", DEFAULTS.timeLimitMs),
@@ -172,13 +192,18 @@ function contextLines(config: ConfigReader): number {
 export function uiSettings(config: ConfigReader): UiSettings {
   const read = (key: string, fallback: unknown) => config.get<unknown>(key, fallback);
   return {
-    typingDelayMs: clamp(read("typingDelayMs", DEFAULTS.typingDelayMs), 0, MAX_TYPING_DELAY_MS, DEFAULTS.typingDelayMs),
+    typingDelayMs: clamp(
+      read("search.typingDelayMs", DEFAULTS.typingDelayMs),
+      0,
+      MAX_TYPING_DELAY_MS,
+      DEFAULTS.typingDelayMs,
+    ),
     openTrigger: oneOf(read("open.trigger", DEFAULTS.openTrigger), OPEN_TRIGGERS, DEFAULTS.openTrigger),
     preview: boolean(read("open.preview", DEFAULTS.openPreview), DEFAULTS.openPreview),
     showParsedQuery: boolean(read("ui.showParsedQuery", DEFAULTS.showParsedQuery), DEFAULTS.showParsedQuery),
-    caseSensitive: caseSetting(read("caseSensitive", DEFAULTS.caseSensitive)),
-    wholeWord: boolean(read("wholeWord", DEFAULTS.wholeWord), DEFAULTS.wholeWord),
-    order: oneOf(read("order", DEFAULTS.order), ORDERS, DEFAULTS.order),
+    caseSensitive: caseSetting(read("search.caseSensitive", DEFAULTS.caseSensitive)),
+    wholeWord: boolean(read("search.wholeWord", DEFAULTS.wholeWord), DEFAULTS.wholeWord),
+    order: oneOf(read("results.order", DEFAULTS.order), ORDERS, DEFAULTS.order),
     contextLines: contextLines(config),
   };
 }

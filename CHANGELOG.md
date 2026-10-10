@@ -58,6 +58,10 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
+- Settings are grouped in VS Code's Settings as Shortcut, Search, Results, Opening results, Indexing, Display and
+  Watches, and five keys moved into their group: `spelunk.caseSensitive`, `spelunk.wholeWord` and
+  `spelunk.typingDelayMs` are now `spelunk.search.*`, and `spelunk.defaultCount` and `spelunk.order` are
+  `spelunk.results.count` and `spelunk.results.order`. A value saved under an old key moves to the new one by itself.
 - protoc's Python output (`*_pb2.py`) and any header that says `DO NOT EDIT` beside the word "generated" now count as
   generated code, so best-match ranking puts those files last too.
 

@@ -281,7 +281,7 @@ func TestCaseSensitivityComesFromCaseOrTheSetting(t *testing.T) {
 }
 
 func TestWholeWordComesFromWordOrTheSetting(t *testing.T) {
-	// @covers setting:wholeWord
+	// @covers setting:search.wholeWord
 	wholeWords := defaultSettings
 	wholeWords.WholeWord = true
 	tests := []struct {
