@@ -219,7 +219,7 @@ contain none of them:
 - the command `spelunk._testState` returns the panel state, the last results (and how many carry context lines),
   and the active editor's file and selection;
 - the command `spelunk._testPanelMessage` hands the controller a message as the search panel would send it, such as
-  a Context button's `context.set`.
+  a Context button's `context.set` or the bell's `pinned.watch`.
 
 ### Manual checklist before each release
 

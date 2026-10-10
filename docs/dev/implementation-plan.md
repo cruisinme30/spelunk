@@ -213,7 +213,8 @@ increases with each keystroke. Any response carrying an older `seq` than the new
 | `panel.close` | `{}` | Hides the panel and keeps the last query and results |
 | `help.open` / `settings.open` | `{}` | Opens the help tab, or Settings filtered to `@ext:spelunk` |
 | `pinned.save` | `{ query, name? }` | Pins the query at the end of `spelunk.ui.pinnedQueries`, or renames it if it is pinned |
-| `pinned.remove` | `{ query }` | Unpins the query |
+| `pinned.remove` | `{ query }` | Unpins the query, forgetting what its watch found |
+| `pinned.watch` | `{ query, watch }` | Starts or stops watching a pinned query for new commits (the bell): saves `watch: true` in `spelunk.ui.pinnedQueries`, for a query that searches history only |
 | `context.set` | `{ lines }` | Writes `spelunk.results.contextLines` (the Context buttons); the settings change runs the query again |
 
 Debouncing lives in the webview, using `typingDelayMs`. Applying a fix-it, accepting a completion and toggling Aa or
@@ -225,10 +226,11 @@ Debouncing lives in the webview, using `typingDelayMs`. Applying a fix-it, accep
 | --- | --- | --- |
 | `parse.result` | `{ seq, query: ParsedQuery, completions: Completion[] }` | Chip row, error panel, autocomplete, Aa and `.*` toggle state |
 | `search.batch` | `{ seq, searchId, items: ResultItem[] }` | Appends results as they stream in |
-| `search.done` | `{ seq, searchId, total, truncated, nextCursor?, hidden: HiddenNote[], facets?: Facet[], ms }` | Counts, "Load more", the "N hidden by …" notes, and the facets above the results |
+| `search.done` | `{ seq, searchId, total, truncated, nextCursor?, hidden: HiddenNote[], facets?: Facet[], ms, newCommits?: string[] }` | Counts, "Load more", the "N hidden by …" notes, the facets above the results, and the commits a watch found since the query last ran, tagged New |
 | `preview.result` | `{ ref, preview: Preview }` | Right-hand pane |
 | `index.status` | `{ repos: RepoStatus[] }` | Header dot, indexing banner (mock 14) |
 | `state.restore` | `{ text, recent: string[], pinned: PinnedQuery[], settings? }` | Reopening the panel where you left it, and settings changes |
+| `watch.state` | `{ watchable: string[], unseen: UnseenCommits[] }` | Which pins search history (and so get a bell), and each watched pin's count of new commits (mock 38) |
 
 The shared types `ResultItem`, `Preview`, `HiddenNote`, `Completion` and `RepoStatus` are defined once in Contract 3 and
 used unchanged here.
@@ -243,17 +245,18 @@ framing. There is no network port. The host spawns one daemon per VS Code window
 1. Host spawns the daemon binary bundled for the platform and sends `initialize`.
 2. The daemon replies with its version and the protocol version. On a protocol mismatch the host shows an error and
    stops.
-3. Host sends `workspace/setRoots` whenever folders are added or removed, and `settings/update` whenever a
-   `spelunk.*` setting changes.
+3. Host sends `workspace/setRoots` whenever folders are added or removed, and `settings/update` and `watch/set`
+   whenever a `spelunk.*` setting changes.
 4. On exit the host sends `shutdown`, then `exit`. The daemon must flush index writes within 2 seconds.
 
 ### Methods
 
 | Method | Kind | Params | Result |
 | --- | --- | --- | --- |
-| `initialize` | request | `{ protocol: 1, roots: Root[], settings: Settings }` | `{ daemonVersion, protocol: 1 }` |
+| `initialize` | request | `{ protocol: 1, roots: Root[], settings: Settings, watches?: string[] }` | `{ daemonVersion, protocol: 1 }` |
 | `workspace/setRoots` | notification | `{ roots: Root[] }` | — |
 | `settings/update` | notification | `{ settings: Settings }` | — |
+| `watch/set` | notification | `{ queries: string[] }`: the watched pinned queries | — |
 | `query/parse` | request | `{ text, cursor }` | `{ query: ParsedQuery, completions: Completion[] }` |
 | `search/start` | request | `{ searchId, text, cursor? }` | `{ total, truncated, nextCursor?, hidden: HiddenNote[], facets?: Facet[], ms }` |
 | `search/batch` | notification, daemon → host | `{ searchId, items: ResultItem[] }` | — |
@@ -262,6 +265,7 @@ framing. There is no network port. The host spawns one daemon per VS Code window
 | `open/resolve` | request | `{ ref }` | `{ path, line, column, length }` or `{ repoId, sha, path }` |
 | `index/status` | request | `{}` | `{ repos: RepoStatus[] }` |
 | `index/progress` | notification, daemon → host | `{ repos: RepoStatus[] }` | — |
+| `watch/matched` | notification, daemon → host | `{ query, repoId, repoName, total, commits: { sha, subject, author }[] }` | — |
 | `index/rebuild` | request | `{ repoId? }` | `{}` |
 | `shutdown` / `exit` | request / notification | `{}` | `{}` / — |
 
@@ -449,6 +453,13 @@ and merge commits other than their first-parent diff, are not stored.
 
 Uncommitted edits count as changed now for `since:` by marking those paths dirty in the overlay.
 
+**Query watches.** After a history update, the daemon runs every watched query that searches history over the commits
+the update brought in and announces each one that matched with `watch/matched`. When HEAD moved forward those are the
+commits read on top; after a rewrite, the ones never indexed that are newer than every commit indexed before, so a
+switch to an older branch announces nothing. A repo's first read announces nothing, and commits under the repo's own
+`user.email` are left out. The host counts the new commits on the pin (kept in the workspace's state) until the query
+runs, and pops them up unless `spelunk.watch.notify` is off.
+
 ### Storage layout
 
 ```text
@@ -489,7 +500,8 @@ sync and per-workspace overrides. The extension builds no settings screen of its
 | `spelunk.index.location` | string, path | `~/.spelunk/index` | machine |
 | `spelunk.ui.showParsedQuery` | boolean | `true` | application |
 | `spelunk.ui.recentQueries` | integer, 0–100 | `20` | application |
-| `spelunk.ui.pinnedQueries` | `{ query, name? }[]` | `[]` | window |
+| `spelunk.ui.pinnedQueries` | `{ query, name?, watch? }[]` | `[]` | window |
+| `spelunk.watch.notify` | boolean | `true` | window |
 | `spelunk.results.contextLines` | integer, 0–3 | `0` | resource |
 
 `resource` settings can differ per repo through `.vscode/settings.json`. `machine` settings never sync, because index

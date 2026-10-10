@@ -16,6 +16,11 @@ All notable changes to this project are documented here. The format follows
   best-match ranking puts last. `RetryPolicy -is:generated -is:vendored` keeps a search or a replace to code you
   wrote, and a note says how many matches each filter left out. In a commit search they go by path, and
   `is:generated` by file name only. Their suggestions say how many files are in each.
+- Query watches: the bell on a pinned query that searches commits (`msg:revert f:payments/`, say) watches it. When new
+  commits by others match, the pin counts them ("2 new") and a notification says so, with **Show** and **Stop
+  watching**; when the query runs, those commits are tagged **New**. ⌥W toggles the bell on the selected pin. Only new
+  commits count: not the first read of a repo, nor a switch to an older branch. `spelunk.watch.notify` turns the
+  notification off and keeps the count.
 
 ### Changed
 
