@@ -2,6 +2,7 @@ package query
 
 import (
 	"strings"
+	"unicode"
 )
 
 type tokenKind int
@@ -89,6 +90,14 @@ func lex(src *source) []token {
 
 func isSpace(r rune) bool { return r == ' ' || r == '\t' || r == '\n' || r == '\r' }
 
+// startsExcluded reports whether a "-" directly before r negates what
+// follows: a word, a "phrase", a /regex/, an operator or a group. Before
+// punctuation the "-" is part of the text, so ->, -= and --verbose
+// search for themselves rather than excluding > or =.
+func startsExcluded(r rune) bool {
+	return unicode.IsLetter(r) || unicode.IsDigit(r) || r == '_' || r == '"' || r == '/' || r == '('
+}
+
 // endsBareWord reports whether r ends a bare word.
 func endsBareWord(r rune) bool { return isSpace(r) || r == '(' || r == ')' || r == '"' }
 
@@ -112,7 +121,7 @@ func (l *lexer) next() {
 	case r == ')':
 		l.emit(tokenCloseParen, l.pos, l.pos+1)
 		l.pos++
-	case r == '-' && l.pos+1 < len(runes) && !isSpace(runes[l.pos+1]) && runes[l.pos+1] != ')':
+	case r == '-' && l.pos+1 < len(runes) && startsExcluded(runes[l.pos+1]):
 		l.emit(tokenMinus, l.pos, l.pos+1)
 		l.pos++
 	case r == '"' || r == '/':
