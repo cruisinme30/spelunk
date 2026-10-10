@@ -73,6 +73,8 @@ All notable changes to this project are documented here. The format follows
   lang:python)`).
 - Closing the Replace row while **Replace all** ran left Replace stuck on "Replacing…" for as long as the panel stayed
   open; the row now previews again once the replace finishes.
+- After a click on a result, ↑ ↓, ↵ and Esc did nothing until you clicked back into the box; the box now keeps the
+  keys.
 
 ## [1.1.0] - 2026-10-05
 

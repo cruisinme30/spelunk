@@ -265,12 +265,25 @@ export class SearchPanel {
       const ref = rowReference(event);
       if (!ref) return;
       this.selection.select(ref);
+      this.keepKeysInBox();
       if (this.state.ui.openTrigger === "singleClick") this.open(ref, event);
     });
     body.addEventListener("dblclick", (event) => {
       const ref = rowReference(event);
       if (ref && this.state.ui.openTrigger === "doubleClick") this.open(ref, event);
     });
+  }
+
+  /**
+   * A result row isn't focusable, so a click on one leaves the focus on the
+   * page; the box takes it back, so ↑↓, ↵ and Esc go on from the clicked
+   * result (with the suggestions the click closed kept closed). Text dragged
+   * over in a row stays selected, to be copied.
+   */
+  private keepKeysInBox(): void {
+    if (document.getSelection()?.isCollapsed === false) return;
+    this.state.completionsOpen = false;
+    this.layout.input.focus({ preventScroll: true });
   }
 
   /** ⌘ or Ctrl opens to the side. */

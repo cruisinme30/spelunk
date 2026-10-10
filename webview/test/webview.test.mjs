@@ -512,6 +512,21 @@ test("a single click selects a result and a double-click opens it", async (t) =>
   assert.deepEqual(await lastSent(page, "result.open"), { ref: "l1", where: "current" });
 });
 
+test("after a click on a result, the keys still move through the results and open them", async (t) => {
+  const page = await panelWithResults(t);
+  await page.click('[data-ref="f1"]');
+  assert.equal(await page.evaluate(() => document.activeElement?.id), "query");
+  await page.keyboard.press("ArrowDown");
+  assert.equal(await page.getAttribute('[data-ref="l1"]', "aria-selected"), "true");
+  await page.keyboard.press("Enter");
+  assert.deepEqual(await lastSent(page, "result.open"), { ref: "l1", where: "current" });
+
+  // Text selected in a row stays selected, to be copied.
+  await page.locator('[data-ref="l1"] .text').selectText();
+  await page.locator('[data-ref="l1"] .text').click({ position: { x: 2, y: 2 }, modifiers: ["Shift"] });
+  assert.notEqual(await page.evaluate(() => document.getSelection()?.toString()), "");
+});
+
 /** A parsed query for `raw` with one error. */
 const withError = (raw) =>
   parsedQuery(raw, null, {
