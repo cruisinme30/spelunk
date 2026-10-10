@@ -453,7 +453,7 @@ func TestSearchCountsEveryResultByRepoLanguageAndFolder(t *testing.T) {
 	}
 	want := map[string][]string{
 		// every counted result, not just the page count:1 shows
-		engine.FacetRepo:   {"web 9 repo:web", "api 3 repo:api"},
+		engine.FacetRepo:   {"web 9 repo:^web$", "api 3 repo:^api$"},
 		engine.FacetLang:   {"Python 5 lang:python", "TypeScript 4 lang:typescript", "JavaScript 2 lang:javascript", "Markdown 1 lang:markdown"},
 		engine.FacetFolder: {"src/ 9 f:^src/", "vendor/ 2 f:^vendor/"},
 	}
