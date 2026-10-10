@@ -89,6 +89,8 @@ All notable changes to this project are documented here. The format follows
 - Under the High Contrast Light theme, operator names, chips and highlights used the dark theme’s pale colors (1.7:1
   on white); they now use the light theme’s, and under either high contrast theme the selected result and suggestion
   are outlined, as in VS Code’s own lists.
+- Screen readers heard a code result as its line number and text alone; it now starts with its file’s path, which the
+  panel shows once above the file’s lines.
 
 ## [1.1.0] - 2026-10-05
 

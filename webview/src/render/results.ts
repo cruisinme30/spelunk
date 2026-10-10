@@ -118,6 +118,8 @@ const fileKey = (item: ResultItem) => `${item.repoId}\0${"path" in item ? item.p
 /** The file whose code lines are being appended, and the header that counts them. */
 interface OpenCodeFile {
   key: string;
+  /** The id of the header's path, which names the file to screen readers on each of its lines. */
+  pathId: string;
   /** The header's count, updated as the file's lines arrive. */
   countLabel: HTMLElement;
   lineCount: number;
@@ -457,6 +459,15 @@ export class ResultsView {
     };
   }
 
+  /**
+   * A code line's attributes: a screen reader hears its file's path, which
+   * the header above shows once for all its lines, then the line's own text
+   * ("src/client.py 42 self.retry_policy = …").
+   */
+  private codeRowAttributes(item: ItemOf<"line">, file: OpenCodeFile): Record<string, string> {
+    return { ...this.rowAttributes(item), "aria-labelledby": `${file.pathId} ${rowId(item.ref)}` };
+  }
+
   private renderFileRow(item: ItemOf<"file">): HTMLElement {
     return element(
       "div",
@@ -479,11 +490,12 @@ export class ResultsView {
     const key = fileKey(item);
     if (this.openCodeFile?.key !== key) {
       const countLabel = element("span", { class: "count" });
+      const pathId = `${rowId(item.ref)}-file`;
       group.append(
         element(
           "div",
           { class: `group${demoted(item.rankReason)}`, "data-testid": "code-group" },
-          element("span", { class: "path" }, item.path),
+          element("span", { class: "path", id: pathId }, item.path),
           rankBadge(item.rankReason),
           sinceBadge(item.sinceRevision),
           ownerBadge(item.owners),
@@ -491,12 +503,12 @@ export class ResultsView {
           countLabel,
         ),
       );
-      this.openCodeFile = { key, countLabel, lineCount: 0 };
+      this.openCodeFile = { key, pathId, countLabel, lineCount: 0 };
     }
     this.openCodeFile.lineCount++;
     this.openCodeFile.countLabel.textContent = String(this.openCodeFile.lineCount);
     if (this.withContext) return { node: group, row: this.appendWithContext(group, item, this.openCodeFile) };
-    const row = codeLineRow(item, this.rowAttributes(item), this.handlers.replacementsFor(item));
+    const row = codeLineRow(item, this.codeRowAttributes(item, this.openCodeFile), this.handlers.replacementsFor(item));
     group.append(row);
     return { node: group, row };
   }
@@ -536,7 +548,7 @@ export class ResultsView {
       if (line > lastShown) appendContext(line, text);
     }
     this.indentByRef.set(item.ref, indent);
-    const row = codeLineRow(item, this.rowAttributes(item), this.handlers.replacementsFor(item), indent);
+    const row = codeLineRow(item, this.codeRowAttributes(item, file), this.handlers.replacementsFor(item), indent);
     group.append(row);
     redraws.push((less) => {
       this.indentByRef.set(item.ref, less);

@@ -78,6 +78,22 @@ test("the result lists hold only results, and the preview isn't read out on ever
   assert.equal(await page.getAttribute('[data-testid="preview"]', "aria-live"), null);
 });
 
+test("each code result names its file to screen readers, which the header shows once above its lines", async (t) => {
+  const page = await openPanel(t);
+  await restore(page);
+  const seq = await typeAndParse(page, "retry", parsedQuery("retry", textNode("retry", 0)));
+  const second = { ...CODE_LINE_RESULT, ref: "l2", line: 50, text: "retry_policy.reset()", hits: [] };
+  await fromHost(page, "search.batch", { seq, searchId: "s1", items: [CODE_LINE_RESULT, second] });
+  assert.match(
+    await page.locator('[data-ref="l1"]').ariaSnapshot(),
+    /option "src\/payments\/client\.py 42 self\.retry_policy = RetryPolicy\(\)"/,
+  );
+  assert.match(
+    await page.locator('[data-ref="l2"]').ariaSnapshot(),
+    /option "src\/payments\/client\.py 50 retry_policy\.reset\(\)"/,
+  );
+});
+
 test("↑↓ in the empty box says which query ↵ would run", async (t) => {
   const page = await openPanel(t);
   await restore(page, ["retry_policy", "timeout"]);
