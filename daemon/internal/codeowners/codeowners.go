@@ -108,7 +108,7 @@ func readAtMost(path string, limit int64) ([]byte, error) {
 		return nil, err
 	}
 	defer f.Close() //nolint:errcheck // read-only
-	if info, err := f.Stat(); err != nil || !info.Mode().IsRegular() {
+	if info, statErr := f.Stat(); statErr != nil || !info.Mode().IsRegular() {
 		return nil, errors.New("not a regular file")
 	}
 	content, err := io.ReadAll(io.LimitReader(f, limit+1))
