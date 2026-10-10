@@ -513,7 +513,7 @@ export interface TestState {
   searched: string | undefined;
   daemon: DaemonState;
   /** The active editor's file and selection, 1-based; undefined without an editor. */
-  editor: { path: string; line: number; column: number; endColumn: number } | undefined;
+  editor: { path: string; line: number; column: number; endLine: number; endColumn: number } | undefined;
 }
 
 function testState(daemon: Daemon, controller: SearchController, panel: SearchPanel): TestState {
@@ -529,6 +529,7 @@ function testState(daemon: Daemon, controller: SearchController, panel: SearchPa
       path: editor.document.uri.fsPath,
       line: editor.selection.start.line + 1,
       column: editor.selection.start.character + 1,
+      endLine: editor.selection.end.line + 1,
       endColumn: editor.selection.end.character + 1,
     },
   };
@@ -589,7 +590,24 @@ interface Opening {
   item: ResultItem | undefined;
 }
 
-/** Opens a resolved result: a commit as a diff document, or a file with the match selected. */
+/**
+ * The selection a file target makes: its match, from its line and column to
+ * endLine and endColumn when it spans lines. OpenTarget lines and columns are
+ * 1-based; VS Code positions are 0-based.
+ */
+function selectionOf(target: OpenTarget): vscode.Selection {
+  const line = Math.max(0, (target.line ?? 1) - 1);
+  const column = Math.max(0, (target.column ?? 1) - 1);
+  if (target.endLine === undefined) return new vscode.Selection(line, column, line, column + (target.length ?? 0));
+  return new vscode.Selection(
+    line,
+    column,
+    Math.max(line, target.endLine - 1),
+    Math.max(0, (target.endColumn ?? 1) - 1),
+  );
+}
+
+/** Opens a resolved result: a commit as a diff document, or a file with the match selected, all of it when it spans lines. */
 async function openTarget({ target, where, preview, item }: Opening, commitDocuments: CommitDocuments): Promise<void> {
   const viewColumn = where === "side" ? vscode.ViewColumn.Beside : vscode.ViewColumn.Active;
   if (target.sha && item) {
@@ -600,10 +618,7 @@ async function openTarget({ target, where, preview, item }: Opening, commitDocum
     return;
   }
   if (!target.path) return;
-  // OpenTarget lines and columns are 1-based; VS Code positions are 0-based.
-  const line = Math.max(0, (target.line ?? 1) - 1);
-  const column = Math.max(0, (target.column ?? 1) - 1);
-  const selection = new vscode.Selection(line, column, line, column + (target.length ?? 0));
+  const selection = selectionOf(target);
   const editor = await vscode.window.showTextDocument(vscode.Uri.file(target.path), { viewColumn, preview, selection });
   editor.revealRange(selection, vscode.TextEditorRevealType.InCenterIfOutsideViewport);
 }

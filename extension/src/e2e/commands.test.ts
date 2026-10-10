@@ -75,6 +75,22 @@ const TESTS: [name: string, run: () => Promise<void>][] = [
     },
   ],
   [
+    "Opening a match across lines selects all of it",
+    async () => {
+      // @covers screen:multiline-regex
+      // client.py lines 46-47: "for attempt in range(self.retry_policy.max_attempts):" then "try:".
+      await searchFor(String.raw`type:code /max_attempts\):\n\s*try:/`);
+      await vscode.commands.executeCommand("spelunk.nextResult");
+      const { editor } = await until("the match's editor", (state) => state.editor?.endLine === 47);
+      assert.ok(editor, "an editor is open");
+      assert.ok(editor.path.endsWith("client.py"), "client.py is open");
+      assert.deepEqual(
+        { line: editor.line, column: editor.column, endLine: editor.endLine, endColumn: editor.endColumn },
+        { line: 46, column: 48, endLine: 47, endColumn: 17 },
+      );
+    },
+  ],
+  [
     "Open Help shows the search guide",
     async () => {
       // @covers command:openHelp
