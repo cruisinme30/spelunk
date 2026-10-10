@@ -217,7 +217,7 @@ contain none of them:
 - `SPELUNK_TRACE` writes the JSON-RPC transcript with timing spans;
 - `SPELUNK_HOLD_INDEX=<repo>:<percent>` pauses indexing for scenario E14;
 - the command `spelunk._testState` returns the panel state, the last results (and how many carry context lines),
-  and the active editor's file and selection;
+  and the active editor's file and selection, to its end line and column;
 - the command `spelunk._testPanelMessage` hands the controller a message as the search panel would send it, such as
   a Context button's `context.set` or the bell's `pinned.watch`.
 

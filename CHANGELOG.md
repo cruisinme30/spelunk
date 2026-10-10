@@ -28,6 +28,13 @@ All notable changes to this project are documented here. The format follows
   the preview says which CODEOWNERS line decided. Typing `owner:` lists the owners with how many files each has, and
   an owner no CODEOWNERS file names gets a warning that offers the nearest ones. Current files only.
 
+- Multiline regex: a regex with `\n` in it matches across lines, as in VS Code's search, so
+  `/except TransientError:\n\s*delay/` finds an `except` whose next line sets a delay. Each match is one code result
+  that shows every line it spans (up to ten, then "14 more lines, to line 25"), the preview marks all of them, and
+  opening it selects the whole match. `^` and `$` still mean the start and end of a line, lines that end in `\r\n`
+  match the same, and every other regex still matches one line at a time. Current files only: commits are matched one
+  changed line at a time, so a history query warns, and Replace explains it can't change such a match.
+
 ### Changed
 
 - protoc's Python output (`*_pb2.py`) and any header that says `DO NOT EDIT` beside the word "generated" now count as

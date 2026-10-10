@@ -333,3 +333,26 @@ counts, warns when it can match nothing, and the results, the facet row and the 
 - Over JSON-RPC: `TestOwnerReadsTheReposCodeOwnersFile` in `daemon/internal/server/search_test.go`.
 - Panel: `webview/test/owners.test.mjs` (badges, the Owner facet, the preview's line, the hidden note), and the help
   guide's `owner:payments-core retry` runs cleanly against the fixture in `extension/src/test/helpExamples.test.ts`.
+
+## Multiline regex (1.2)
+
+Mock 39 (`multiline-regex`). Exit gate: a regex with `\n` matches across lines of current files, as ripgrep's `-U`
+does, with "\r\n" read as "\n"; each match is one code result showing the lines it spans (up to ten, then where it
+ends), matches sharing a line join, context lines sit around the whole span, the preview marks every line of it,
+and opening it selects all of it. Every other regex still matches one line at a time; a history query warns, and
+Replace says why it can't change such a match.
+
+- Query: `daemon/internal/query/multiline_test.go` (what spans lines, the m flag, relaxed plans, newline-free
+  narrowing literals, and the `multiline_in_history` warning).
+- Current files: `daemon/internal/trigram/span_test.go` (spans, one-line matches, anchors, CRLF, joining with other
+  terms, long matches, UTF-16 columns, clipping, context, NOT, `word:`, `case:` and `f:`, history's line finder, the
+  preview and the open target, and 200,000 joined matches in bounded time), and `TestMatchesAcrossLinesLikeRipgrep`
+  in `ripgrep_test.go` (seven patterns against `rg -U`; it skips without `rg` on the PATH).
+- Over JSON-RPC: `TestAMatchAcrossLinesRoundTrips` in `daemon/internal/server/search_test.go` (a CRLF file through
+  search, preview and open), and the replace refusal in `replace_test.go`.
+- Panel: `webview/test/multilineRegex.test.mjs` (rows, the "more lines" line, context, the preview's focus and header,
+  the glimpse, Replace), and span lines in `untrustedInput.test.mjs`. The help guide's new example finds results over
+  the fixture in `extension/src/test/helpExamples.test.ts`.
+- End to end in VS Code: "Opening a match across lines selects all of it" in `extension/src/e2e/commands.test.ts`.
+- Built: `docs/dev/proof/multiline-regex.png`, from
+  `node scripts/screenshotPanel.mjs --query '/for attempt in .*:\n\s*try:/' --setting results.contextLines=1`.

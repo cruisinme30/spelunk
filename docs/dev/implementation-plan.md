@@ -119,6 +119,10 @@ bare     = 1*( any char except space, "(", ")", '"' ) ;
 - AND binds tighter than OR. `a b OR c` means `(a b) OR c`.
 - A word shaped like `name:` with an unknown name is an error, not a term. Quoting it (`"sinse:6m"`) makes it a term.
 - Regexes are RE2 syntax. RE2 runs in linear time, so no query can hang the daemon.
+- A regex matches one line at a time, except one with `\n` in it (written `\n`, `\x0a` or `\012`): that one is
+  matched against the whole file, with `"\r\n"` read as `"\n"` and `^` and `$` still anchoring lines, and each match
+  is one result on the line it starts. Only current files: a history query matches changed lines one at a time, so it
+  warns (`multiline_in_history`).
 
 ### Operator semantics
 
@@ -193,6 +197,7 @@ drives labels such as "→ Jane Doe" in the chip row.
 | `invalid_regex` | `/Retry(/` | None; show the RE2 error |
 | `no_positive_term` | `-timeout` | None |
 | `pipe_in_word` (warning) | `daemon\|search` | `daemon OR search` or `/daemon\|search/` |
+| `multiline_in_history` (warning) | `author:jane /except\n\s*raise/` | None; a regex with `\n` matches only current files |
 
 ## Contract 2: webview ↔ extension host
 
@@ -262,7 +267,7 @@ framing. There is no network port. The host spawns one daemon per VS Code window
 | `search/batch` | notification, daemon → host | `{ searchId, items: ResultItem[] }` | — |
 | `$/cancelRequest` | notification | `{ id }` | — |
 | `preview/get` | request | `{ ref, contextLines }` | `Preview` |
-| `open/resolve` | request | `{ ref }` | `{ path, line, column, length }` or `{ repoId, sha, path }` |
+| `open/resolve` | request | `{ ref }` | `{ path, line, column, length, endLine?, endColumn? }` or `{ repoId, sha, path }` |
 | `index/status` | request | `{}` | `{ repos: RepoStatus[] }` |
 | `index/progress` | notification, daemon → host | `{ repos: RepoStatus[] }` | — |
 | `watch/matched` | notification, daemon → host | `{ query, repoId, repoName, total, commits: { sha, subject, author }[] }` | — |
@@ -282,6 +287,7 @@ type ResultItem =
       lastCommit?: { sha: string; author: string; at: string }; dirty: boolean }
   | { kind: "line"; ref: string; repoId: string; path: string; line: number;
       text: string; hits: Hit[];
+      spanLines?: { text: string; hits: Hit[] }[]; endLine?: number   // a match across lines: up to 10 more lines
       contextBefore?: string[]; contextAfter?: string[] }   // with spelunk.results.contextLines above 0
   | { kind: "symbol"; ref: string; repoId: string; path: string; line: number;
       name: string; symbolKind: "class" | "interface" | "function" | "method" | "type" | "other";
@@ -296,7 +302,8 @@ type Hit = Range & { termIndex: number };                 // which text term mat
 
 type Preview =
   | { kind: "file"; path: string; firstLine: number; lines: string[];
-      focusLine: number; hits: { line: number; ranges: Hit[] }[];
+      focusLine: number; focusEndLine?: number;          // focusEndLine for a match across lines
+      hits: { line: number; ranges: Hit[] }[];
       dirtyLines: number[]; symbols?: { name: string; line: number }[] }
   | { kind: "commit"; sha: string; subject: string; body: string; author: string; at: string;
       files: { path: string; added: number; removed: number; hiddenByFilter: boolean }[];

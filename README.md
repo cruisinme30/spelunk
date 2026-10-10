@@ -27,7 +27,7 @@ removed `timeout` or `retry`. Drop `author:` and the same box searches current f
   matches case only when the query has a capital letter, `kind:class` keeps one kind of definition, `ref:RetryPolicy`
   finds a name's uses without its definitions, `owner:payments-core` keeps the files a team owns in CODEOWNERS,
   `content:retry` matches text inside files but never file names, and `since:` and `until:` take dates too:
-  `since:2026-09 until:2026-09` is September.
+  `since:2026-09 until:2026-09` is September. A `/regex/` with `\n` in it matches across lines of current files.
 - **File names the way Quick Open finds them.** A word also finds file names that have its letters in order, so
   `usrsvc` finds `UserService.ts`; code lines still match exactly.
 - **Best match first.** Files that define what you searched for, are open in the editor, or are named after it come
