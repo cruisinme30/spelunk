@@ -321,12 +321,7 @@ export function renderFooter(layout: Layout, mode: FooterMode, isHistory: boolea
       hint("Esc", "dismiss"),
       hintAtEnd("?", "all operators"),
     ],
-    values: [
-      hint("↑↓", "pick"),
-      hint("Tab", "insert value"),
-      hint("Esc", "keep as typed"),
-      hintAtEnd("?", "all operators"),
-    ],
+    values: [hint("↑↓", "pick"), hint("Tab", "insert value"), hint("Esc", "keep as typed")],
     replace: [hint("⌘↵", "replace all"), hintAtEnd("Esc", "close replace")],
     results: [
       hint("↑↓", "move"),

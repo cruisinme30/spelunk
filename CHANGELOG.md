@@ -91,6 +91,8 @@ All notable changes to this project are documented here. The format follows
   are outlined, as in VS Code’s own lists.
 - Screen readers heard a code result as its line number and text alone; it now starts with its file’s path, which the
   panel shows once above the file’s lines.
+- Typing `?` while an operator’s values were suggested opened Help and dropped the character, so `f:*.ts?` couldn’t be
+  typed; `?` now opens Help only while operators are suggested, and among values it is typed.
 
 ## [1.1.0] - 2026-10-05
 

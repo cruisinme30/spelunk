@@ -180,6 +180,31 @@ test("? while suggesting opens the help page", async (t) => {
   assert.equal(await page.inputValue(QUERY), "timeout s");
 });
 
+/** An f: value suggestion for the "f:*.t" being typed. */
+const pathValue = (label) => ({
+  label,
+  detail: label,
+  group: "value",
+  insert: { title: `Insert f:${label}`, edits: [{ span: { start: 0, end: 5 }, newText: `f:${label} ` }] },
+});
+
+test("? among an operator's values is typed, since globs and regexes use it", async (t) => {
+  const page = await openPanel(t);
+  await restore(page);
+  await page.fill(QUERY, "f:*.t");
+  const { seq } = await lastSent(page, "query.changed");
+  const glob = { kind: "op", op: "f", match: "glob", value: "*.t", span: { start: 0, end: 5 } };
+  await fromHost(page, "parse.result", {
+    seq,
+    query: parsedQuery("f:*.t", glob),
+    completions: [pathValue("*.ts"), pathValue("*.toml")],
+  });
+  assert.doesNotMatch(await page.innerText('[data-testid="keys"]'), /\?/, "no ? hint among values");
+  await page.keyboard.type("s?");
+  assert.equal(await page.inputValue(QUERY), "f:*.ts?");
+  assert.deepEqual(await sentMessages(page, "help.open"), []);
+});
+
 const REPOS = [
   { repoId: "a", name: "payments-api", tree: "ready", history: "off" },
   { repoId: "w", name: "web-checkout", tree: "ready", history: "off" },

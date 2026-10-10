@@ -323,12 +323,13 @@ export class SearchPanel {
   }
 
   /**
-   * ? while suggesting opens the help page; in an empty box it brings the
-   * operator sheet into view, which a narrow panel stacks below the recent
-   * queries. Returns false for a literal ? in a query.
+   * ? while operators are suggested opens the help page; in an empty box it
+   * brings the operator sheet into view, which a narrow panel stacks below
+   * the recent queries. Returns false for a literal ?, as in a value: f:'s
+   * globs and regexes and a /regex/ use it.
    */
   private showOperators(): boolean {
-    if (this.completionsVisible) {
+    if (this.completionsVisible && this.state.completions[0]?.group === "operator") {
       send("help.open", {}); // every operator, explained
       return true;
     }
