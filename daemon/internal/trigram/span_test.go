@@ -75,13 +75,14 @@ func spanResults(t *testing.T, text string, settings protocol.Settings, repos ..
 }
 
 // A regex with \n finds each match across lines once, on the line it
-// starts, with the lines it runs onto and each line's part of the match.
+// starts, with the lines it runs onto and each line's part of the match
+// (not the indentation of the lines it runs onto).
 func TestARegexWithANewlineMatchesAcrossLines(t *testing.T) {
 	// @covers syntax:regex
 	got := spanResults(t, `type:code /except TransientError:\n\s*delay/`, defaultSettings, spanRepo)
 	want := []string{
-		"5         [except TransientError:] | 6 [            delay] = self.retry_policy.next_delay() | ends on 6",
-		"12         [except TransientError:] | 13 [            delay] = 0 | ends on 13",
+		"5         [except TransientError:] | 6             [delay] = self.retry_policy.next_delay() | ends on 6",
+		"12         [except TransientError:] | 13             [delay] = 0 | ends on 13",
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("results:\n%s\nwant:\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
@@ -110,7 +111,7 @@ func TestAMatchEndingAtANewlineIsOneLine(t *testing.T) {
 // ^ and $ still mean the start and end of a line, as they do line by line.
 func TestAnchorsMatchLinesInARegexThatSpansLines(t *testing.T) {
 	got := spanResults(t, `type:code /^        try:\n.*_delete\(\)$/`, defaultSettings, spanRepo)
-	want := []string{"10 [        try:] | 11 [            return self._delete()] | ends on 11"}
+	want := []string{"10 [        try:] | 11             [return self._delete()] | ends on 11"}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("results = %q, want %q", got, want)
 	}
@@ -207,7 +208,7 @@ func TestAMatchOfOnlyNewlinesIsDropped(t *testing.T) {
 	}
 	// But a blank line inside a match is part of it.
 	got := spanResults(t, `type:code /next_delay\(\)\n.*\n\n    def/`, defaultSettings, spanRepo)
-	want := []string{"6             delay = self.retry_policy.[next_delay()] | 7 [        raise TransientError()] | 8  | 9 [    def] refund(self): | ends on 9"}
+	want := []string{"6             delay = self.retry_policy.[next_delay()] | 7         [raise TransientError()] | 8  | 9     [def] refund(self): | ends on 9"}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("results = %q, want %q", got, want)
 	}
@@ -314,7 +315,7 @@ func TestPreviewShowsAMatchAcrossLines(t *testing.T) {
 			}
 			want := []protocol.LineHits{
 				{Line: 5, Ranges: []protocol.Hit{{Start: 8, End: 30}}},
-				{Line: 6, Ranges: []protocol.Hit{{Start: 0, End: 17}}},
+				{Line: 6, Ranges: []protocol.Hit{{Start: 12, End: 17}}}, // not its indentation
 			}
 			if !reflect.DeepEqual(got.Hits, want) {
 				t.Errorf("hits = %+v, want %+v", got.Hits, want)

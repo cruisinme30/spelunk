@@ -171,6 +171,20 @@ func (x lineIndex) bounds(i int) (start, end int) {
 	return start, end
 }
 
+// shown returns the part of 0-based line i, in bytes from its start, that
+// marks the match from start to end. On a line the match runs onto, its
+// indentation isn't marked: a highlighted indent reads as noise. from >= to
+// when the line shows none of it.
+func (x lineIndex) shown(i, start, end int) (from, to int) {
+	lineStart, lineEnd := x.bounds(i)
+	from, to = max(start, lineStart)-lineStart, min(end, lineEnd)-lineStart
+	if start < lineStart {
+		line := x.text[lineStart:lineEnd]
+		from = max(from, len(line)-len(bytes.TrimLeft(line, " \t")))
+	}
+	return from, to
+}
+
 // match turns the bytes from start to end into a result: its first line
 // and up to maxSpanLines more, each with the part of the match on it.
 // ok is false when the match shows nothing on those lines.
@@ -182,7 +196,7 @@ func (x lineIndex) match(start, end, termIndex int) (match matchedLine, ok bool)
 	for i := first; i <= min(last, first+maxSpanLines); i++ {
 		lineStart, lineEnd := x.bounds(i)
 		line := spanLine{text: string(x.text[lineStart:lineEnd])}
-		if from, to := max(start, lineStart)-lineStart, min(end, lineEnd)-lineStart; from < to {
+		if from, to := x.shown(i, start, end); from < to {
 			line.hits = []byteHit{{start: from, end: to, termIndex: termIndex}}
 			ok = true
 		}
@@ -229,8 +243,7 @@ func hitsAcrossLines(text []byte, term *query.Content, first, last int) map[int]
 			continue
 		}
 		for i := max(lines.of(loc[0]), first-1); i <= min(lines.of(loc[1]-1), last-1); i++ {
-			lineStart, lineEnd := lines.bounds(i)
-			if from, to := max(loc[0], lineStart)-lineStart, min(loc[1], lineEnd)-lineStart; from < to {
+			if from, to := lines.shown(i, loc[0], loc[1]); from < to {
 				hits[i+1] = append(hits[i+1], byteHit{start: from, end: to, termIndex: term.TermIndex})
 			}
 		}

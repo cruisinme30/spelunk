@@ -285,7 +285,7 @@ func TestAMatchAcrossLinesRoundTrips(t *testing.T) {
 		t.Fatalf("total %d, %d items; want 1 and 1", result.Total, len(items))
 	}
 	item := items[0]
-	wantSpan := []protocol.SpanLine{{Text: "            max_attempts=3)", Hits: []protocol.Hit{{Start: 0, End: 24}}}}
+	wantSpan := []protocol.SpanLine{{Text: "            max_attempts=3)", Hits: []protocol.Hit{{Start: 12, End: 24}}}}
 	if item.Line != 3 || item.EndLine != 4 || !slices.EqualFunc(item.SpanLines, wantSpan, func(a, b protocol.SpanLine) bool {
 		return a.Text == b.Text && slices.Equal(a.Hits, b.Hits)
 	}) || item.Hits[0] != (protocol.Hit{Start: 28, End: 40}) {
