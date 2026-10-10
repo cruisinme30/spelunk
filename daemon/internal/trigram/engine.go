@@ -100,33 +100,52 @@ func (r *Repo) sinceRevision(doc *Doc) protocol.SinceRevision {
 	}
 }
 
-// CurrentFiles maps the path of each of the repo's current files to its
-// text, as the index has it: the overlay's version of a file saved since
-// the shard was built. A repo at a revision uses it as its At.Current.
-func (r *Repo) CurrentFiles() map[string][]byte {
-	files := map[string][]byte{}
+// CurrentDocs returns the repo's current files, as the index has them:
+// the shard's, with the overlay's version of a file saved since the shard
+// was built, and without the files deleted since.
+func (r *Repo) CurrentDocs() []*Doc {
+	var docs []*Doc
 	for _, shard := range r.shards() {
 		for i := range shard.Docs {
 			if doc := &shard.Docs[i]; r.current(shard, doc) {
-				files[doc.Path] = doc.Content
+				docs = append(docs, doc)
 			}
 		}
+	}
+	return docs
+}
+
+// CurrentFiles maps the path of each of the repo's current files (see
+// CurrentDocs) to its text. A repo at a revision uses it as its At.Current.
+func (r *Repo) CurrentFiles() map[string][]byte {
+	files := map[string][]byte{}
+	for _, doc := range r.CurrentDocs() {
+		files[doc.Path] = doc.Content
 	}
 	return files
 }
 
-// changedSince reports whether a file changed after a time, for since: on
-// current files. In Git that is its newest commit, or now when it has
-// uncommitted changes; elsewhere it is the file's modification time.
-func (r *Repo) changedSince(doc *Doc, after time.Time) bool {
+// LastChanged is when a file last changed, as since: and until: on
+// current files see it. In Git that is its newest commit in the history
+// window (the zero time when it has none there), and uncommitted is
+// whether it has changes since, which count as now; elsewhere it is the
+// file's modification time.
+func (r *Repo) LastChanged(doc *Doc) (at time.Time, uncommitted bool) {
 	if r.History == nil {
-		return !doc.ModTime.Before(after)
+		return doc.ModTime, false
 	}
 	if r.History.Dirty(doc.Path) {
-		return true
+		return time.Time{}, true
 	}
-	_, at, ok := r.History.LastCommit(doc.Path)
-	return ok && !at.Before(after)
+	_, at, _ = r.History.LastCommit(doc.Path)
+	return at, false
+}
+
+// changedSince reports whether a file changed after a time (see
+// LastChanged), for since: on current files.
+func (r *Repo) changedSince(doc *Doc, after time.Time) bool {
+	at, uncommitted := r.LastChanged(doc)
+	return uncommitted || !at.IsZero() && !at.Before(after)
 }
 
 // Search runs plan over repos, in order, and calls emit for each result on

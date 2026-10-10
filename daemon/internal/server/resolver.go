@@ -219,20 +219,22 @@ func (r workspaceResolver) Owners() []query.OwnerStat {
 	return owners
 }
 
-// Files lists every file in the published working-tree indexes, and which
-// of them are open in the editor, have uncommitted changes, were written
-// by a tool or are vendored.
+// Files lists every current file of the published working-tree indexes
+// (saved since the index was built included, deleted ones left out), when
+// each last changed as since: sees it, and which of them are open in the
+// editor, have uncommitted changes, were written by a tool or are
+// vendored.
 func (r workspaceResolver) Files() []query.FileStat {
 	settings := r.server.Settings()
 	kinds := lang.NewFileKinds(settings.VendoredFolders, settings.GeneratedSuffixes)
 	var files []query.FileStat
 	for _, repo := range r.server.index.Repos() {
 		open := trigram.OpenIn(repo.Root, r.open)
-		for i := range repo.Shard.Docs {
-			doc := &repo.Shard.Docs[i]
+		for _, doc := range repo.CurrentDocs() {
+			lastChange, uncommitted := repo.LastChanged(doc)
 			files = append(files, query.FileStat{
-				Repo: repo.Name, Path: doc.Path, Lang: doc.Lang, ModTime: doc.ModTime,
-				Open: open[doc.Path], Changed: repo.History != nil && repo.History.Dirty(doc.Path),
+				Repo: repo.Name, Path: doc.Path, Lang: doc.Lang, LastChange: lastChange,
+				Open: open[doc.Path], Changed: uncommitted,
 				Generated: kinds.IsGenerated(doc.Path, doc.Content), Vendored: kinds.IsVendored(doc.Path),
 			})
 		}

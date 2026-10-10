@@ -523,11 +523,12 @@ func describeStart(start, now time.Time) string {
 	}
 }
 
-// changedFiles counts the indexed files modified since start: "5 files changed".
+// changedFiles counts the indexed files changed since start, as since:
+// counts them: "5 files changed".
 func changedFiles(files []FileStat, start time.Time) string {
 	changed := 0
 	for _, file := range files {
-		if !file.ModTime.Before(start) {
+		if file.Changed || !file.LastChange.IsZero() && !file.LastChange.Before(start) {
 			changed++
 		}
 	}
@@ -689,12 +690,12 @@ func describeEnd(end, now time.Time) string {
 	}
 }
 
-// unchangedFiles counts the indexed files last modified before end: "8
-// files not changed since".
+// unchangedFiles counts the indexed files last changed before end, as
+// until: counts them: "8 files not changed since".
 func unchangedFiles(files []FileStat, end time.Time) string {
 	unchanged := 0
 	for _, file := range files {
-		if file.ModTime.Before(end) {
+		if !file.Changed && (file.LastChange.IsZero() || file.LastChange.Before(end)) {
 			unchanged++
 		}
 	}

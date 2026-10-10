@@ -42,8 +42,10 @@ func TestSinceSuggestsWindowsWithTheirStartAndChangedFiles(t *testing.T) {
 func TestUntilSuggestsTheSinceWindowsWithTheirEnd(t *testing.T) {
 	// @covers op:until
 	text := "timeout until:"
+	// client.py has uncommitted changes: it changed now, so no window
+	// that ends now or earlier counts it.
 	want := strings.Join([]string{
-		"[Calendar days] today | Through today | Before tomorrow | 14 files not changed since",
+		"[Calendar days] today | Through today | Before tomorrow | 13 files not changed since",
 		"yesterday | Through yesterday | Before today | 12 files not changed since",
 		"[Hours ago] 30min | More than 30 minutes ago | Before 09:30 | 13 files not changed since",
 		"2h | More than 2 hours ago | Before 08:00 | 13 files not changed since",
@@ -56,7 +58,7 @@ func TestUntilSuggestsTheSinceWindowsWithTheirEnd(t *testing.T) {
 		t.Errorf("Complete(%q) =\n%s\nwant\n%s", text, got, want)
 	}
 	tests := map[string]string{
-		"until:1": "1min | More than a minute ago | Before 09:59 | 14 files not changed since\n" +
+		"until:1": "1min | More than a minute ago | Before 09:59 | 13 files not changed since\n" +
 			"1h | More than an hour ago | Before 09:00 | 13 files not changed since\n" +
 			"1d | More than a day ago | Before Fri, Oct 2, 10:00 | 11 files not changed since\n" +
 			"1w | More than a week ago | Before Sat, Sep 26 | 9 files not changed since\n" +
@@ -96,8 +98,10 @@ func TestSinceOffersEveryUnitForATypedNumber(t *testing.T) {
 	if got := completions[len(completions)-1].Detail; got != "Last year" {
 		t.Errorf("since:1y reads %q, want %q", got, "Last year")
 	}
-	if got := completions[0].Note; got != "No files changed" {
-		t.Errorf("since:1min note = %q, want %q", got, "No files changed")
+	// Only client.py, whose uncommitted changes count as now, changed in
+	// the last minute.
+	if got := completions[0].Note; got != "1 file changed" {
+		t.Errorf("since:1min note = %q, want %q", got, "1 file changed")
 	}
 }
 

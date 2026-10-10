@@ -93,12 +93,16 @@ type RepoStat struct {
 
 // FileStat is one indexed file.
 type FileStat struct {
-	Repo    string // the repo's display name
-	Path    string // slash-separated, relative to the repo root
-	Lang    string // canonical language name, "" if unknown
-	ModTime time.Time
-	Open    bool // open in an editor tab (is:open)
-	Changed bool // has uncommitted changes (is:changed)
+	Repo string // the repo's display name
+	Path string // slash-separated, relative to the repo root
+	Lang string // canonical language name, "" if unknown
+	// LastChange is when the file last changed, as since: and until: see
+	// it: in Git its newest commit (the zero time when the history window
+	// has none), elsewhere its modification time. A file with uncommitted
+	// changes (Changed) changed now, whatever it says.
+	LastChange time.Time
+	Open       bool // open in an editor tab (is:open)
+	Changed    bool // has uncommitted changes (is:changed)
 	// Generated says a tool wrote the file (is:generated), by its name or a
 	// header only the index has read; Vendored that it is someone else's
 	// code (is:vendored). Both go by the index settings that say which
