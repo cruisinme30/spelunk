@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"os/exec"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -20,9 +21,9 @@ import (
 )
 
 const (
-	// keptRevisions is how many revision shards stay in memory: typing a
-	// query searches the same revision again and again, and someone may
-	// go back and forth between two.
+	// keptRevisions is how many revision shards of each repo stay in
+	// memory: typing a query searches the same revision again and again,
+	// and someone may go back and forth between two.
 	keptRevisions = 2
 	// revisionReadTimeout bounds reading one revision's files. The read
 	// isn't tied to the search that started it, which the next keystroke
@@ -108,18 +109,21 @@ type revisionKey struct {
 	maxBytes  int64
 }
 
-// revisionCache keeps the last keptRevisions revision shards. Each is read
-// once: a search that asks for one being read waits for that read.
+// revisionCache keeps the last keptRevisions revision shards of each repo.
+// Each is read once: a search that asks for one being read waits for that
+// read. Dropping an entry stops its read, so typing at:v1, at:v1.1 and
+// at:v1.10 doesn't leave three reads of whole trees running.
 type revisionCache struct {
 	mu      sync.Mutex
 	entries []*revisionEntry // most recently used first
 }
 
 type revisionEntry struct {
-	key   revisionKey
-	ready chan struct{} // closed once shard or err is set
-	shard *trigram.Shard
-	err   error
+	key    revisionKey
+	ready  chan struct{}      // closed once shard or err is set
+	cancel context.CancelFunc // stops the read
+	shard  *trigram.Shard
+	err    error
 }
 
 // shard returns the shard of revision's files in the repo at root, as the
@@ -131,10 +135,7 @@ func (c *revisionCache) shard(ctx context.Context, root string, revision history
 		exclude: strings.Join(settings.Exclude, "\x00"), maxBytes: int64(settings.MaxFileSizeKB) * 1024,
 	}
 	// The read outlives ctx, which the next keystroke's search cancels.
-	detached := context.WithoutCancel(ctx)
-	entry := c.entry(key, func(entry *revisionEntry) {
-		readCtx, cancel := context.WithTimeout(detached, revisionReadTimeout)
-		defer cancel()
+	entry := c.entry(context.WithoutCancel(ctx), key, func(readCtx context.Context, entry *revisionEntry) {
 		entry.shard, entry.err = readRevision(readCtx, root, revision, settings)
 	})
 	select {
@@ -146,9 +147,10 @@ func (c *revisionCache) shard(ctx context.Context, root string, revision history
 }
 
 // entry returns the cache's entry for key, moved to the front, starting
-// read in a new goroutine for a key it doesn't have. A read that failed
-// is forgotten, so the next search tries again.
-func (c *revisionCache) entry(key revisionKey, read func(*revisionEntry)) *revisionEntry {
+// read in a new goroutine for a key it doesn't have, with a context from
+// base that revisionReadTimeout bounds. A read that failed is forgotten,
+// so the next search tries again.
+func (c *revisionCache) entry(base context.Context, key revisionKey, read func(context.Context, *revisionEntry)) *revisionEntry {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	for i, entry := range c.entries {
@@ -158,19 +160,36 @@ func (c *revisionCache) entry(key revisionKey, read func(*revisionEntry)) *revis
 			return entry
 		}
 	}
-	entry := &revisionEntry{key: key, ready: make(chan struct{})}
+	readCtx, cancel := context.WithTimeout(base, revisionReadTimeout)
+	entry := &revisionEntry{key: key, ready: make(chan struct{}), cancel: cancel}
 	c.entries = append([]*revisionEntry{entry}, c.entries...)
-	if len(c.entries) > keptRevisions {
-		c.entries = c.entries[:keptRevisions]
-	}
+	c.trim(key.root)
 	go func() {
-		read(entry)
+		defer cancel()
+		read(readCtx, entry)
 		if entry.err != nil {
 			c.forget(entry)
 		}
 		close(entry.ready)
 	}()
 	return entry
+}
+
+// trim drops root's least recently used entries past keptRevisions and
+// stops their reads. A search still waiting for one gets its error.
+func (c *revisionCache) trim(root string) {
+	kept := 0
+	c.entries = slices.DeleteFunc(c.entries, func(entry *revisionEntry) bool {
+		if entry.key.root != root {
+			return false
+		}
+		kept++
+		if kept <= keptRevisions {
+			return false
+		}
+		entry.cancel()
+		return true
+	})
 }
 
 // forget drops entry from the cache.

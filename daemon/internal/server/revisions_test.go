@@ -12,6 +12,7 @@ import (
 
 	"github.com/cruisinme30/spelunk/daemon/internal/protocol"
 	"github.com/cruisinme30/spelunk/daemon/internal/testutil"
+	"github.com/cruisinme30/spelunk/daemon/internal/trigram"
 )
 
 // backoffV1 is src/backoff.py as it was at v1.0.0; a later commit deleted it.
@@ -237,6 +238,57 @@ func TestAtKeepsTheRevisionsItRead(t *testing.T) {
 	entries := client.server.revisions.entries
 	if len(entries) != keptRevisions || entries[0].shard == first || entries[1].shard == first {
 		t.Errorf("after two more revisions the cache holds %d, want the %d newest without v1.0.0", len(entries), keptRevisions)
+	}
+}
+
+// Each repo keeps its own revisions: with more repos than keptRevisions,
+// searching one revision again reads none of them anew.
+func TestAtKeepsEachReposRevisions(t *testing.T) {
+	client := newTestClient(t)
+	batches := collectBatches(client)
+	var roots []protocol.Root
+	for _, id := range []string{"r1", "r2", "r3"} {
+		root, _ := revisionRepo(t)
+		roots = append(roots, protocol.Root{ID: id, Path: root, Name: "payments-" + id})
+	}
+	client.mustInitialize(t, roots...)
+	searchAt(t, client, batches, "s1", "at:v1.0.0 parse")
+	first := slices.Clone(client.server.revisions.entries)
+	searchAt(t, client, batches, "s2", "at:v1.0.0 retry")
+	if again := client.server.revisions.entries; len(again) != len(roots) || !sameShards(first, again) {
+		t.Errorf("the second search of v1.0.0 read %d repos' revisions again", len(roots))
+	}
+}
+
+// sameShards reports whether two lists of entries hold the same shards, in any order.
+func sameShards(a, b []*revisionEntry) bool {
+	held := map[*trigram.Shard]bool{}
+	for _, entry := range a {
+		held[entry.shard] = true
+	}
+	return len(a) == len(b) && !slices.ContainsFunc(b, func(entry *revisionEntry) bool { return !held[entry.shard] })
+}
+
+// A revision that falls out of the cache while it is being read stops
+// being read.
+func TestAtStopsReadingADroppedRevision(t *testing.T) {
+	var cache revisionCache
+	key := func(sha string) revisionKey { return revisionKey{root: "/r", sha: sha} }
+	stopped := make(chan string, 1)
+	cache.entry(context.Background(), key("a"), func(ctx context.Context, _ *revisionEntry) {
+		<-ctx.Done()
+		stopped <- "a"
+	})
+	done := func(context.Context, *revisionEntry) {}
+	cache.entry(context.Background(), key("b"), done)
+	cache.entry(context.Background(), key("c"), done)
+	select {
+	case sha := <-stopped:
+		if sha != "a" {
+			t.Errorf("stopped %s, want a", sha)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("the read of a, dropped for b and c, kept running")
 	}
 }
 
