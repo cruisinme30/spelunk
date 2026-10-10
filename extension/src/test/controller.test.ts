@@ -285,6 +285,41 @@ test("a query round-trips to results, preview and open through the real daemon",
   }
 });
 
+test("the hasResults context key is set when it changes, not on every batch", async () => {
+  const host = recordingUi();
+  const sets: boolean[] = [];
+  const ui: Ui = { ...host.ui, setContext: (_key, value) => void sets.push(value) };
+  const finishers: (() => void)[] = [];
+  const { backend, listeners } = scriptedBackend((method, { text }) => {
+    if (method === "query/parse") return { query: parsedQuery(text, true), completions: [] };
+    if (method === "search/start") {
+      return new Promise((resolve) => {
+        finishers.push(() => {
+          resolve(NO_RESULTS);
+        });
+      });
+    }
+    throw new Error(`unexpected request ${method}`);
+  });
+  const finish = () => {
+    for (const resolve of finishers.splice(0)) resolve();
+  };
+  const controller = newController(backend, ui);
+  const searched = controller.handle(queryChanged("retry", 1));
+  await nextTurn();
+  const item = { kind: "file", ref: "r", repoId: "repo", path: "a.py" } as unknown as ResultItem;
+  for (let index = 0; index < 50; index++) listeners.get("batch")?.({ searchId: "s1", items: [item] });
+  finish();
+  await searched;
+  assert.equal(controller.results.length, 50);
+  assert.deepEqual(sets, [false, true], "cleared when the search started, set by its first batch");
+  const again = controller.handle(queryChanged("retry", 2));
+  await nextTurn();
+  finish();
+  await again;
+  assert.deepEqual(sets, [false, true, false]);
+});
+
 test("an older seq never overwrites a newer query", async () => {
   const host = recordingUi();
   const { backend, release } = parseOnlyBackend(new Set(["old"]));

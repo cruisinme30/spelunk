@@ -191,6 +191,8 @@ export class SearchController {
   private search: RunningSearch | undefined;
   /** Searches started so far; numbers the search ids ("s1", "s2", …). */
   private searchesStarted = 0;
+  /** What the spelunk.hasResults context key was last set to; undefined before the first set. */
+  private hasResults: boolean | undefined;
   /** Position in `results` for F4 stepping; -1 before the first step. */
   private stepIndex = -1;
   /** The search whose search.done was posted last. */
@@ -695,7 +697,7 @@ export class SearchController {
     const search = this.search;
     if (batch.searchId !== search?.id || search.cancel.cancelled) return;
     this.results.push(...batch.items);
-    this.ui.setContext("spelunk.hasResults", this.results.length > 0);
+    this.setHasResults(this.results.length > 0);
     this.ui.post("search.batch", { seq: search.seq, searchId: search.id, items: batch.items });
   }
 
@@ -704,7 +706,14 @@ export class SearchController {
     if (this.results.length > 0) this.replacedResults = this.results;
     this.results = items;
     this.stepIndex = -1;
-    this.ui.setContext("spelunk.hasResults", items.length > 0);
+    this.setHasResults(items.length > 0);
+  }
+
+  /** Sets the spelunk.hasResults context key, which F4 needs, only when it changes: each set is a command. */
+  private setHasResults(value: boolean): void {
+    if (value === this.hasResults) return;
+    this.hasResults = value;
+    this.ui.setContext("spelunk.hasResults", value);
   }
 
   /** Every edit replacing the matches of `text` with `replacement` would make, from the daemon. */
