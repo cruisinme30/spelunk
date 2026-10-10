@@ -137,6 +137,18 @@ test("a match inside the last one's context takes its line over instead of showi
   assert.deepEqual(await codeSection(page), ["# x.py", "1", "[2]", "[3]", "4", "5", "[6]", "7"]);
 });
 
+test("a match joining a run with less indentation redraws the run so every line keeps its place", async (t) => {
+  // @covers screen:context-lines
+  const lines = { 1: "        a = 1", 2: "        _retry()", 3: "        b = 2", 4: "    _retry()", 5: "    c = 3" };
+  const file = "x.py";
+  const page = await panelWith(t, 1, [match(2, 1, { file, lines })], [match(4, 1, { file, lines })]);
+  assert.deepEqual(await codeSection(page), ["# x.py", "1", "[2]", "3", "[4]", "5"]);
+  const shown = await Promise.all([1, 2, 3, 4, 5].map((line) => textOf(page, line)));
+  assert.deepEqual(shown, ["    a = 1", "    _retry()", "    b = 2", "_retry()", "c = 3"]);
+  assert.equal(await page.locator('[data-ref="x.py:2"] mark').textContent(), "_retry");
+  assert.deepEqual(pageErrors(page), []);
+});
+
 test("runs join across batches, as Load more appends them", async (t) => {
   const page = await panelWith(t, 1, [match(14, 1)], [match(17, 1)], [match(31, 1)]);
   assert.deepEqual(await codeSection(page), [

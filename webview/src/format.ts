@@ -272,6 +272,28 @@ function spanRow(
   return row;
 }
 
+/**
+ * Draws the text of a row codeLineRow made again, without at most `indent`
+ * characters of indentation, keeping the row itself (and so its selection).
+ */
+export function redrawCodeLineText(
+  row: HTMLElement,
+  line: CodeLines,
+  replacements: readonly string[] | undefined,
+  indent: number,
+): void {
+  const spanTexts = [...row.querySelectorAll(".span-line code.text")];
+  if (spanTexts.length === 0) {
+    row.querySelector("code.text")?.replaceChildren(codeLineText(line, replacements, indent));
+    return;
+  }
+  const lines = [{ text: line.text, hits: line.hits }, ...(line.spanLines ?? [])];
+  for (const [index, code] of spanTexts.entries()) {
+    const shown = lines[index];
+    if (shown) code.replaceChildren(codeLineText(shown, undefined, indent));
+  }
+}
+
 /** The holes a struct: match lists, leaving out any a broken message got wrong. */
 function holesOf(line: CodeLines): HoleValue[] {
   if (!Array.isArray(line.holes)) return [];

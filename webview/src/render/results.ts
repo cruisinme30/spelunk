@@ -11,6 +11,7 @@ import {
   indentOf,
   lastLineOf,
   plural,
+  redrawCodeLineText,
   shortSha,
   termClass,
   timeAgo,
@@ -123,6 +124,8 @@ interface CodeBlock {
   trailing: { line: number; row: HTMLElement }[];
   /** How much indentation every line of the run drops, so they keep their places relative to each other. */
   indent: number;
+  /** Draw each line of the run again dropping less indentation, when a match joins it with less. */
+  redraws: ((indent: number) => void)[];
 }
 
 /**
@@ -449,39 +452,47 @@ export class ResultsView {
    * last run of lines reaches this match's context, the two join: lines
    * already shown aren't repeated, and context the last match showed past
    * this one makes way for it. Otherwise "⋯" marks the lines skipped. A
-   * match that spans lines has its context after its last line.
+   * match that spans lines has its context after its last line. A run drops
+   * the indentation all its lines share, so a match joining it with less
+   * redraws the lines before it.
    */
   private appendWithContext(group: HTMLElement, item: ItemOf<"line">, file: OpenCodeFile): void {
     const before = item.contextBefore ?? [];
     const after = item.contextAfter ?? [];
     const lastLine = lastLineOf(item);
     const firstLine = item.line - before.length;
-    let block = file.block && item.line > file.block.matchLine ? file.block : undefined;
-    let lastShown = 0;
-    if (block) {
-      for (const shown of block.trailing.filter((trailing) => trailing.line >= item.line)) shown.row.remove();
-      block.trailing = block.trailing.filter((trailing) => trailing.line < item.line);
-      lastShown = block.trailing.at(-1)?.line ?? block.matchLine;
-      if (Math.max(firstLine, lastShown + 1) > lastShown + 1) block = undefined;
+    const joined = runToJoin(file.block, item.line, firstLine);
+    if (file.block && !joined) group.append(contextGap());
+    const ownIndent = sharedIndent(item, before, after);
+    const block = joined?.block ?? { matchLine: item.line, trailing: [], indent: ownIndent, redraws: [] };
+    const lastShown = joined?.lastShown ?? 0;
+    if (ownIndent < block.indent) {
+      block.indent = ownIndent;
+      for (const redraw of block.redraws) redraw(ownIndent);
     }
-    if (file.block && !block) group.append(contextGap());
-    if (!block) {
-      lastShown = 0;
-      block = { matchLine: item.line, trailing: [], indent: sharedIndent(item, before, after) };
-    }
-    const { indent } = block;
+    const { indent, redraws } = block;
+    const appendContext = (line: number, text: string) => {
+      const row = contextRow(line, text, indent);
+      group.append(row);
+      redraws.push((less) => row.querySelector(".text")?.replaceChildren(withoutIndent(text, less)));
+      return row;
+    };
     for (const [index, text] of before.entries()) {
       const line = firstLine + index;
-      if (line > lastShown) group.append(contextRow(line, text, indent));
+      if (line > lastShown) appendContext(line, text);
     }
     this.indentByRef.set(item.ref, indent);
-    group.append(codeLineRow(item, this.rowAttributes(item), this.handlers.replacementsFor(item), indent));
-    block.matchLine = lastLine;
-    block.trailing = after.map((text, index) => {
-      const row = contextRow(lastLine + 1 + index, text, indent);
-      group.append(row);
-      return { line: lastLine + 1 + index, row };
+    const row = codeLineRow(item, this.rowAttributes(item), this.handlers.replacementsFor(item), indent);
+    group.append(row);
+    redraws.push((less) => {
+      this.indentByRef.set(item.ref, less);
+      redrawCodeLineText(row, item, this.handlers.replacementsFor(item), less);
     });
+    block.matchLine = lastLine;
+    block.trailing = after.map((text, index) => ({
+      line: lastLine + 1 + index,
+      row: appendContext(lastLine + 1 + index, text),
+    }));
     file.block = block;
   }
 
@@ -632,8 +643,31 @@ function contextRow(line: number, text: string, indent: number): HTMLElement {
     "div",
     { class: "context-line", "aria-hidden": "true", "data-testid": "context-line", "data-line": String(line) },
     element("span", { class: "line-number" }, String(line)),
-    element("code", { class: "text" }, text.slice(Math.min(indentOf(text), indent))),
+    element("code", { class: "text" }, withoutIndent(text, indent)),
   );
+}
+
+/**
+ * The run a match from `matchLine` with context from `firstLine` joins: the
+ * file's last run, when it reaches that far. Context the last run showed
+ * from the match's line on makes way for the match, joined or not.
+ * `lastShown` is the last line the run still shows.
+ */
+function runToJoin(
+  last: CodeBlock | undefined,
+  matchLine: number,
+  firstLine: number,
+): { block: CodeBlock; lastShown: number } | undefined {
+  if (!last || matchLine <= last.matchLine) return undefined;
+  for (const shown of last.trailing.filter((trailing) => trailing.line >= matchLine)) shown.row.remove();
+  last.trailing = last.trailing.filter((trailing) => trailing.line < matchLine);
+  const lastShown = last.trailing.at(-1)?.line ?? last.matchLine;
+  return firstLine > lastShown + 1 ? undefined : { block: last, lastShown };
+}
+
+/** A context line without at most `indent` characters of its indentation. */
+function withoutIndent(text: string, indent: number): string {
+  return text.slice(Math.min(indentOf(text), indent));
 }
 
 /**
