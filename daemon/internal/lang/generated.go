@@ -1,0 +1,46 @@
+package lang
+
+import (
+	"bytes"
+	"path"
+	"slices"
+	"strings"
+)
+
+// vendoredDirs are folders that hold someone else's code, or a build's.
+var vendoredDirs = []string{"vendor", "node_modules", "third_party", "dist"}
+
+// generatedSuffixes end the names of files that tools write.
+var generatedSuffixes = []string{".pb.go", "_gen.go", ".gen.ts", ".gen.go", ".min.js", ".min.css"}
+
+// GeneratedHeaderBytes is how far into a file a generated-code marker is
+// looked for.
+const GeneratedHeaderBytes = 1024
+
+// IsVendored reports whether the file at filePath (slash-separated, relative
+// to its repo) is in a vendored folder: vendor/, node_modules/,
+// third_party/ or dist/.
+func IsVendored(filePath string) bool {
+	dirs := strings.Split(path.Dir(filePath), "/")
+	return slices.ContainsFunc(dirs, func(dir string) bool { return slices.Contains(vendoredDirs, dir) })
+}
+
+// IsGeneratedName reports whether a file's name says a tool wrote it:
+// service.pb.go, app.min.js. It needs no content, so it also works on the
+// files of a commit.
+func IsGeneratedName(filePath string) bool {
+	base := path.Base(filePath)
+	return slices.ContainsFunc(generatedSuffixes, func(suffix string) bool { return strings.HasSuffix(base, suffix) })
+}
+
+// IsGenerated reports whether a file was written by a tool: named like
+// generated code, or marked "Code generated … DO NOT EDIT." or @generated
+// near the top of content.
+func IsGenerated(filePath string, content []byte) bool {
+	if IsGeneratedName(filePath) {
+		return true
+	}
+	head := content[:min(len(content), GeneratedHeaderBytes)]
+	return bytes.Contains(head, []byte("@generated")) ||
+		bytes.Contains(head, []byte("Code generated")) && bytes.Contains(head, []byte("DO NOT EDIT"))
+}

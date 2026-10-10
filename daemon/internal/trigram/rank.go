@@ -15,7 +15,6 @@ package trigram
 //     takes longer than rankWindow to fill is sent as it stands.
 
 import (
-	"bytes"
 	"path"
 	"slices"
 	"strings"
@@ -58,9 +57,6 @@ const (
 	// rankWindow is the longest the first page is held to sort it by match
 	// quality, well inside the first-result budget.
 	rankWindow = 50 * time.Millisecond
-	// generatedHeaderBytes is how far into a file a generated-code marker is
-	// looked for.
-	generatedHeaderBytes = 1024
 )
 
 // docRank is what is known about a file before its lines are read: its
@@ -101,10 +97,10 @@ func (s *searcher) rankDoc(repo *Repo, doc *Doc) docRank {
 		}
 	}
 	switch {
-	case isGenerated(doc):
+	case lang.IsGenerated(doc.Path, doc.Content):
 		r.score += scoreGenerated
 		r.reason = protocol.RankReasonGenerated
-	case isVendored(doc.Path):
+	case lang.IsVendored(doc.Path):
 		r.score += scoreVendored
 		r.reason = protocol.RankReasonVendored
 	case lang.IsTest(doc.Path):
@@ -178,30 +174,6 @@ func isLetterOrDigit(b byte) bool {
 func isUpper(b byte) bool { return b >= 'A' && b <= 'Z' }
 
 func isWordByte(b byte) bool { return isLetterOrDigit(b) || b == '_' }
-
-// vendoredDirs are folders that hold someone else's code, or a build's.
-var vendoredDirs = []string{"vendor", "node_modules", "third_party", "dist"}
-
-// isVendored reports whether a path is in a vendored folder.
-func isVendored(filePath string) bool {
-	dirs := strings.Split(path.Dir(filePath), "/")
-	return slices.ContainsFunc(dirs, func(dir string) bool { return slices.Contains(vendoredDirs, dir) })
-}
-
-// isGenerated reports whether a file was written by a tool: named like
-// generated code, or marked "Code generated … DO NOT EDIT." or @generated
-// near its top.
-func isGenerated(doc *Doc) bool {
-	base := path.Base(doc.Path)
-	for _, suffix := range []string{".pb.go", "_gen.go", ".gen.ts", ".gen.go", ".min.js", ".min.css"} {
-		if strings.HasSuffix(base, suffix) {
-			return true
-		}
-	}
-	head := doc.Content[:min(len(doc.Content), generatedHeaderBytes)]
-	return bytes.Contains(head, []byte("@generated")) ||
-		bytes.Contains(head, []byte("Code generated")) && bytes.Contains(head, []byte("DO NOT EDIT"))
-}
 
 // lineQuality scores how well a matched line matches: a hit that is a
 // whole word, and one in the searched term's own case, each count.
