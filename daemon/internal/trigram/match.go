@@ -53,6 +53,9 @@ type lineMatcher struct {
 	// lang is the language of a file's text, which struct: terms read it
 	// by; "" for a text in none.
 	lang string
+	// gaveUp is set when a struct: term ran out of steps before the end
+	// of the text, so its matches may be missing some.
+	gaveUp bool
 }
 
 func newLineMatcher(content []byte, terms termCache) *lineMatcher {

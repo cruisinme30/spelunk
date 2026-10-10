@@ -192,6 +192,10 @@ type searcher struct {
 
 	counted   int
 	truncated bool
+	// incomplete is set when a struct: template gave up on a file, which
+	// may hide matches there; the search goes on, but its results are
+	// marked truncated.
+	incomplete bool
 	// facets count the results by repo, language, owner and top folder.
 	facets *engine.Facets
 	// hidden counts, per filter index, results that only that filter removed.
@@ -275,7 +279,7 @@ func (s *searcher) add(repo *Repo, doc *Doc, item protocol.ResultItem, score, qu
 // stats summarizes the search, with one hidden-results note per filter
 // that hid something, counting unit.
 func (s *searcher) stats(unit string) engine.Stats {
-	stats := engine.NewStats(s.plan, s.counted, s.truncated)
+	stats := engine.NewStats(s.plan, s.counted, s.truncated || s.incomplete)
 	stats.Facets = s.facets.List()
 	hidden := engine.Hidden{ByFilter: s.hidden, ByCase: s.hiddenByCase, ByWord: s.hiddenByWord, ByType: s.hiddenByType}
 	stats.AddHidden(s.plan, hidden, unit, "matches")
@@ -602,6 +606,7 @@ func (s *searcher) forEachCandidate(repos []Repo, visit func(c rankedCandidate, 
 		}
 		matcher := newFileMatcher(c.doc, s.terms)
 		visit(c, matcher, contentLeaf(c.repo, c.doc, matcher))
+		s.incomplete = s.incomplete || matcher.gaveUp
 	}
 }
 

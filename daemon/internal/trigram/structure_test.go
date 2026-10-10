@@ -141,6 +141,22 @@ func TestHoleValuesAreSqueezedAndCut(t *testing.T) {
 	}
 }
 
+// A template that gives up on one file marks the results truncated, and
+// still finds its matches in the other files.
+func TestStructGivingUpMarksResultsTruncated(t *testing.T) {
+	repo := repoOf("r", map[string]string{
+		"a.go": "f(" + strings.Repeat("1, ", 400) + "y)\n",
+		"b.go": "f(1, 2, 3, 4, 5, 6, 7, x)\n",
+	})
+	items, stats := runItems(t, `struct:"f(:[a], :[b], :[c], :[d], :[e], :[f], :[g], x)"`, defaultSettings, "", repo)
+	if len(items) != 1 || items[0].Path != "b.go" {
+		t.Errorf("results = %q, want the match in b.go", summarize(items))
+	}
+	if !stats.Truncated {
+		t.Error("the results aren't marked truncated, though the template gave up on a.go")
+	}
+}
+
 // Matches on the same line are one result, each hole listed once, as the
 // first match took it; :[_] is never listed or marked.
 func TestStructMatchesOnALineAreOneResult(t *testing.T) {

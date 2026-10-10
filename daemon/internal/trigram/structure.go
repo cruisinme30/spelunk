@@ -35,7 +35,8 @@ const maxHoleRunes = 80
 // their lines overlap.
 func (m *lineMatcher) matchStructure(term *query.Content) []matchedLine {
 	text := m.lfContent()
-	matches, _ := term.Structural.Find(text, m.lang, term.IgnoreCase, -1)
+	matches, complete := term.Structural.Find(text, m.lang, term.IgnoreCase, -1)
+	m.gaveUp = m.gaveUp || !complete
 	if len(matches) == 0 {
 		return nil
 	}
