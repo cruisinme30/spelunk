@@ -376,3 +376,11 @@ test("the welcome page keeps progress within 0-100% and ignores malformed repo l
   assert.equal(await markupTookEffect(page), false);
   assert.deepEqual(pageErrors(page), []);
 });
+
+test("a malformed result is left out without losing the rest of its batch", async (t) => {
+  const { page, seq } = await searchingPanel(t);
+  const malformed = { kind: "file", ref: "bad", repoId: "r1" }; // no path or name hits
+  await fromHost(page, "search.batch", { seq, searchId: "s1", items: [malformed, codeLine("good", "retry", [])] });
+  assert.deepEqual(await shownReferences(page), ["good"]);
+  assert.equal(await page.locator('[data-testid="summary"]').textContent(), "1 code match");
+});

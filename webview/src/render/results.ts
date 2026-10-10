@@ -215,13 +215,19 @@ export class ResultsView {
   append(items: ResultItem[]): void {
     for (const item of items) {
       if (!Object.hasOwn(this.sections, item.kind)) continue;
+      let row: HTMLElement;
+      try {
+        row = this.renderItem(item);
+      } catch {
+        continue; // a malformed result is left out, not the rest of its batch
+      }
       this.items.push(item);
       this.countByKind[item.kind]++;
       this.repoIds.add(item.repoId);
       if (item.kind === "line") this.codeFileKeys.add(fileKey(item));
       const section = this.sections[item.kind];
       section.root.hidden = false;
-      section.list.append(this.renderItem(item));
+      section.list.append(row);
     }
     this.updateSectionCounts();
   }
