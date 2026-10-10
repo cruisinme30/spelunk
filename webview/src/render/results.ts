@@ -579,8 +579,9 @@ const SINCE_BADGE: Record<SinceRevision, { label: string; title: string }> = {
   changed: { label: "changed since", title: "This file is different in the current files" },
 };
 
+/** The badge for how a file at a revision differs now; none for a value this webview doesn't know. */
 function sinceBadge(since: SinceRevision | undefined): HTMLElement | null {
-  if (!since) return null;
+  if (since === undefined || !Object.hasOwn(SINCE_BADGE, since)) return null;
   const { label, title } = SINCE_BADGE[since];
   return element("span", { class: `badge since-${since}`, title, "data-testid": "since-revision" }, label);
 }
@@ -599,13 +600,17 @@ function rankBadge(reason: RankReason | undefined): HTMLElement | null {
  * full in its tooltip.
  */
 function ownerBadge(owners: string[] | undefined): HTMLElement | null {
-  const [first, ...others] = owners ?? [];
+  // Only names count: anything else in a broken message is left out.
+  const names = Array.isArray(owners)
+    ? (owners as unknown[]).filter((owner): owner is string => typeof owner === "string")
+    : [];
+  const [first, ...others] = names;
   if (first === undefined) return null;
   const name = first.startsWith("@") && first.includes("/") ? first.slice(first.indexOf("/") + 1) : first;
   const label = others.length > 0 ? `${name} +${others.length}` : name;
   return element(
     "span",
-    { class: "badge owner", title: `Owned by ${owners?.join(", ")}`, "data-testid": "owner" },
+    { class: "badge owner", title: `Owned by ${names.join(", ")}`, "data-testid": "owner" },
     label,
   );
 }

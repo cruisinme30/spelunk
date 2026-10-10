@@ -217,7 +217,7 @@ export function codeLineRow(
   replacements?: readonly string[],
   indent?: number,
 ): HTMLDivElement {
-  if ((line.spanLines && line.spanLines.length > 0) || (line.holes && line.holes.length > 0)) {
+  if ((line.spanLines && line.spanLines.length > 0) || holesOf(line).length > 0) {
     return spanRow(line, line.spanLines ?? [], attributes, indent);
   }
   return element(
@@ -267,8 +267,21 @@ function spanRow(
       ),
     );
   }
-  if (line.holes && line.holes.length > 0) row.append(holeValues(line.holes));
+  const holes = holesOf(line);
+  if (holes.length > 0) row.append(holeValues(holes));
   return row;
+}
+
+/** The holes a struct: match lists, leaving out any a broken message got wrong. */
+function holesOf(line: CodeLines): HoleValue[] {
+  if (!Array.isArray(line.holes)) return [];
+  return (line.holes as unknown[]).filter(
+    (hole): hole is HoleValue =>
+      typeof hole === "object" &&
+      hole !== null &&
+      typeof (hole as Partial<HoleValue>).name === "string" &&
+      typeof (hole as Partial<HoleValue>).text === "string",
+  );
 }
 
 /** What each hole of a struct: template took, as chips in the holes' colors: ":[call] lambda: send(event)". */

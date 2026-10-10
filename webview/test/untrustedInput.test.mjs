@@ -250,6 +250,17 @@ test("malformed host messages are dropped, and the panel keeps working", async (
   await fromHost(page, "search.batch", { seq, searchId: "s1", items: [FILE_NAME_RESULT] });
   assert.equal(await page.locator('[data-testid="result"]').count(), 1);
   assert.deepEqual(pageErrors(page), []);
+
+  // Fields a result shows as extras, malformed: the result shows without them.
+  const odd = [
+    codeLine("l1", "retry", [], { sinceRevision: "bogus", owners: 5 }),
+    codeLine("l2", "retry", [], { line: 2, holes: [null, { hole: 1, name: "call" }, "x"] }),
+  ];
+  await fromHost(page, "search.batch", { seq, searchId: "s1", items: odd });
+  assert.equal(await page.locator('[data-testid="result"]').count(), 3);
+  const extras = '[data-testid="since-revision"], [data-testid="owner"], [data-testid="hole-values"]';
+  assert.equal(await page.locator(extras).count(), 0);
+  assert.deepEqual(pageErrors(page), []);
 });
 
 test("a result of a kind the panel doesn't know is skipped, and the rest of its batch shows", async (t) => {
