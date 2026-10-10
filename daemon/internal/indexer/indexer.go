@@ -39,6 +39,8 @@ type Indexer struct {
 	// beforeBuild, when tests set it, runs with the root's ID at the start of
 	// each working-tree build, which waits for it to return.
 	beforeBuild func(id string)
+	// onNewCommits hears of the commits each history update brings in.
+	onNewCommits func(repo history.Repo, commits []history.Commit)
 }
 
 // repo is one root's index state.
@@ -121,6 +123,15 @@ func New(settings protocol.Settings, notify func([]protocol.RepoStatus)) *Indexe
 	go ix.treeWork(ctx)
 	go ix.historyWork(ctx)
 	return ix
+}
+
+// OnNewCommits sets what hears of the commits each history update brings
+// in (see history.NewCommits), with the repo as it now is: for query
+// watches. Reading a repo's history for the first time brings in none.
+func (ix *Indexer) OnNewCommits(f func(repo history.Repo, commits []history.Commit)) {
+	ix.mu.Lock()
+	defer ix.mu.Unlock()
+	ix.onNewCommits = f
 }
 
 // SetRoots starts indexing new roots and drops removed ones. A root's saved

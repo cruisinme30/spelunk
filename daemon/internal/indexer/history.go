@@ -135,6 +135,7 @@ func (ix *Indexer) readHistory(job historyJob) {
 	if err == nil && (job.full || store.Head != job.store.Head) {
 		saveErr = store.Save(job.path)
 	}
+	published := false
 	ix.updateHistory(job, func(r *repo) {
 		r.cancelHistory, r.historyFull = nil, false
 		switch {
@@ -154,9 +155,27 @@ func (ix *Indexer) readHistory(job historyJob) {
 			if saveErr != nil {
 				r.historyMessage = "History index not saved: " + saveErr.Error()
 			}
+			published = true
 		}
 	})
 	ix.publishStatus()
+	if published && !job.full {
+		ix.announceNewCommits(job, store)
+	}
+}
+
+// announceNewCommits tells OnNewCommits's listener about the commits an
+// update brought in, if there are any.
+func (ix *Indexer) announceNewCommits(job historyJob, store *history.Store) {
+	ix.mu.Lock()
+	listener := ix.onNewCommits
+	ix.mu.Unlock()
+	if listener == nil {
+		return
+	}
+	if commits := history.NewCommits(job.store, store); len(commits) > 0 {
+		listener(history.Repo{ID: job.id, Name: job.root.Name, Root: job.root.Path, Store: store}, commits)
+	}
 }
 
 // updateHistory applies change to the job's repo if the job is still current.
