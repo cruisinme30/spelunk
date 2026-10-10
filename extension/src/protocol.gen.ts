@@ -31,6 +31,12 @@ export interface MessageLine {
   hits: Range[];
 }
 
+/** SpanLine is a later line of a code match that spans lines, with the part of the match on it (and any other term's matches there). */
+export interface SpanLine {
+  text: string;
+  hits: Hit[];
+}
+
 /** Range is a range of UTF-16 offsets into the text shown on screen. */
 export interface Range {
   start: number;
@@ -220,9 +226,13 @@ export type ResultItem =
       /** Who the repo's CODEOWNERS file says owns the file, as it writes them; absent when nobody does or the repo has no CODEOWNERS file. */
       owners?: string[];
       rankReason?: RankReason;
+      /** When the match spans lines (a regex with \n), the lines after line that it runs onto, in order: at most 10, so a longer match ends at endLine past the last of them. Absent for a match within one line. */
+      spanLines?: SpanLine[];
+      /** The last line a match that spans lines ends on; present with spanLines. */
+      endLine?: number;
       /** The lines just above the match, top first, when the contextLines setting asks for them; fewer near the start of the file. */
       contextBefore?: string[];
-      /** The lines just below the match, when the contextLines setting asks for them; fewer near the end of the file. */
+      /** The lines just below the match (below endLine when it spans lines), when the contextLines setting asks for them; fewer near the end of the file. */
       contextAfter?: string[];
     }
   | {
@@ -300,6 +310,8 @@ export type Preview =
       firstLine: number;
       lines: string[];
       focusLine: number;
+      /** The last line of the result when its match spans lines; the preview marks focusLine to focusEndLine. Absent otherwise. */
+      focusEndLine?: number;
       hits: LineHits[];
       dirtyLines: number[];
       ownership?: Ownership;
@@ -373,12 +385,15 @@ export interface RepoStatus {
   message?: string;
 }
 
-/** OpenTarget is where opening a result goes: a file position (path, line, column, length) or a commit (repoId, sha). */
+/** OpenTarget is where opening a result goes: a file position (path, line, column, length, or to endLine and endColumn for a match that spans lines) or a commit (repoId, sha). Lines and columns are 1-based. */
 export interface OpenTarget {
   path?: string;
   line?: number;
   column?: number;
   length?: number;
+  /** Where a match that spans lines ends: the selection runs from line and column to endLine and endColumn. */
+  endLine?: number;
+  endColumn?: number;
   repoId?: string;
   sha?: string;
 }

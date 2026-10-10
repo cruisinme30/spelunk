@@ -45,6 +45,22 @@ func (v MessageLine) MarshalJSON() ([]byte, error) {
 	return json.Marshal(p)
 }
 
+// SpanLine is a later line of a code match that spans lines, with the part of the match on it (and any other term's matches there).
+type SpanLine struct {
+	Text string `json:"text"`
+	Hits []Hit  `json:"hits"`
+}
+
+// MarshalJSON emits [] rather than null for required arrays.
+func (v SpanLine) MarshalJSON() ([]byte, error) {
+	type plain SpanLine
+	p := plain(v)
+	if p.Hits == nil {
+		p.Hits = []Hit{}
+	}
+	return json.Marshal(p)
+}
+
 // Range is a range of UTF-16 offsets into the text shown on screen.
 type Range struct {
 	Start int `json:"start"`
@@ -364,6 +380,8 @@ type ResultItem struct {
 	Line          int          `json:"line,omitempty"`
 	Text          string       `json:"text,omitempty"`
 	Hits          []Hit        `json:"hits,omitempty"`
+	SpanLines     []SpanLine   `json:"spanLines,omitempty"`
+	EndLine       int          `json:"endLine,omitempty"`
 	ContextBefore []string     `json:"contextBefore,omitempty"`
 	ContextAfter  []string     `json:"contextAfter,omitempty"`
 	Name          string       `json:"name,omitempty"`
@@ -427,6 +445,12 @@ func (v ResultItem) MarshalJSON() ([]byte, error) {
 		}
 		if v.RankReason != "" {
 			fields["rankReason"] = v.RankReason
+		}
+		if len(v.SpanLines) > 0 {
+			fields["spanLines"] = v.SpanLines
+		}
+		if v.EndLine != 0 {
+			fields["endLine"] = v.EndLine
 		}
 		if len(v.ContextBefore) > 0 {
 			fields["contextBefore"] = v.ContextBefore
@@ -560,24 +584,25 @@ func (v Ownership) MarshalJSON() ([]byte, error) {
 
 // Preview is the right-hand pane's content for a selected result.
 type Preview struct {
-	Kind        string          `json:"kind,omitempty"`
-	Path        string          `json:"path,omitempty"`
-	FirstLine   int             `json:"firstLine,omitempty"`
-	Lines       []string        `json:"lines,omitempty"`
-	FocusLine   int             `json:"focusLine,omitempty"`
-	Hits        []LineHits      `json:"hits,omitempty"`
-	DirtyLines  []int           `json:"dirtyLines,omitempty"`
-	Ownership   *Ownership      `json:"ownership,omitempty"`
-	Symbols     []OutlineSymbol `json:"symbols,omitempty"`
-	SHA         string          `json:"sha,omitempty"`
-	Subject     string          `json:"subject,omitempty"`
-	Body        string          `json:"body,omitempty"`
-	Author      string          `json:"author,omitempty"`
-	At          string          `json:"at,omitempty"`
-	Files       []FileStat      `json:"files,omitempty"`
-	Hunks       []Hunk          `json:"hunks,omitempty"`
-	SubjectHits []Range         `json:"subjectHits,omitempty"`
-	BodyHits    []Range         `json:"bodyHits,omitempty"`
+	Kind         string          `json:"kind,omitempty"`
+	Path         string          `json:"path,omitempty"`
+	FirstLine    int             `json:"firstLine,omitempty"`
+	Lines        []string        `json:"lines,omitempty"`
+	FocusLine    int             `json:"focusLine,omitempty"`
+	FocusEndLine int             `json:"focusEndLine,omitempty"`
+	Hits         []LineHits      `json:"hits,omitempty"`
+	DirtyLines   []int           `json:"dirtyLines,omitempty"`
+	Ownership    *Ownership      `json:"ownership,omitempty"`
+	Symbols      []OutlineSymbol `json:"symbols,omitempty"`
+	SHA          string          `json:"sha,omitempty"`
+	Subject      string          `json:"subject,omitempty"`
+	Body         string          `json:"body,omitempty"`
+	Author       string          `json:"author,omitempty"`
+	At           string          `json:"at,omitempty"`
+	Files        []FileStat      `json:"files,omitempty"`
+	Hunks        []Hunk          `json:"hunks,omitempty"`
+	SubjectHits  []Range         `json:"subjectHits,omitempty"`
+	BodyHits     []Range         `json:"bodyHits,omitempty"`
 }
 
 // Preview kinds: the values of Preview.Kind.
@@ -599,6 +624,9 @@ func (v Preview) MarshalJSON() ([]byte, error) {
 			fields["lines"] = v.Lines
 		}
 		fields["focusLine"] = v.FocusLine
+		if v.FocusEndLine != 0 {
+			fields["focusEndLine"] = v.FocusEndLine
+		}
 		if v.Hits == nil {
 			fields["hits"] = []LineHits{}
 		} else {
@@ -719,14 +747,17 @@ type RepoStatus struct {
 	Message  string     `json:"message,omitempty"`
 }
 
-// OpenTarget is where opening a result goes: a file position (path, line, column, length) or a commit (repoId, sha).
+// OpenTarget is where opening a result goes: a file position (path, line, column, length, or to endLine and endColumn for a match that spans lines) or a commit (repoId, sha). Lines and columns are 1-based.
 type OpenTarget struct {
 	Path   string `json:"path,omitempty"`
 	Line   int    `json:"line,omitempty"`
 	Column int    `json:"column,omitempty"`
 	Length int    `json:"length,omitempty"`
-	RepoID string `json:"repoId,omitempty"`
-	SHA    string `json:"sha,omitempty"`
+	// EndLine is where a match that spans lines ends: the selection runs from line and column to endLine and endColumn.
+	EndLine   int    `json:"endLine,omitempty"`
+	EndColumn int    `json:"endColumn,omitempty"`
+	RepoID    string `json:"repoId,omitempty"`
+	SHA       string `json:"sha,omitempty"`
 }
 
 // OpenWhere is which editor group a result opens in.
