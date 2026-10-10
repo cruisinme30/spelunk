@@ -39,6 +39,13 @@ func TestHistorySearchPreviewAndOpen(t *testing.T) {
 	if result.Total != 1 || len(items) != 1 || items[0].Kind != "commit" || items[0].Subject != "Raise timeout" {
 		t.Fatalf("author:jane timeout = %d results %+v, want the Raise timeout commit", result.Total, items)
 	}
+	var parsed protocol.ParseResult
+	if err := client.call(protocol.MethodQueryParse, protocol.ParseParams{Text: "author:Jane"}, &parsed); err != nil {
+		t.Fatal(err)
+	}
+	if resolved := parsed.Query.Root.Resolved; resolved == nil || resolved.Label != "Jane Doe" {
+		t.Errorf("author:Jane resolved = %+v, want Jane Doe, whatever the case", resolved)
+	}
 	var preview protocol.Preview
 	if err := client.call(protocol.MethodPreviewGet, protocol.PreviewParams{Ref: items[0].Ref, ContextLines: 3}, &preview); err != nil {
 		t.Fatal(err)

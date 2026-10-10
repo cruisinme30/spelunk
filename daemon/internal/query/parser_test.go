@@ -219,6 +219,11 @@ func TestAuthorAndRepoValuesAreResolved(t *testing.T) {
 	if repo.Resolved == nil || repo.Resolved.Label != "web-checkout" {
 		t.Errorf("repo:web resolved = %+v, want web-checkout", repo.Resolved)
 	}
+	// An author named exactly the value counts, whatever their commits or case.
+	authors := fakeResolver{authors: []AuthorStat{{Name: "Jo Lee", Commits: 50}, {Name: "Mo Jo", Commits: 9}, {Name: "Jo", Commits: 3}}}
+	if q := Parse("author:JO x", authors); q.Root.Children[0].Resolved == nil || q.Root.Children[0].Resolved.Label != "Jo" {
+		t.Errorf("author:JO resolved = %+v, want Jo", q.Root.Children[0].Resolved)
+	}
 	if q := mustParseCleanly(t, "author:ja x"); q.Root.Children[0].Resolved != nil {
 		t.Errorf("author:ja is ambiguous; resolved = %+v, want nil", q.Root.Children[0].Resolved)
 	}

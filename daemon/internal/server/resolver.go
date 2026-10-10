@@ -32,6 +32,7 @@ const messageWordsWindow = 90 * 24 * time.Hour
 // Authors returns the authors of every open repo's history whose name or
 // email contains fragment, most commits first.
 func (r workspaceResolver) Authors(fragment string, limit int) []query.AuthorStat {
+	fragment = strings.ToLower(fragment)
 	var found []query.AuthorStat
 	for _, author := range r.mergedAuthors() {
 		if strings.Contains(strings.ToLower(author.Name+" "+strings.Join(author.Emails, " ")), fragment) {
