@@ -7,6 +7,7 @@ import { rootId } from "../roots";
 import {
   closeOnOpen,
   daemonSettings,
+  indexLocationProblem,
   MOVED_SETTINGS,
   movedValue,
   pinnedQueries,
@@ -102,13 +103,25 @@ test("the preview's context lines come from ui.previewContextLines, clamped to 0
   assert.equal(previewContextLines(configWith({ "ui.previewContextLines": "lots" })), 7);
 });
 
+/** Why the daemon doesn't get an index.location setting as written, with /home/u as home. */
+const problem = (value: unknown) => indexLocationProblem(configWith({ "index.location": value }), "/home/u");
+
 /** The index location the daemon gets for an index.location setting, with /home/u as home. */
 const location = (value: string) => daemonSettings(configWith({ "index.location": value }), "/home/u").location;
 
-test("the index location expands ~ and ~/ but not ~user", () => {
+test("the index location expands ~ and ~/ (or ~ and a backslash), and a path not then absolute means the default", () => {
+  // @covers setting:index.location
   assert.equal(location("~/idx"), "/home/u/idx");
   assert.equal(location("~"), "/home/u");
-  assert.equal(location("~alice/idx"), "~alice/idx");
+  assert.equal(location(String.raw`~\idx`), String.raw`/home/u\idx`);
+  assert.equal(location(" /data/idx "), "/data/idx");
+  for (const unusable of ["~alice/idx", "relative/idx", "${workspaceFolder}/.idx", "   "]) {
+    assert.equal(location(unusable), "/home/u/.spelunk/index", unusable);
+  }
+  assert.equal(problem("~/idx"), undefined);
+  assert.equal(problem(42), undefined, "a value of the wrong type falls back without a word, like every other setting");
+  assert.equal(problem("  "), undefined, "so does a blank one");
+  assert.match(problem("relative/idx") ?? "", /"relative\/idx" is not an absolute path or one starting with ~/);
 });
 
 test("search.caseSensitive is off, on or smart", () => {

@@ -37,6 +37,7 @@ import { makeRoot } from "./roots";
 import {
   closeOnOpen,
   daemonSettings,
+  indexLocationProblem,
   MOVED_SETTINGS,
   movedValue,
   USER_ONLY_SETTINGS,
@@ -77,6 +78,7 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi {
   const logError = (source: string) => (error: unknown) => {
     log.appendLine(`[${source}] ${String(error)}`);
   };
+  logIndexLocationProblem(log);
   const daemon = new Daemon({
     binary: daemonBinary(context.extensionPath, context.extensionMode),
     roots: workspaceRoots,
@@ -137,6 +139,7 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi {
       if (!event.affectsConfiguration("spelunk")) return;
       // A value saved under an old key (by hand, or synced from an older version) moves at once.
       if (touchesMovedSetting(event)) moveSettingsSoon(logError("settings"));
+      if (event.affectsConfiguration("spelunk.index.location")) logIndexLocationProblem(log);
       daemon.updateSettings(daemonSettings(configuration(), homedir()));
       daemon.setWatches(watchedQueries(configuration()));
       if (panel.isOpen) controller.settingsChanged();
@@ -151,6 +154,12 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi {
     void context.globalState.update(WELCOMED_KEY, true);
   }
   return { daemon, controller };
+}
+
+/** Logs why spelunk.index.location isn't used as written, if it isn't. */
+function logIndexLocationProblem(log: vscode.OutputChannel): void {
+  const problem = indexLocationProblem(configuration(), homedir());
+  if (problem) log.appendLine(`[settings] ${problem}`);
 }
 
 /** The welcome page, fed the settings it shows and the daemon's indexing progress. */

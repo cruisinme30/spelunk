@@ -340,7 +340,7 @@
             "type": "string",
             "default": "~/.spelunk/index",
             "scope": "machine",
-            "description": "Where indexes are stored. Never synced, because paths differ between computers."
+            "description": "Where indexes are stored: an absolute path, or one starting with ~. Anything else stores them in the default place. Never synced, because paths differ between computers."
           },
           "spelunk.index.vendoredFolders": {
             "type": "array",

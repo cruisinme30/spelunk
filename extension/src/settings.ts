@@ -1,4 +1,5 @@
 // Maps the spelunk.* configuration to protocol types.
+import { isAbsolute } from "node:path";
 import type {
   CaseSetting,
   PinnedQuery,
@@ -140,11 +141,31 @@ function strings(value: unknown, fallback: readonly string[]): string[] {
   return value.filter((item): item is string => typeof item === "string");
 }
 
-/** Expands a leading `~` or `~/`, but not `~user/`, which names another user's home. */
+/** Expands a leading `~`, `~/` or (as Windows writes it) `~\`, but not `~user/`, which names another user's home. */
 function expandHome(path: string, home: string): string {
   if (path === "~") return home;
-  if (path.startsWith("~/")) return home + path.slice(1);
+  if (path.startsWith("~/") || path.startsWith("~\\")) return home + path.slice(1);
   return path;
+}
+
+/**
+ * spelunk.index.location with `~` expanded. Anything that isn't then an
+ * absolute path (`relative/idx`, `${workspaceFolder}/idx`, `~user/idx`)
+ * would put the index wherever the daemon happens to run, so it falls back to
+ * the default, as a blank one does; indexLocationProblem says why.
+ */
+function indexLocation(config: ConfigReader, home: string): string {
+  const saved = string(config.get<unknown>("index.location", DEFAULTS.location), DEFAULTS.location).trim();
+  const expanded = expandHome(saved, home);
+  return isAbsolute(expanded) ? expanded : expandHome(DEFAULTS.location, home);
+}
+
+/** Why spelunk.index.location isn't used as it is written, for the log; undefined when it is. */
+export function indexLocationProblem(config: ConfigReader, home: string): string | undefined {
+  const saved = config.get<unknown>("index.location", DEFAULTS.location);
+  // A blank location, like one of the wrong type, means the default without a word.
+  if (typeof saved !== "string" || !saved.trim() || isAbsolute(expandHome(saved.trim(), home))) return undefined;
+  return `spelunk.index.location ${JSON.stringify(saved)} is not an absolute path or one starting with ~, so indexes go to ${DEFAULTS.location}`;
 }
 
 /** The settings the daemon needs, validated and clamped. */
@@ -164,10 +185,7 @@ export function daemonSettings(config: ConfigReader, home: string): Settings {
       MAX_FILE_SIZE_KB,
       DEFAULTS.maxFileSizeKB,
     ),
-    location: expandHome(
-      string(read("index.location", DEFAULTS.location), DEFAULTS.location) || DEFAULTS.location,
-      home,
-    ),
+    location: indexLocation(config, home),
     order: oneOf(read("results.order", DEFAULTS.order), ORDERS, DEFAULTS.order),
     contextLines: contextLines(config),
     timeLimitMs: clamp(
