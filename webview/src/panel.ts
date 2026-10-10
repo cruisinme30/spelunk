@@ -411,15 +411,17 @@ export class SearchPanel {
   /** Highlights a row and asks the host for its preview. */
   private select(ref: string): void {
     if (this.state.selectedRef === ref) return;
+    // Only the two rows that change: holding ↓ through thousands of results stays smooth.
+    const previous = this.state.selectedRef ? this.results?.rowFor(this.state.selectedRef) : undefined;
+    previous?.classList.remove("selected");
+    previous?.setAttribute("aria-selected", "false");
     this.state.selectedRef = ref;
-    for (const row of this.results?.rows() ?? []) {
-      const selected = row.dataset["ref"] === ref;
-      row.classList.toggle("selected", selected);
-      row.setAttribute("aria-selected", String(selected));
-      if (selected) {
-        if (this.results) scrollIntoContainer(this.results.list, row, "nearest");
-        this.layout.input.setAttribute("aria-activedescendant", row.id);
-      }
+    const row = this.results?.rowFor(ref);
+    if (row && this.results) {
+      row.classList.add("selected");
+      row.setAttribute("aria-selected", "true");
+      scrollIntoContainer(this.results.list, row, "nearest");
+      this.layout.input.setAttribute("aria-activedescendant", row.id);
     }
     clearTimeout(this.previewTimer);
     this.previewTimer = setTimeout(() => {

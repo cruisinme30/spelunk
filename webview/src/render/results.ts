@@ -211,6 +211,11 @@ export class ResultsView {
     return [...this.list.querySelectorAll<HTMLElement>("[data-ref]")];
   }
 
+  /** The row of the result `ref` names, if it is on screen. */
+  rowFor(ref: string): HTMLElement | null {
+    return this.list.querySelector<HTMLElement>(`#${rowId(ref)}`);
+  }
+
   /** Adds a batch of results to their sections, skipping any of a kind this webview doesn't know. */
   append(items: ResultItem[]): void {
     for (const item of items) {
