@@ -24,11 +24,12 @@ const shutdownGrace = 2 * time.Second
 // Server is one daemon instance bound to one connection. It is safe for
 // concurrent use: handlers run on their own goroutines.
 type Server struct {
-	conn  *rpc.Conn
-	now   func() time.Time
-	index *indexer.Indexer
-	plans planMemory
-	tags  tagCache
+	conn      *rpc.Conn
+	now       func() time.Time
+	index     *indexer.Indexer
+	plans     planMemory
+	tags      tagCache
+	revisions revisionCache
 
 	mu                sync.RWMutex
 	roots             []protocol.Root

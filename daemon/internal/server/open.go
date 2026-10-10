@@ -1,7 +1,7 @@
 package server
 
-// preview/get and open/resolve: what a selected result looks like, and
-// where opening it goes.
+// preview/get, open/resolve and revision/text: what a selected result
+// looks like, where opening it goes, and the text of a file at a revision.
 
 import (
 	"context"
@@ -9,6 +9,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/cruisinme30/spelunk/daemon/internal/codeowners"
 	"github.com/cruisinme30/spelunk/daemon/internal/history"
@@ -42,7 +43,16 @@ func (s *Server) preview(ctx context.Context, raw json.RawMessage) (any, error) 
 	if err != nil {
 		return nil, err
 	}
-	preview, err := trigram.Preview(repo, ref, s.plans.recall(ref.PlanID), params.ContextLines)
+	plan := s.plans.recall(ref.PlanID)
+	if ref.Revision != "" {
+		content, readErr := readAtRevision(ctx, repo.Root, ref)
+		if readErr != nil {
+			return nil, staleAsRPCError(readErr)
+		}
+		preview, previewErr := trigram.PreviewText(repo, ref, plan, params.ContextLines, content, time.Time{})
+		return preview, staleAsRPCError(previewErr)
+	}
+	preview, err := trigram.Preview(repo, ref, plan, params.ContextLines)
 	return preview, staleAsRPCError(err)
 }
 
@@ -65,8 +75,40 @@ func (s *Server) openResolve(ctx context.Context, raw json.RawMessage) (any, err
 	if err != nil {
 		return nil, err
 	}
+	if ref.Revision != "" {
+		if _, readErr := readAtRevision(ctx, repo.Root, ref); readErr != nil {
+			return nil, staleAsRPCError(readErr)
+		}
+		label := short(ref.Revision)
+		if plan := s.plans.recall(ref.PlanID); plan != nil && plan.At != "" {
+			label = plan.At
+		}
+		return trigram.RevisionTarget(repo, ref, label), nil
+	}
 	target, err := trigram.OpenTarget(repo, ref)
 	return target, staleAsRPCError(err)
+}
+
+// revisionText answers revision/text: the whole text of the file a result
+// at a revision names, as it was then, for the read-only editor that
+// opening the result shows.
+func (s *Server) revisionText(ctx context.Context, raw json.RawMessage) (any, error) {
+	var params protocol.RevisionTextParams
+	if err := decode(raw, &params); err != nil {
+		return nil, err
+	}
+	repo, ref, err := s.repoForRef(params.Ref)
+	if err != nil {
+		return nil, err
+	}
+	if ref.Revision == "" {
+		return nil, rpc.Errorf(protocol.CodeRefStale, "not a result at a revision")
+	}
+	content, err := readAtRevision(ctx, repo.Root, ref)
+	if err != nil {
+		return nil, staleAsRPCError(err)
+	}
+	return protocol.RevisionText{Text: string(content)}, nil
 }
 
 // repoForRef decodes a ref and finds the open root it points into. A ref
@@ -80,8 +122,12 @@ func (s *Server) repoForRef(text string) (*trigram.Repo, trigram.Ref, error) {
 		if root.ID != ref.RepoID {
 			continue
 		}
-		if err := insideRoot(root.Path, ref.Path); err != nil {
-			return nil, trigram.Ref{}, err
+		// A ref at a revision names a file in a commit, which git reads:
+		// the file need not be on disk, and no link on disk is followed.
+		if ref.Revision == "" {
+			if err := insideRoot(root.Path, ref.Path); err != nil {
+				return nil, trigram.Ref{}, err
+			}
 		}
 		return &trigram.Repo{ID: root.ID, Name: root.Name, Root: root.Path, Owners: s.codeOwners(root.ID)}, ref, nil
 	}

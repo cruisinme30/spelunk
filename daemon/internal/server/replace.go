@@ -53,6 +53,9 @@ func replacedTerm(plan *query.Plan) (*query.Content, error) {
 	if plan.Mode != protocol.ModeWorkingTree {
 		return nil, rpc.Errorf(protocol.CodeQueryInvalid, "replace changes current files, not commits")
 	}
+	if plan.At != "" {
+		return nil, rpc.Errorf(protocol.CodeQueryInvalid, "replace changes current files, not the files at:%s", plan.At)
+	}
 	if !plan.Kinds[query.KindLine] {
 		return nil, rpc.Errorf(protocol.CodeQueryInvalid, "replace changes code matches, and this query finds none")
 	}

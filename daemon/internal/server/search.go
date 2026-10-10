@@ -27,11 +27,13 @@ const (
 )
 
 // registerSearch registers the handlers for searching and for what the
-// client does with results: preview, open and replace.
+// client does with results: preview, open (with the text of a file at a
+// revision) and replace.
 func (s *Server) registerSearch() {
 	s.handle(protocol.MethodSearchStart, s.search)
 	s.handle(protocol.MethodPreviewGet, s.preview)
 	s.handle(protocol.MethodOpenResolve, s.openResolve)
+	s.handle(protocol.MethodRevisionText, s.revisionText)
 	s.handle(protocol.MethodReplacePlan, s.replacePlan)
 }
 
@@ -107,6 +109,12 @@ func (s *Server) search(ctx context.Context, raw json.RawMessage) (any, error) {
 	planID := s.plans.remember(plan)
 	batch := &batcher{conn: s.conn, searchID: params.SearchID}
 	repos := trigram.WithOpenFiles(s.index.Repos(), params.OpenFiles)
+	var revisions []protocol.RevisionInfo
+	if plan.At != "" {
+		if repos, revisions, err = s.revisionRepos(ctx, plan); err != nil {
+			return nil, err
+		}
+	}
 	var stats engine.Stats
 	if plan.Mode == protocol.ModeHistory {
 		stats, err = history.Search(ctx, plan, s.index.HistoryRepos(), planID, batch.add)
@@ -125,7 +133,7 @@ func (s *Server) search(ctx context.Context, raw json.RawMessage) (any, error) {
 	}
 	result := protocol.SearchResult{
 		Total: stats.Total, Truncated: stats.Truncated, Hidden: stats.Hidden, Facets: stats.Facets,
-		Ms: int(time.Since(started).Milliseconds()),
+		Revisions: revisions, Ms: int(time.Since(started).Milliseconds()),
 	}
 	if stats.NextOffset > 0 {
 		result.NextCursor = strconv.Itoa(stats.NextOffset)
@@ -135,8 +143,9 @@ func (s *Server) search(ctx context.Context, raw json.RawMessage) (any, error) {
 
 // symbolsAsText counts what the query finds with its sym: names searched as
 // text instead, for the "Search RetryPolicy as text" suggestion: the count
-// is what running the suggestion returns. repos are the search's own, with
-// the files open in the editor.
+// is what running the suggestion returns. repos are the search's own: the
+// current files with the files open in the editor, or the files at the
+// query's revision.
 func (s *Server) symbolsAsText(ctx context.Context, text string, repos []trigram.Repo, filter *query.Filter) (protocol.HiddenNote, bool) {
 	parsed := query.Parse(query.ApplyFix(text, filter.Undo), s.resolver(nil))
 	plan, _, err := query.NewPlan(parsed, s.Settings(), s.now(), "")
