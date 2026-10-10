@@ -68,6 +68,9 @@ All notable changes to this project are documented here. The format follows
 ### Fixed
 
 - A code line, path or name wider than the results no longer pushes the preview off the side of the panel.
+- A facet bucket, the repo menu, **Aa** or **ab** on a query with OR at its top level put it in parentheses first, so
+  the filter narrows every branch instead of only one (`retry OR timeout lang:python` meant `retry OR (timeout
+  lang:python)`).
 
 ## [1.1.0] - 2026-10-05
 

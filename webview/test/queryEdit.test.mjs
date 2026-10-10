@@ -204,6 +204,40 @@ test("a facet click adds its filter at the end, and Alt-click the filter that le
   });
 });
 
+/** "retry OR timeout" as the daemon parses it: an OR at the top level. */
+const RETRY_OR_TIMEOUT = parsed("retry OR timeout", {
+  kind: "or",
+  span: { start: 0, end: 16 },
+  children: [term("retry", 0), term("timeout", 9)],
+});
+
+test("a facet, the repo menu or Aa on an OR query groups it first, so the filter narrows every branch", () => {
+  // AND binds tighter than OR: "retry OR timeout lang:python" would mean retry OR (timeout lang:python).
+  assert.deepEqual(toggleFacet("retry OR timeout", RETRY_OR_TIMEOUT, "lang:python", false), {
+    text: "(retry OR timeout) lang:python",
+    cursor: 30,
+  });
+  assert.equal(
+    toggleFacet("retry OR timeout ", RETRY_OR_TIMEOUT, "repo:api", true).text,
+    "(retry OR timeout) -repo:api",
+  );
+  assert.equal(scopeToRepo("retry OR timeout", RETRY_OR_TIMEOUT, "api").text, "repo:^api$ (retry OR timeout)");
+  // A global can't be in an OR branch either.
+  assert.equal(toggleCase("retry OR timeout", RETRY_OR_TIMEOUT, "off").text, "case:yes (retry OR timeout)");
+  assert.equal(toggleWord("retry OR timeout", RETRY_OR_TIMEOUT, false).text, "word:yes (retry OR timeout)");
+  // A query whose OR is already inside an AND keeps its shape.
+  const grouped = parsed("(retry OR timeout) lang:go", {
+    kind: "and",
+    span: { start: 1, end: 26 },
+    children: [{ ...RETRY_OR_TIMEOUT.root, span: { start: 1, end: 17 } }, operator("lang", "go", 19)],
+  });
+  assert.equal(
+    toggleFacet("(retry OR timeout) lang:go", grouped, "repo:api", false).text,
+    "(retry OR timeout) lang:go repo:api",
+  );
+  assert.equal(facetState(grouped, "lang:go"), "kept");
+});
+
 test("a facet bucket the query keeps or leaves out shows so, and a click takes it back out", () => {
   // @covers screen:result-facets
   const kept = parsed("retry repo:api", { kind: "and", children: [term("retry", 0), operator("repo", "api", 6)] });

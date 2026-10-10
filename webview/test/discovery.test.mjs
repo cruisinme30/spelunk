@@ -223,6 +223,19 @@ test("the repo menu scopes the query to one repo, or back to all", async (t) => 
   assert.equal(await page.inputValue(QUERY), "timeout");
 });
 
+test("the repo menu scopes every branch of an OR query", async (t) => {
+  // @covers op:repo
+  const page = await openPanel(t);
+  await restore(page);
+  await fromHost(page, "index.status", { repos: REPOS });
+  const or = { kind: "or", span: { start: 0, end: 16 }, children: [textNode("retry", 0), textNode("timeout", 9, 1)] };
+  await typeAndParse(page, "retry OR timeout", parsedQuery("retry OR timeout", or));
+  await page.click('[data-testid="repos"]');
+  await page.locator('[data-testid="repo-option"]').nth(1).click();
+  // Not "repo:^payments-api$ retry OR timeout", which means (repo:^payments-api$ retry) OR timeout.
+  assert.equal(await page.inputValue(QUERY), "repo:^payments-api$ (retry OR timeout)");
+});
+
 test("a content: term's chip says it matches content, not names", async (t) => {
   const page = await openPanel(t);
   await restore(page);

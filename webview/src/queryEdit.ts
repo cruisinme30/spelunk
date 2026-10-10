@@ -58,6 +58,16 @@ function removeSpans(text: string, spans: Span[]): Edited {
   return { text: trimmed, cursor: trimmed.length };
 }
 
+/**
+ * The query text as one term a filter can be ANDed with. AND binds tighter
+ * than OR, so a filter beside `a OR b` would join only one branch: a query
+ * whose top level is an OR goes in parentheses first.
+ */
+function asConjunct(text: string, query: ParsedQuery | undefined): string {
+  const trimmed = text.trim();
+  return query?.root?.kind === "or" && trimmed ? `(${trimmed})` : trimmed;
+}
+
 /** A global that is yes or no, with a setting for its default: case: behind Aa, word: behind ab. */
 type SwitchOperator = "case" | "word";
 
@@ -77,7 +87,8 @@ function toggleSwitch(
   const [existing] = operatorNodes(query, op);
   if (!existing) {
     const operator = `${op}:${onByDefault ? "no" : "yes"}`;
-    const edited = `${operator} ${text}`.trimEnd();
+    // A global can't sit in an OR branch either.
+    const edited = `${operator} ${asConjunct(text, query)}`.trimEnd();
     return { text: edited, cursor: Math.min(operator.length + 1, edited.length) };
   }
   if (pressed !== onByDefault) return removeSpan(text, existing.span);
@@ -175,7 +186,9 @@ function quoteIfNeeded(literal: string): string {
 
 /**
  * The repo menu: replaces the query's repo: scope with one repo, or removes
- * it for all repos. Negated repo: filters (-repo:legacy) are left alone.
+ * it for all repos. Negated repo: filters (-repo:legacy) are left alone, and
+ * a query that is an OR at its top level is put in parentheses, so the repo
+ * scopes every branch.
  */
 export function scopeToRepo(text: string, query: ParsedQuery | undefined, repoName: string | undefined): Edited {
   const rest = removeSpans(
@@ -185,7 +198,9 @@ export function scopeToRepo(text: string, query: ParsedQuery | undefined, repoNa
   if (repoName === undefined) return { text: rest, cursor: rest.length };
   // Anchored, so picking api doesn't also search payments-api.
   const operator = `repo:${regexValue(`^${escapeRegex(repoName, new RegExp(REGEX_SPECIAL.source, "g"))}$`)}`;
-  const result = rest ? `${operator} ${rest}` : operator;
+  // An OR at the top level has no top-level repo: to remove, so `rest` is the whole query, grouped to scope every branch.
+  const scoped = asConjunct(rest, query);
+  const result = scoped ? `${operator} ${scoped}` : operator;
   return { text: result, cursor: result.length };
 }
 
@@ -237,11 +252,12 @@ export function facetState(query: ParsedQuery | undefined, filter: string): Face
 /**
  * A facet bucket's click: takes its filter back out of the query when it is
  * there, kept or left out; otherwise adds it at the end, or with `exclude`
- * (Alt-click) the filter that leaves it out.
+ * (Alt-click) the filter that leaves it out. A query that is an OR at its
+ * top level is put in parentheses first, so the filter narrows every branch.
  */
 export function toggleFacet(text: string, query: ParsedQuery | undefined, filter: string, exclude: boolean): Edited {
   const { state, spans } = facetSpans(query, filter);
   if (state !== "none") return removeSpans(text, spans);
-  const added = `${text.trimEnd()} ${exclude ? leaveOut(filter) : filter}`.trimStart();
+  const added = `${asConjunct(text, query)} ${exclude ? leaveOut(filter) : filter}`.trimStart();
   return { text: added, cursor: added.length };
 }
