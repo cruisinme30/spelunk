@@ -10,6 +10,7 @@ import (
 
 	"github.com/cruisinme30/spelunk/daemon/internal/lang"
 	"github.com/cruisinme30/spelunk/daemon/internal/protocol"
+	"github.com/cruisinme30/spelunk/daemon/internal/structural"
 )
 
 // scope says where an operator can be used.
@@ -58,6 +59,7 @@ var operators = []operator{
 	{name: protocol.OpNameIs, full: "is", short: "i", summary: "Open, changed, test, generated or vendored files", examples: []string{StateOpen, StateChanged, StateTest, StateGenerated, StateVendored}, interpret: oneOf(StateOpen, StateChanged, StateTest, StateGenerated, StateVendored)},
 	{name: protocol.OpNameOwner, full: "owner", scope: scopeWorkingTreeOnly, summary: "Files a person or team owns in CODEOWNERS", interpret: asOwner},
 	{name: protocol.OpNameContent, full: "content", summary: "Text inside files only, never file names", examples: []string{"retry", `"read timeout"`, "/Retry(Policy)?/"}, interpret: asText},
+	{name: protocol.OpNameStruct, full: "struct", scope: scopeWorkingTreeOnly, summary: "Code shaped like a template, whose :[holes] take any code", interpret: asTemplate},
 	{name: protocol.OpNameLang, full: "language", short: "l", summary: "Programming language", examples: []string{"python", "go", "typescript"}, interpret: asLanguage},
 	{name: protocol.OpNameRepo, full: "repo", short: "r", summary: "Repo name, as a regex or a glob", interpret: asPathRegex},
 	{name: protocol.OpNameMsg, full: "message", short: "m", scope: scopeHistoryOnly, summary: "Words in the commit message", interpret: asText},
@@ -169,6 +171,19 @@ func asText(value string, form valueForm) (protocol.Match, string) {
 	default:
 		return protocol.MatchLiteral, ""
 	}
+}
+
+// asTemplate: struct: takes a "quoted template" of code with :[holes]
+// (see the structural package), which must make sense as one.
+func asTemplate(value string, form valueForm) (protocol.Match, string) {
+	if form != formQuoted {
+		return protocol.MatchStructural, `struct: takes a template in quotes, as in struct:"retry(:[args])"`
+	}
+	if _, err := structural.Parse(value); err != nil {
+		message := err.Error()
+		return protocol.MatchStructural, strings.ToUpper(message[:1]) + message[1:]
+	}
+	return protocol.MatchStructural, ""
 }
 
 // asReference: ref: takes a name, or a "quoted name"; uses are found as

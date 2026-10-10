@@ -15,6 +15,9 @@ import (
 // is negative), as regexp.FindAllIndex does, keeping only whole words when
 // the term has WholeWord.
 func (c *Content) FindAllIndex(b []byte, n int) [][]int {
+	if c.Structural != nil {
+		return c.findStructure(b, n)
+	}
 	if !c.WholeWord {
 		return c.Re.FindAllIndex(b, n)
 	}
@@ -44,7 +47,7 @@ func (c *Content) FindAllIndex(b []byte, n int) [][]int {
 
 // FindAllStringIndex is FindAllIndex for a string.
 func (c *Content) FindAllStringIndex(s string, n int) [][]int {
-	if !c.WholeWord {
+	if !c.WholeWord && c.Structural == nil {
 		return c.Re.FindAllStringIndex(s, n)
 	}
 	return c.FindAllIndex([]byte(s), n)
@@ -52,7 +55,7 @@ func (c *Content) FindAllStringIndex(s string, n int) [][]int {
 
 // FindStringIndex returns the first match of the term in s, or nil.
 func (c *Content) FindStringIndex(s string) []int {
-	if !c.WholeWord {
+	if !c.WholeWord && c.Structural == nil {
 		return c.Re.FindStringIndex(s)
 	}
 	if found := c.FindAllIndex([]byte(s), 1); len(found) == 1 {
@@ -64,6 +67,18 @@ func (c *Content) FindStringIndex(s string) []int {
 // MatchString reports whether the term matches s.
 func (c *Content) MatchString(s string) bool {
 	return c.FindStringIndex(s) != nil
+}
+
+// findStructure returns up to n matches of a struct: term's template in b,
+// read as plain text: an engine that knows b's language matches the
+// template itself (see structural.Template.Find).
+func (c *Content) findStructure(b []byte, n int) [][]int {
+	matches, _ := c.Structural.Find(b, "", c.IgnoreCase, n)
+	locs := make([][]int, len(matches))
+	for i, m := range matches {
+		locs[i] = []int{m.Start, m.End}
+	}
+	return locs
 }
 
 // keepWholeWords keeps up to n of locs (all when n is negative) that are

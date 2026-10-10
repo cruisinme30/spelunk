@@ -30,7 +30,8 @@ func TestCompletingOperatorsOffersFullNames(t *testing.T) {
 	// A short name offers its operator first; an old name or an alias (path:)
 	// offers the full one.
 	tests := map[string]string{
-		"s":    "symbol: since:",
+		"s":    "symbol: since: struct:",
+		"str":  "struct:",
 		"f":    "file:",
 		"d":    "since:",
 		"u":    "until:",

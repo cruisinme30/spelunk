@@ -11,6 +11,7 @@ import (
 
 	"github.com/cruisinme30/spelunk/daemon/internal/lang"
 	"github.com/cruisinme30/spelunk/daemon/internal/protocol"
+	"github.com/cruisinme30/spelunk/daemon/internal/structural"
 )
 
 // MaxResults is the hard cap on one search's results, even with count:all.
@@ -162,6 +163,11 @@ type (
 		// line by line. Re has the m flag, so ^ and $ still match at the
 		// start and end of each line.
 		Multiline bool
+		// Structural is the template of a struct: term, which matches code
+		// by its shape (see the structural package) in the language of each
+		// file. Re then matches the template's words in order, for the
+		// index to narrow by; the working-tree engine matches the template.
+		Structural *structural.Template
 		// resumable means Re can be matched from inside a text (canResume),
 		// so a match that isn't a whole word can be retried a rune later.
 		resumable bool
@@ -222,6 +228,9 @@ func (p *And) String() string { return joinPreds("and", p.Kids) }
 func (p *Or) String() string  { return joinPreds("or", p.Kids) }
 func (p *Not) String() string { return "not(" + p.Kid.String() + ")" }
 func (p *Content) String() string {
+	if p.Structural != nil {
+		return fmt.Sprintf("struct#%d:%q", p.TermIndex, p.Structural)
+	}
 	if p.Reference {
 		return fmt.Sprintf("ref#%d:/%s/", p.TermIndex, p.Re)
 	}
@@ -546,6 +555,9 @@ func (l *lowering) lower(node *protocol.Node) Pred {
 
 // term lowers a text term, or the name of a ref:, into a content term.
 func (l *lowering) term(node *protocol.Node, wholeWord bool, termIndex int) *Content {
+	if node.Match == protocol.MatchStructural {
+		return l.structure(node, termIndex)
+	}
 	content := &Content{Re: l.regex(node.Value, node.Match), IgnoreCase: !l.caseSensitive, WholeWord: wholeWord, TermIndex: termIndex}
 	if node.Match == protocol.MatchRegex && spansLines(node.Value) {
 		content.Re, content.Multiline = l.compile("(?m)"+node.Value), true
@@ -553,6 +565,22 @@ func (l *lowering) term(node *protocol.Node, wholeWord bool, termIndex int) *Con
 	content.resumable = content.WholeWord && canResume(content.Re)
 	if node.Match != protocol.MatchRegex {
 		content.Literal = node.Value
+	}
+	l.plan.Terms = append(l.plan.Terms, content)
+	return content
+}
+
+// structure lowers a struct: term. Every match holds the template's words
+// in order, so Re finds them, and the index narrows by the longest.
+func (l *lowering) structure(node *protocol.Node, termIndex int) *Content {
+	template, _ := structural.Parse(node.Value) // the parser already checked it
+	words := template.Words()
+	for i, word := range words {
+		words[i] = regexp.QuoteMeta(word)
+	}
+	content := &Content{
+		Re: l.compile("(?s)" + strings.Join(words, ".*")), IgnoreCase: !l.caseSensitive,
+		TermIndex: termIndex, ContentOnly: true, Structural: template,
 	}
 	l.plan.Terms = append(l.plan.Terms, content)
 	return content

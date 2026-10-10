@@ -75,9 +75,30 @@
         },
         "termIndex": {
           "type": "integer"
+        },
+        "hole": {
+          "description": "For a struct: match, the number of the template hole whose code this marks (1 for the first name in the template); absent where the template's own code matched.",
+          "type": "integer"
         }
       },
       "required": ["start", "end", "termIndex"]
+    },
+    "HoleValue": {
+      "description": "HoleValue is the code a struct: template's named hole took in one match, its space squeezed and cut short when long.",
+      "type": "object",
+      "properties": {
+        "hole": {
+          "description": "The hole's number, as in Hit.hole.",
+          "type": "integer"
+        },
+        "name": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": ["hole", "name", "text"]
     },
     "OpName": {
       "description": "OpName is an operator's name, the part before the colon.",
@@ -93,6 +114,7 @@
         "is",
         "owner",
         "content",
+        "struct",
         "author",
         "msg",
         "since",
@@ -119,9 +141,9 @@
       "enum": ["definition", "open", "test", "vendored", "generated"]
     },
     "Match": {
-      "description": "Match says how a value was written: bare (literal), quoted (phrase), /regex/, or a path glob such as *.go (f: and repo: only).",
+      "description": "Match says how a value was written: bare (literal), quoted (phrase), /regex/, a path glob such as *.go (f: and repo: only), or a struct: template of code with :[holes] (structural).",
       "type": "string",
-      "enum": ["literal", "phrase", "regex", "glob"]
+      "enum": ["literal", "phrase", "regex", "glob", "structural"]
     },
     "Mode": {
       "description": "Mode is what a query searches: current files or Git history.",
@@ -249,7 +271,7 @@
               "type": "integer"
             },
             "contentOnly": {
-              "description": "true for a content: term, which matches the text of files (or a commit's changed lines) and never file names or commit messages.",
+              "description": "true for a content: or struct: term, which matches the text of files (or a commit's changed lines) and never file names or commit messages.",
               "type": "boolean"
             },
             "span": {
@@ -580,7 +602,7 @@
               "$ref": "#/$defs/RankReason"
             },
             "spanLines": {
-              "description": "When the match spans lines (a regex with \\n), the lines after line that it runs onto, in order: at most 10, so a longer match ends at endLine past the last of them. Absent for a match within one line.",
+              "description": "When the match spans lines (a regex with \\n, or a struct: template), the lines after line that it runs onto, in order: at most 10, so a longer match ends at endLine past the last of them. Absent for a match within one line.",
               "type": "array",
               "items": {
                 "$ref": "#/$defs/SpanLine"
@@ -589,6 +611,13 @@
             "endLine": {
               "description": "The last line a match that spans lines ends on; present with spanLines.",
               "type": "integer"
+            },
+            "holes": {
+              "description": "For a struct: match, what each named hole of the template took, in template order, each hole once; absent otherwise.",
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/HoleValue"
+              }
             },
             "contextBefore": {
               "description": "The lines just above the match, top first, when the contextLines setting asks for them; fewer near the start of the file.",

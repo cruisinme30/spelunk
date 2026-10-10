@@ -72,6 +72,16 @@ type Hit struct {
 	Start     int `json:"start"`
 	End       int `json:"end"`
 	TermIndex int `json:"termIndex"`
+	// Hole is for a struct: match, the number of the template hole whose code this marks (1 for the first name in the template); absent where the template's own code matched.
+	Hole int `json:"hole,omitempty"`
+}
+
+// HoleValue is the code a struct: template's named hole took in one match, its space squeezed and cut short when long.
+type HoleValue struct {
+	// Hole is the hole's number, as in Hit.hole.
+	Hole int    `json:"hole"`
+	Name string `json:"name"`
+	Text string `json:"text"`
 }
 
 // OpName is an operator's name, the part before the colon.
@@ -89,6 +99,7 @@ const (
 	OpNameIs      OpName = "is"
 	OpNameOwner   OpName = "owner"
 	OpNameContent OpName = "content"
+	OpNameStruct  OpName = "struct"
 	OpNameAuthor  OpName = "author"
 	OpNameMsg     OpName = "msg"
 	OpNameSince   OpName = "since"
@@ -130,15 +141,16 @@ const (
 	RankReasonGenerated  RankReason = "generated"
 )
 
-// Match says how a value was written: bare (literal), quoted (phrase), /regex/, or a path glob such as *.go (f: and repo: only).
+// Match says how a value was written: bare (literal), quoted (phrase), /regex/, a path glob such as *.go (f: and repo: only), or a struct: template of code with :[holes] (structural).
 type Match = string
 
 // Match values.
 const (
-	MatchLiteral Match = "literal"
-	MatchPhrase  Match = "phrase"
-	MatchRegex   Match = "regex"
-	MatchGlob    Match = "glob"
+	MatchLiteral    Match = "literal"
+	MatchPhrase     Match = "phrase"
+	MatchRegex      Match = "regex"
+	MatchGlob       Match = "glob"
+	MatchStructural Match = "structural"
 )
 
 // Mode is what a query searches: current files or Git history.
@@ -382,6 +394,7 @@ type ResultItem struct {
 	Hits          []Hit        `json:"hits,omitempty"`
 	SpanLines     []SpanLine   `json:"spanLines,omitempty"`
 	EndLine       int          `json:"endLine,omitempty"`
+	Holes         []HoleValue  `json:"holes,omitempty"`
 	ContextBefore []string     `json:"contextBefore,omitempty"`
 	ContextAfter  []string     `json:"contextAfter,omitempty"`
 	Name          string       `json:"name,omitempty"`
@@ -451,6 +464,9 @@ func (v ResultItem) MarshalJSON() ([]byte, error) {
 		}
 		if v.EndLine != 0 {
 			fields["endLine"] = v.EndLine
+		}
+		if len(v.Holes) > 0 {
+			fields["holes"] = v.Holes
 		}
 		if len(v.ContextBefore) > 0 {
 			fields["contextBefore"] = v.ContextBefore

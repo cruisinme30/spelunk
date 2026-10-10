@@ -48,10 +48,20 @@ export interface Hit {
   start: number;
   end: number;
   termIndex: number;
+  /** For a struct: match, the number of the template hole whose code this marks (1 for the first name in the template); absent where the template's own code matched. */
+  hole?: number;
+}
+
+/** HoleValue is the code a struct: template's named hole took in one match, its space squeezed and cut short when long. */
+export interface HoleValue {
+  /** The hole's number, as in Hit.hole. */
+  hole: number;
+  name: string;
+  text: string;
 }
 
 /** OpName is an operator's name, the part before the colon. */
-export type OpName = "f" | "repo" | "lang" | "type" | "sym" | "kind" | "ref" | "is" | "owner" | "content" | "author" | "msg" | "since" | "until" | "case" | "word" | "count" | "order";
+export type OpName = "f" | "repo" | "lang" | "type" | "sym" | "kind" | "ref" | "is" | "owner" | "content" | "struct" | "author" | "msg" | "since" | "until" | "case" | "word" | "count" | "order";
 
 /** CaseSetting is how capital letters match when the query has no case: ignored (off), matched (on), or matched only when the query has a capital letter (smart). */
 export type CaseSetting = "off" | "on" | "smart";
@@ -62,8 +72,8 @@ export type ResultOrder = "best" | "path";
 /** RankReason is why best-match order put a file where it is: it defines a searched name or is open in the editor, or it was moved down as a test, vendored or generated file. Absent when nothing stands out or the order is path. */
 export type RankReason = "definition" | "open" | "test" | "vendored" | "generated";
 
-/** Match says how a value was written: bare (literal), quoted (phrase), /regex/, or a path glob such as *.go (f: and repo: only). */
-export type Match = "literal" | "phrase" | "regex" | "glob";
+/** Match says how a value was written: bare (literal), quoted (phrase), /regex/, a path glob such as *.go (f: and repo: only), or a struct: template of code with :[holes] (structural). */
+export type Match = "literal" | "phrase" | "regex" | "glob" | "structural";
 
 /** Mode is what a query searches: current files or Git history. */
 export type Mode = "workingTree" | "history";
@@ -114,7 +124,7 @@ export type Node =
       value: string;
       match: Match;
       termIndex: number;
-      /** true for a content: term, which matches the text of files (or a commit's changed lines) and never file names or commit messages. */
+      /** true for a content: or struct: term, which matches the text of files (or a commit's changed lines) and never file names or commit messages. */
       contentOnly?: boolean;
       span: Span;
     }
@@ -226,10 +236,12 @@ export type ResultItem =
       /** Who the repo's CODEOWNERS file says owns the file, as it writes them; absent when nobody does or the repo has no CODEOWNERS file. */
       owners?: string[];
       rankReason?: RankReason;
-      /** When the match spans lines (a regex with \n), the lines after line that it runs onto, in order: at most 10, so a longer match ends at endLine past the last of them. Absent for a match within one line. */
+      /** When the match spans lines (a regex with \n, or a struct: template), the lines after line that it runs onto, in order: at most 10, so a longer match ends at endLine past the last of them. Absent for a match within one line. */
       spanLines?: SpanLine[];
       /** The last line a match that spans lines ends on; present with spanLines. */
       endLine?: number;
+      /** For a struct: match, what each named hole of the template took, in template order, each hole once; absent otherwise. */
+      holes?: HoleValue[];
       /** The lines just above the match, top first, when the contextLines setting asks for them; fewer near the start of the file. */
       contextBefore?: string[];
       /** The lines just below the match (below endLine when it spans lines), when the contextLines setting asks for them; fewer near the end of the file. */

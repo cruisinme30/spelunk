@@ -308,10 +308,11 @@ func (p *parser) textNode(t token) *protocol.Node {
 	return node
 }
 
-// contentNode builds the text term of content:x. It is a text term like x,
-// numbered for highlight colors, but it matches only the text of files (or
-// a commit's changed lines), never file names or commit messages. Its value
-// is searched as written, so content:"f:vendor" finds that literal text.
+// contentNode builds the text term of content:x or struct:"x". It is a
+// text term like x, numbered for highlight colors, but it matches only the
+// text of files (or a commit's changed lines), never file names or commit
+// messages. Its value is searched as written, so content:"f:vendor" finds
+// that literal text; a struct: term's match is structural.
 func (p *parser) contentNode(t token, match protocol.Match) *protocol.Node {
 	node := &protocol.Node{Kind: protocol.NodeKindText, Value: t.value, Match: match, TermIndex: p.nextTermIndex, ContentOnly: true, Span: p.span(t)}
 	p.nextTermIndex++
@@ -422,7 +423,7 @@ func (p *parser) operatorNode(t token) *protocol.Node {
 	if op.name == protocol.OpNameOwner {
 		p.warnIfNoSuchOwner(t, valueSpan)
 	}
-	if op.name == protocol.OpNameContent {
+	if op.name == protocol.OpNameContent || op.name == protocol.OpNameStruct {
 		return p.contentNode(t, match)
 	}
 	node := &protocol.Node{Kind: protocol.NodeKindOp, Op: op.name, Value: t.value, Match: match, Span: p.span(t)}

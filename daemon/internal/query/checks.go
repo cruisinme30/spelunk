@@ -185,10 +185,16 @@ func checkOrModes(root *protocol.Node, problems *diagnostics) {
 	})
 }
 
-// reportWorkingTreeOperators reports sym:, order:, is:open or is:changed
-// in a history query.
+// reportWorkingTreeOperators reports sym:, order:, is:open, is:changed or
+// struct: in a history query.
 func reportWorkingTreeOperators(src *source, root *protocol.Node, problems *diagnostics) {
 	walk(root, func(node *protocol.Node) {
+		if node.Kind == protocol.NodeKindText && node.Match == protocol.MatchStructural {
+			written := src.slice(node.Span.Start, node.Span.End)
+			problems.errorf(DiagOpWrongMode, node.Span, []protocol.Fix{removeFix("Remove "+written, src, node.Span)},
+				"struct: searches current files, but this query searches commits (author:, msg: or type:commit)")
+			return
+		}
 		if node.Kind != protocol.NodeKindOp {
 			return
 		}
