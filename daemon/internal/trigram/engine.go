@@ -605,6 +605,7 @@ func (s *searcher) forEachCandidate(repos []Repo, visit func(c rankedCandidate, 
 			return
 		}
 		matcher := newFileMatcher(c.doc, s.terms)
+		matcher.stop = s.stopped // a long file stops part way, marking the results truncated
 		visit(c, matcher, contentLeaf(c.repo, c.doc, matcher))
 		s.incomplete = s.incomplete || matcher.gaveUp
 	}

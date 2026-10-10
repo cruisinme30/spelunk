@@ -56,6 +56,37 @@ type lineMatcher struct {
 	// gaveUp is set when a struct: term ran out of steps before the end
 	// of the text, so its matches may be missing some.
 	gaveUp bool
+	// stop, when set, reports whether the search this matcher serves has
+	// run out of time or been cancelled. Matching asks it every
+	// stopCheckBytes of text it reads and, once it says yes, gives up on
+	// the rest of the text and sets cut: one long file must not keep a
+	// search running past its budget.
+	stop func() bool
+	cut  bool
+	// work is how many bytes matching has read since it last asked stop.
+	work int
+}
+
+// stopCheckBytes is how much text matching reads between asking whether
+// the search should stop.
+const stopCheckBytes = 64 << 10
+
+// halted counts n more bytes of text read and reports whether matching
+// should give up on the rest of the text (see lineMatcher.stop).
+func (m *lineMatcher) halted(n int) bool {
+	if m.cut {
+		return true
+	}
+	if m.stop == nil {
+		return false
+	}
+	m.work += n
+	if m.work < stopCheckBytes {
+		return false
+	}
+	m.work = 0
+	m.cut = m.stop()
+	return m.cut
 }
 
 func newLineMatcher(content []byte, terms termCache) *lineMatcher {
@@ -182,8 +213,8 @@ func (m *lineMatcher) scanForLines(term *query.Content) []matchedLine {
 	// that is left to count to get the match's line number.
 	number, lineStart := 1, 0
 	for {
-		at := next(lineStart)
-		if at < 0 {
+		at, read := next(lineStart)
+		if at < 0 || m.halted(read) {
 			return found
 		}
 		start := bytes.LastIndexByte(content[:at], '\n') + 1
@@ -204,17 +235,23 @@ func (m *lineMatcher) scanForLines(term *query.Content) []matchedLine {
 
 // finder returns how to find the next position, at or after a line start,
 // where term may match: a fast literal search when that is sound, or the
-// regex itself.
-func (m *lineMatcher) finder(term *query.Content) func(from int) int {
+// regex itself. It also returns how many bytes the search read, at least.
+func (m *lineMatcher) finder(term *query.Content) func(from int) (at, read int) {
 	if facts := m.terms.facts(term); facts.hasLiteral && facts.literal.usableOn(m.content) {
-		return func(from int) int { return facts.literal.index(m.content, from) }
+		return func(from int) (int, int) {
+			at := facts.literal.index(m.content, from)
+			if at < 0 {
+				return -1, len(m.content) - from
+			}
+			return at, at - from + len(facts.literal.needle)
+		}
 	}
-	return func(from int) int {
+	return func(from int) (int, int) {
 		loc := term.Re.FindIndex(m.content[from:])
 		if loc == nil {
-			return -1
+			return -1, len(m.content) - from
 		}
-		return from + loc[0]
+		return from + loc[0], loc[1]
 	}
 }
 
@@ -229,6 +266,9 @@ func (m *lineMatcher) everyLine(term *query.Content) []matchedLine {
 			line, rest = rest[:end], rest[end+1:]
 		} else {
 			rest = nil
+		}
+		if m.halted(len(line) + 1) {
+			return found
 		}
 		if matched, ok := matchLine(term, line, number); ok {
 			found = append(found, matched)

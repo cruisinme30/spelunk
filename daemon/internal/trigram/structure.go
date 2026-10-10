@@ -37,12 +37,15 @@ func (m *lineMatcher) matchStructure(term *query.Content) []matchedLine {
 	text := m.lfContent()
 	matches, complete := term.Structural.Find(text, m.lang, term.IgnoreCase, -1)
 	m.gaveUp = m.gaveUp || !complete
-	if len(matches) == 0 {
+	if len(matches) == 0 || m.halted(len(text)) {
 		return nil
 	}
 	lines := newLineIndex(text)
 	found := make([]matchedLine, 0, len(matches))
 	for _, match := range matches {
+		if m.halted(match.End - match.Start + 1) {
+			break
+		}
 		found = append(found, lines.structure(match, term.TermIndex))
 	}
 	return joinLines(found)

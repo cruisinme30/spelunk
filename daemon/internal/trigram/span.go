@@ -139,12 +139,15 @@ func lfText(text []byte) []byte {
 func (m *lineMatcher) matchAcrossLines(term *query.Content) []matchedLine {
 	text := m.lfContent()
 	locs := term.FindAllIndex(text, -1)
-	if len(locs) == 0 {
+	if len(locs) == 0 || m.halted(len(text)) {
 		return nil
 	}
 	lines := newLineIndex(text)
 	var found []matchedLine
 	for _, loc := range locs {
+		if m.halted(loc[1] - loc[0] + 1) {
+			break
+		}
 		if match, ok := lines.match(loc[0], loc[1], term.TermIndex); ok {
 			found = append(found, match)
 		}
