@@ -28,7 +28,11 @@ import { pinnedEntry } from "./settings";
 import { UnseenWatches, watchMessage } from "./watches";
 import { type GuardedBy, messageGuard, type WebviewMessage } from "./webviewMessages";
 
-/** Longer queries (a pasted file, say) are searched but not kept in the recent list, which lives in globalState. */
+/**
+ * Longer queries (a pasted file, say) are not kept in globalState: not in
+ * the recent list, and not as the box's text for the next session. The
+ * daemon refuses a query this long anyway (query_too_long).
+ */
 const MAX_REMEMBERED_QUERY_LENGTH = 1000;
 
 /**
@@ -393,7 +397,13 @@ export class SearchController {
     const limit = this.options.recentLimit();
     if (!text || text.length > MAX_REMEMBERED_QUERY_LENGTH || !(limit > 0)) return;
     this.state.recent = [text, ...this.state.recent.filter((query) => query !== text)].slice(0, limit);
-    this.ui.saveState(this.state);
+    this.saveState();
+  }
+
+  /** Saves the box's text, unless it is too long to keep, and the recent queries. */
+  private saveState(): void {
+    const { text, recent } = this.state;
+    this.ui.saveState({ text: text.length > MAX_REMEMBERED_QUERY_LENGTH ? "" : text, recent: [...recent] });
   }
 
   /** Drops the recent queries past spelunk.ui.recentQueries, after it was lowered (0 keeps none). */
@@ -402,7 +412,7 @@ export class SearchController {
     const kept = limit > 0 ? this.state.recent.slice(0, limit) : [];
     if (kept.length === this.state.recent.length) return;
     this.state.recent = kept;
-    this.ui.saveState(this.state);
+    this.saveState();
   }
 
   /** Takes a query off the recent list. */
@@ -410,7 +420,7 @@ export class SearchController {
     const recent = this.state.recent.filter((kept) => kept !== query);
     if (recent.length === this.state.recent.length) return;
     this.state.recent = recent;
-    this.ui.saveState(this.state);
+    this.saveState();
   }
 
   /**
@@ -534,7 +544,7 @@ export class SearchController {
     if (!(change.seq >= this.latestSeq)) return; // older, or not a number (which would poison latestSeq)
     this.latestSeq = change.seq;
     this.state.text = change.text;
-    this.ui.saveState(this.state);
+    this.saveState();
     const parsed = await this.parseForSearch(change);
     if (!parsed || change.seq !== this.latestSeq) return; // failed, or a newer keystroke arrived while parsing
     const { query, completions, searchText } = parsed;

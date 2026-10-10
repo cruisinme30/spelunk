@@ -933,6 +933,20 @@ test("a result the editor can't open says why, and neither closes the panel nor 
   assert.match(host.errors.at(-1) ?? "", /search daemon is stopped/);
 });
 
+test("a pasted query too long to keep is not saved for the next session, though the box keeps it", async () => {
+  const host = recordingUi();
+  const saved: PersistedState[] = [];
+  const ui = { ...host.ui, saveState: (state: PersistedState) => saved.push(structuredClone(state)) };
+  const controller = newController(parseOnlyBackend().backend, ui, {}, { text: "", recent: ["short"] });
+  await controller.handle(queryChanged("retry", 1));
+  await controller.handle(queryChanged("x".repeat(5_000_000), 2));
+  assert.deepEqual(saved, [
+    { text: "retry", recent: ["short"] },
+    { text: "", recent: ["short"] },
+  ]);
+  assert.equal(controller.text.length, 5_000_000, "this session's box still holds it");
+});
+
 test("a pasted query too long for the recent list is searched but not remembered", () => {
   const host = recordingUi();
   const controller = newController(parseOnlyBackend().backend, host.ui, { recentLimit: () => Number.NaN });
