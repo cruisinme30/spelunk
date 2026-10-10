@@ -466,12 +466,14 @@ func resultOrder(order, setting protocol.ResultOrder) protocol.ResultOrder {
 }
 
 // pageOffset reads a Load more cursor: the index of the page's first result.
+// No search has MaxResults results, and a bigger offset would overflow the
+// page arithmetic.
 func pageOffset(cursor string) (int, error) {
 	if cursor == "" {
 		return 0, nil
 	}
 	offset, err := strconv.Atoi(cursor)
-	if err != nil || offset < 0 {
+	if err != nil || offset < 0 || offset >= MaxResults {
 		return 0, fmt.Errorf("bad cursor %q", cursor)
 	}
 	return offset, nil

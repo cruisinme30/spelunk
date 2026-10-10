@@ -381,8 +381,10 @@ func TestLimitAndPaging(t *testing.T) {
 	if plan.Offset != 40 {
 		t.Errorf("cursor 40: offset %d, want 40", plan.Offset)
 	}
-	if _, _, err := NewPlan(mustParseCleanly(t, "x"), defaultSettings, fixedNow, "-3"); err == nil {
-		t.Error("cursor -3: want an error")
+	for _, cursor := range []string{"-3", "50000", "9223372036854775807"} {
+		if _, _, err := NewPlan(mustParseCleanly(t, "x"), defaultSettings, fixedNow, cursor); err == nil {
+			t.Errorf("cursor %s: want an error", cursor)
+		}
 	}
 }
 
