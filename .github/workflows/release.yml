@@ -1,5 +1,5 @@
-# Releases a version tag such as v0.2.0: checks the tag matches the
-# extension's version and that every spec id has a test, checks the
+# Releases a version tag such as v0.2.0: runs CI on it, checks the tag
+# matches the extension's version and that every spec id has a test, checks the
 # performance budgets on a large open-source repo (Prometheus), packages one
 # .vsix per platform, attaches them to a GitHub release, and publishes them
 # to the VS Code Marketplace and Open VSX when their tokens (VSCE_PAT,
@@ -11,10 +11,14 @@ on:
   push:
     tags: ["v*"]
 
+# Only publish writes, and only it sees the marketplace tokens.
 permissions:
-  contents: write
+  contents: read
 
 jobs:
+  test:
+    uses: ./.github/workflows/ci.yml
+
   package:
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -83,12 +87,14 @@ jobs:
         run: node scripts/checkBudgets.mjs "$RUNNER_TEMP/bench.txt"
 
   publish:
-    needs: [package, budgets]
+    needs: [test, package, budgets]
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    permissions:
+      contents: write
     env:
-      VSCE_PAT: ${{ secrets.VSCE_PAT }}
-      OVSX_PAT: ${{ secrets.OVSX_PAT }}
+      HAS_VSCE_PAT: ${{ secrets.VSCE_PAT != '' }}
+      HAS_OVSX_PAT: ${{ secrets.OVSX_PAT != '' }}
     steps:
       - uses: actions/checkout@v5
 
@@ -96,6 +102,7 @@ jobs:
         with:
           node-version: 22
 
+      # Install scripts run here, before any step that is given a token.
       - name: Install Node dependencies
         run: npm ci --no-audit --no-fund
 
@@ -116,15 +123,19 @@ jobs:
           fi
 
       - name: Publish to the VS Code Marketplace
-        if: env.VSCE_PAT != ''
+        if: env.HAS_VSCE_PAT == 'true'
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
         run: |
           for vsix in out/*.vsix; do
             npx vsce publish --packagePath "$vsix"
           done
 
       - name: Publish to Open VSX
-        if: env.OVSX_PAT != ''
+        if: env.HAS_OVSX_PAT == 'true'
+        env:
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
         run: |
           for vsix in out/*.vsix; do
-            npx --yes ovsx publish "$vsix"
+            npx --yes ovsx@1.2.0 publish "$vsix"
           done
