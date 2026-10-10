@@ -41,6 +41,9 @@ type countedOwnership struct {
 // its CODEOWNERS file changed. A repo without CODEOWNERS has none.
 func (c *ownershipCache) of(repo *trigram.Repo) ownership {
 	if repo.Owners == nil {
+		c.mu.Lock()
+		delete(c.byRepo, repo.ID) // its shard may be all that still holds it
+		c.mu.Unlock()
 		return ownership{}
 	}
 	c.mu.Lock()
@@ -57,6 +60,18 @@ func (c *ownershipCache) of(repo *trigram.Repo) ownership {
 	}
 	c.byRepo[repo.ID] = countedOwnership{shard: repo.Shard, owners: repo.Owners, ownership: counted}
 	return counted
+}
+
+// keep drops the ownership of every repo but those with the given IDs,
+// and with it the shard it was counted from.
+func (c *ownershipCache) keep(ids map[string]bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for id := range c.byRepo {
+		if !ids[id] {
+			delete(c.byRepo, id)
+		}
+	}
 }
 
 // countOwnership counts the owners of shard's files by owners' rules.

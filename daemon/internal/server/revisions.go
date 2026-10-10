@@ -192,6 +192,20 @@ func (c *revisionCache) trim(root string) {
 	})
 }
 
+// keep drops the revisions of every root but the given ones, stopping
+// their reads.
+func (c *revisionCache) keep(roots map[string]bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.entries = slices.DeleteFunc(c.entries, func(entry *revisionEntry) bool {
+		if roots[entry.key.root] {
+			return false
+		}
+		entry.cancel()
+		return true
+	})
+}
+
 // forget drops entry from the cache.
 func (c *revisionCache) forget(entry *revisionEntry) {
 	c.mu.Lock()

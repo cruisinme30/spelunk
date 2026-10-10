@@ -103,6 +103,7 @@ func (s *Server) shuttingDown() bool {
 // not leave a build half-written. Safe to call more than once.
 func (s *Server) Close() {
 	s.index.Close(shutdownGrace)
+	s.revisions.keep(nil)
 }
 
 // DefaultSettings mirrors the defaults declared in extension/package.json.
@@ -176,6 +177,7 @@ func (s *Server) shutdown(_ context.Context, _ json.RawMessage) (any, error) {
 	s.shutdownRequested = true
 	s.mu.Unlock()
 	s.index.Close(shutdownGrace)
+	s.revisions.keep(nil)
 	return protocol.Empty{}, nil
 }
 
@@ -268,6 +270,12 @@ func (s *Server) applyRoots(roots []protocol.Root) {
 	s.roots = slices.Clone(roots)
 	s.mu.Unlock()
 	s.index.SetRoots(s.Roots())
+	ids, paths := map[string]bool{}, map[string]bool{}
+	for _, root := range roots {
+		ids[root.ID], paths[root.Path] = true, true
+	}
+	s.ownership.keep(ids)
+	s.revisions.keep(paths)
 }
 
 // Settings returns a copy of the current settings.

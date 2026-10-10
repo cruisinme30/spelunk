@@ -220,6 +220,24 @@ func TestAtResultsPreviewAndOpenAsTheyWere(t *testing.T) {
 	}
 }
 
+// Closing a folder drops the revisions read from it, and their memory.
+func TestAtForgetsTheRevisionsOfAClosedFolder(t *testing.T) {
+	root, _ := revisionRepo(t)
+	client := newTestClient(t)
+	batches := collectBatches(client)
+	client.mustInitialize(t, protocol.Root{ID: "r1", Path: root, Name: "payments-api"})
+	searchAt(t, client, batches, "s1", "at:v1.0.0 parse")
+	other := protocol.Root{ID: "r2", Path: t.TempDir(), Name: "web-checkout"}
+	client.server.applyRoots([]protocol.Root{{ID: "r1", Path: root, Name: "payments-api"}, other})
+	if n := len(client.server.revisions.entries); n != 1 {
+		t.Errorf("with the folder still open the cache holds %d revisions, want 1", n)
+	}
+	client.server.applyRoots([]protocol.Root{other})
+	if n := len(client.server.revisions.entries); n != 0 {
+		t.Errorf("after closing the folder the cache holds %d revisions, want none", n)
+	}
+}
+
 // A result's preview, open and text come from the files its search read,
 // without asking Git again.
 func TestAtResultsReuseTheRevisionTheSearchRead(t *testing.T) {

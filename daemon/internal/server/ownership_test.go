@@ -32,3 +32,18 @@ func TestOwnershipIsCountedOncePerIndex(t *testing.T) {
 		t.Errorf("a repo without CODEOWNERS has ownership %+v", none)
 	}
 }
+
+// The cache lets go of a repo's index once the repo has no CODEOWNERS
+// file, or is closed.
+func TestOwnershipForgetsReposWithoutOwnersOrClosed(t *testing.T) {
+	owners := codeowners.Parse("CODEOWNERS", []byte("* @alice\n"))
+	shard := trigram.NewShard([]trigram.Doc{{Path: "a.go"}})
+	var cache ownershipCache
+	cache.of(&trigram.Repo{ID: "r1", Shard: shard, Owners: owners})
+	cache.of(&trigram.Repo{ID: "r2", Shard: shard, Owners: owners})
+	cache.of(&trigram.Repo{ID: "r1", Shard: shard}) // its CODEOWNERS file was deleted
+	cache.keep(map[string]bool{"r1": true})         // r2 was closed
+	if len(cache.byRepo) != 0 {
+		t.Errorf("the cache still holds %d repos, want none", len(cache.byRepo))
+	}
+}
