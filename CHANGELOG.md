@@ -21,6 +21,12 @@ All notable changes to this project are documented here. The format follows
   watching**; when the query runs, those commits are tagged **New**. ⌥W toggles the bell on the selected pin. Only new
   commits count: not the first read of a repo, nor a switch to an older branch. `spelunk.watch.notify` turns the
   notification off and keeps the count.
+- `owner:` keeps the files a repo's CODEOWNERS file gives an owner: a team (`owner:@acme/payments-core`, or
+  `owner:payments-core`), a person (`owner:jane`) or an email, matched whole and ignoring case. As on GitHub, the
+  file in `.github/`, the root or `docs/` counts and the last line that matches a file decides; `owner:none` keeps the
+  files no line gives an owner. Each result names its file's owners, the facet row counts the results by owner, and
+  the preview says which CODEOWNERS line decided. Typing `owner:` lists the owners with how many files each has, and
+  an owner no CODEOWNERS file names gets a warning that offers the nearest ones. Current files only.
 
 ### Changed
 

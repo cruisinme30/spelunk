@@ -20,18 +20,20 @@ removed `timeout` or `retry`. Drop `author:` and the same box searches current f
 - **One query language.** Combine words, `"phrases"`, `/regex/`, `AND`, `OR`, `( )` and `-exclusions` (or `NOT`) with
   operators. Each has a full name and a one-letter short one: `file:` / `f:`, `repo:` / `r:`, `language:` / `l:`,
   `type:` / `t:`, `symbol:` / `s:`, `kind:` / `k:`, `ref:` / `x:`, `is:` / `i:`, `author:` / `a:`, `message:` / `m:`,
-  `since:` / `d:`, `until:` / `u:`, `case:` / `c:`, `word:` / `w:`, `count:` / `n:`, `order:` / `o:`, plus `content:`,
-  and `path:` for `file:`. `is:open`, `is:changed`, `is:test`, `is:generated` and `is:vendored` keep the files open in
-  the editor, the uncommitted ones, the tests, the ones a tool wrote or the ones copied in, so
+  `since:` / `d:`, `until:` / `u:`, `case:` / `c:`, `word:` / `w:`, `count:` / `n:`, `order:` / `o:`, plus `content:`
+  and `owner:`, and `path:` for `file:`. `is:open`, `is:changed`, `is:test`, `is:generated` and `is:vendored` keep the
+  files open in the editor, the uncommitted ones, the tests, the ones a tool wrote or the ones copied in, so
   `-is:generated -is:vendored` keeps a replace to code you wrote, `word:yes` matches whole words only, `case:smart`
   matches case only when the query has a capital letter, `kind:class` keeps one kind of definition, `ref:RetryPolicy`
-  finds a name's uses without its definitions, `content:retry` matches text inside files but never file names, and
-  `since:` and `until:` take dates too: `since:2026-09 until:2026-09` is September.
+  finds a name's uses without its definitions, `owner:payments-core` keeps the files a team owns in CODEOWNERS,
+  `content:retry` matches text inside files but never file names, and `since:` and `until:` take dates too:
+  `since:2026-09 until:2026-09` is September.
 - **File names the way Quick Open finds them.** A word also finds file names that have its letters in order, so
   `usrsvc` finds `UserService.ts`; code lines still match exactly.
 - **Best match first.** Files that define what you searched for, are open in the editor, or are named after it come
   first; tests, vendored and generated files come last. `order:path` sorts by path instead.
-- **Facets** count the results by repo, language and top folder (repo, author and month for commits). Click one to
+- **Facets** count the results by repo, language, CODEOWNERS owner and top folder (repo, author and month for
+  commits). Click one to
   keep only it, Alt-click to leave it out.
 - **Files or commits from the same box.** A query searches current files, unless it has `author:`, `message:` or
   `type:commit`; then each result is a commit, and words match the lines it added or removed or its message.

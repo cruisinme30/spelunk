@@ -261,6 +261,7 @@ Jason Kim and Marta Ruiz, and one uncommitted edit:
 | 36 | `type:code f:http/ retry` with `--setting results.contextLines=2` | [context-lines.png](proof/context-lines.png) |
 | 37 | `RetryPolicy -is:generated -is:vendored`, replaced with `BackoffPolicy`, and `RetryPolicy -is:`, over the workspace plus a protoc `retry_pb2.py`, a `third_party/` copy and a `dist/` bundle | [generated-vendored.png](proof/generated-vendored.png), [generated-vendored-values.png](proof/generated-vendored-values.png) |
 | 38 | An empty box with a watched pin, then `msg:revert f:payments/`, after two new reverts by others (`--new-commit`) | [query-watches.png](proof/query-watches.png), [query-watches-results.png](proof/query-watches-results.png) |
+| 42 | `retry owner:payments-core` with `--key Escape --select 2`, `retry owner:`, and `retry owner:payment-core`, over the workspace, whose payments-api has a `.github/CODEOWNERS` | [owner-filter.png](proof/owner-filter.png), [owner-values.png](proof/owner-values.png), [owner-warning.png](proof/owner-warning.png) |
 
 Mocks 16 (the opened file) and 18 (Settings) are VS Code's own editor and Settings UI, which the tool can't draw
 without VS Code, so they have no screenshot.
@@ -312,3 +313,23 @@ branch) and announces what matched; the pin counts them, a notification offers S
   search) and malformed `watch.state` in `untrustedInput.test.mjs`.
 - End to end in VS Code: "The panel's bell watches a pinned history query in the setting, and only a history query"
   in `extension/src/e2e/commands.test.ts`.
+
+## Ownership filters (1.2)
+
+Mock 42 (`owner-filter`). Exit gate: `owner:` keeps the current files a repo's CODEOWNERS file gives an owner, by
+GitHub's rules, and `owner:none` the files it gives none; it says what it left out, suggests the owners with their
+counts, warns when it can match nothing, and the results, the facet row and the preview name the owners.
+
+- CODEOWNERS: `daemon/internal/codeowners/codeowners_test.go` (GitHub's documented example, anchoring, folders,
+  `docs/*`, `**`, escaped spaces, case, the lines GitHub skips, a line with no owners, which of the three files counts,
+  the 3 MB limit, and how a value names an owner).
+- Query: `TestOwnerIsAFilterThatCountsWhatItHid` and the lowering row in `daemon/internal/query/plan_test.go`; the
+  history-query and regex rows in `diagnostics_test.go`; `TestOwnerWarnsWhenItCanMatchNothing` and
+  `TestOwnerWarnsWhenNoRepoHasCodeOwners` in `parser_test.go`; the two owner tests in `values_test.go`.
+- Current files: `daemon/internal/trigram/owners_test.go` (who matches, a repo without CODEOWNERS, the hidden note,
+  each result's owners, the Owner facet, and the preview's deciding line).
+- Index: `daemon/internal/indexer/owners_test.go` (read with each build, again when the editor saves, deletes or adds
+  a CODEOWNERS file, with a saved index, and never from other folders).
+- Over JSON-RPC: `TestOwnerReadsTheReposCodeOwnersFile` in `daemon/internal/server/search_test.go`.
+- Panel: `webview/test/owners.test.mjs` (badges, the Owner facet, the preview's line, the hidden note), and the help
+  guide's `owner:payments-core retry` runs cleanly against the fixture in `extension/src/test/helpExamples.test.ts`.

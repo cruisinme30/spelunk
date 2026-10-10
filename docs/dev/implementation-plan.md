@@ -460,6 +460,11 @@ switch to an older branch announces nothing. A repo's first read announces nothi
 `user.email` are left out. The host counts the new commits on the pin (kept in the workspace's state) until the query
 runs, and pops them up unless `spelunk.watch.notify` is off.
 
+**Ownership.** Each build reads the repo's CODEOWNERS file (`internal/codeowners`) from the first of
+`.github/CODEOWNERS`, `CODEOWNERS` and `docs/CODEOWNERS` that exists, as GitHub does, and the indexer reads it again
+when the editor saves, adds or deletes one of those paths, or a folder holding one. `owner:` asks it about each
+current file; results carry their file's owners, the facets count them, and a preview names the deciding line.
+
 ### Storage layout
 
 ```text
