@@ -94,6 +94,8 @@ All notable changes to this project are documented here. The format follows
 - Typing `?` while an operator’s values were suggested opened Help and dropped the character, so `f:*.ts?` couldn’t be
   typed; `?` now opens Help only while operators are suggested, and among values it is typed.
 - A facet’s **+N**, once clicked, stayed open for every later search; it now shows every bucket of that search only.
+- On the help page, screen readers heard each of the 32 **Try** buttons as just “Try”; each now says the query it
+  runs.
 
 ## [1.1.0] - 2026-10-05
 

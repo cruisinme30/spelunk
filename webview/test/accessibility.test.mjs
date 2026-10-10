@@ -7,6 +7,7 @@ import {
   CODE_LINE_RESULT,
   fromHost,
   lastSent,
+  openHelp,
   openPanel,
   parsedQuery,
   QUERY,
@@ -177,4 +178,17 @@ test("under a high contrast light theme the operator colors stay readable and th
     return { outline: style.outlineStyle, background: style.backgroundColor };
   });
   assert.deepEqual(row, { outline: "dashed", background: "rgba(0, 0, 0, 0)" });
+});
+
+test("the help page's Try buttons say which query each runs", async (t) => {
+  const page = await openHelp(t);
+  const buttons = page.locator('[data-testid="try"]');
+  const names = await buttons.evaluateAll((all) => all.map((button) => button.getAttribute("aria-label")));
+  const queries = await buttons.evaluateAll((all) => all.map((button) => button.dataset.query));
+  assert.ok(names.length > 20);
+  assert.deepEqual(
+    names,
+    queries.map((query) => `Try ${query}`),
+  );
+  assert.match(await buttons.first().ariaSnapshot(), /button "Try /);
 });

@@ -26,9 +26,10 @@ function bulletList(lines: string[]): HTMLElement {
   return element("ul", {}, ...lines.map((line) => element("li", {}, ...prose(line))));
 }
 
+/** Runs `query` in the search panel; screen readers hear which query, not only "Try". */
 function tryButton(query: string): HTMLElement {
   return button(
-    { class: "btn", "data-testid": "try", "data-query": query },
+    { class: "btn", "aria-label": `Try ${query}`, "data-testid": "try", "data-query": query },
     () => {
       send("help.try", { query });
     },
