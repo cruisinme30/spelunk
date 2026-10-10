@@ -75,7 +75,7 @@ function diskUi() {
   const saved: string[][] = [];
   const ui: Ui = {
     post: (type, payload) => void posted.push({ type, payload }),
-    openTarget: () => Promise.resolve(),
+    openTarget: () => Promise.resolve(true),
     hidePanel: () => {},
     openHelp: () => {},
     openSettings: () => {},

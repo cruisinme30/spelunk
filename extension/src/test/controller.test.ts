@@ -59,16 +59,18 @@ type PostedMessage = { [K in keyof HostToWebview]: { type: K; payload: HostToWeb
 function recordingUi() {
   const posted: PostedMessage[] = [];
   const opened: { target: OpenTarget; where: string }[] = [];
+  const openedItems: (ResultItem | undefined)[] = [];
   const previews: boolean[] = [];
   const shown: string[] = [];
   const contextKeys: Record<string, boolean> = {};
   let closedPanels = 0;
   const ui: Ui = {
     post: (type, payload) => void posted.push({ type, payload } as PostedMessage),
-    openTarget: (target, where, preview) => {
+    openTarget: (target, where, preview, item) => {
       opened.push({ target, where });
+      openedItems.push(item);
       previews.push(preview);
-      return Promise.resolve();
+      return Promise.resolve(true);
     },
     hidePanel: () => {
       closedPanels++;
@@ -90,7 +92,7 @@ function recordingUi() {
   /** The payloads of every posted message of `type`, oldest first. */
   const payloads = <T extends keyof HostToWebview>(type: T) =>
     posted.filter((message) => message.type === type).map((message) => message.payload as HostToWebview[T]);
-  return { ui, posted, payloads, opened, previews, shown, contextKeys, closedPanels: () => closedPanels };
+  return { ui, posted, payloads, opened, openedItems, previews, shown, contextKeys, closedPanels: () => closedPanels };
 }
 
 function newController(backend: Backend, ui: Ui, options: Partial<ControllerOptions> = {}, initial?: PersistedState) {
@@ -572,6 +574,25 @@ test("opening a result says which of the results it is, and F4 steps through the
 
   controller.restore(); // ⌘P brings the list back with the same query
   assert.equal(host.payloads("state.restore").at(-1)?.text, "retry");
+});
+
+test("a result still on screen while its search runs again opens with its item", async () => {
+  const host = recordingUi();
+  const scripted = scriptedBackend((method, { text, searchId, ref }) => {
+    if (method === "query/parse") return { query: parsedQuery(text, true), completions: [] };
+    if (method === "open/resolve") return openThreeResults(ref);
+    if (text === "retry") {
+      scripted.listeners.get("batch")?.({ searchId, items: THREE_RESULTS });
+      return { ...NO_RESULTS, total: THREE_RESULTS.length };
+    }
+    return new Promise(() => {}); // the new search hasn't sent its first batch
+  });
+  const controller = newController(scripted.backend, host.ui);
+  await controller.handle(queryChanged("retry", 1));
+  void controller.handle(queryChanged("retry again", 2));
+  await new Promise((resolve) => setImmediate(resolve));
+  await controller.handle({ v: MESSAGE_VERSION, type: "result.open", payload: { ref: "ref-1", where: "current" } });
+  assert.equal(host.openedItems[0], THREE_RESULTS[1]);
 });
 
 test("the finished search's text is known only once its search.done was posted", async () => {

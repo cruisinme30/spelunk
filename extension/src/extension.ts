@@ -668,23 +668,27 @@ interface ReadOnlyDocuments {
  * Opens a resolved result: a commit as a diff document; a file at a revision read-only, or compared with the file
  * now; or a file with the match selected, all of it when it spans lines.
  */
-async function openTarget({ target, where, preview, item }: Opening, documents: ReadOnlyDocuments): Promise<void> {
+async function openTarget({ target, where, preview, item }: Opening, documents: ReadOnlyDocuments): Promise<boolean> {
   const viewColumn = where === "side" ? vscode.ViewColumn.Beside : vscode.ViewColumn.Active;
-  if (target.revision && target.path && item && "path" in item) {
+  if (target.revision) {
+    // Without its item there's no repo-relative path to read the file as it was; the file now would be wrong.
+    if (!target.path || !item || !("path" in item)) return false;
     await openAtRevision(documents.revisions, { target, where, preview, item }, item.path);
-    return;
+    return true;
   }
-  if (target.sha && item) {
+  if (target.sha) {
+    if (!item) return false;
     const uri = documents.commits.uriFor(item.ref, target.sha, item.kind === "commit" ? item.subject : undefined);
     const document = await vscode.workspace.openTextDocument(uri);
     await vscode.languages.setTextDocumentLanguage(document, "diff");
     await vscode.window.showTextDocument(document, { viewColumn, preview });
-    return;
+    return true;
   }
-  if (!target.path) return;
+  if (!target.path) return false;
   const selection = selectionOf(target);
   const editor = await vscode.window.showTextDocument(vscode.Uri.file(target.path), { viewColumn, preview, selection });
   editor.revealRange(selection, vscode.TextEditorRevealType.InCenterIfOutsideViewport);
+  return true;
 }
 
 /**

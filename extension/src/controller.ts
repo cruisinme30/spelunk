@@ -86,8 +86,11 @@ export const STOP_WATCHING = "Stop watching";
 /** What the controller needs from VS Code. */
 export interface Ui {
   post<T extends keyof HostToWebview>(type: T, payload: HostToWebview[T]): void;
-  /** Opens a resolved result; `preview` opens it in a preview editor that the next result replaces. */
-  openTarget(target: OpenTarget, where: OpenWhere, preview: boolean, item?: ResultItem): Promise<void>;
+  /**
+   * Opens a resolved result; `preview` opens it in a preview editor that the next result replaces. Resolves to
+   * whether it opened anything: a commit or a file at a revision can't open without its result item.
+   */
+  openTarget(target: OpenTarget, where: OpenWhere, preview: boolean, item?: ResultItem): Promise<boolean>;
   hidePanel(): void;
   openHelp(): void;
   openSettings(): void;
@@ -172,6 +175,8 @@ type ReplaceMessage = GuardedBy<typeof fromReplaceRow>;
 export class SearchController {
   /** Openable results of the current search, for F4 / Shift+F4. */
   results: ResultItem[] = [];
+  /** The results `results` last replaced, which the panel shows until the next search's first batch. */
+  private replacedResults: ResultItem[] = [];
   private state: PersistedState;
   /** The newest query.changed seq; answers to older ones are dropped. */
   private latestSeq = 0;
@@ -670,6 +675,8 @@ export class SearchController {
   }
 
   private setResults(items: ResultItem[]): void {
+    // The panel shows the replaced results until the new search's first batch, so they can still be opened.
+    if (this.results.length > 0) this.replacedResults = this.results;
     this.results = items;
     this.stepIndex = -1;
     this.ui.setContext("spelunk.hasResults", items.length > 0);
@@ -750,13 +757,9 @@ export class SearchController {
   private async openRef(ref: string, where: OpenWhere): Promise<boolean> {
     try {
       const target = await this.backend.request("open/resolve", { ref });
-      await this.ui.openTarget(
-        target,
-        where,
-        this.options.uiSettings().preview,
-        this.results.find((result) => result.ref === ref),
-      );
-      return true;
+      const item =
+        this.results.find((result) => result.ref === ref) ?? this.replacedResults.find((result) => result.ref === ref);
+      return await this.ui.openTarget(target, where, this.options.uiSettings().preview, item);
     } catch (error) {
       if (error instanceof RpcError && error.code === ErrorCodes.RefStale) {
         this.ui.post("preview.result", { ref, preview: null, stale: true });
