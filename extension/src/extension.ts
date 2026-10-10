@@ -78,7 +78,7 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi {
     log.appendLine(`[${source}] ${String(error)}`);
   };
   const daemon = new Daemon({
-    binary: daemonBinary(context.extensionPath),
+    binary: daemonBinary(context.extensionPath, context.extensionMode),
     roots: workspaceRoots,
     settings: () => daemonSettings(configuration(), homedir()),
     watches: () => watchedQueries(configuration()),
@@ -314,17 +314,23 @@ export async function deactivate(): Promise<void> {
   await activeDaemon?.stop();
 }
 
-/** Where the daemon binary is: bundled per platform, or the development build. */
-function daemonBinary(extensionPath: string): string {
+/**
+ * Where the daemon binary is: bundled per platform, or, when the extension
+ * runs from a checkout (development or tests), SPELUNK_DAEMON or the
+ * checkout's build. An installed extension never looks outside its folder:
+ * next to it is every other extension's.
+ */
+function daemonBinary(extensionPath: string, mode: vscode.ExtensionMode): string {
   const executable = process.platform === "win32" ? "spelunk-daemon.exe" : "spelunk-daemon";
-  const developmentCheckout = join(extensionPath, "..", "daemon", "bin", executable);
+  const bundled = join(extensionPath, "bin", `${process.platform}-${process.arch}`, executable);
+  const fromCheckout = mode !== vscode.ExtensionMode.Production;
   const candidates = [
-    process.env["SPELUNK_DAEMON"],
-    join(extensionPath, "bin", `${process.platform}-${process.arch}`, executable),
+    fromCheckout ? process.env["SPELUNK_DAEMON"] : undefined,
+    bundled,
     join(extensionPath, "bin", executable),
-    developmentCheckout,
+    fromCheckout ? join(extensionPath, "..", "daemon", "bin", executable) : undefined,
   ].filter((path): path is string => !!path);
-  return candidates.find((path) => existsSync(path)) ?? developmentCheckout;
+  return candidates.find((path) => existsSync(path)) ?? bundled;
 }
 
 function configuration(): vscode.WorkspaceConfiguration {
