@@ -22,6 +22,13 @@ func TestGlobs(t *testing.T) {
 		{"build/?.o", "build/ab.o", false},
 		{"a+b.txt", "a+b.txt", true}, // regex characters are literal
 		{"a+b.txt", "aab.txt", false},
+		// As in .gitignore: a trailing slash names a folder, a leading one anchors.
+		{"node_modules/", "web/node_modules/x.js", true},
+		{"build/", "build/a.o", true},
+		{"/build", "build/a.o", true},
+		{"/build", "web/build/a.o", false},
+		{"./dist/*.js", "dist/app.js", true},
+		{"/dist/", "web/dist/app.js", false},
 	}
 	for _, tt := range tests {
 		g, err := compileGlob(tt.pattern)

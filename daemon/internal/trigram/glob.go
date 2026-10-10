@@ -10,13 +10,24 @@ import (
 // Glob matches slash-separated paths against an index.exclude pattern:
 // "**" spans directories, "*" and "?" stay within one, as in VS Code's
 // files.exclude. A pattern without a slash matches at any depth, and a
-// pattern that matches a folder also matches everything inside it.
+// pattern that matches a folder also matches everything inside it. As in
+// .gitignore, a trailing slash names a folder (node_modules/ is
+// node_modules, at any depth) and a leading / or ./ anchors the pattern
+// at the repo root (/build is only the top-level build).
 // Brace alternatives ({a,b}) are not supported: braces match themselves.
 type Glob struct{ re *regexp.Regexp }
 
 // compileGlob turns a glob into a matcher.
 func compileGlob(pattern string) (Glob, error) {
-	if !strings.Contains(pattern, "/") {
+	if trimmed := strings.TrimSuffix(pattern, "/"); trimmed != "" {
+		pattern = trimmed // a folder matches with its contents anyway
+	}
+	switch {
+	case strings.HasPrefix(pattern, "./"):
+		pattern = pattern[2:]
+	case strings.HasPrefix(pattern, "/") && len(pattern) > 1:
+		pattern = pattern[1:]
+	case !strings.Contains(pattern, "/"):
 		pattern = "**/" + pattern
 	}
 	// A matching folder takes its contents with it.

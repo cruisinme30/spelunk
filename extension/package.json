@@ -320,7 +320,7 @@
               "**/*.min.js"
             ],
             "scope": "resource",
-            "description": "Glob patterns never indexed, in current files or in history."
+            "description": "Glob patterns never indexed, in current files or in history. A pattern without a slash matches at any depth, a trailing slash names a folder (node_modules/), and a leading slash anchors it at the repo root (/build)."
           },
           "spelunk.index.includeIgnored": {
             "type": "boolean",
