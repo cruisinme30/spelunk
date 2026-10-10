@@ -170,16 +170,26 @@ function focusLabel({ focusLine, focusEndLine }: FilePreview): string {
     : `line ${focusLine}`;
 }
 
-/** "Owned by @acme/payments-core @jane · .github/CODEOWNERS line 4", under a file preview's header. */
+/**
+ * Under a file preview's header: "Owned by @acme/payments-core @jane ·
+ * .github/CODEOWNERS line 4", "No owner · .github/CODEOWNERS line 6 names
+ * none", or "No owner · no line of CODEOWNERS matches this file".
+ */
 function ownershipLine({ owners, file, line }: Ownership): HTMLElement {
-  const where = line > 0 ? `${file} line ${line}` : file;
-  const who = owners.length > 0 ? ["Owned by ", ...owners.map((owner) => element("code", {}, owner))] : ["No owner in"];
+  const names = owners.flatMap((owner, index) =>
+    index ? [" ", element("code", {}, owner)] : [element("code", {}, owner)],
+  );
+  const who = owners.length > 0 ? ["Owned by ", ...names] : ["No owner"];
+  let where: (Node | string)[] = [file, line > 0 ? ` line ${String(line)}` : ""];
+  if (owners.length === 0) {
+    where = line > 0 ? [file, ` line ${String(line)} names none`] : ["no line of ", file, " matches this file"];
+  }
   return element(
     "div",
     { class: "ownership muted", "data-testid": "ownership" },
-    ...who,
-    element("span", { "aria-hidden": "true" }, owners.length > 0 ? "·" : ""),
-    element("span", {}, where),
+    element("span", {}, ...who),
+    element("span", { "aria-hidden": "true" }, "·"),
+    element("span", {}, ...where),
   );
 }
 

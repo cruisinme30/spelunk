@@ -14,6 +14,9 @@ All notable changes to this project are documented here. The format follows
   take any code” above “Code shaped like a template; each :[hole] takes any code.”, and `content:`, `message:`,
   `owner:` and `at:` repeated their line word for word. Each now has a short title (**Structural search**, **File text
   only** …) above its one-line explanation.
+- The preview of a file without an owner read “No owner in   .github/CODEOWNERS line 5”, with a wide gap and no
+  separator; it now reads “No owner · .github/CODEOWNERS line 5 names none”, or “No owner · no line of CODEOWNERS
+  matches this file”.
 
 ### Added
 

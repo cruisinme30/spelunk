@@ -117,9 +117,15 @@ test("the preview says who owns the file and which CODEOWNERS line says so", asy
   await fromHost(page, "preview.result", filePreview({ owners: [TEAM, "@jane"], file: ".github/CODEOWNERS", line: 4 }));
   assert.equal((await line.innerText()).replaceAll(/\s+/g, " "), `Owned by ${TEAM} @jane · .github/CODEOWNERS line 4`);
   await fromHost(page, "preview.result", filePreview({ owners: [], file: ".github/CODEOWNERS", line: 6 }));
-  assert.equal((await line.innerText()).replaceAll(/\s+/g, " ").trim(), "No owner in .github/CODEOWNERS line 6");
+  assert.equal(await line.textContent(), "No owner·.github/CODEOWNERS line 6 names none");
   await fromHost(page, "preview.result", filePreview({ owners: [], file: "CODEOWNERS", line: 0 }));
-  assert.equal((await line.innerText()).replaceAll(/\s+/g, " ").trim(), "No owner in CODEOWNERS");
+  assert.equal(await line.textContent(), "No owner·no line of CODEOWNERS matches this file");
+  // Three parts, the dot between them: no empty one to add a gap of its own.
+  assert.deepEqual(await line.evaluate((node) => [...node.children].map((part) => part.textContent)), [
+    "No owner",
+    "·",
+    "no line of CODEOWNERS matches this file",
+  ]);
   // A repo without CODEOWNERS has no line at all.
   await fromHost(page, "preview.result", filePreview());
   assert.equal(await line.count(), 0);
