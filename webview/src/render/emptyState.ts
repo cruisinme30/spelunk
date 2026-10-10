@@ -17,6 +17,13 @@ const STAR_OUTLINE_ICON = `<svg width="14" height="14" viewBox="0 0 24 24" fill=
 const RENAME_ICON =
   '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></svg>';
 
+/** A bell: filled on a watched query, an outline on one that can be, crossed out on one that can't. */
+const BELL_PATHS =
+  '<path d="M6 9a6 6 0 0 1 12 0c0 6 2.5 8 2.5 8h-17S6 15 6 9z"/><path d="M10.3 20.5a2 2 0 0 0 3.4 0" fill="none"/>';
+const BELL_ICON = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${BELL_PATHS}</svg>`;
+const BELL_OUTLINE_ICON = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${BELL_PATHS}</svg>`;
+const BELL_OFF_ICON = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${BELL_PATHS}<path d="M3 3l18 18"/></svg>`;
+
 /** A small ×, on the recent query under the mouse or selected with ↑↓. */
 const REMOVE_ICON =
   '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>';
@@ -29,6 +36,8 @@ export interface EmptyStateHandlers {
   onUnpin: (query: string) => void;
   /** Opens the name field on a pinned query. */
   onRename: (query: string) => void;
+  /** Starts or stops watching a pinned query for new commits. */
+  onWatch: (query: string, watch: boolean) => void;
   /** The name field closed: with the typed name, or undefined when Esc left the name as it was. */
   onNamed: (query: string, name: string | undefined) => void;
   onInsert: (snippet: string) => void;
@@ -191,8 +200,79 @@ function recentRow(query: string, selected: boolean, handlers: EmptyStateHandler
   ]);
 }
 
-/** A pinned query: its name, if it has one, then the query; the pencil renames it and the star unpins it. */
-function pinnedRow({ query, name }: PinnedQuery, selected: boolean, handlers: EmptyStateHandlers): HTMLElement {
+/** "2 new": the commits a watch found since the query last ran. */
+function unseenBadge(state: ViewState, query: string): HTMLElement | null {
+  const count = state.unseen.get(query)?.count ?? 0;
+  if (count === 0) return null;
+  return element(
+    "span",
+    {
+      class: "unseen",
+      title: `${count === 1 ? "1 commit" : `${count} commits`} matched since you last ran it`,
+      "data-testid": "pinned-unseen",
+    },
+    `${count} new`,
+  );
+}
+
+/**
+ * A pinned query's bell: stops a watch, starts one on a query that searches
+ * history, and on any other query only says why it can't. A watched bell
+ * always shows; the others show like the row's other buttons.
+ */
+function watchAction({ query, name, watch }: PinnedQuery, state: ViewState, handlers: EmptyStateHandlers): HTMLElement {
+  const label = name ?? query;
+  if (watch) {
+    const stop = rowAction(
+      {
+        title: "Watching: tells you when new commits match. Click to stop.",
+        label: `Stop watching ${label}`,
+        testId: "pinned-watch",
+        svg: BELL_ICON,
+      },
+      () => {
+        handlers.onWatch(query, false);
+      },
+    );
+    stop.classList.add("watching");
+    stop.setAttribute("aria-pressed", "true");
+    return stop;
+  }
+  if (!state.watchable.has(query)) {
+    const cannot = rowAction(
+      {
+        title: "Only history queries can be watched: add author:, msg: or type:commit.",
+        label: `Watch ${label} for new commits (history queries only)`,
+        testId: "pinned-watch",
+        svg: BELL_OFF_ICON,
+      },
+      () => {},
+    );
+    cannot.disabled = true;
+    return cannot;
+  }
+  const start = rowAction(
+    {
+      title: "Watch: tell me when new commits match",
+      label: `Watch ${label} for new commits`,
+      testId: "pinned-watch",
+      svg: BELL_OUTLINE_ICON,
+    },
+    () => {
+      handlers.onWatch(query, true);
+    },
+  );
+  start.setAttribute("aria-pressed", "false");
+  return start;
+}
+
+/**
+ * A pinned query: its name, if it has one, then the query and how many new
+ * commits its watch found; the bell watches it, the pencil renames it and
+ * the star unpins it.
+ */
+function pinnedRow(pin: PinnedQuery, selected: boolean, state: ViewState, handlers: EmptyStateHandlers): HTMLElement {
+  const { query, name } = pin;
   const run = button(
     { class: "recent-run", "data-testid": "pinned", title: name ? query : undefined },
     () => {
@@ -201,12 +281,14 @@ function pinnedRow({ query, name }: PinnedQuery, selected: boolean, handlers: Em
     icon(STAR_ICON),
     name ? element("span", { class: "pinned-name" }, name) : null,
     element("code", { class: name ? "muted" : undefined }, query),
+    unseenBadge(state, query),
   );
   return queryRow(
     query,
     selected,
     [
       run,
+      watchAction(pin, state, handlers),
       rowAction(
         { title: "Rename", label: `Rename ${name ?? query}`, testId: "pinned-rename", svg: RENAME_ICON },
         () => {
@@ -226,7 +308,8 @@ function pinnedRow({ query, name }: PinnedQuery, selected: boolean, handlers: Em
  * when blank), Esc keeps the name it had. Closing turns the row back into a
  * pinned row in place, so a click that moved the focus elsewhere still lands.
  */
-function namingRow({ query, name }: PinnedQuery, selected: boolean, handlers: EmptyStateHandlers): HTMLElement {
+function namingRow(pin: PinnedQuery, selected: boolean, state: ViewState, handlers: EmptyStateHandlers): HTMLElement {
+  const { query, name } = pin;
   const field = element("input", {
     class: "pinned-name-field",
     type: "text",
@@ -241,7 +324,8 @@ function namingRow({ query, name }: PinnedQuery, selected: boolean, handlers: Em
     if (closed) return;
     closed = true;
     const kept = named === undefined ? name : named.trim() || undefined;
-    row.replaceWith(pinnedRow(kept ? { query, name: kept } : { query }, row.classList.contains("selected"), handlers));
+    const renamed: PinnedQuery = { query, ...(kept ? { name: kept } : {}), ...(pin.watch ? { watch: true } : {}) };
+    row.replaceWith(pinnedRow(renamed, row.classList.contains("selected"), state, handlers));
     handlers.onNamed(query, named);
   };
   field.addEventListener("keydown", (event) => {
@@ -286,8 +370,8 @@ function renderRecent(state: ViewState, handlers: EmptyStateHandlers): HTMLEleme
   const selected = (query: string) => rows[state.recentIndex] === query;
   const pinned = state.pinned.map((entry) =>
     entry.query === state.naming
-      ? namingRow(entry, selected(entry.query), handlers)
-      : pinnedRow(entry, selected(entry.query), handlers),
+      ? namingRow(entry, selected(entry.query), state, handlers)
+      : pinnedRow(entry, selected(entry.query), state, handlers),
   );
   const recent = rows.slice(pinned.length).map((query) => recentRow(query, selected(query), handlers));
   const placeholder = rows.length === 0 ? element("p", { class: "muted pad" }, "Queries you run show up here.") : null;

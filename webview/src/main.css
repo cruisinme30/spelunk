@@ -984,6 +984,29 @@ ins {
   border-color: var(--tone-scope);
 }
 
+/* A commit a watch found since its query last ran, and a pin's count of them. */
+.badge.new-commit,
+.unseen {
+  flex: none;
+  border: 0;
+  background: var(--vscode-badge-background, #2e5c9e);
+  color: var(--vscode-badge-foreground, #fff);
+  font-weight: 600;
+}
+
+.badge.new-commit {
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.unseen {
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
 .demoted .path {
   opacity: 0.75;
 }
@@ -1356,8 +1379,23 @@ pre.body {
 
 .recent-row.selected .recent-action,
 .recent-row:hover .recent-action,
-.recent-action:focus-visible {
+.recent-action:focus-visible,
+.recent-action.watching {
   opacity: 1;
+}
+
+/* A watched pin's bell always shows; one that can't watch is dimmed and says why. */
+.recent-action.watching {
+  color: var(--tone-scope);
+}
+
+.recent-action:disabled {
+  cursor: not-allowed;
+}
+
+.recent-row.selected .recent-action:disabled,
+.recent-row:hover .recent-action:disabled {
+  opacity: 0.45;
 }
 
 .recent-action:hover {

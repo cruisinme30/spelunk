@@ -361,7 +361,7 @@ export class SearchPanel {
         return this.emptyBox.removeSelected(event);
       }
       default: {
-        return false;
+        return this.emptyBox.watchSelected(event);
       }
     }
   }
@@ -583,6 +583,7 @@ export class SearchPanel {
     state.searchId = searchId;
     state.searchReplaced = false;
     state.done = undefined;
+    state.newCommits = new Set();
     state.selectedRef = "";
     state.preview = undefined;
     // A note's undo indexes the text this search ran on, which may be the box without the word being completed.
@@ -619,7 +620,10 @@ export class SearchPanel {
   private onSearchDone(done: SearchDoneMessage): void {
     if (!this.isCurrent(done.seq, done.searchId)) return;
     this.state.done = done;
-    this.resultsFor(done.searchId).finish(done);
+    this.state.newCommits = new Set(done.newCommits);
+    const results = this.resultsFor(done.searchId);
+    results.markNew();
+    results.finish(done);
     this.renderSummary();
     this.renderFacets();
     if (this.completionsVisible) this.renderCompletions();

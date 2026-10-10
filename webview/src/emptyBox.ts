@@ -5,7 +5,7 @@
 import { clamp, wrapIndex } from "./format";
 import { saveRecentWidth, send } from "./host";
 import type { Layout } from "./layout";
-import { addPin, forgetQuery, namePin } from "./pinnedQueries";
+import { addPin, forgetQuery, namePin, watchPin } from "./pinnedQueries";
 import type { EmptyStateHandlers } from "./render/emptyState";
 import { emptyBoxQueries, type ViewState } from "./state";
 
@@ -46,6 +46,9 @@ export class EmptyBox {
       onRename: (query) => {
         this.rename(query);
       },
+      onWatch: (query, watch) => {
+        this.watch(query, watch);
+      },
       onNamed: (query, name) => {
         this.onNamed(query, name);
       },
@@ -83,6 +86,15 @@ export class EmptyBox {
     return true;
   }
 
+  /** ⌥W on an empty box starts or stops watching the selected pinned query. */
+  watchSelected(event: KeyboardEvent): boolean {
+    const selected = emptyBoxQueries(this.state)[this.state.recentIndex];
+    const pin = this.state.pinned.find((entry) => entry.query === selected);
+    if (!event.altKey || event.code !== "KeyW" || this.layout.input.value || !pin) return false;
+    this.watch(pin.query, !pin.watch);
+    return true;
+  }
+
   /** ↑↓ on an empty box move through its queries. */
   moveSelection(step: 1 | -1): void {
     const rows = [...this.layout.body.querySelectorAll<HTMLElement>("[data-recent]")];
@@ -97,6 +109,15 @@ export class EmptyBox {
     if (!removed) return;
     send(removed, { query });
     this.clampIndex();
+    this.panel.showEmptyState();
+    this.layout.input.focus();
+  }
+
+  /** Starts or stops watching a pinned query; the bell changes at once, and the host saves it. */
+  private watch(query: string, watch: boolean): void {
+    const changed = watchPin(this.state, query, watch);
+    if (!changed) return;
+    send("pinned.watch", changed);
     this.panel.showEmptyState();
     this.layout.input.focus();
   }

@@ -282,6 +282,7 @@ export function renderFooter(layout: Layout, mode: FooterMode, isHistory: boolea
       hint("↑↓", "move"),
       hint("↵", "run recent query"),
       hint("⇧⌫", "remove"),
+      hint("⌥W", "watch"),
       hintAtEnd("?", "opens this sheet anytime"),
     ],
     errors: [hint("⌘.", "apply first fix"), hint("Tab", "complete operator"), hintAtEnd("?", "all operators")],

@@ -223,6 +223,15 @@ export class ResultsView {
     }
   }
 
+  /** Tags the commits on screen that a watch found since their query last ran (state.newCommits) as New. */
+  markNew(): void {
+    for (const item of this.items) {
+      if (item.kind !== "commit" || !this.state.newCommits.has(item.sha)) continue;
+      const title = this.list.querySelector(`#${rowId(item.ref)} .commit-title`);
+      if (title && !title.querySelector(".new-commit")) title.querySelector(".sha")?.before(newTag());
+    }
+  }
+
   /** Greys out a row whose file or commit no longer exists. */
   markStale(ref: string): void {
     this.list.querySelector(`#${rowId(ref)}`)?.classList.add("stale");
@@ -485,6 +494,7 @@ export class ResultsView {
         "div",
         { class: "commit-title" },
         element("span", { class: "subject" }, highlight(item.subject, item.subjectHits)),
+        this.state.newCommits.has(item.sha) ? newTag() : null,
         element("code", { class: "sha" }, shortSha(item.sha)),
       ),
       element(
@@ -502,6 +512,15 @@ export class ResultsView {
       element("div", { class: "commit-files" }, ...files),
     );
   }
+}
+
+/** "New": a commit a watch found since its query last ran. */
+function newTag(): HTMLElement {
+  return element(
+    "span",
+    { class: "badge new-commit", title: "New since you last ran this watched query", "data-testid": "new-commit" },
+    "New",
+  );
 }
 
 /**

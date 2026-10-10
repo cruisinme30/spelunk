@@ -3,7 +3,7 @@
 // commit messages, names), offsets that overlap, run backwards or past the
 // text, malformed payloads, late messages of an old search, a lot of results,
 // and a corrupt saved state. Nothing may run, throw or go missing.
-// @covers msg:search.batch msg:search.done msg:parse.result msg:preview.result msg:index.status msg:state.restore
+// @covers msg:search.batch msg:search.done msg:parse.result msg:preview.result msg:index.status msg:state.restore msg:watch.state
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
@@ -221,6 +221,11 @@ test("malformed host messages are dropped, and the panel keeps working", async (
     ["state.restore", { text: "", recent: [], settings: null }],
     ["state.restore", { text: "", recent: [], pinned: [{ query: 5 }] }],
     ["state.restore", { text: "", recent: [], pinned: [{ query: "a", name: null }] }],
+    ["state.restore", { text: "", recent: [], pinned: [{ query: "a", watch: "yes" }] }],
+    ["watch.state", { watchable: "a", unseen: [] }],
+    ["watch.state", { watchable: [], unseen: [{ query: "a", count: "2", shas: [] }] }],
+    ["watch.state", { watchable: [], unseen: [{ query: "a", count: 2, shas: [7] }] }],
+    ["search.done", { seq: 1, searchId: "s1", hidden: [], newCommits: "abc" }],
     ["banner", null],
     ["parse.result", { seq: 1 }],
     ["search.batch", { seq: 1, searchId: "s1" }],

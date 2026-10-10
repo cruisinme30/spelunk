@@ -1,6 +1,6 @@
 // The empty box's queries in the panel's state: what starring, naming,
 // unpinning and removing change, and the message that tells the host.
-import type { PinnedQuery } from "./protocol.gen";
+import type { PinnedQuery, PinnedWatchMessage } from "./protocol.gen";
 import type { ViewState } from "./state";
 
 /** Pins `query` at the end of the list and selects it; the pinned.save to send, or undefined when it is pinned. */
@@ -39,4 +39,20 @@ export function namePin(state: ViewState, query: string, name: string | undefine
   if (trimmed) entry.name = trimmed;
   else delete entry.name;
   return { ...entry };
+}
+
+/**
+ * Starts or stops watching a pinned query, when it can be: only a query
+ * that searches history can be watched. Returns the pinned.watch to send,
+ * or undefined when nothing changed.
+ */
+export function watchPin(state: ViewState, query: string, watch: boolean): PinnedWatchMessage | undefined {
+  const entry = state.pinned.find((kept) => kept.query === query);
+  if (!entry || (entry.watch ?? false) === watch || (watch && !state.watchable.has(query))) return undefined;
+  if (watch) entry.watch = true;
+  else {
+    delete entry.watch;
+    state.unseen.delete(query);
+  }
+  return { query, watch };
 }
