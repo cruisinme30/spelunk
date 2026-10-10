@@ -18,7 +18,9 @@ import { daemonSettings } from "../settings";
  * - "stderrFlood" writes 4 MB to stderr, blocking until it is read, before answering initialize;
  * - "slowInitialize" answers initialize after 200 ms, and later messages only after that;
  * - "ignoreShutdown" answers initialize but never shutdown, and doesn't exit on exit;
- * - "exitOnRequest" exits as soon as a request other than initialize arrives.
+ * - "exitOnRequest" exits as soon as a request other than initialize arrives;
+ * - "hang" answers initialize, then nothing more, not even shutdown or exit;
+ * - "slowSearch" answers search/start after 300 ms, without holding up the other requests.
  */
 export type FakeBehaviour =
   | "ok"
@@ -30,7 +32,9 @@ export type FakeBehaviour =
   | "stderrFlood"
   | "slowInitialize"
   | "ignoreShutdown"
-  | "exitOnRequest";
+  | "exitOnRequest"
+  | "hang"
+  | "slowSearch";
 
 const SCRIPT = String.raw`
 const { writeSync } = require("node:fs");
@@ -53,6 +57,11 @@ const handle = async ({ id, method }) => {
     return send({ id, result: { protocol: ${PROTOCOL_VERSION}, daemonVersion: "0.0.0-fake" } });
   }
   if (behaviour === "exitOnRequest" && id !== undefined) process.exit(4);
+  if (behaviour === "hang") return;
+  if (behaviour === "slowSearch" && method === "search/start") {
+    setTimeout(() => send({ id, result: { total: 0, truncated: false, hidden: [], ms: 300 } }), 300);
+    return;
+  }
   if (behaviour === "ignoreShutdown") return;
   if (method === "shutdown") return send({ id, result: null });
   if (method === "exit") process.exit(0);

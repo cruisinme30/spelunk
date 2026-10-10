@@ -42,6 +42,15 @@ const DEFAULT_INITIALIZE_TIMEOUT_MS = 20_000;
 const CONNECTION_WAIT_MS = 5000;
 /** How often a waiting request checks whether the daemon is ready. */
 const CONNECTION_POLL_MS = 25;
+/**
+ * How long requests may wait with nothing at all arriving from the daemon
+ * before it is asked whether it still answers. Searches stream their batches,
+ * and a slow one (a big repo's first at:, say) still answers other requests,
+ * so silence measures a daemon that stopped answering, not a long request.
+ */
+const DEFAULT_WATCHDOG_QUIET_MS = 20_000;
+/** How long that question (an index/status) may take before the daemon counts as hung and is restarted. */
+const DEFAULT_WATCHDOG_PROBE_MS = 10_000;
 
 /** The daemon process: a child with piped stdin, stdout and stderr. */
 type DaemonProcess = ChildProcessByStdio<Writable, Readable, Readable>;
@@ -63,6 +72,9 @@ export interface DaemonOptions {
   maxRestartDelayMs?: number;
   initializeTimeoutMs?: number;
   shutdownGraceMs?: number;
+  /** See DEFAULT_WATCHDOG_QUIET_MS and DEFAULT_WATCHDOG_PROBE_MS. */
+  watchdogQuietMs?: number;
+  watchdogProbeMs?: number;
   /** For tests: replaces child_process.spawn. */
   spawn?: typeof nodeSpawn;
   /** For tests: replaces Date.now. */
@@ -92,6 +104,8 @@ export class Daemon extends EventEmitter {
   private readySince: number | undefined;
   /** The restart scheduled after a crash, until it runs. */
   private restartTimer: NodeJS.Timeout | undefined;
+  /** Checks that the ready daemon still answers while requests wait; see startWatchdog. */
+  private watchdogTimer: NodeJS.Timeout | undefined;
 
   /** Creates a supervisor; nothing runs until start(). */
   constructor(private readonly options: DaemonOptions) {
@@ -126,6 +140,7 @@ export class Daemon extends EventEmitter {
   async stop(): Promise<void> {
     this.stopping = true;
     this.cancelScheduledRestart();
+    this.stopWatchdog();
     const child = this.child;
     const connection = this.connection;
     if (!child || !connection) {
@@ -236,6 +251,7 @@ export class Daemon extends EventEmitter {
       if (result.protocol !== PROTOCOL_VERSION) this.refuseProtocol(result.protocol);
       this.daemonVersion = result.daemonVersion;
       this.readySince = this.now();
+      this.startWatchdog(child, connection);
       this.setState("ok");
     } catch (error) {
       if (!this.stopping && this.child === child) this.abandonStart(child, error);
@@ -243,6 +259,44 @@ export class Daemon extends EventEmitter {
     } finally {
       clearTimeout(initializeTimer);
     }
+  }
+
+  /**
+   * Restarts a daemon that stopped answering. While requests wait and nothing
+   * has arrived from it for watchdogQuietMs, it is asked for index/status,
+   * which it answers at once beside any other request; no answer within
+   * watchdogProbeMs kills it, which counts as a crash and restarts it within
+   * the budget, failing the requests that waited.
+   */
+  private startWatchdog(child: DaemonProcess, connection: Connection): void {
+    const quietMs = this.options.watchdogQuietMs ?? DEFAULT_WATCHDOG_QUIET_MS;
+    const probeMs = this.options.watchdogProbeMs ?? DEFAULT_WATCHDOG_PROBE_MS;
+    let lastHeard = this.now();
+    let probing = false;
+    connection.on("activity", () => {
+      lastHeard = this.now();
+    });
+    this.stopWatchdog();
+    this.watchdogTimer = setInterval(
+      () => {
+        if (this.connection !== connection || probing || connection.pendingRequests === 0) return;
+        if (this.now() - lastHeard < quietMs) return;
+        probing = true;
+        void settlesWithin(connection.request("index/status", {}), probeMs).then((answered) => {
+          probing = false;
+          if (answered || this.child !== child) return;
+          this.log(`[daemon] no answer for ${String(quietMs + probeMs)} ms with requests waiting; restarting it`);
+          child.kill("SIGKILL");
+        });
+      },
+      Math.max(CONNECTION_POLL_MS, Math.min(quietMs, probeMs) / 4),
+    );
+    this.watchdogTimer.unref();
+  }
+
+  private stopWatchdog(): void {
+    clearInterval(this.watchdogTimer);
+    this.watchdogTimer = undefined;
   }
 
   /** The connection to a new process; its notifications become this daemon's events. */
@@ -322,6 +376,7 @@ export class Daemon extends EventEmitter {
    */
   private onExit(child: ChildProcess, how: string | undefined, spawnError?: Error): void {
     if (child !== this.child) return; // an old process we already replaced
+    this.stopWatchdog();
     this.connection?.dispose(new Error("daemon exited"));
     this.connection = undefined;
     this.child = undefined;
@@ -373,6 +428,7 @@ export class Daemon extends EventEmitter {
     const child = this.child;
     this.child = undefined;
     this.readySince = undefined;
+    this.stopWatchdog();
     this.connection?.dispose();
     this.connection = undefined;
     if (child?.exitCode === null) child.kill("SIGKILL");

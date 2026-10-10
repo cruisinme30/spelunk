@@ -195,8 +195,8 @@ export class Connection extends EventEmitter {
   private closed = false;
 
   /**
-   * Emits "error" for each problem with what the peer sent (it is skipped)
-   * and "close" once. Problems with no "error" listener are dropped rather
+   * Emits "error" for each problem with what the peer sent (it is skipped),
+   * "activity" whenever bytes arrive from the peer, and "close" once. Problems with no "error" listener are dropped rather
    * than thrown, since they surface inside a stream event.
    */
   constructor(
@@ -208,6 +208,7 @@ export class Connection extends EventEmitter {
       this.report(new Error(`jsonrpc: skipped a frame without a usable Content-Length: ${JSON.stringify(header)}`));
     });
     input.on("data", (chunk: Buffer) => {
+      this.emit("activity");
       this.onData(chunk);
     });
     input.on("close", () => {
@@ -240,6 +241,11 @@ export class Connection extends EventEmitter {
       if (this.pending.has(id)) this.write({ jsonrpc: "2.0", method: "$/cancelRequest", params: { id } });
     });
     return response;
+  }
+
+  /** How many requests are waiting for their answer. */
+  get pendingRequests(): number {
+    return this.pending.size;
   }
 
   /** Sends a notification; dropped once the connection is closed. */

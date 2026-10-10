@@ -262,3 +262,43 @@ test("restart during the handshake replaces the starting daemon", async () => {
   await waitFor("the first process is gone", () => !isRunning(firstPid));
   await daemon.stop();
 });
+
+test("a daemon that stops answering while requests wait is restarted, and the requests fail", async () => {
+  const counter = countingSpawn();
+  const { daemon, log } = newFakeDaemon("hang", {
+    watchdogQuietMs: 100,
+    watchdogProbeMs: 100,
+    shutdownGraceMs: 50,
+    spawn: counter.spawn,
+  });
+  await daemon.start();
+  const firstPid = runningPid(daemon);
+  await assert.rejects(daemon.request("index/status", {}), /exited|closed/);
+  assert.ok(
+    log.some((line) => line.includes("no answer for 200 ms")),
+    "the log says why",
+  );
+  await waitFor("the daemon back up", () => daemon.state === "ok" && counter.spawns === 2);
+  assert.notEqual(daemon.pid, firstPid);
+  await daemon.stop();
+});
+
+test("a long request from a daemon that still answers is waited for, not restarted", async () => {
+  const counter = countingSpawn();
+  const { daemon } = newFakeDaemon("slowSearch", { watchdogQuietMs: 50, watchdogProbeMs: 100, spawn: counter.spawn });
+  await daemon.start();
+  const result = await daemon.request("search/start", { searchId: "s1", text: "x", openFiles: [] });
+  assert.equal(result.ms, 300);
+  assert.equal(counter.spawns, 1);
+  assert.equal(daemon.state, "ok");
+  await daemon.stop();
+});
+
+test("an idle daemon is never probed", async () => {
+  const { daemon, log } = newFakeDaemon("hang", { watchdogQuietMs: 20, watchdogProbeMs: 20, shutdownGraceMs: 50 });
+  await daemon.start();
+  await pause(150);
+  assert.equal(daemon.state, "ok");
+  assert.ok(!log.some((line) => line.includes("no answer")));
+  await daemon.stop();
+});
