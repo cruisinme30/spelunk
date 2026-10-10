@@ -44,7 +44,7 @@ package.
 | `npm run presubmit` | Everything CI runs, with CI's tool versions, plus the e2e tests and the wiki check |
 | `npm run lint` | Every linter (below) |
 | `npm run package` | A `.vsix` for this platform in `out/` (`-- --target <platform>` for another) |
-| `node scripts/e2e.mjs` | The end-to-end tests in a real VS Code window, which it downloads once into `.vscode-test/` |
+| `node scripts/e2e.mjs` | The end-to-end tests in a real VS Code window of the version it pins, which it downloads once into `.vscode-test/` |
 | `npm run format` | Prettier over TS, JS, JSON, CSS and YAML |
 | `npm run gen` | Regenerate protocol types after editing `protocol/protocol.schema.json` |
 | `cd daemon && go test ./...` | Daemon tests only |

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Runs the end-to-end tests (extension/src/e2e) in a real VS Code window on
-// the fixture workspace. It downloads the latest stable VS Code once into
+// the fixture workspace. It downloads VS Code VSCODE_VERSION once into
 // .vscode-test/, bundles the tests, and starts VS Code with the extension
 // under development and SPELUNK_TEST=1. The exit code is VS Code's:
 // 0 when every test passed.
@@ -17,6 +17,13 @@ import { fileURLToPath } from "node:url";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const cache = join(repoRoot, ".vscode-test");
+
+/**
+ * The VS Code the tests run in, pinned so a run tests the same editor on
+ * every machine and on every day: "latest" moved under CI, and stayed
+ * whatever was first downloaded here. Raise it on purpose, with a run.
+ */
+const VSCODE_VERSION = "1.141.0";
 
 /** The download for this machine, and where its executable may be once unpacked. */
 function platformBuild() {
@@ -41,14 +48,14 @@ function findExecutable(folder, build) {
   return build.executables.map((name) => join(folder, name)).find((path) => existsSync(path));
 }
 
-/** Downloads and unpacks VS Code into .vscode-test/<platform>, once. */
+/** Downloads and unpacks VS Code into .vscode-test/<version>-<platform>, once. */
 async function installVsCode() {
   const build = platformBuild();
-  const folder = join(cache, build.platform);
+  const folder = join(cache, `${VSCODE_VERSION}-${build.platform}`);
   const installed = findExecutable(folder, build);
   if (installed) return installed;
   mkdirSync(folder, { recursive: true });
-  const url = `https://update.code.visualstudio.com/latest/${build.platform}/stable`;
+  const url = `https://update.code.visualstudio.com/${VSCODE_VERSION}/${build.platform}/stable`;
   console.log(`Downloading VS Code from ${url}`);
   const response = await fetch(url);
   if (!response.ok) throw new Error(`download failed: ${response.status} ${response.statusText}`);
