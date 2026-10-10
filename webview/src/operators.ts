@@ -290,6 +290,7 @@ export const OPERATOR_TONE: Record<OpName, Tone> = {
   msg: "history",
   since: "history",
   until: "history",
+  at: "history",
   count: "output",
   order: "output",
 };
@@ -314,6 +315,7 @@ const OPERATOR_NAMES: Record<OpName, { full: string; short: string; aliases?: st
   msg: { full: "message", short: "m" },
   since: { full: "since", short: "d" },
   until: { full: "until", short: "u" },
+  at: { full: "at", short: "" },
   case: { full: "case", short: "c" },
   word: { full: "word", short: "w" },
   count: { full: "count", short: "n" },
@@ -338,7 +340,7 @@ export function fullName(op: OpName): string {
   return OPERATOR_NAMES[op].full;
 }
 
-/** An entry's short name, "f:", shown beside its full name; absent for syntax and for owner:, content: and struct:, which have none. */
+/** An entry's short name, "f:", shown beside its full name; absent for syntax and for owner:, content:, struct: and at:, which have none. */
 export function shortName(entry: OperatorEntry): string | undefined {
   const short = entry.operator ? OPERATOR_NAMES[entry.operator].short : "";
   return short ? `${short}:` : undefined;

@@ -75,6 +75,12 @@ type Plan struct {
 	SymbolFilter *Filter
 	// Terms are the text terms in query order, for highlighting.
 	Terms []*Content
+	// At is the revision whose files the query searches, as at: names it
+	// (v1.0.0, main, HEAD~10), or "" to search the current files. When at:
+	// names a time instead, At is that value as written and AtTime is when
+	// it ends: the search reads the newest commit made by then.
+	At     string
+	AtTime time.Time
 }
 
 // Filter is part of a query that may hide results. Engines count what each
@@ -293,6 +299,7 @@ func NewPlan(q protocol.ParsedQuery, settings protocol.Settings, now time.Time, 
 		plan.WholeWord = q.Globals.Word == "yes"
 	}
 	plan.Order = resultOrder(q.Globals.Order, settings.Order)
+	plan.At, plan.AtTime = revisionOf(q.Globals.At, now)
 
 	l := lowering{caseSensitive: plan.CaseSensitive, wholeWord: plan.WholeWord, now: now, plan: plan, nextRefIndex: textTermCount(q.Root)}
 	src := newSource(q.Raw)
@@ -474,6 +481,20 @@ func (p *Plan) addGlobalFilter(node *protocol.Node, src *source) {
 	}
 }
 
+// revisionOf is the revision an at: value names, and, when it names a time,
+// when that time ends: at most now, since the end of today is the files
+// as they are by now.
+func revisionOf(at string, now time.Time) (string, time.Time) {
+	if at == "" || !atTime(at) {
+		return at, time.Time{}
+	}
+	end := until(now, at)
+	if end.After(now) {
+		end = now
+	}
+	return at, end
+}
+
 // resultKinds decides which kinds of result the query returns.
 func resultKinds(q protocol.ParsedQuery) map[ResultKind]bool {
 	if q.Mode == protocol.ModeHistory {
@@ -616,7 +637,7 @@ func (l *lowering) lowerOperator(node *protocol.Node) Pred {
 	case protocol.OpNameUntil:
 		// Changes up to the end are those not since it, so engines need no until:.
 		return &Not{Kid: &Since{After: until(l.now, node.Value)}}
-	default: // case:, word:, count:, type:, order: shape the plan, not the predicate
+	default: // case:, word:, count:, type:, order:, at: shape the plan, not the predicate
 		return nil
 	}
 }

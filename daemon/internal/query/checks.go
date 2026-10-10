@@ -24,6 +24,8 @@ func check(src *source, query *protocol.ParsedQuery, problems *diagnostics) {
 	if query.Mode == protocol.ModeHistory {
 		reportWorkingTreeOperators(src, query.Root, problems)
 		reportMultilineInHistory(query.Root, problems)
+	} else if query.Globals.At != "" {
+		reportOperatorsOfNow(src, query.Root, query.Globals.At, problems)
 	}
 	if !hasPositiveTerm(query.Root) {
 		problems.errorf(DiagNoPositiveTerm, query.Root.Span, nil,
@@ -130,7 +132,7 @@ func walkWithParent(node, parent *protocol.Node, visit func(node, parent *protoc
 	}
 }
 
-// setGlobal records a top-level case:, word:, type:, count: or order: in globals.
+// setGlobal records a top-level case:, word:, type:, count:, order: or at: in globals.
 func setGlobal(globals *protocol.Globals, node *protocol.Node) {
 	value := node.Value
 	switch node.Op {
@@ -142,6 +144,8 @@ func setGlobal(globals *protocol.Globals, node *protocol.Node) {
 		globals.Type = &value
 	case protocol.OpNameOrder:
 		globals.Order = value
+	case protocol.OpNameAt:
+		globals.At = value
 	case protocol.OpNameCount:
 		if value == "all" {
 			globals.Count = "all"
@@ -206,12 +210,40 @@ func reportWorkingTreeOperators(src *source, root *protocol.Node, problems *diag
 			switch {
 			case node.Op == protocol.OpNameOrder:
 				does = "sorts current files; commits are always newest first"
+			case node.Op == protocol.OpNameAt:
+				does = "searches the files of one revision"
 			case isNow:
 				does = "describes files as they are now, not in a commit"
 			}
 			problems.errorf(DiagOpWrongMode, node.Span, []protocol.Fix{removeFix("Remove "+written, src, node.Span)},
 				"%s: %s, but this query searches commits (author:, msg: or type:commit)", node.Op, does)
 		}
+	})
+}
+
+// reportOperatorsOfNow reports, in a query with at:, the operators that
+// describe files as they are now or when they last changed, which a past
+// revision's files can't answer: is:open, is:changed, since:, until: and
+// owner: (today's CODEOWNERS file).
+func reportOperatorsOfNow(src *source, root *protocol.Node, at string, problems *diagnostics) {
+	walk(root, func(node *protocol.Node) {
+		if node.Kind != protocol.NodeKindOp {
+			return
+		}
+		var does string
+		switch {
+		case node.Op == protocol.OpNameIs && currentState(node.Value):
+			does = "describes files as they are now"
+		case isWindowOp(node.Op):
+			does = "picks files by when they last changed"
+		case node.Op == protocol.OpNameOwner:
+			does = "reads today's CODEOWNERS file"
+		default:
+			return
+		}
+		written := src.slice(node.Span.Start, node.Span.End)
+		problems.errorf(DiagOpWithAt, node.Span, []protocol.Fix{removeFix("Remove "+written, src, node.Span)},
+			"%s: %s, but at:%s searches the files as they were then", node.Op, does, at)
 	})
 }
 

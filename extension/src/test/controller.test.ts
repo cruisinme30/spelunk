@@ -422,6 +422,12 @@ const THREE_RESULTS = ["a.py", "b.py", "c.py"].map((path, index): LineResult => 
   hits: [{ start: 0, end: 5, termIndex: 0 }],
 }));
 
+/** Where one of THREE_RESULTS opens: its path and line. */
+function openThreeResults(ref: string | undefined) {
+  const result = THREE_RESULTS.find((item) => item.ref === ref);
+  return { path: `/work/${result?.path ?? ""}`, line: result?.line ?? 1, column: 1, length: 5 };
+}
+
 /** A backend that finds THREE_RESULTS for any query and opens each at its path. */
 function threeResultsBackend() {
   const scripted = scriptedBackend((method, { text, searchId, ref }) => {
@@ -434,20 +440,15 @@ function threeResultsBackend() {
         return { ...NO_RESULTS, total: THREE_RESULTS.length };
       }
       case "open/resolve": {
-        const result = THREE_RESULTS.find((item) => item.ref === ref);
-        return {
-          path: `/work/${result?.path ?? ""}`,
-          line: result?.line ?? 1,
-          column: 1,
-          length: 5,
-        };
+        return openThreeResults(ref);
       }
       case "initialize":
       case "shutdown":
       case "preview/get":
       case "index/status":
       case "index/rebuild":
-      case "replace/plan": {
+      case "replace/plan":
+      case "revision/text": {
         throw new Error(`unexpected request ${method}`);
       }
     }

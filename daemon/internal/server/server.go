@@ -28,6 +28,7 @@ type Server struct {
 	now   func() time.Time
 	index *indexer.Indexer
 	plans planMemory
+	tags  tagCache
 
 	mu                sync.RWMutex
 	roots             []protocol.Root
@@ -52,6 +53,7 @@ func New(conn *rpc.Conn, opts Options) *Server {
 	if s.now == nil {
 		s.now = time.Now
 	}
+	s.tags.now = time.Now // wall clock: SPELUNK_NOW may be frozen
 	s.index = indexer.New(s.settings, s.notifyIndexStatus)
 	conn.Handle(protocol.MethodShutdown, s.shutdown) // answered again after shutdown, as LSP allows
 	conn.OnNotify(protocol.MethodExit, func(json.RawMessage) { s.exit() })

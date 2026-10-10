@@ -68,6 +68,7 @@ var operators = []operator{
 	{name: protocol.OpNameWord, full: "word", short: "w", global: true, summary: "Match whole words only (yes) or parts of words too (no)", examples: fixedValueNames(protocol.OpNameWord), interpret: oneOf(fixedValueNames(protocol.OpNameWord)...)},
 	{name: protocol.OpNameCount, full: "count", short: "n", global: true, summary: "How many results", examples: []string{"50", "200", "all"}, interpret: asCount},
 	{name: protocol.OpNameOrder, full: "order", short: "o", global: true, scope: scopeWorkingTreeOnly, summary: "Best match first, or by path", examples: fixedValueNames(protocol.OpNameOrder), interpret: oneOf(fixedValueNames(protocol.OpNameOrder)...)},
+	{name: protocol.OpNameAt, full: "at", global: true, scope: scopeWorkingTreeOnly, summary: "Files as they were at a tag, branch, commit or time", examples: []string{"v1.0.0", "main", "HEAD~10", "6m", "2026-01-31"}, interpret: asRevision},
 }
 
 // The values of is:, the file states it can match.
@@ -218,6 +219,35 @@ func asOwner(_ string, form valueForm) (protocol.Match, string) {
 		return protocol.MatchLiteral, "owner: takes a @user, an @org/team, an email or none, not a regex"
 	}
 	return protocol.MatchLiteral, ""
+}
+
+// revisionPattern is a revision at: can name: a tag, a branch, a sha, or
+// one of those with ~n or ^n after it (HEAD~10). It can't start with "-",
+// which git would read as an option, nor hold a ":" (a file in a commit),
+// a space, or "..", which names a range of commits rather than one.
+var revisionPattern = regexp.MustCompile(`^[A-Za-z0-9_][A-Za-z0-9_./@{}~^+-]*$`)
+
+// asRevision: at: takes a time, as until: does (6m, 2026-01-31: the files
+// as they were then), or the name of a revision (v1.0.0, main, 3f9c2e1,
+// HEAD~10). A value that reads as a time is one.
+func asRevision(value string, form valueForm) (protocol.Match, string) {
+	if form == formBare && atTime(value) {
+		if datePattern.MatchString(value) {
+			return protocol.MatchLiteral, dateProblem(value)
+		}
+		return protocol.MatchLiteral, ""
+	}
+	if form != formRegex && revisionPattern.MatchString(value) && !strings.Contains(value, "..") {
+		return protocol.MatchLiteral, ""
+	}
+	return protocol.MatchLiteral, "at: takes a tag, branch or commit (v1.0.0, main, 3f9c2e1, HEAD~10), or a time (6m, 2026-01-31)"
+}
+
+// atTime reports whether an at: value is a time rather than a revision:
+// today, yesterday, a date, or a number and a unit, as until: takes.
+func atTime(value string) bool {
+	day := strings.ToLower(value)
+	return day == windowToday || day == windowYesterday || durationPattern.MatchString(value) || datePattern.MatchString(value)
 }
 
 // durationPattern is a since: or until: window: a count and a unit, which

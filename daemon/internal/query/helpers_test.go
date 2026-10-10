@@ -68,6 +68,7 @@ type fakeResolver struct {
 	words   []WordStat
 	symbols []SymbolStat
 	owners  []OwnerStat
+	tags    []TagStat
 }
 
 // Authors returns up to limit authors whose name or email contains fragment.
@@ -112,6 +113,9 @@ func (r fakeResolver) Symbols(fragment string, limit int) []SymbolStat {
 
 // Owners returns every owner.
 func (r fakeResolver) Owners() []OwnerStat { return r.owners }
+
+// Tags returns every tag.
+func (r fakeResolver) Tags() []TagStat { return r.tags }
 
 // codes lists the codes of diagnostics, in order.
 func codes(diagnostics []protocol.Diagnostic) []string {

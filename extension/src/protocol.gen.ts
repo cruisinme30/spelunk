@@ -61,7 +61,7 @@ export interface HoleValue {
 }
 
 /** OpName is an operator's name, the part before the colon. */
-export type OpName = "f" | "repo" | "lang" | "type" | "sym" | "kind" | "ref" | "is" | "owner" | "content" | "struct" | "author" | "msg" | "since" | "until" | "case" | "word" | "count" | "order";
+export type OpName = "f" | "repo" | "lang" | "type" | "sym" | "kind" | "ref" | "is" | "owner" | "content" | "struct" | "author" | "msg" | "since" | "until" | "at" | "case" | "word" | "count" | "order";
 
 /** CaseSetting is how capital letters match when the query has no case: ignored (off), matched (on), or matched only when the query has a capital letter (smart). */
 export type CaseSetting = "off" | "on" | "smart";
@@ -71,6 +71,9 @@ export type ResultOrder = "best" | "path";
 
 /** RankReason is why best-match order put a file where it is: it defines a searched name or is open in the editor, or it was moved down as a test, vendored or generated file. Absent when nothing stands out or the order is path. */
 export type RankReason = "definition" | "open" | "test" | "vendored" | "generated";
+
+/** SinceRevision is how a file found at a revision differs in the current files: its content changed, or it was deleted. */
+export type SinceRevision = "changed" | "deleted";
 
 /** Match says how a value was written: bare (literal), quoted (phrase), /regex/, a path glob such as *.go (f: and repo: only), or a struct: template of code with :[holes] (structural). */
 export type Match = "literal" | "phrase" | "regex" | "glob" | "structural";
@@ -137,7 +140,7 @@ export type Node =
       resolved?: Resolved;
     };
 
-/** Globals are the query-wide operators case:, word:, count:, type: and order:, or null when absent. */
+/** Globals are the query-wide operators case:, word:, count:, type:, order: and at:, or null when absent. */
 export interface Globals {
   /** the query's case: value: yes, no or smart (match case only when the query has a capital letter). */
   case: "yes" | "no" | "smart" | null;
@@ -147,6 +150,8 @@ export interface Globals {
   word?: "yes" | "no";
   /** the query's order: value, best or path; absent when the query doesn't say. */
   order?: ResultOrder;
+  /** the query's at: value as written: the tag, branch, commit or time whose files it searches; absent when the query doesn't say. */
+  at?: string;
 }
 
 /** ParsedQuery is the parser's output: the query tree, its global operators and its diagnostics. */
@@ -224,6 +229,8 @@ export type ResultItem =
       /** Who the repo's CODEOWNERS file says owns the file, as it writes them; absent when nobody does or the repo has no CODEOWNERS file. */
       owners?: string[];
       rankReason?: RankReason;
+      /** For a search at a revision (at:), how the file differs now: changed, or deleted since; absent when it is the same now, and in every other search. */
+      sinceRevision?: SinceRevision;
     }
   | {
       kind: "line";
@@ -246,6 +253,8 @@ export type ResultItem =
       contextBefore?: string[];
       /** The lines just below the match (below endLine when it spans lines), when the contextLines setting asks for them; fewer near the end of the file. */
       contextAfter?: string[];
+      /** For a search at a revision (at:), how the file differs now: changed, or deleted since; absent when it is the same now, and in every other search. */
+      sinceRevision?: SinceRevision;
     }
   | {
       kind: "symbol";
@@ -257,6 +266,8 @@ export type ResultItem =
       symbolKind: SymbolKind;
       hits: Hit[];
       rankReason?: RankReason;
+      /** For a search at a revision (at:), how the file differs now: changed, or deleted since; absent when it is the same now, and in every other search. */
+      sinceRevision?: SinceRevision;
     }
   | {
       kind: "commit";
@@ -397,7 +408,7 @@ export interface RepoStatus {
   message?: string;
 }
 
-/** OpenTarget is where opening a result goes: a file position (path, line, column, length, or to endLine and endColumn for a match that spans lines) or a commit (repoId, sha). Lines and columns are 1-based. */
+/** OpenTarget is where opening a result goes: a file position (path, line, column, length, or to endLine and endColumn for a match that spans lines) or a commit (repoId, sha). A file at a revision (an at: result) also has revision, and opens read-only with the text of revision/text. Lines and columns are 1-based. */
 export interface OpenTarget {
   path?: string;
   line?: number;
@@ -408,6 +419,10 @@ export interface OpenTarget {
   endColumn?: number;
   repoId?: string;
   sha?: string;
+  /** The full sha of the commit whose version of the file opens, for an at: result. */
+  revision?: string;
+  /** How the revision reads in the editor's title: the at: value (v1.0.0), or the short sha when the search is forgotten. */
+  revisionLabel?: string;
 }
 
 /** OpenWhere is which editor group a result opens in. */
@@ -501,6 +516,29 @@ export interface SearchResult {
   hidden: HiddenNote[];
   facets?: Facet[];
   ms: number;
+  /** For an at: search, the commit each searched repo read, in workspace order; absent otherwise. */
+  revisions?: RevisionInfo[];
+}
+
+/** RevisionInfo is the commit an at: search read in one repo: its sha and date, or why the repo has none. */
+export interface RevisionInfo {
+  repoId: string;
+  /** The commit's full sha; absent when the repo has no such revision. */
+  sha?: string;
+  /** When the commit was made (its committer date), RFC 3339; absent with sha. */
+  date?: string;
+  /** Why the repo was not searched, when it has no such revision: "v9 isn't a tag, branch or commit here", "Not a Git repository". */
+  problem?: string;
+}
+
+/** RevisionTextParams ask for the whole text of a file a revision result names. */
+export interface RevisionTextParams {
+  ref: string;
+}
+
+/** RevisionText is a file's whole text as it was at the revision of a result's ref. */
+export interface RevisionText {
+  text: string;
 }
 
 /** SearchBatchParams stream up to 200 results of a running search. */
@@ -776,6 +814,7 @@ export interface RpcRequests {
   "search/start": [SearchStartParams, SearchResult];
   "preview/get": [PreviewParams, Preview];
   "open/resolve": [OpenResolveParams, OpenTarget];
+  "revision/text": [RevisionTextParams, RevisionText];
   "index/status": [Empty, IndexStatusResult];
   "index/rebuild": [RebuildParams, Empty];
   "replace/plan": [ReplacePlanParams, ReplacePlan];

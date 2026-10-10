@@ -104,6 +104,7 @@ const (
 	OpNameMsg     OpName = "msg"
 	OpNameSince   OpName = "since"
 	OpNameUntil   OpName = "until"
+	OpNameAt      OpName = "at"
 	OpNameCase    OpName = "case"
 	OpNameWord    OpName = "word"
 	OpNameCount   OpName = "count"
@@ -139,6 +140,15 @@ const (
 	RankReasonTest       RankReason = "test"
 	RankReasonVendored   RankReason = "vendored"
 	RankReasonGenerated  RankReason = "generated"
+)
+
+// SinceRevision is how a file found at a revision differs in the current files: its content changed, or it was deleted.
+type SinceRevision = string
+
+// SinceRevision values.
+const (
+	SinceRevisionChanged SinceRevision = "changed"
+	SinceRevisionDeleted SinceRevision = "deleted"
 )
 
 // Match says how a value was written: bare (literal), quoted (phrase), /regex/, a path glob such as *.go (f: and repo: only), or a struct: template of code with :[holes] (structural).
@@ -274,7 +284,7 @@ func (v Node) MarshalJSON() ([]byte, error) {
 	return json.Marshal(fields)
 }
 
-// Globals are the query-wide operators case:, word:, count:, type: and order:, or null when absent.
+// Globals are the query-wide operators case:, word:, count:, type:, order: and at:, or null when absent.
 type Globals struct {
 	// Case is the query's case: value: yes, no or smart (match case only when the query has a capital letter).
 	Case  *string `json:"case"`
@@ -284,6 +294,8 @@ type Globals struct {
 	Word string `json:"word,omitempty"`
 	// Order is the query's order: value, best or path; absent when the query doesn't say.
 	Order ResultOrder `json:"order,omitempty"`
+	// At is the query's at: value as written: the tag, branch, commit or time whose files it searches; absent when the query doesn't say.
+	At string `json:"at,omitempty"`
 }
 
 // ParsedQuery is the parser's output: the query tree, its global operators and its diagnostics.
@@ -380,35 +392,36 @@ const (
 
 // ResultItem is one search result: a file name, a code line, a symbol or a commit.
 type ResultItem struct {
-	Kind          string       `json:"kind,omitempty"`
-	Ref           string       `json:"ref,omitempty"`
-	RepoID        string       `json:"repoId,omitempty"`
-	Path          string       `json:"path,omitempty"`
-	NameHits      []Range      `json:"nameHits,omitempty"`
-	LastCommit    *LastCommit  `json:"lastCommit,omitempty"`
-	Dirty         bool         `json:"dirty,omitempty"`
-	Owners        []string     `json:"owners,omitempty"`
-	RankReason    RankReason   `json:"rankReason,omitempty"`
-	Line          int          `json:"line,omitempty"`
-	Text          string       `json:"text,omitempty"`
-	Hits          []Hit        `json:"hits,omitempty"`
-	SpanLines     []SpanLine   `json:"spanLines,omitempty"`
-	EndLine       int          `json:"endLine,omitempty"`
-	Holes         []HoleValue  `json:"holes,omitempty"`
-	ContextBefore []string     `json:"contextBefore,omitempty"`
-	ContextAfter  []string     `json:"contextAfter,omitempty"`
-	Name          string       `json:"name,omitempty"`
-	SymbolKind    SymbolKind   `json:"symbolKind,omitempty"`
-	SHA           string       `json:"sha,omitempty"`
-	Subject       string       `json:"subject,omitempty"`
-	Author        Person       `json:"author,omitempty"`
-	At            string       `json:"at,omitempty"`
-	Files         []FileStat   `json:"files,omitempty"`
-	DiffHits      int          `json:"diffHits,omitempty"`
-	MatchedTerms  []int        `json:"matchedTerms,omitempty"`
-	SubjectHits   []Range      `json:"subjectHits,omitempty"`
-	InMessage     bool         `json:"inMessage,omitempty"`
-	BodyLine      *MessageLine `json:"bodyLine,omitempty"`
+	Kind          string        `json:"kind,omitempty"`
+	Ref           string        `json:"ref,omitempty"`
+	RepoID        string        `json:"repoId,omitempty"`
+	Path          string        `json:"path,omitempty"`
+	NameHits      []Range       `json:"nameHits,omitempty"`
+	LastCommit    *LastCommit   `json:"lastCommit,omitempty"`
+	Dirty         bool          `json:"dirty,omitempty"`
+	Owners        []string      `json:"owners,omitempty"`
+	RankReason    RankReason    `json:"rankReason,omitempty"`
+	SinceRevision SinceRevision `json:"sinceRevision,omitempty"`
+	Line          int           `json:"line,omitempty"`
+	Text          string        `json:"text,omitempty"`
+	Hits          []Hit         `json:"hits,omitempty"`
+	SpanLines     []SpanLine    `json:"spanLines,omitempty"`
+	EndLine       int           `json:"endLine,omitempty"`
+	Holes         []HoleValue   `json:"holes,omitempty"`
+	ContextBefore []string      `json:"contextBefore,omitempty"`
+	ContextAfter  []string      `json:"contextAfter,omitempty"`
+	Name          string        `json:"name,omitempty"`
+	SymbolKind    SymbolKind    `json:"symbolKind,omitempty"`
+	SHA           string        `json:"sha,omitempty"`
+	Subject       string        `json:"subject,omitempty"`
+	Author        Person        `json:"author,omitempty"`
+	At            string        `json:"at,omitempty"`
+	Files         []FileStat    `json:"files,omitempty"`
+	DiffHits      int           `json:"diffHits,omitempty"`
+	MatchedTerms  []int         `json:"matchedTerms,omitempty"`
+	SubjectHits   []Range       `json:"subjectHits,omitempty"`
+	InMessage     bool          `json:"inMessage,omitempty"`
+	BodyLine      *MessageLine  `json:"bodyLine,omitempty"`
 }
 
 // ResultItem kinds: the values of ResultItem.Kind.
@@ -442,6 +455,9 @@ func (v ResultItem) MarshalJSON() ([]byte, error) {
 		if v.RankReason != "" {
 			fields["rankReason"] = v.RankReason
 		}
+		if v.SinceRevision != "" {
+			fields["sinceRevision"] = v.SinceRevision
+		}
 	case "line":
 		fields["ref"] = v.Ref
 		fields["repoId"] = v.RepoID
@@ -474,6 +490,9 @@ func (v ResultItem) MarshalJSON() ([]byte, error) {
 		if len(v.ContextAfter) > 0 {
 			fields["contextAfter"] = v.ContextAfter
 		}
+		if v.SinceRevision != "" {
+			fields["sinceRevision"] = v.SinceRevision
+		}
 	case "symbol":
 		fields["ref"] = v.Ref
 		fields["repoId"] = v.RepoID
@@ -488,6 +507,9 @@ func (v ResultItem) MarshalJSON() ([]byte, error) {
 		}
 		if v.RankReason != "" {
 			fields["rankReason"] = v.RankReason
+		}
+		if v.SinceRevision != "" {
+			fields["sinceRevision"] = v.SinceRevision
 		}
 	case "commit":
 		fields["ref"] = v.Ref
@@ -763,7 +785,7 @@ type RepoStatus struct {
 	Message  string     `json:"message,omitempty"`
 }
 
-// OpenTarget is where opening a result goes: a file position (path, line, column, length, or to endLine and endColumn for a match that spans lines) or a commit (repoId, sha). Lines and columns are 1-based.
+// OpenTarget is where opening a result goes: a file position (path, line, column, length, or to endLine and endColumn for a match that spans lines) or a commit (repoId, sha). A file at a revision (an at: result) also has revision, and opens read-only with the text of revision/text. Lines and columns are 1-based.
 type OpenTarget struct {
 	Path   string `json:"path,omitempty"`
 	Line   int    `json:"line,omitempty"`
@@ -774,6 +796,10 @@ type OpenTarget struct {
 	EndColumn int    `json:"endColumn,omitempty"`
 	RepoID    string `json:"repoId,omitempty"`
 	SHA       string `json:"sha,omitempty"`
+	// Revision is the full sha of the commit whose version of the file opens, for an at: result.
+	Revision string `json:"revision,omitempty"`
+	// RevisionLabel is how the revision reads in the editor's title: the at: value (v1.0.0), or the short sha when the search is forgotten.
+	RevisionLabel string `json:"revisionLabel,omitempty"`
 }
 
 // OpenWhere is which editor group a result opens in.
@@ -933,6 +959,8 @@ type SearchResult struct {
 	Hidden     []HiddenNote `json:"hidden"`
 	Facets     []Facet      `json:"facets,omitempty"`
 	Ms         int          `json:"ms"`
+	// Revisions is for an at: search, the commit each searched repo read, in workspace order; absent otherwise.
+	Revisions []RevisionInfo `json:"revisions,omitempty"`
 }
 
 // MarshalJSON emits [] rather than null for required arrays.
@@ -943,6 +971,27 @@ func (v SearchResult) MarshalJSON() ([]byte, error) {
 		p.Hidden = []HiddenNote{}
 	}
 	return json.Marshal(p)
+}
+
+// RevisionInfo is the commit an at: search read in one repo: its sha and date, or why the repo has none.
+type RevisionInfo struct {
+	RepoID string `json:"repoId"`
+	// SHA is the commit's full sha; absent when the repo has no such revision.
+	SHA string `json:"sha,omitempty"`
+	// Date is when the commit was made (its committer date), RFC 3339; absent with sha.
+	Date string `json:"date,omitempty"`
+	// Problem is why the repo was not searched, when it has no such revision: "v9 isn't a tag, branch or commit here", "Not a Git repository".
+	Problem string `json:"problem,omitempty"`
+}
+
+// RevisionTextParams ask for the whole text of a file a revision result names.
+type RevisionTextParams struct {
+	Ref string `json:"ref"`
+}
+
+// RevisionText is a file's whole text as it was at the revision of a result's ref.
+type RevisionText struct {
+	Text string `json:"text"`
 }
 
 // SearchBatchParams stream up to 200 results of a running search.
@@ -1361,6 +1410,7 @@ const (
 	MethodDollarCancelRequest     = "$/cancelRequest"
 	MethodPreviewGet              = "preview/get"
 	MethodOpenResolve             = "open/resolve"
+	MethodRevisionText            = "revision/text"
 	MethodIndexStatus             = "index/status"
 	MethodIndexProgress           = "index/progress"
 	MethodWatchMatched            = "watch/matched"

@@ -22,6 +22,7 @@ const (
 	DiagDuplicateGlobal = "duplicate_global"
 	DiagMixedModeOr     = "mixed_mode_or"
 	DiagOpWrongMode     = "op_wrong_mode"
+	DiagOpWithAt        = "op_with_at"
 	DiagInvalidRegex    = "invalid_regex"
 	DiagNoPositiveTerm  = "no_positive_term"
 	DiagQueryTooLong    = "query_too_long"

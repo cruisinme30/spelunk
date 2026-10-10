@@ -25,7 +25,8 @@ type valueCandidate struct {
 
 // valueCandidates lists the values of op that match fragment (lowercase),
 // best first: authors, repos, languages and paths found in the workspace,
-// time windows for since: and until:, file states for is:, and the fixed
+// time windows for since: and until:, tags and times for at:, file
+// states for is:, and the fixed
 // values of type:, kind:, case:, word:, count: and order:.
 func valueCandidates(op operator, fragment string, resolver Resolver, now time.Time) []valueCandidate {
 	switch op.name {
@@ -49,6 +50,8 @@ func valueCandidates(op operator, fragment string, resolver Resolver, now time.T
 		return stateCandidates(fragment, resolver)
 	case protocol.OpNameOwner:
 		return ownerCandidates(fragment, resolver)
+	case protocol.OpNameAt:
+		return atCandidates(fragment, resolver.Tags(), now)
 	case protocol.OpNameType, protocol.OpNameKind, protocol.OpNameCase, protocol.OpNameWord, protocol.OpNameCount, protocol.OpNameOrder:
 		return fixedCandidates(fixedValues[op.name], fragment)
 	default:
@@ -565,6 +568,89 @@ func untilCandidates(fragment string, files []FileStat, now time.Time) []valueCa
 		}
 	}
 	return candidates
+}
+
+// ------------------------------------------------------------ at:
+
+// atCandidates offers the tags that contain fragment, newest first, then
+// the times it starts, each saying whose files at: would search: "6 months
+// ago | Files as they were on Sat, Apr 3".
+func atCandidates(fragment string, tags []TagStat, now time.Time) []valueCandidate {
+	var candidates []valueCandidate
+	for _, tag := range tags {
+		if !strings.Contains(strings.ToLower(tag.Name), fragment) {
+			continue
+		}
+		candidate := valueCandidate{
+			value: tag.Name, detail: "Tag", context: "Made " + describeDay(tag.At, now),
+			note: strings.Join(tag.Repos, ", "), group: "value",
+		}
+		if len(candidates) == 0 {
+			candidate.section = "Tags"
+		}
+		candidates = append(candidates, candidate)
+	}
+	times := 0
+	for _, p := range windowPicks(fragment) {
+		if p.value == windowToday {
+			continue // the end of today is now: the current files
+		}
+		candidate := valueCandidate{
+			value: p.value, detail: describeAgo(p.value), context: "Files as they were " + describeAsOf(until(now, p.value), now),
+			group: "value",
+		}
+		if times == 0 {
+			candidate.section = "Times"
+		}
+		times++
+		candidates = append(candidates, candidate)
+	}
+	return candidates
+}
+
+// describeAgo says which past moment an at: time is: "End of yesterday",
+// "6 months ago", "An hour ago".
+func describeAgo(value string) string {
+	if strings.EqualFold(value, windowYesterday) {
+		return "End of yesterday"
+	}
+	parts := durationPattern.FindStringSubmatch(value)
+	names := windowUnitNames[parts[2]]
+	switch {
+	case parts[1] != "1":
+		return parts[1] + " " + names[1] + " ago"
+	case parts[2] == "h":
+		return "An hour ago"
+	default:
+		return "A " + names[0] + " ago"
+	}
+}
+
+// describeAsOf says when an at: time is, as precisely as it matters:
+// "at midnight" or "at 08:04" today, "on Fri, Oct 2 at 15:00" for a
+// recent day, "on Sat, Sep 19" further back, with the year when it differs.
+func describeAsOf(at, now time.Time) string {
+	at = at.In(now.Location())
+	switch {
+	case at.Equal(midnight(now)):
+		return "at midnight"
+	case at.Year() == now.Year() && at.YearDay() == now.YearDay():
+		return "at " + at.Format("15:04")
+	case now.Sub(at) < 3*24*time.Hour:
+		return "on " + at.Format("Mon, Jan 2") + " at " + at.Format("15:04")
+	default:
+		return "on " + describeDay(at, now)
+	}
+}
+
+// describeDay names a day, with its year when it isn't now's: "Sat, Sep
+// 19", "Sat, Mar 14, 2025".
+func describeDay(day, now time.Time) string {
+	day = day.In(now.Location())
+	if day.Year() == now.Year() {
+		return day.Format("Mon, Jan 2")
+	}
+	return day.Format("Mon, Jan 2, 2006")
 }
 
 // describeUntil says what an until: value keeps: "Through today", "More

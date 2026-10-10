@@ -247,3 +247,28 @@ func (r workspaceResolver) Files() []query.FileStat {
 	}
 	return files
 }
+
+// Tags merges the tags of the open repos by name, newest first, for at:
+// suggestions. Each repo's list is read from Git at most once every
+// tagsTTL (see tagCache).
+func (r workspaceResolver) Tags() []query.TagStat {
+	byName := map[string]*query.TagStat{}
+	var order []*query.TagStat
+	for _, root := range r.server.Roots() {
+		for _, tag := range r.server.tags.list(root.Path) {
+			stat, ok := byName[tag.Name]
+			if !ok {
+				stat = &query.TagStat{Name: tag.Name, At: tag.At}
+				byName[tag.Name] = stat
+				order = append(order, stat)
+			}
+			stat.Repos = append(stat.Repos, root.Name)
+		}
+	}
+	tags := make([]query.TagStat, len(order))
+	for i, stat := range order {
+		tags[i] = *stat
+	}
+	slices.SortStableFunc(tags, func(a, b query.TagStat) int { return b.At.Compare(a.At) })
+	return tags
+}

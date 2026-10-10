@@ -119,6 +119,7 @@
         "msg",
         "since",
         "until",
+        "at",
         "case",
         "word",
         "count",
@@ -139,6 +140,11 @@
       "description": "RankReason is why best-match order put a file where it is: it defines a searched name or is open in the editor, or it was moved down as a test, vendored or generated file. Absent when nothing stands out or the order is path.",
       "type": "string",
       "enum": ["definition", "open", "test", "vendored", "generated"]
+    },
+    "SinceRevision": {
+      "description": "SinceRevision is how a file found at a revision differs in the current files: its content changed, or it was deleted.",
+      "type": "string",
+      "enum": ["changed", "deleted"]
     },
     "Match": {
       "description": "Match says how a value was written: bare (literal), quoted (phrase), /regex/, a path glob such as *.go (f: and repo: only), or a struct: template of code with :[holes] (structural).",
@@ -307,7 +313,7 @@
       ]
     },
     "Globals": {
-      "description": "Globals are the query-wide operators case:, word:, count:, type: and order:, or null when absent.",
+      "description": "Globals are the query-wide operators case:, word:, count:, type:, order: and at:, or null when absent.",
       "type": "object",
       "properties": {
         "case": {
@@ -352,6 +358,10 @@
         "order": {
           "description": "the query's order: value, best or path; absent when the query doesn't say.",
           "$ref": "#/$defs/ResultOrder"
+        },
+        "at": {
+          "description": "the query's at: value as written: the tag, branch, commit or time whose files it searches; absent when the query doesn't say.",
+          "type": "string"
         }
       },
       "required": ["case", "count", "type"]
@@ -560,6 +570,10 @@
             },
             "rankReason": {
               "$ref": "#/$defs/RankReason"
+            },
+            "sinceRevision": {
+              "description": "For a search at a revision (at:), how the file differs now: changed, or deleted since; absent when it is the same now, and in every other search.",
+              "$ref": "#/$defs/SinceRevision"
             }
           },
           "required": ["kind", "ref", "repoId", "path", "nameHits", "dirty"]
@@ -632,6 +646,10 @@
               "items": {
                 "type": "string"
               }
+            },
+            "sinceRevision": {
+              "description": "For a search at a revision (at:), how the file differs now: changed, or deleted since; absent when it is the same now, and in every other search.",
+              "$ref": "#/$defs/SinceRevision"
             }
           },
           "required": ["kind", "ref", "repoId", "path", "line", "text", "hits"]
@@ -668,6 +686,10 @@
             },
             "rankReason": {
               "$ref": "#/$defs/RankReason"
+            },
+            "sinceRevision": {
+              "description": "For a search at a revision (at:), how the file differs now: changed, or deleted since; absent when it is the same now, and in every other search.",
+              "$ref": "#/$defs/SinceRevision"
             }
           },
           "required": ["kind", "ref", "repoId", "path", "line", "name", "symbolKind", "hits"]
@@ -1064,7 +1086,7 @@
       "required": ["repoId", "name", "tree", "history"]
     },
     "OpenTarget": {
-      "description": "OpenTarget is where opening a result goes: a file position (path, line, column, length, or to endLine and endColumn for a match that spans lines) or a commit (repoId, sha). Lines and columns are 1-based.",
+      "description": "OpenTarget is where opening a result goes: a file position (path, line, column, length, or to endLine and endColumn for a match that spans lines) or a commit (repoId, sha). A file at a revision (an at: result) also has revision, and opens read-only with the text of revision/text. Lines and columns are 1-based.",
       "type": "object",
       "properties": {
         "path": {
@@ -1090,6 +1112,14 @@
           "type": "string"
         },
         "sha": {
+          "type": "string"
+        },
+        "revision": {
+          "description": "The full sha of the commit whose version of the file opens, for an at: result.",
+          "type": "string"
+        },
+        "revisionLabel": {
+          "description": "How the revision reads in the editor's title: the at: value (v1.0.0), or the short sha when the search is forgotten.",
           "type": "string"
         }
       },
@@ -1328,9 +1358,58 @@
         },
         "ms": {
           "type": "integer"
+        },
+        "revisions": {
+          "description": "For an at: search, the commit each searched repo read, in workspace order; absent otherwise.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/RevisionInfo"
+          }
         }
       },
       "required": ["total", "truncated", "hidden", "ms"]
+    },
+    "RevisionInfo": {
+      "description": "RevisionInfo is the commit an at: search read in one repo: its sha and date, or why the repo has none.",
+      "type": "object",
+      "properties": {
+        "repoId": {
+          "type": "string"
+        },
+        "sha": {
+          "description": "The commit's full sha; absent when the repo has no such revision.",
+          "type": "string"
+        },
+        "date": {
+          "description": "When the commit was made (its committer date), RFC 3339; absent with sha.",
+          "type": "string"
+        },
+        "problem": {
+          "description": "Why the repo was not searched, when it has no such revision: \"v9 isn't a tag, branch or commit here\", \"Not a Git repository\".",
+          "type": "string"
+        }
+      },
+      "required": ["repoId"]
+    },
+    "RevisionTextParams": {
+      "description": "RevisionTextParams ask for the whole text of a file a revision result names.",
+      "type": "object",
+      "properties": {
+        "ref": {
+          "type": "string"
+        }
+      },
+      "required": ["ref"]
+    },
+    "RevisionText": {
+      "description": "RevisionText is a file's whole text as it was at the revision of a result's ref.",
+      "type": "object",
+      "properties": {
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": ["text"]
     },
     "SearchBatchParams": {
       "description": "SearchBatchParams stream up to 200 results of a running search.",
@@ -2050,6 +2129,11 @@
       "kind": "request",
       "params": "OpenResolveParams",
       "result": "OpenTarget"
+    },
+    "revision/text": {
+      "kind": "request",
+      "params": "RevisionTextParams",
+      "result": "RevisionText"
     },
     "index/status": {
       "kind": "request",

@@ -28,6 +28,16 @@ type Resolver interface {
 	// Owners returns every owner the open repos' CODEOWNERS files give
 	// files to, most files first.
 	Owners() []OwnerStat
+	// Tags returns the open repos' tags, newest first, for at:.
+	Tags() []TagStat
+}
+
+// TagStat is a tag in one or more open repos, and when it was made (in
+// the first repo that has it).
+type TagStat struct {
+	Name  string
+	At    time.Time
+	Repos []string
 }
 
 // OwnerStat is one owner in CODEOWNERS files, as it is written there
@@ -114,6 +124,9 @@ func (noResolver) Symbols(string, int) []SymbolStat { return nil }
 
 // Owners knows no CODEOWNERS files.
 func (noResolver) Owners() []OwnerStat { return nil }
+
+// Tags returns no tags.
+func (noResolver) Tags() []TagStat { return nil }
 
 // repoNames lists the display names of the open repos.
 func repoNames(resolver Resolver) []string {
