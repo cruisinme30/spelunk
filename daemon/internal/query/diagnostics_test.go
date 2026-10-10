@@ -289,3 +289,23 @@ func TestPipeInWord(t *testing.T) {
 		}
 	}
 }
+
+// A query with nothing to search for says why: its terms are all
+// excluded, or it has only operators that shape the search. case:yes
+// alone said every term was excluded with -, which it has none of.
+func TestNoPositiveTermSaysWhyNothingIsSearchedFor(t *testing.T) {
+	// @covers diag:no_positive_term
+	tests := map[string]string{
+		"-timeout":            "Add something to search for: every term is excluded with - or NOT",
+		"case:yes -timeout":   "Add something to search for: every term is excluded with - or NOT",
+		"case:yes":            "Add something to search for: case:yes only shapes the search",
+		"case:yes count:5":    "Add something to search for: case:yes and count:5 only shape the search",
+		"c:yes n:5 type:file": "Add something to search for: c:yes, n:5 and type:file only shape the search",
+	}
+	for text, want := range tests {
+		q := Parse(text, testResolver)
+		if len(q.Diagnostics) != 1 || q.Diagnostics[0].Code != DiagNoPositiveTerm || q.Diagnostics[0].Message != want {
+			t.Errorf("Parse(%q) diagnostics = %+v, want one no_positive_term: %q", text, q.Diagnostics, want)
+		}
+	}
+}

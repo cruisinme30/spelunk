@@ -28,8 +28,30 @@ func check(src *source, query *protocol.ParsedQuery, problems *diagnostics) {
 		reportOperatorsOfNow(src, query.Root, query.Globals.At, problems)
 	}
 	if !hasPositiveTerm(query.Root) {
-		problems.errorf(DiagNoPositiveTerm, query.Root.Span, nil,
-			"Add something to search for: every term is excluded with -")
+		problems.errorf(DiagNoPositiveTerm, query.Root.Span, nil, "Add something to search for: %s", nothingSearchedFor(src, query.Root))
+	}
+}
+
+// nothingSearchedFor says why a query without a positive term searches
+// for nothing: what it has is excluded, or only shapes the search, as
+// case:yes and count:5 do.
+func nothingSearchedFor(src *source, root *protocol.Node) string {
+	var globals []string
+	excluded := false
+	for _, node := range topLevel(root) {
+		if node.Kind == protocol.NodeKindOp {
+			globals = append(globals, src.slice(node.Span.Start, node.Span.End))
+		} else {
+			excluded = true
+		}
+	}
+	switch {
+	case excluded:
+		return "every term is excluded with - or NOT"
+	case len(globals) == 1:
+		return globals[0] + " only shapes the search"
+	default:
+		return strings.Join(globals[:len(globals)-1], ", ") + " and " + globals[len(globals)-1] + " only shape the search"
 	}
 }
 
