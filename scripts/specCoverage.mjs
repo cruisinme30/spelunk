@@ -18,15 +18,13 @@ import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { screenIds } from "./mockTable.mjs";
+import { commands, diagnosticCodes, messageNames, operatorNames, settingKeys } from "./specIds.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 /** What can go wrong, and must be handled visibly: each needs a test tagged failure:<name>. */
 const FAILURE_MODES = ["daemon-crash", "index-corrupt", "repo-indexing", "no-git", "ref-stale", "disk-full"];
 /** The query syntax that isn't an operator. */
 const SYNTAX = ["and", "or", "not", "group", "phrase", "regex"];
-const read = (path) => readFileSync(join(root, path), "utf8");
-const schema = JSON.parse(read("protocol/protocol.schema.json"));
-const manifest = JSON.parse(read("extension/package.json"));
 
 /** Every spec id, in report order; the part before the colon is its kind. */
 const required = new Set();
@@ -36,36 +34,22 @@ const add = (kind, names) => {
 };
 const withoutPrefix = (key) => key.replace(/^spelunk\./, "");
 
-add("op", schema.$defs.OpName.enum);
+add("op", operatorNames(root));
 add("syntax", SYNTAX);
-add("rpc", Object.keys(schema["x-rpc-methods"]));
-add("msg", Object.keys(schema["x-webview-messages"]));
+add("rpc", messageNames(root).rpc);
+add("msg", messageNames(root).msg);
+// A deprecated key only says where its setting moved; the new key is the one tests prove.
 add(
   "setting",
-  // A deprecated key only says where its setting moved; the new key is the one tests prove.
-  manifest.contributes.configuration.flatMap((section) =>
-    Object.entries(section.properties)
-      .filter(([, property]) => !property.deprecationMessage)
-      .map(([key]) => withoutPrefix(key)),
-  ),
+  settingKeys(root).map((key) => withoutPrefix(key)),
 );
 add(
   "command",
-  manifest.contributes.commands.map((command) => withoutPrefix(command.command)),
+  commands(root).map((command) => withoutPrefix(command.command)),
 );
 add("screen", screenIds(root));
 add("failure", FAILURE_MODES);
-
-// Diagnostic codes are declared as `Diag… = "code"` constants in the query package.
-const queryPackage = join(root, "daemon/internal/query");
-const goSources = filesInOrNone(queryPackage).filter((name) => name.endsWith(".go") && !name.endsWith("_test.go"));
-for (const file of goSources) {
-  const source = readFileSync(join(queryPackage, file), "utf8");
-  add(
-    "diag",
-    [...source.matchAll(/^\s*Diag\w+\s*=\s*"([a-z_]+)"/gm)].map((match) => match[1]),
-  );
-}
+add("diag", diagnosticCodes(root));
 
 // Collect @covers tags from every test file.
 const testFile = /(_test\.go|\.test\.ts|\.test\.mjs)$/;
@@ -99,15 +83,6 @@ if (unknown.length > 0) {
   process.exitCode = 1;
 }
 if (process.argv.includes("--strict") && missing.length > 0) process.exitCode = 1;
-
-/** The names in `directory`, or none if it doesn't exist (a checkout without the daemon). */
-function filesInOrNone(directory) {
-  try {
-    return readdirSync(directory);
-  } catch {
-    return [];
-  }
-}
 
 /** Every file under `directory`, skipping dependencies, build output and dot-folders. */
 function* walk(directory) {

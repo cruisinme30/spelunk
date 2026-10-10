@@ -9,7 +9,10 @@
 // aren't. A screen's section is the block from `<!-- screen:<id> -->` to
 // `<!-- /screen -->`, on whichever page documents that feature. Every wiki link
 // must reach a page (and heading) that exists, every page must be in the
-// sidebar, and the repo's links into the wiki must name real pages. It also
+// sidebar, and the repo's links into the wiki must name real pages. Every
+// operator must be on the Query Language page, every diagnostic code have an
+// entry on the Error Index, and every setting and command be on Settings and
+// Commands. It also
 // fails while the wiki has uncommitted or unpushed changes, which GitHub can't
 // see.
 //
@@ -24,6 +27,7 @@ import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { screenRows } from "./mockTable.mjs";
+import { commands, diagnosticCodes, operatorNames, settingKeys } from "./specIds.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const wiki = process.env.SPELUNK_WIKI ?? join(root, "..", `${basename(root)}.wiki`);
@@ -39,6 +43,7 @@ if (existsSync(join(wiki, "Screens.md"))) {
   checkScreens();
   checkImages();
   checkLinks();
+  checkCoverage();
   checkWikiPushed();
   for (const problem of problems) console.log(`  ${problem}`);
   console.log(problems.length > 0 ? `${String(problems.length)} wiki problem(s)` : "Wiki matches the mocks.");
@@ -151,6 +156,7 @@ function checkLinks() {
   const check = (from, page, anchor) => {
     const name = decodeURIComponent(page).replaceAll(" ", "-");
     if (!anchors.has(name)) problems.push(`${from} links to a page ${page} that doesn't exist`);
+    else if (anchor === "") problems.push(`${from} links to ${name}# with no heading after the #`);
     else if (anchor && !anchors.get(name).has(decodeURIComponent(anchor).toLowerCase()))
       problems.push(`${from} links to ${name}#${anchor}, which isn't a heading there`);
   };
@@ -235,6 +241,29 @@ function withoutFences(text) {
 /** Markdown without code, fenced or inline, whose text is never a link. */
 function withoutCode(text) {
   return withoutFences(text).replaceAll(/`[^`\n]*`/g, "");
+}
+
+/**
+ * Checks that the wiki describes every operator, diagnostic code, setting and
+ * command the code defines, each on the page a reader would look for it.
+ */
+function checkCoverage() {
+  const pages = wikiPages();
+  /** Flags each of `names` that `page` doesn't mention as `shown(name)`. */
+  const expect = (page, names, shown, what) => {
+    const text = pages.get(page) ?? "";
+    for (const name of names)
+      if (!text.includes(shown(name))) problems.push(`${page}.md doesn't list the ${what} ${name}`);
+  };
+  expect("Query-Language", operatorNames(root), (name) => `\`${name}:\``, "operator");
+  expect("Error-Index", diagnosticCodes(root), (code) => `### \`${code}\``, "diagnostic");
+  expect("Settings-and-Commands", settingKeys(root), (key) => `\`${key}\``, "setting");
+  expect(
+    "Settings-and-Commands",
+    commands(root).map((command) => command.title.replace(/^Spelunk: /, "")),
+    (title) => title,
+    "command",
+  );
 }
 
 /** Flags wiki edits that GitHub can't see yet. */
