@@ -50,7 +50,7 @@ async function suggestingOperators(t) {
     seq,
     query: parsedQuery("timeout s", root),
     completions: [
-      operatorCompletion("since:", "Only changes inside a time window", 8, 9),
+      operatorCompletion("since:", "Changed since", 8, 9),
       operatorCompletion("sym:", "Symbol definitions", 8, 9),
     ],
     searchText: "timeout",

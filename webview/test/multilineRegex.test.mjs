@@ -228,7 +228,7 @@ test("the results glimpse under suggestions shows a match across lines by its fi
     completions: [
       {
         label: "since:",
-        detail: "Only changes inside a time window",
+        detail: "Changed since",
         group: "operator",
         insert: { title: "Insert since:", edits: [{ span: s.span, newText: "since:" }] },
       },

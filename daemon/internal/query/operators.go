@@ -37,7 +37,9 @@ type operator struct {
 	// global operators apply to the whole query and may appear once, at the top level.
 	global bool
 	scope  scope
-	// summary is the one-line description shown in completions.
+	// summary names the operator in a few words: the title of its suggestion,
+	// above the panel's one-line explanation (webview/src/operators.ts), which
+	// it mustn't repeat.
 	summary string
 	// examples are valid values, offered as fixes for a bad value.
 	examples []string
@@ -49,26 +51,26 @@ type operator struct {
 // word that is exactly a short name offers that operator first, so "s"
 // offers symbol: before since:.
 var operators = []operator{
-	{name: protocol.OpNameF, full: "file", short: "f", aliases: []string{"path"}, summary: "File path, as a regex or a glob", examples: []string{"*.py", `\.py$`, "src/", "test"}, interpret: asPathRegex},
-	{name: protocol.OpNameAuthor, full: "author", short: "a", scope: scopeHistoryOnly, summary: "Commits by this person", interpret: asName},
-	{name: protocol.OpNameSince, full: "since", short: "d", summary: "Only changes inside a time window, or from a date on", examples: windowExamples, interpret: asWindow("since")},
-	{name: protocol.OpNameUntil, full: "until", short: "u", summary: "Only changes older than a time window, or up to a date", examples: windowExamples, interpret: asWindow("until")},
+	{name: protocol.OpNameF, full: "file", short: "f", aliases: []string{"path"}, summary: "Paths to search", examples: []string{"*.py", `\.py$`, "src/", "test"}, interpret: asPathRegex},
+	{name: protocol.OpNameAuthor, full: "author", short: "a", scope: scopeHistoryOnly, summary: "Commit author", interpret: asName},
+	{name: protocol.OpNameSince, full: "since", short: "d", summary: "Changed since", examples: windowExamples, interpret: asWindow("since")},
+	{name: protocol.OpNameUntil, full: "until", short: "u", summary: "Changed before", examples: windowExamples, interpret: asWindow("until")},
 	{name: protocol.OpNameSym, full: "symbol", short: "s", scope: scopeWorkingTreeOnly, summary: "Symbol definitions", interpret: asText},
-	{name: protocol.OpNameKind, full: "kind", short: "k", scope: scopeWorkingTreeOnly, summary: "Only definitions of one kind", examples: SymbolKinds, interpret: oneOf(SymbolKinds...)},
-	{name: protocol.OpNameRef, full: "ref", short: "x", scope: scopeWorkingTreeOnly, summary: "Whole-word uses of a name, without its definitions", interpret: asReference},
-	{name: protocol.OpNameIs, full: "is", short: "i", summary: "Open, changed, test, generated or vendored files", examples: []string{StateOpen, StateChanged, StateTest, StateGenerated, StateVendored}, interpret: oneOf(StateOpen, StateChanged, StateTest, StateGenerated, StateVendored)},
-	{name: protocol.OpNameOwner, full: "owner", scope: scopeWorkingTreeOnly, summary: "Files a person or team owns in CODEOWNERS", interpret: asOwner},
-	{name: protocol.OpNameContent, full: "content", summary: "Text inside files only, never file names", examples: []string{"retry", `"read timeout"`, "/Retry(Policy)?/"}, interpret: asText},
-	{name: protocol.OpNameStruct, full: "struct", scope: scopeWorkingTreeOnly, summary: "Code shaped like a template, whose :[holes] take any code", interpret: asTemplate},
+	{name: protocol.OpNameKind, full: "kind", short: "k", scope: scopeWorkingTreeOnly, summary: "Definition kind", examples: SymbolKinds, interpret: oneOf(SymbolKinds...)},
+	{name: protocol.OpNameRef, full: "ref", short: "x", scope: scopeWorkingTreeOnly, summary: "References", interpret: asReference},
+	{name: protocol.OpNameIs, full: "is", short: "i", summary: "File state", examples: []string{StateOpen, StateChanged, StateTest, StateGenerated, StateVendored}, interpret: oneOf(StateOpen, StateChanged, StateTest, StateGenerated, StateVendored)},
+	{name: protocol.OpNameOwner, full: "owner", scope: scopeWorkingTreeOnly, summary: "Code owner", interpret: asOwner},
+	{name: protocol.OpNameContent, full: "content", summary: "File text only", examples: []string{"retry", `"read timeout"`, "/Retry(Policy)?/"}, interpret: asText},
+	{name: protocol.OpNameStruct, full: "struct", scope: scopeWorkingTreeOnly, summary: "Structural search", interpret: asTemplate},
 	{name: protocol.OpNameLang, full: "language", short: "l", summary: "Programming language", examples: []string{"python", "go", "typescript"}, interpret: asLanguage},
-	{name: protocol.OpNameRepo, full: "repo", short: "r", summary: "Repo name, as a regex or a glob", interpret: asPathRegex},
-	{name: protocol.OpNameMsg, full: "message", short: "m", scope: scopeHistoryOnly, summary: "Words in the commit message", interpret: asText},
-	{name: protocol.OpNameType, full: "type", short: "t", global: true, summary: "Only file names, code, commits, or lines commits added or removed", examples: fixedValueNames(protocol.OpNameType), interpret: oneOf(fixedValueNames(protocol.OpNameType)...)},
-	{name: protocol.OpNameCase, full: "case", short: "c", global: true, summary: "Match case (yes), ignore it (no), or match it when the query has a capital (smart)", examples: fixedValueNames(protocol.OpNameCase), interpret: oneOf(fixedValueNames(protocol.OpNameCase)...)},
-	{name: protocol.OpNameWord, full: "word", short: "w", global: true, summary: "Match whole words only (yes) or parts of words too (no)", examples: fixedValueNames(protocol.OpNameWord), interpret: oneOf(fixedValueNames(protocol.OpNameWord)...)},
-	{name: protocol.OpNameCount, full: "count", short: "n", global: true, summary: "How many results", examples: []string{"50", "200", "all"}, interpret: asCount},
-	{name: protocol.OpNameOrder, full: "order", short: "o", global: true, scope: scopeWorkingTreeOnly, summary: "Best match first, or by path", examples: fixedValueNames(protocol.OpNameOrder), interpret: oneOf(fixedValueNames(protocol.OpNameOrder)...)},
-	{name: protocol.OpNameAt, full: "at", global: true, scope: scopeWorkingTreeOnly, summary: "Files as they were at a tag, branch, commit or time", examples: []string{"v1.0.0", "main", "HEAD~10", "6m", "2026-01-31"}, interpret: asRevision},
+	{name: protocol.OpNameRepo, full: "repo", short: "r", summary: "Repos to search", interpret: asPathRegex},
+	{name: protocol.OpNameMsg, full: "message", short: "m", scope: scopeHistoryOnly, summary: "Message text", interpret: asText},
+	{name: protocol.OpNameType, full: "type", short: "t", global: true, summary: "Result kind", examples: fixedValueNames(protocol.OpNameType), interpret: oneOf(fixedValueNames(protocol.OpNameType)...)},
+	{name: protocol.OpNameCase, full: "case", short: "c", global: true, summary: "Case matching", examples: fixedValueNames(protocol.OpNameCase), interpret: oneOf(fixedValueNames(protocol.OpNameCase)...)},
+	{name: protocol.OpNameWord, full: "word", short: "w", global: true, summary: "Word boundaries", examples: fixedValueNames(protocol.OpNameWord), interpret: oneOf(fixedValueNames(protocol.OpNameWord)...)},
+	{name: protocol.OpNameCount, full: "count", short: "n", global: true, summary: "Page size", examples: []string{"50", "200", "all"}, interpret: asCount},
+	{name: protocol.OpNameOrder, full: "order", short: "o", global: true, scope: scopeWorkingTreeOnly, summary: "Result order", examples: fixedValueNames(protocol.OpNameOrder), interpret: oneOf(fixedValueNames(protocol.OpNameOrder)...)},
+	{name: protocol.OpNameAt, full: "at", global: true, scope: scopeWorkingTreeOnly, summary: "Past revision", examples: []string{"v1.0.0", "main", "HEAD~10", "6m", "2026-01-31"}, interpret: asRevision},
 }
 
 // The values of is:, the file states it can match.

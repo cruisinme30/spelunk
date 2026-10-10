@@ -10,6 +10,10 @@ All notable changes to this project are documented here. The format follows
 - Typing `since:6m` suggested only “6min · Last 6 minutes”, though `6m` means six months; a whole window you have
   typed is now listed first as it reads (“6m · Last 6 months”), ahead of the units it could still become. The same
   goes for `until:` and `at:`.
+- An operator suggestion said nearly the same thing twice: `struct:` read “Code shaped like a template, whose :[holes]
+  take any code” above “Code shaped like a template; each :[hole] takes any code.”, and `content:`, `message:`,
+  `owner:` and `at:` repeated their line word for word. Each now has a short title (**Structural search**, **File text
+  only** …) above its one-line explanation.
 
 ### Added
 
