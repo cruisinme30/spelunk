@@ -7,6 +7,11 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- New settings for what was fixed before: `spelunk.search.timeLimitMs` (how long a search runs before it shows
+  what it has, 2000 by default), `spelunk.index.vendoredFolders` and `spelunk.index.generatedSuffixes` (which files
+  `is:vendored` and `is:generated` match and ranking puts last), `spelunk.index.codeownersFiles` (where `owner:`
+  looks for CODEOWNERS), `spelunk.index.commitCheckSeconds` (how often new commits are picked up, 5 by default) and
+  `spelunk.ui.previewContextLines` (lines around the match in the preview, 7 by default).
 - Context lines: **Context 0 · ±1 · ±2 · ±3** in the Code heading shows up to three dimmed lines above and below
   each code match, so you can often tell what a match is without opening it. Matches close together share one run of
   lines, and **⋯** marks the lines skipped between runs; ↑ ↓ still step from match to match. The buttons save

@@ -193,9 +193,9 @@ func TestGeneratedAndVendoredSuggestionsCountTheirFiles(t *testing.T) {
 		{Repo: "payments-api", Path: "src/payments/retry_policy.py"},
 		{Repo: "payments-api", Path: "src/payments/proto/retry_pb2.py", Generated: true},
 		{Repo: "web-checkout", Path: "src/api/schema.ts", Generated: true},
-		{Repo: "shared-libs", Path: "third_party/stripe_compat/retry.py"},
-		{Repo: "web-checkout", Path: "dist/checkout.bundle.js"},
-		{Repo: "web-checkout", Path: "dist/checkout.bundle.min.js", Generated: true},
+		{Repo: "shared-libs", Path: "third_party/stripe_compat/retry.py", Vendored: true},
+		{Repo: "web-checkout", Path: "dist/checkout.bundle.js", Vendored: true},
+		{Repo: "web-checkout", Path: "dist/checkout.bundle.min.js", Generated: true, Vendored: true},
 	}}
 	want := strings.Join([]string{
 		`generated | Files written by a tool | *.pb.go, *_pb2.py, *.min.js, "DO NOT EDIT" or @generated headers | 3 files`,

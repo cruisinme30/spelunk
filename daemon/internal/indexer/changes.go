@@ -132,10 +132,10 @@ func (ix *Indexer) reread(id string, paths []string) {
 	if err != nil {
 		return
 	}
-	ownersChanged := changesOwners(paths)
+	ownersChanged := changesOwners(paths, settings.CodeownersFiles)
 	var owners *codeowners.File
 	if ownersChanged {
-		owners = codeowners.Load(root.Path)
+		owners = codeowners.Load(root.Path, settings.CodeownersFiles)
 	}
 
 	ix.mu.Lock()
@@ -157,11 +157,11 @@ func (ix *Indexer) reread(id string, paths []string) {
 }
 
 // changesOwners reports whether a change to paths can change who owns
-// what: one of them is where a CODEOWNERS file goes, or a folder that holds
-// one, deleted or renamed.
-func changesOwners(paths []string) bool {
+// what: one of them is where a CODEOWNERS file goes (one of locations, nil
+// for the default ones), or a folder that holds one, deleted or renamed.
+func changesOwners(paths, locations []string) bool {
 	for _, path := range paths {
-		for _, location := range codeowners.Locations {
+		for _, location := range codeowners.LocationsOr(locations) {
 			if location == path || strings.HasPrefix(location, path+"/") {
 				return true
 			}

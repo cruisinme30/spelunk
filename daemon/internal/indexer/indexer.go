@@ -203,7 +203,7 @@ func (ix *Indexer) savedIndexes(roots []protocol.Root) map[string]savedIndex {
 			fresh = append(fresh, root)
 		}
 	}
-	location := ix.settings.Location
+	location, codeownersFiles := ix.settings.Location, ix.settings.CodeownersFiles
 	ix.mu.Unlock()
 	saved := map[string]savedIndex{}
 	for _, root := range fresh {
@@ -211,7 +211,7 @@ func (ix *Indexer) savedIndexes(roots []protocol.Root) map[string]savedIndex {
 		shard, err := trigram.Load(shardPath(location, root))
 		switch {
 		case err == nil:
-			index.shard, index.owners = shard, codeowners.Load(root.Path)
+			index.shard, index.owners = shard, codeowners.Load(root.Path, codeownersFiles)
 		case !errors.Is(err, os.ErrNotExist) && !errors.Is(err, trigram.ErrStaleFormat):
 			index.problem = "The saved index couldn't be read, so it is being rebuilt."
 		}
@@ -234,6 +234,8 @@ func (ix *Indexer) SetSettings(settings protocol.Settings) {
 		old.MaxFileSizeKB != settings.MaxFileSizeKB || old.Location != settings.Location || old.Symbols != settings.Symbols
 	historyChanged := old.HistoryDepth != settings.HistoryDepth || old.Location != settings.Location ||
 		!slices.Equal(old.Exclude, settings.Exclude)
+	// A rebuild reads CODEOWNERS again; without one, only the owners change.
+	ownersChanged := !treeChanged && !slices.Equal(old.CodeownersFiles, settings.CodeownersFiles)
 	for _, id := range ix.order {
 		if treeChanged {
 			ix.restart(id)
@@ -243,8 +245,29 @@ func (ix *Indexer) SetSettings(settings protocol.Settings) {
 		}
 	}
 	ix.mu.Unlock()
+	if ownersChanged {
+		ix.reloadOwners(settings.CodeownersFiles)
+	}
 	if treeChanged || historyChanged {
 		ix.publishStatus()
+	}
+}
+
+// reloadOwners reads every repo's CODEOWNERS file again from locations.
+func (ix *Indexer) reloadOwners(locations []string) {
+	ix.mu.Lock()
+	roots := map[string]string{}
+	for id, r := range ix.repos {
+		roots[id] = r.root.Path
+	}
+	ix.mu.Unlock()
+	for id, root := range roots {
+		owners := codeowners.Load(root, locations)
+		ix.mu.Lock()
+		if r, ok := ix.repos[id]; ok && r.root.Path == root {
+			r.owners = owners
+		}
+		ix.mu.Unlock()
 	}
 }
 

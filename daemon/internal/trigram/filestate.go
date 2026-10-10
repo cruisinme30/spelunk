@@ -37,11 +37,11 @@ func OpenIn(root string, open []string) map[string]bool {
 	return inside
 }
 
-// inState reports whether a file is in the state an is: value names: open
+// inState reports whether a file is in the state an is: term names: open
 // in the editor, with uncommitted changes (never outside Git), holding
-// tests, written by a tool, or vendored.
-func (r *Repo) inState(doc *Doc, state string) bool {
-	switch state {
+// tests, or, as the term's FileKinds say, written by a tool or vendored.
+func (r *Repo) inState(doc *Doc, is *query.Is) bool {
+	switch is.State {
 	case query.StateOpen:
 		return r.Open[doc.Path]
 	case query.StateChanged:
@@ -49,9 +49,9 @@ func (r *Repo) inState(doc *Doc, state string) bool {
 	case query.StateTest:
 		return lang.IsTest(doc.Path)
 	case query.StateGenerated:
-		return lang.IsGenerated(doc.Path, doc.Content)
+		return is.Kinds.IsGenerated(doc.Path, doc.Content)
 	case query.StateVendored:
-		return lang.IsVendored(doc.Path)
+		return is.Kinds.IsVendored(doc.Path)
 	default:
 		return false
 	}

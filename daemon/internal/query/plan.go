@@ -21,6 +21,15 @@ const MaxResults = 50_000
 // match.
 const MaxContextLines = 3
 
+// DefaultTimeLimit is how long one search may run before it returns what
+// it has, marked truncated, unless spelunk.search.timeLimitMs says
+// otherwise; MinTimeLimit and MaxTimeLimit bound that setting.
+const (
+	DefaultTimeLimit = 2 * time.Second
+	MinTimeLimit     = 100 * time.Millisecond
+	MaxTimeLimit     = time.Minute
+)
+
 // ResultKind is a kind of search result.
 type ResultKind = string
 
@@ -81,6 +90,12 @@ type Plan struct {
 	// it ends: the search reads the newest commit made by then.
 	At     string
 	AtTime time.Time
+	// TimeLimit is how long the search may run before it returns what it
+	// has, marked truncated (spelunk.search.timeLimitMs).
+	TimeLimit time.Duration
+	// FileKinds say which files are vendored and generated, for is: and
+	// ranking (spelunk.index.vendoredFolders and generatedSuffixes).
+	FileKinds *lang.FileKinds
 }
 
 // Filter is part of a query that may hide results. Engines count what each
@@ -198,7 +213,11 @@ type (
 	// Is matches files in a state (is:): open in the editor, with uncommitted
 	// changes, holding tests, written by a tool, or vendored. State is one of
 	// StateOpen, StateChanged, StateTest, StateGenerated, StateVendored.
-	Is struct{ State string }
+	// Kinds are the plan's FileKinds, which decide the last two.
+	Is struct {
+		State string
+		Kinds *lang.FileKinds
+	}
 	// Since matches commits after a time, or files last changed after it.
 	Since struct{ After time.Time }
 	// Owner matches files that CODEOWNERS gives an owner named Name
@@ -290,6 +309,8 @@ func NewPlan(q protocol.ParsedQuery, settings protocol.Settings, now time.Time, 
 		Limit:         pageSize(q.Globals.Count, settings.DefaultCount),
 		Offset:        offset,
 		ContextLines:  min(max(settings.ContextLines, 0), MaxContextLines),
+		TimeLimit:     timeLimit(settings.TimeLimitMs),
+		FileKinds:     lang.NewFileKinds(settings.VendoredFolders, settings.GeneratedSuffixes),
 		Pred:          &And{},
 	}
 	if t := q.Globals.Type; t != nil && (*t == TypeAdded || *t == TypeRemoved) {
@@ -481,6 +502,15 @@ func (p *Plan) addGlobalFilter(node *protocol.Node, src *source) {
 	}
 }
 
+// timeLimit is the spelunk.search.timeLimitMs setting as a duration, kept
+// within MinTimeLimit..MaxTimeLimit; DefaultTimeLimit when it is unset.
+func timeLimit(ms int) time.Duration {
+	if ms <= 0 {
+		return DefaultTimeLimit
+	}
+	return min(max(time.Duration(ms)*time.Millisecond, MinTimeLimit), MaxTimeLimit)
+}
+
 // revisionOf is the revision an at: value names, and, when it names a time,
 // when that time ends: at most now, since the end of today is the files
 // as they are by now.
@@ -629,7 +659,7 @@ func (l *lowering) lowerOperator(node *protocol.Node) Pred {
 	case protocol.OpNameMsg:
 		return &Message{Re: l.regex(node.Value, node.Match)}
 	case protocol.OpNameIs:
-		return &Is{State: node.Value}
+		return &Is{State: node.Value, Kinds: l.plan.FileKinds}
 	case protocol.OpNameOwner:
 		return &Owner{Name: node.Value}
 	case protocol.OpNameSince:
@@ -822,7 +852,7 @@ func Contributing(p Pred, leaf func(Pred) bool) []*Content {
 
 // historyScanWarnings warns when a history regex has no literal of three
 // or more characters and nothing else narrows the commits: the trigram
-// index can't help, so the search scans every commit (within engine.Budget).
+// index can't help, so the search scans every commit (within Plan.TimeLimit).
 func historyScanWarnings(plan *Plan) []protocol.Diagnostic {
 	if plan.Mode != protocol.ModeHistory || narrowsHistory(plan.Pred) {
 		return nil

@@ -109,7 +109,7 @@ func (ix *Indexer) build(job buildJob) {
 	var owners *codeowners.File
 	if err == nil {
 		saveErr = shard.Save(job.shardPath)
-		owners = codeowners.Load(job.root.Path)
+		owners = codeowners.Load(job.root.Path, job.settings.CodeownersFiles)
 	}
 	ix.update(job, func(r *repo) {
 		r.cancelBuild = nil

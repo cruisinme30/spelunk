@@ -133,10 +133,10 @@ func (r *Repo) changedSince(doc *Doc, after time.Time) bool {
 // the requested page. File-name results come before code results. It also
 // counts every result (for Total and Load more) and what each filter hid.
 //
-// A search that runs past engine.Budget returns what it found so far,
+// A search that runs past plan.TimeLimit returns what it found so far,
 // marked truncated; only a cancelled ctx makes it return an error.
 func Search(ctx context.Context, plan *query.Plan, repos []Repo, planID int, emit func(protocol.ResultItem)) (engine.Stats, error) {
-	ctx, cancel := context.WithTimeout(ctx, engine.Budget)
+	ctx, cancel := context.WithTimeout(ctx, plan.TimeLimit)
 	defer cancel()
 	s := newSearcher(ctx, plan, planID, emit)
 	onlyFiles := plan.Kinds[query.KindFile] && !plan.Kinds[query.KindLine]
@@ -300,7 +300,7 @@ func docLeaf(p query.Pred, repo *Repo, doc *Doc) bool {
 	case *query.Since:
 		return repo.changedSince(doc, p.After)
 	case *query.Is:
-		return repo.inState(doc, p.State)
+		return repo.inState(doc, p)
 	case *query.Owner:
 		return repo.ownedBy(doc.Path, p.Name)
 	default:

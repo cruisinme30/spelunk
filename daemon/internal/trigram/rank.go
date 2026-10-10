@@ -97,10 +97,10 @@ func (s *searcher) rankDoc(repo *Repo, doc *Doc) docRank {
 		}
 	}
 	switch {
-	case lang.IsGenerated(doc.Path, doc.Content):
+	case s.plan.FileKinds.IsGenerated(doc.Path, doc.Content):
 		r.score += scoreGenerated
 		r.reason = protocol.RankReasonGenerated
-	case lang.IsVendored(doc.Path):
+	case s.plan.FileKinds.IsVendored(doc.Path):
 		r.score += scoreVendored
 		r.reason = protocol.RankReasonVendored
 	case lang.IsTest(doc.Path):

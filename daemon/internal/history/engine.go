@@ -36,7 +36,7 @@ func Search(ctx context.Context, plan *query.Plan, repos []Repo, planID int, emi
 	if plan.Mode != protocol.ModeHistory {
 		return engine.Stats{}, errors.New("history engine got a working-tree plan")
 	}
-	ctx, cancel := context.WithTimeout(ctx, engine.Budget)
+	ctx, cancel := context.WithTimeout(ctx, plan.TimeLimit)
 	defer cancel()
 	s := &searcher{ctx: ctx, plan: plan, planID: planID, emit: emit, lines: trigram.NewLineFinder(), hidden: map[int]int{},
 		facets: engine.NewFacets(engine.FacetRepo, engine.FacetAuthor, engine.FacetMonth),
@@ -314,7 +314,7 @@ func leafFor(repo *Repo, c *Commit, view *fileView) func(query.Pred) bool {
 		case *query.Is:
 			// open and changed describe files as they are now, and the parser
 			// keeps them out of history plans.
-			return view.file.Path != "" && inCommitState(view.file.Path, p.State)
+			return view.file.Path != "" && inCommitState(view.file.Path, p)
 		default:
 			matched, _ := commitLeaf(repo, c, p)
 			return matched
@@ -325,14 +325,14 @@ func leafFor(repo *Repo, c *Commit, view *fileView) func(query.Pred) bool {
 // inCommitState reports whether a commit's file is in the state an is:
 // value names. Only path rules apply: a commit's file has no header to read,
 // so is:generated goes by the file's name alone.
-func inCommitState(path, state string) bool {
-	switch state {
+func inCommitState(path string, is *query.Is) bool {
+	switch is.State {
 	case query.StateTest:
 		return lang.IsTest(path)
 	case query.StateGenerated:
-		return lang.IsGeneratedName(path)
+		return is.Kinds.IsGeneratedName(path)
 	case query.StateVendored:
-		return lang.IsVendored(path)
+		return is.Kinds.IsVendored(path)
 	default:
 		return false
 	}

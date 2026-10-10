@@ -10,7 +10,6 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/cruisinme30/spelunk/daemon/internal/engine"
 	"github.com/cruisinme30/spelunk/daemon/internal/history"
 	"github.com/cruisinme30/spelunk/daemon/internal/protocol"
 	"github.com/cruisinme30/spelunk/daemon/internal/query"
@@ -58,7 +57,7 @@ func (s *Server) announceWatches(repo history.Repo, commits []history.Commit) {
 	if len(watches) == 0 || s.shuttingDown() {
 		return
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), engine.Budget)
+	ctx, cancel := context.WithTimeout(context.Background(), query.DefaultTimeLimit)
 	defer cancel()
 	commits = othersCommits(commits, history.UserEmail(ctx, repo.Root))
 	if len(commits) == 0 {
@@ -85,16 +84,14 @@ func othersCommits(commits []history.Commit, email string) []history.Commit {
 
 // watchMatches runs one watched query over repo's commits. ok is false when
 // the query doesn't search history, has errors, or matched nothing.
-// Each query has its own engine.Budget, so slow ones don't starve the rest.
+// Each query has its own time limit, so slow ones don't starve the rest.
 func (s *Server) watchMatches(text string, repo history.Repo) (protocol.WatchMatchedParams, bool) {
-	ctx, cancel := context.WithTimeout(context.Background(), engine.Budget)
-	defer cancel()
 	plan, _, err := query.NewPlan(query.Parse(text, s.resolver(nil)), s.Settings(), s.now(), "")
 	if err != nil || plan.Mode != protocol.ModeHistory {
 		return protocol.WatchMatchedParams{}, false
 	}
 	var commits []protocol.WatchCommit
-	stats, err := history.Search(ctx, plan, []history.Repo{repo}, 0, func(item protocol.ResultItem) {
+	stats, err := history.Search(context.Background(), plan, []history.Repo{repo}, 0, func(item protocol.ResultItem) {
 		commits = append(commits, protocol.WatchCommit{SHA: item.SHA, Subject: item.Subject, Author: item.Author.Name})
 	})
 	if err != nil || stats.Total == 0 {

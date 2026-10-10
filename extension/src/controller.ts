@@ -28,8 +28,6 @@ import { pinnedEntry } from "./settings";
 import { UnseenWatches, watchMessage } from "./watches";
 import { type GuardedBy, messageGuard, type WebviewMessage } from "./webviewMessages";
 
-/** Lines of context above and below the match in a file preview. */
-const PREVIEW_CONTEXT_LINES = 7;
 /** Longer queries (a pasted file, say) are searched but not kept in the recent list, which lives in globalState. */
 const MAX_REMEMBERED_QUERY_LENGTH = 1000;
 
@@ -126,6 +124,8 @@ export interface ControllerOptions {
   /** spelunk.ui.pinnedQueries, checked. */
   pinnedQueries(): PinnedQuery[];
   closeOnOpen(): boolean;
+  /** spelunk.ui.previewContextLines: lines above and below the match in a file preview. */
+  previewContextLines(): number;
   uiSettings(): UiSettings;
   /** The absolute paths of the files open in editor tabs, for is:open. */
   openFiles(): string[];
@@ -693,7 +693,10 @@ export class SearchController {
   /** Fetches a result's preview; a stale ref gets an empty preview marked stale. */
   private async onSelect(ref: string): Promise<void> {
     try {
-      const preview = await this.backend.request("preview/get", { ref, contextLines: PREVIEW_CONTEXT_LINES });
+      const preview = await this.backend.request("preview/get", {
+        ref,
+        contextLines: this.options.previewContextLines(),
+      });
       this.ui.post("preview.result", { ref, preview });
     } catch (error) {
       const stale = error instanceof RpcError && error.code === ErrorCodes.RefStale;

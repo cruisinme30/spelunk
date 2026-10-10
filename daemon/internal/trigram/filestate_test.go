@@ -90,6 +90,28 @@ func TestIsGeneratedAndIsVendoredFilterFiles(t *testing.T) {
 	}
 }
 
+// The index settings decide which folders are vendored and which file
+// name endings mark generated files.
+func TestIsGeneratedAndIsVendoredFollowTheSettings(t *testing.T) {
+	// @covers setting:index.vendoredFolders setting:index.generatedSuffixes
+	settings := defaultSettings
+	settings.VendoredFolders = []string{"third_party"}
+	settings.GeneratedSuffixes = []string{".bundle.js"}
+	for query, want := range map[string][]string{
+		"content:RetryPolicy is:vendored": {"third_party/stripe_compat/retry.py:1 class RetryPolicy(object):"},
+		"content:RetryPolicy is:generated": {
+			"dist/checkout.bundle.js:1 var RetryPolicy=function(e){};",
+			"src/proto/retry.py:2 RetryPolicy = None",
+			"web/schema.ts:2 export type RetryPolicy = {};",
+		},
+	} {
+		items, _ := runItems(t, query, settings, "", ownedAndOthersRepo)
+		if got := summarize(items); !reflect.DeepEqual(got, want) {
+			t.Errorf("%s:\n got %q\nwant %q", query, got, want)
+		}
+	}
+}
+
 func TestIsGeneratedAndIsVendoredSayWhatTheyLeftOut(t *testing.T) {
 	// @covers screen:generated-vendored
 	_, stats := run(t, "content:RetryPolicy -is:generated -is:vendored", ownedAndOthersRepo)

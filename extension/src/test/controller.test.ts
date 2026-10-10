@@ -98,6 +98,7 @@ function newController(backend: Backend, ui: Ui, options: Partial<ControllerOpti
     recentLimit: () => 20,
     pinnedQueries: () => [],
     closeOnOpen: () => true,
+    previewContextLines: () => 7,
     uiSettings: () => TEST_UI_SETTINGS,
     openFiles: () => [],
     watchNotify: () => true,
@@ -131,6 +132,7 @@ interface ScriptedParams {
   searchId?: string;
   ref?: string;
   openFiles?: string[];
+  contextLines?: number;
 }
 
 /**
@@ -782,6 +784,21 @@ test("a daemon that dies mid-search ends the search with its error, and the next
   crash = false;
   await controller.handle(queryChanged("retry", 2));
   assert.deepEqual(host.payloads("search.done").at(-1), { seq: 2, searchId: "s2", ...NO_RESULTS });
+});
+
+test("the preview shows as many lines around its match as ui.previewContextLines says", async () => {
+  // @covers setting:ui.previewContextLines
+  const asked: unknown[] = [];
+  const { backend } = scriptedBackend((_method, params) => {
+    asked.push(params.contextLines);
+    return { ref: "r", preview: null, stale: true };
+  });
+  let lines = 3;
+  const controller = newController(backend, recordingUi().ui, { previewContextLines: () => lines });
+  await controller.handle({ v: MESSAGE_VERSION, type: "result.select", payload: { ref: "a" } });
+  lines = 12; // read again on every preview, so a change applies at once
+  await controller.handle({ v: MESSAGE_VERSION, type: "result.select", payload: { ref: "b" } });
+  assert.deepEqual(asked, [3, 12]);
 });
 
 test("opening a stale result greys it out and neither closes the panel nor remembers the query", async () => {

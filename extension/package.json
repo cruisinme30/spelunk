@@ -193,6 +193,14 @@
           "scope": "application",
           "description": "Milliseconds to wait after a keystroke before searching."
         },
+        "spelunk.search.timeLimitMs": {
+          "type": "integer",
+          "default": 2000,
+          "minimum": 100,
+          "maximum": 60000,
+          "scope": "resource",
+          "description": "How long one search may run, in milliseconds, before it shows what it found so far and says the results are truncated. Raise it for very large workspaces."
+        },
         "spelunk.open.trigger": {
           "type": "string",
           "enum": [
@@ -214,6 +222,14 @@
           "default": true,
           "scope": "application",
           "description": "Hide the search panel after opening a result, except to the side. F4 keeps stepping through the results."
+        },
+        "spelunk.ui.previewContextLines": {
+          "type": "integer",
+          "default": 7,
+          "minimum": 0,
+          "maximum": 100,
+          "scope": "resource",
+          "description": "Lines the file preview shows above and below the selected match."
         },
         "spelunk.index.historyDepth": {
           "type": "string",
@@ -268,6 +284,60 @@
           "default": "~/.spelunk/index",
           "scope": "machine",
           "description": "Where indexes are stored. Never synced, because paths differ between computers."
+        },
+        "spelunk.index.vendoredFolders": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "vendor",
+            "node_modules",
+            "third_party",
+            "dist"
+          ],
+          "scope": "resource",
+          "description": "Folder names, at any depth, that hold someone else's code or a build's. Their files match is:vendored and rank last."
+        },
+        "spelunk.index.generatedSuffixes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            ".pb.go",
+            "_gen.go",
+            ".gen.go",
+            ".gen.ts",
+            "_pb2.py",
+            "_pb2_grpc.py",
+            "_pb2.pyi",
+            ".min.js",
+            ".min.css"
+          ],
+          "scope": "resource",
+          "description": "File name endings that mark files a tool wrote. Those files, and files with @generated or a DO NOT EDIT … generated note near the top, match is:generated and rank low."
+        },
+        "spelunk.index.codeownersFiles": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            ".github/CODEOWNERS",
+            "CODEOWNERS",
+            "docs/CODEOWNERS"
+          ],
+          "scope": "resource",
+          "description": "Where to look for each repo's CODEOWNERS file, relative to its root, for owner:. The first one found is used."
+        },
+        "spelunk.index.commitCheckSeconds": {
+          "type": "integer",
+          "default": 5,
+          "minimum": 1,
+          "maximum": 3600,
+          "scope": "resource",
+          "description": "How often, in seconds, to check Git for new commits, so history search and watches see them."
         },
         "spelunk.ui.showParsedQuery": {
           "type": "boolean",

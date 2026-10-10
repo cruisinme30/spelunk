@@ -108,3 +108,49 @@ func TestARepoWithoutCodeOwnersHasNoOwners(t *testing.T) {
 		t.Error("a CODEOWNERS file in src/ counted; GitHub only looks in .github/, the root and docs/")
 	}
 }
+
+// index.codeownersFiles says where CODEOWNERS is; changing it reads the
+// file from the new places, and a file saved there is read again.
+func TestCodeOwnersFilesSettingSaysWhereToLook(t *testing.T) {
+	// @covers setting:index.codeownersFiles
+	root := testutil.WriteTree(t, map[string]string{
+		".github/CODEOWNERS": "* @github\n",
+		"meta/OWNERS":        "* @meta\n",
+		"src/retry.py":       "retry = 3\n",
+	})
+	ix := New(testSettings(t), nil)
+	defer ix.Close(time.Second)
+	ix.SetRoots([]protocol.Root{{ID: "r1", Path: root, Name: "app"}})
+	waitFor(t, ix, protocol.IndexStateReady)
+
+	settings := testSettings(t)
+	settings.Location = ix.settings.Location
+	settings.CodeownersFiles = []string{"meta/OWNERS", "../outside"}
+	ix.SetSettings(settings)
+	if got, _ := ownersOf(t, ix, "src/retry.py"); !slices.Equal(got, []string{"@meta"}) {
+		t.Fatalf("owners after naming meta/OWNERS = %q, want @meta", got)
+	}
+
+	owners := filepath.Join(root, "meta", "OWNERS")
+	if err := os.WriteFile(owners, []byte("* @jane\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	ix.FilesChanged([]protocol.FileChange{{Path: owners}})
+	if got, _ := ownersOf(t, ix, "src/retry.py"); !slices.Equal(got, []string{"@jane"}) {
+		t.Errorf("owners after saving meta/OWNERS = %q, want @jane", got)
+	}
+}
+
+// index.commitCheckSeconds sets how often HEAD is checked, kept within
+// MinCommitCheck..MaxCommitCheck.
+func TestCommitCheckComesFromTheSettingClamped(t *testing.T) {
+	// @covers setting:index.commitCheckSeconds
+	for seconds, want := range map[int]time.Duration{
+		0: DefaultCommitCheck, -1: DefaultCommitCheck, 30: 30 * time.Second, 1_000_000: MaxCommitCheck,
+	} {
+		ix := &Indexer{settings: protocol.Settings{CommitCheckSeconds: seconds}}
+		if got := ix.commitCheck(); got != want {
+			t.Errorf("commitCheckSeconds %d: commitCheck() = %v, want %v", seconds, got, want)
+		}
+	}
+}

@@ -202,14 +202,14 @@ func TestLoadUsesTheFirstLocationGitHubFinds(t *testing.T) {
 		}
 	}
 	t.Run("none", func(t *testing.T) {
-		if file := Load(t.TempDir()); file != nil {
+		if file := Load(t.TempDir(), nil); file != nil {
 			t.Errorf("Load(empty) = %+v, want nil", file)
 		}
 	})
 	t.Run("docs_only", func(t *testing.T) {
 		root := t.TempDir()
 		write(t, root, "docs/CODEOWNERS", "* @docs\n")
-		if file := Load(root); file == nil || file.Path != "docs/CODEOWNERS" || file.Owners("a")[0] != "@docs" {
+		if file := Load(root, nil); file == nil || file.Path != "docs/CODEOWNERS" || file.Owners("a")[0] != "@docs" {
 			t.Errorf("Load = %+v, want docs/CODEOWNERS", file)
 		}
 	})
@@ -218,7 +218,7 @@ func TestLoadUsesTheFirstLocationGitHubFinds(t *testing.T) {
 		write(t, root, "docs/CODEOWNERS", "* @docs\n")
 		write(t, root, "CODEOWNERS", "* @root\n")
 		write(t, root, ".github/CODEOWNERS", "* @github\n")
-		if file := Load(root); file == nil || file.Path != ".github/CODEOWNERS" || file.Owners("a")[0] != "@github" {
+		if file := Load(root, nil); file == nil || file.Path != ".github/CODEOWNERS" || file.Owners("a")[0] != "@github" {
 			t.Errorf("Load = %+v, want .github/CODEOWNERS", file)
 		}
 	})
@@ -226,14 +226,14 @@ func TestLoadUsesTheFirstLocationGitHubFinds(t *testing.T) {
 		root := t.TempDir()
 		write(t, root, ".github/CODEOWNERS/x", "")
 		write(t, root, "CODEOWNERS", "* @root\n")
-		if file := Load(root); file == nil || file.Path != "CODEOWNERS" {
+		if file := Load(root, nil); file == nil || file.Path != "CODEOWNERS" {
 			t.Errorf("Load = %+v, want CODEOWNERS", file)
 		}
 	})
 	t.Run("too_big", func(t *testing.T) {
 		root := t.TempDir()
 		write(t, root, "CODEOWNERS", "* @a\n"+strings.Repeat("#", maxFileBytes))
-		if file := Load(root); file != nil {
+		if file := Load(root, nil); file != nil {
 			t.Errorf("Load(too big) = %+v, want nil", file)
 		}
 	})

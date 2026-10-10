@@ -190,6 +190,16 @@ export interface Settings {
   order?: ResultOrder;
   /** the spelunk.results.contextLines setting: how many lines each code result shows before and after its match, 0 to 3. Absent means 0. */
   contextLines?: number;
+  /** the spelunk.search.timeLimitMs setting: how long one search runs before it returns what it found so far, marked truncated. Absent means 2000. */
+  timeLimitMs?: number;
+  /** the spelunk.index.vendoredFolders setting: names of folders, at any depth, whose files is:vendored matches and ranking puts last. Absent means vendor, node_modules, third_party and dist. */
+  vendoredFolders?: string[];
+  /** the spelunk.index.generatedSuffixes setting: endings of file names that mark files a tool wrote, for is:generated and ranking, besides a @generated or DO NOT EDIT marker near the top. Absent means .pb.go, _gen.go, .gen.go, .gen.ts, _pb2.py, _pb2_grpc.py, _pb2.pyi, .min.js and .min.css. */
+  generatedSuffixes?: string[];
+  /** the spelunk.index.codeownersFiles setting: where to look for a repo's CODEOWNERS file, relative to its root, the first found winning. Absent means GitHub's .github/CODEOWNERS, CODEOWNERS and docs/CODEOWNERS. */
+  codeownersFiles?: string[];
+  /** the spelunk.index.commitCheckSeconds setting: how often to ask Git whether HEAD moved, which brings new commits into history search and watches. Absent means 5. */
+  commitCheckSeconds?: number;
 }
 
 /** LastCommit is the newest commit that touched a file. */

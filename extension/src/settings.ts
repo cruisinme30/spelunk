@@ -33,6 +33,22 @@ const DEFAULTS = {
   order: "best",
   contextLines: 0,
   watchNotify: true,
+  timeLimitMs: 2000,
+  previewContextLines: 7,
+  vendoredFolders: ["vendor", "node_modules", "third_party", "dist"],
+  generatedSuffixes: [
+    ".pb.go",
+    "_gen.go",
+    ".gen.go",
+    ".gen.ts",
+    "_pb2.py",
+    "_pb2_grpc.py",
+    "_pb2.pyi",
+    ".min.js",
+    ".min.css",
+  ],
+  codeownersFiles: [".github/CODEOWNERS", "CODEOWNERS", "docs/CODEOWNERS"],
+  commitCheckSeconds: 5,
 } as const;
 
 /** The hard cap on results per page; the daemon enforces the same limit. */
@@ -41,6 +57,13 @@ const MAX_TYPING_DELAY_MS = 1000;
 /** The daemon reads maxFileSizeKB into an int; this keeps it well inside one (1 GiB). */
 const MAX_FILE_SIZE_KB = 1024 * 1024;
 const MAX_RECENT_QUERIES = 100;
+/** search.timeLimitMs's bounds; the daemon keeps it within the same. */
+const MIN_TIME_LIMIT_MS = 100;
+const MAX_TIME_LIMIT_MS = 60_000;
+/** The most lines the file preview shows on each side of its match. */
+const MAX_PREVIEW_CONTEXT_LINES = 100;
+/** index.commitCheckSeconds's bounds; the daemon keeps it within the same. */
+const MAX_COMMIT_CHECK_SECONDS = 3600;
 /** The most context lines a code result shows on each side of its match. */
 export const MAX_CONTEXT_LINES = 3;
 /** The index.historyDepth values. */
@@ -121,6 +144,21 @@ export function daemonSettings(config: ConfigReader, home: string): Settings {
     ),
     order: oneOf(read("order", DEFAULTS.order), ORDERS, DEFAULTS.order),
     contextLines: contextLines(config),
+    timeLimitMs: clamp(
+      read("search.timeLimitMs", DEFAULTS.timeLimitMs),
+      MIN_TIME_LIMIT_MS,
+      MAX_TIME_LIMIT_MS,
+      DEFAULTS.timeLimitMs,
+    ),
+    vendoredFolders: strings(read("index.vendoredFolders", DEFAULTS.vendoredFolders), DEFAULTS.vendoredFolders),
+    generatedSuffixes: strings(read("index.generatedSuffixes", DEFAULTS.generatedSuffixes), DEFAULTS.generatedSuffixes),
+    codeownersFiles: strings(read("index.codeownersFiles", DEFAULTS.codeownersFiles), DEFAULTS.codeownersFiles),
+    commitCheckSeconds: clamp(
+      read("index.commitCheckSeconds", DEFAULTS.commitCheckSeconds),
+      1,
+      MAX_COMMIT_CHECK_SECONDS,
+      DEFAULTS.commitCheckSeconds,
+    ),
   };
 }
 
@@ -143,6 +181,16 @@ export function uiSettings(config: ConfigReader): UiSettings {
     order: oneOf(read("order", DEFAULTS.order), ORDERS, DEFAULTS.order),
     contextLines: contextLines(config),
   };
+}
+
+/** Lines the file preview shows above and below its match (spelunk.ui.previewContextLines). */
+export function previewContextLines(config: ConfigReader): number {
+  return clamp(
+    config.get<unknown>("ui.previewContextLines", DEFAULTS.previewContextLines),
+    0,
+    MAX_PREVIEW_CONTEXT_LINES,
+    DEFAULTS.previewContextLines,
+  );
 }
 
 /** How many recent queries to keep (0 keeps none). */

@@ -100,8 +100,10 @@ type FileStat struct {
 	Open    bool // open in an editor tab (is:open)
 	Changed bool // has uncommitted changes (is:changed)
 	// Generated says a tool wrote the file (is:generated), by its name or a
-	// header only the index has read.
-	Generated bool
+	// header only the index has read; Vendored that it is someone else's
+	// code (is:vendored). Both go by the index settings that say which
+	// files are which.
+	Generated, Vendored bool
 }
 
 // noResolver knows no authors, repos or files.

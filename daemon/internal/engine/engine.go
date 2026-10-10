@@ -2,15 +2,10 @@ package engine
 
 import (
 	"context"
-	"time"
 
 	"github.com/cruisinme30/spelunk/daemon/internal/protocol"
 	"github.com/cruisinme30/spelunk/daemon/internal/query"
 )
-
-// Budget is how long one search may run before it returns what it has,
-// marked truncated.
-const Budget = 2 * time.Second
 
 // Stats describe one page of a search.
 type Stats struct {

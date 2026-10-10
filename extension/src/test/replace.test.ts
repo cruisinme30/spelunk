@@ -121,6 +121,7 @@ test("Replace all applies what the preview showed through the real daemon", { sk
     const controller = new SearchController(daemon, host.ui, {
       recentLimit: () => 20,
       closeOnOpen: () => true,
+      previewContextLines: () => 7,
       uiSettings: () => UI_SETTINGS,
       openFiles: () => [],
       pinnedQueries: () => [],

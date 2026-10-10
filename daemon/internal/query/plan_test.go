@@ -333,6 +333,19 @@ func TestContextLinesComeFromTheSettingClamped(t *testing.T) {
 	}
 }
 
+func TestTimeLimitComesFromTheSettingClamped(t *testing.T) {
+	// @covers setting:search.timeLimitMs
+	for setting, want := range map[int]time.Duration{
+		0: DefaultTimeLimit, -5: DefaultTimeLimit, 5000: 5 * time.Second, 1: MinTimeLimit, 10_000_000: MaxTimeLimit,
+	} {
+		settings := defaultSettings
+		settings.TimeLimitMs = setting
+		if got := mustPlan(t, "x", settings).TimeLimit; got != want {
+			t.Errorf("plan with timeLimitMs %d: TimeLimit = %v, want %v", setting, got, want)
+		}
+	}
+}
+
 func TestResultKinds(t *testing.T) {
 	tests := map[string]string{
 		"retry":                       "file,line",

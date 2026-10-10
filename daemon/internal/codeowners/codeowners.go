@@ -13,9 +13,18 @@ import (
 	"github.com/cruisinme30/spelunk/daemon/internal/glob"
 )
 
-// Locations are where GitHub looks for a repo's CODEOWNERS file, in the
-// order it looks: the first one that exists is the only one that counts.
-var Locations = []string{".github/CODEOWNERS", "CODEOWNERS", "docs/CODEOWNERS"}
+// DefaultLocations are where GitHub looks for a repo's CODEOWNERS file, in
+// the order it looks: the first one that exists is the only one that
+// counts. The index.codeownersFiles setting can name others.
+var DefaultLocations = []string{".github/CODEOWNERS", "CODEOWNERS", "docs/CODEOWNERS"}
+
+// LocationsOr returns locations, or DefaultLocations when it is nil.
+func LocationsOr(locations []string) []string {
+	if locations == nil {
+		return DefaultLocations
+	}
+	return locations
+}
 
 // maxFileBytes is the largest CODEOWNERS file GitHub reads, 3 MB; a bigger
 // one counts as having no owners.
@@ -23,7 +32,8 @@ const maxFileBytes = 3 << 20
 
 // File is a parsed CODEOWNERS file.
 type File struct {
-	// Path is where the file is, relative to the repo root: one of Locations.
+	// Path is where the file is, relative to the repo root: one of the
+	// locations Load looked in.
 	Path string
 	// Rules are its valid lines, in file order.
 	Rules []Rule
@@ -44,10 +54,15 @@ type Rule struct {
 }
 
 // Load reads the CODEOWNERS file of the repo at root from the first of
-// Locations that holds a file. It returns nil when there is none, or when
-// that file can't be read or is too big for GitHub.
-func Load(root string) *File {
-	for _, location := range Locations {
+// locations (slash-separated, relative to root; nil for DefaultLocations)
+// that holds a file. It returns nil when there is none, or when that file
+// can't be read or is too big for GitHub. A location outside root is
+// skipped.
+func Load(root string, locations []string) *File {
+	for _, location := range LocationsOr(locations) {
+		if !filepath.IsLocal(filepath.FromSlash(location)) {
+			continue
+		}
 		full := filepath.Join(root, filepath.FromSlash(location))
 		info, err := os.Stat(full)
 		switch {
@@ -56,7 +71,7 @@ func Load(root string) *File {
 		case err != nil || info.Size() > maxFileBytes:
 			return nil
 		}
-		content, err := os.ReadFile(full) //nolint:gosec // G304: one of Locations inside a workspace folder the user opened
+		content, err := os.ReadFile(full) //nolint:gosec // G304: a local path inside a workspace folder the user opened
 		if err != nil {
 			return nil
 		}

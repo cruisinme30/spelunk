@@ -10,16 +10,33 @@ import (
 	"github.com/cruisinme30/spelunk/daemon/internal/trigram"
 )
 
-// headPollInterval is how often the indexer asks Git whether HEAD moved
+// DefaultCommitCheck is how often the indexer asks Git whether HEAD moved
 // (a commit, pull, merge, rebase or branch switch), so new commits are
-// searchable within a few seconds.
-const headPollInterval = 5 * time.Second
+// searchable within a few seconds, unless index.commitCheckSeconds says
+// otherwise; MinCommitCheck and MaxCommitCheck bound that setting.
+const (
+	DefaultCommitCheck = 5 * time.Second
+	MinCommitCheck     = time.Second
+	MaxCommitCheck     = time.Hour
+)
+
+// commitCheck is how long to wait before asking Git about HEAD again.
+func (ix *Indexer) commitCheck() time.Duration {
+	ix.mu.Lock()
+	seconds := ix.settings.CommitCheckSeconds
+	ix.mu.Unlock()
+	if seconds <= 0 {
+		return DefaultCommitCheck
+	}
+	return min(max(time.Duration(seconds)*time.Second, MinCommitCheck), MaxCommitCheck)
+}
 
 // historyWork reads queued repos' histories, one at a time, and polls for
-// new commits, until ctx ends.
+// new commits, until ctx ends. A new commitCheck takes effect after the
+// next check.
 func (ix *Indexer) historyWork(ctx context.Context) {
 	defer ix.workers.Done()
-	poll := time.NewTicker(headPollInterval)
+	poll := time.NewTimer(ix.commitCheck())
 	defer poll.Stop()
 	for {
 		select {
@@ -28,6 +45,7 @@ func (ix *Indexer) historyWork(ctx context.Context) {
 		case <-ix.historyQueue.wake:
 		case <-poll.C:
 			ix.queueMovedHeads(ctx)
+			poll.Reset(ix.commitCheck())
 		}
 		for ctx.Err() == nil {
 			job, ok := ix.nextHistory(ctx)

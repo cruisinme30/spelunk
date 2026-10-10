@@ -726,7 +726,7 @@ func stateCandidates(fragment string, resolver Resolver) []valueCandidate {
 		if file.Generated {
 			generated = append(generated, file.Path)
 		}
-		if lang.IsVendored(file.Path) {
+		if file.Vendored {
 			vendored = append(vendored, file.Path)
 		}
 	}
