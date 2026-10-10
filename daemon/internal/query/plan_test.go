@@ -604,6 +604,8 @@ func TestSymbolQueriesOfferToSearchTheNameAsText(t *testing.T) {
 	for _, tt := range []struct{ query, filter, title, text string }{
 		{"sym:RetryPolicy", "sym:RetryPolicy", "Search RetryPolicy as text", "RetryPolicy"},
 		{"case:yes sym:/Retry.*/ f:src/", "sym:/Retry.*/", "Search /Retry.*/ as text", "case:yes /Retry.*/ f:src/"},
+		{"symbol:RetryPolicy", "symbol:RetryPolicy", "Search RetryPolicy as text", "RetryPolicy"},
+		{`s:"Retry Policy"`, `s:"Retry Policy"`, `Search "Retry Policy" as text`, `"Retry Policy"`},
 	} {
 		plan := mustPlan(t, tt.query, defaultSettings)
 		f := plan.SymbolFilter
