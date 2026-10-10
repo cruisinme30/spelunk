@@ -131,17 +131,24 @@ func traceTo(conn *rpc.Conn, path string) (closeTrace func(), err error) {
 		return nil, err
 	}
 	var mu sync.Mutex
+	closed := false // handlers may still be writing when serve returns
 	encoder := json.NewEncoder(traceFile)
 	var failed sync.Once
 	conn.Trace = func(direction string, body []byte) {
 		mu.Lock()
 		defer mu.Unlock()
+		if closed {
+			return
+		}
 		entry := traceEntry{Time: time.Now().UTC().Format(time.RFC3339Nano), Direction: direction, Message: body}
 		if err := encoder.Encode(entry); err != nil {
 			failed.Do(func() { _, _ = fmt.Fprintf(os.Stderr, "spelunk-daemon: trace write failed: %v\n", err) })
 		}
 	}
 	closeTrace = func() {
+		mu.Lock()
+		defer mu.Unlock()
+		closed = true
 		if err := traceFile.Close(); err != nil {
 			_, _ = fmt.Fprintf(os.Stderr, "spelunk-daemon: closing trace: %v\n", err)
 		}
