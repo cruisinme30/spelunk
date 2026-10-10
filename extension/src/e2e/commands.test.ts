@@ -91,6 +91,22 @@ const TESTS: [name: string, run: () => Promise<void>][] = [
     },
   ],
   [
+    "Opening a struct: match selects all of it",
+    async () => {
+      // @covers screen:structural-search
+      // webhooks.py lines 7-9: "return backoff(", the call's lambda, then "tries=event.max_tries)".
+      await searchFor('struct:"backoff(:[call], tries=:[n])"');
+      await vscode.commands.executeCommand("spelunk.nextResult");
+      const { editor } = await until("the match's editor", (state) => state.editor?.endLine === 9);
+      assert.ok(editor, "an editor is open");
+      assert.ok(editor.path.endsWith("webhooks.py"), "webhooks.py is open");
+      assert.deepEqual(
+        { line: editor.line, column: editor.column, endLine: editor.endLine, endColumn: editor.endColumn },
+        { line: 7, column: 12, endLine: 9, endColumn: 31 },
+      );
+    },
+  ],
+  [
     "Open Help shows the search guide",
     async () => {
       // @covers command:openHelp
