@@ -31,6 +31,9 @@ const SINGULAR_UNIT: Record<HiddenNote["unit"], string> = {
   definitions: "definition",
 };
 
+/** The choices of the Context buttons: how many lines to show around each code match. */
+const CONTEXT_CHOICES = [0, 1, 2, 3] as const;
+
 /** How a section title says the order of current files. */
 const ORDER_LABEL: Record<ResultOrder, string> = { best: "best match first", path: "path order" };
 
@@ -63,6 +66,8 @@ interface Section {
 interface ResultsHandlers {
   onApplyFix(fix: Fix): void;
   onLoadMore(searchId: string, cursor: string): void;
+  /** A Context button was pressed: show `lines` lines around each code match from now on. */
+  onContextLines(lines: number): void;
   /** What a replace would make of a code line's matches, while the Replace row previews one. */
   replacementsFor(item: ItemOf<"line">): string[] | undefined;
 }
@@ -148,7 +153,13 @@ export class ResultsView {
     this.sections = {
       file: makeSection(`File names · ${order}`, "section-files"),
       symbol: makeSection(`Definitions · ${order}`, "section-symbols"),
-      line: makeSection(`${scope.length > 0 ? "Code in matching paths" : "Code"} · ${order}`, "section-code"),
+      line: makeSection(
+        `${scope.length > 0 ? "Code in matching paths" : "Code"} · ${order}`,
+        "section-code",
+        contextSwitch(state.ui.contextLines, (lines) => {
+          this.handlers.onContextLines(lines);
+        }),
+      ),
       commit: makeSection("Commits · newest first", "section-commits"),
     };
     if (scope.length > 0) this.sections.line.list.before(pathScopeNote(scope));
@@ -537,6 +548,33 @@ function contextRow(line: number, text: string, indent: number): HTMLElement {
   );
 }
 
+/**
+ * "Context 0 ±1 ±2 ±3" in the Code title: how many lines each match shows
+ * around it (spelunk.results.contextLines). A press shows at once; the host
+ * saves the setting, which runs the query again.
+ */
+function contextSwitch(current: number, onChange: (lines: number) => void): HTMLElement {
+  const group = element(
+    "div",
+    { class: "context-switch", role: "group", "aria-label": "Context lines", "data-testid": "context-switch" },
+    element("span", { class: "label" }, "Context"),
+  );
+  for (const lines of CONTEXT_CHOICES) {
+    const title = lines === 0 ? "Only the matching lines" : `${plural(lines, "line")} above and below each match`;
+    const option = button(
+      { class: "toggle", "aria-pressed": String(lines === current), title, "data-lines": String(lines) },
+      () => {
+        for (const other of group.querySelectorAll("button"))
+          other.setAttribute("aria-pressed", String(other === option));
+        onChange(lines);
+      },
+      lines === 0 ? "0" : `±${lines}`,
+    );
+    group.append(option);
+  }
+  return group;
+}
+
 /** "⋯" between two runs of lines of one file, for the lines skipped. */
 function contextGap(): HTMLElement {
   return element(
@@ -551,13 +589,20 @@ function demoted(reason: RankReason | undefined): string {
   return reason === "test" || reason === "vendored" || reason === "generated" ? " demoted" : "";
 }
 
-function makeSection(title: string, testId: string): Section {
+/** A section of the list; `controls` go in its title, before the count. */
+function makeSection(title: string, testId: string, controls?: HTMLElement): Section {
   const count = element("span", { class: "muted" });
   const list = element("div", { class: "list" });
   const root = element(
     "div",
     { class: "result-section", "data-testid": testId, hidden: true },
-    element("div", { class: "section-title spread" }, element("span", {}, title), count),
+    element(
+      "div",
+      { class: "section-title spread" },
+      element("span", {}, title),
+      // Together, so a narrow panel wraps them onto a line of their own.
+      controls ? element("span", { class: "title-end" }, controls, count) : count,
+    ),
     list,
   );
   return { root, list, count };

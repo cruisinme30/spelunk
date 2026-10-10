@@ -41,7 +41,7 @@ const MAX_TYPING_DELAY_MS = 1000;
 const MAX_FILE_SIZE_KB = 1024 * 1024;
 const MAX_RECENT_QUERIES = 100;
 /** The most context lines a code result shows on each side of its match. */
-const MAX_CONTEXT_LINES = 3;
+export const MAX_CONTEXT_LINES = 3;
 /** The index.historyDepth values. */
 export const HISTORY_DEPTHS: readonly Settings["historyDepth"][] = ["6m", "2y", "all"];
 const OPEN_TRIGGERS: readonly UiSettings["openTrigger"][] = ["doubleClick", "singleClick"];

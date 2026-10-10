@@ -77,6 +77,8 @@ export interface Ui {
   saveState(state: PersistedState): void;
   /** Saves the pinned queries to spelunk.ui.pinnedQueries. */
   savePinned(pinned: PinnedQuery[]): void;
+  /** Saves spelunk.results.contextLines; the settings change then runs the query again. */
+  saveContextLines(lines: number): void;
   /** Says which result is open, `position` of `total` (1-based), once one was opened from search or F4. */
   showOpened(position: number, total: number): void;
   /** Reads a file as the editor has it, unsaved changes included; undefined when it can't. */
@@ -255,6 +257,10 @@ export class SearchController {
         this.unpin(message.payload.query);
         return;
       }
+      case "context.set": {
+        this.setContextLines(message.payload.lines);
+        return;
+      }
     }
   }
 
@@ -313,6 +319,11 @@ export class SearchController {
     else if (pinned[index]?.name === entry.name) return;
     else pinned[index] = entry;
     this.ui.savePinned(pinned);
+  }
+
+  /** Saves spelunk.results.contextLines, unless it already says `lines`. */
+  private setContextLines(lines: number): void {
+    if (lines !== this.options.uiSettings().contextLines) this.ui.saveContextLines(lines);
   }
 
   /** Unpins a query. */

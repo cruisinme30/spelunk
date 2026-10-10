@@ -992,6 +992,11 @@ type PinnedRemoveMessage struct {
 	Query string `json:"query"`
 }
 
+// ContextSetMessage sets how many lines each code result shows around its match (spelunk.results.contextLines).
+type ContextSetMessage struct {
+	Lines int `json:"lines"`
+}
+
 // RecentRemoveMessage removes a query from the recent list.
 type RecentRemoveMessage struct {
 	Query string `json:"query"`
@@ -1213,6 +1218,7 @@ const (
 	MsgRecentRemove    = "recent.remove"
 	MsgPinnedSave      = "pinned.save"
 	MsgPinnedRemove    = "pinned.remove"
+	MsgContextSet      = "context.set"
 	MsgReplacePreview  = "replace.preview"
 	MsgReplaceApply    = "replace.apply"
 	MsgReplaceSave     = "replace.save"

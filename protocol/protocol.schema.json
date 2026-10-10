@@ -1439,6 +1439,16 @@
       },
       "required": ["query"]
     },
+    "ContextSetMessage": {
+      "description": "ContextSetMessage sets how many lines each code result shows around its match (spelunk.results.contextLines).",
+      "type": "object",
+      "properties": {
+        "lines": {
+          "type": "integer"
+        }
+      },
+      "required": ["lines"]
+    },
     "RecentRemoveMessage": {
       "description": "RecentRemoveMessage removes a query from the recent list.",
       "type": "object",
@@ -1901,6 +1911,10 @@
     "pinned.remove": {
       "direction": "webview->host",
       "payload": "PinnedRemoveMessage"
+    },
+    "context.set": {
+      "direction": "webview->host",
+      "payload": "ContextSetMessage"
     },
     "replace.preview": {
       "direction": "webview->host",

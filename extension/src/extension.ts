@@ -240,6 +240,18 @@ async function savePinned(pinned: PinnedQuery[]): Promise<void> {
   await config.update("ui.pinnedQueries", pinned.length > 0 ? pinned : undefined, target);
 }
 
+/**
+ * Writes spelunk.results.contextLines where its value comes from: the
+ * workspace's settings when they set it, otherwise the user's. The settings
+ * change then sends it to the daemon and runs the query again.
+ */
+async function saveContextLines(lines: number): Promise<void> {
+  const config = configuration();
+  const inWorkspace = config.inspect("results.contextLines")?.workspaceValue !== undefined;
+  const target = inWorkspace ? vscode.ConfigurationTarget.Workspace : vscode.ConfigurationTarget.Global;
+  await config.update("results.contextLines", lines, target);
+}
+
 /** Stops the daemon gracefully when VS Code shuts the extension down. */
 export async function deactivate(): Promise<void> {
   await activeDaemon?.stop();
@@ -322,6 +334,9 @@ function createUi({ panel, daemon, commitDocuments, openedStatus, globalState, l
     restartDaemon: () => void daemon.restart().catch(logError("daemon restart")),
     setContext,
     saveState: (state) => void globalState.update(STATE_KEY, state),
+    saveContextLines: (lines) => {
+      saveContextLines(lines).catch(logError("settings"));
+    },
     savePinned: (pinned) => {
       savePinned(pinned).catch(logError("settings"));
     },

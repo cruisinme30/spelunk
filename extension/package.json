@@ -183,7 +183,7 @@
           "minimum": 0,
           "maximum": 3,
           "scope": "resource",
-          "description": "Lines to show above and below each code match in the results, from 0 to 3."
+          "description": "Lines to show above and below each code match in the results, from 0 to 3. The Context buttons in the Code heading set it too."
         },
         "spelunk.typingDelayMs": {
           "type": "integer",

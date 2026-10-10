@@ -797,10 +797,18 @@ ins {
   justify-content: space-between;
 }
 
+/* A title too long for the panel puts its controls and count on a line of their own. */
+.section-title.spread {
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 0;
+}
+
 .section-title .muted {
   letter-spacing: 0;
   text-transform: none;
   font-weight: 400;
+  white-space: nowrap;
 }
 
 .scope {
@@ -875,6 +883,35 @@ ins {
   overflow: hidden;
   text-overflow: ellipsis;
   font-size: 12.5px;
+}
+
+/* The Context buttons in the Code title: how many lines show around each match. */
+.section-title .title-end {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  margin-left: auto;
+}
+
+.context-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  letter-spacing: 0;
+  text-transform: none;
+  font-weight: 400;
+}
+
+.context-switch .label {
+  margin-right: 2px;
+}
+
+.context-switch .toggle {
+  min-width: 28px;
+  height: 22px;
+  padding: 0 6px;
+  font-family: var(--mono);
+  font-size: 11px;
 }
 
 /* With context lines, a match and the dimmed lines around it read as one run of code. */

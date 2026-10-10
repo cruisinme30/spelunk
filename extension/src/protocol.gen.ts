@@ -556,6 +556,11 @@ export interface PinnedRemoveMessage {
   query: string;
 }
 
+/** ContextSetMessage sets how many lines each code result shows around its match (spelunk.results.contextLines). */
+export interface ContextSetMessage {
+  lines: number;
+}
+
 /** RecentRemoveMessage removes a query from the recent list. */
 export interface RecentRemoveMessage {
   query: string;
@@ -718,6 +723,7 @@ export interface WebviewToHost {
   "recent.remove": RecentRemoveMessage;
   "pinned.save": PinnedQuery;
   "pinned.remove": PinnedRemoveMessage;
+  "context.set": ContextSetMessage;
   "replace.preview": ReplacePreviewMessage;
   "replace.apply": ReplaceApplyMessage;
   "replace.save": Empty;

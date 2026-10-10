@@ -582,6 +582,11 @@ export class SearchPanel {
       onLoadMore: (id: string, cursor: string) => {
         send("results.more", { searchId: id, cursor });
       },
+      // The host saves the setting, and the query runs again with it; the box keeps the keys meanwhile.
+      onContextLines: (lines: number) => {
+        send("context.set", { lines });
+        this.layout.input.focus();
+      },
       replacementsFor: (item: { repoId: string; path: string; line: number }) =>
         this.replace.replacementsFor(item.repoId, item.path, item.line),
     };

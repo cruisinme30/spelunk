@@ -76,6 +76,7 @@ function recordingUi() {
     setContext: (key, value) => void (contextKeys[key] = value),
     saveState: () => {},
     savePinned: () => {},
+    saveContextLines: () => {},
     showOpened: (position, total) => void shown.push(`${position} of ${total}`),
     readDocument: () => Promise.resolve(undefined as DocumentLines | undefined),
     applyEdits: () => Promise.resolve(true),
@@ -313,6 +314,33 @@ test("pinning adds a query at the end, renames it when pinned already, and unpin
   assert.deepEqual(host.payloads("state.restore").at(-1)?.pinned, [{ query: "sym:RetryPolicy" }]);
 });
 
+test("the Context buttons save spelunk.results.contextLines when it changes", async () => {
+  // @covers msg:context.set
+  let contextLines = 0;
+  const saves: number[] = [];
+  const host = recordingUi();
+  const ui = {
+    ...host.ui,
+    saveContextLines: (lines: number) => {
+      saves.push(lines);
+      contextLines = lines;
+    },
+  };
+  const controller = newController(parseOnlyBackend().backend, ui, {
+    uiSettings: () => ({ ...TEST_UI_SETTINGS, contextLines }),
+  });
+  const set = (payload: unknown) => {
+    const message = parseWebviewMessage({ v: MESSAGE_VERSION, type: "context.set", payload });
+    assert.ok(message, `context.set ${JSON.stringify(payload)} is valid`);
+    return controller.handle(message);
+  };
+  await set({ lines: 2 });
+  await set({ lines: 2 });
+  await set({ lines: 3 });
+  await set({ lines: 0 });
+  assert.deepEqual(saves, [2, 3, 0], "saved only when it changes");
+});
+
 test("a search typed while a repo was indexing runs again when the repo is ready", async () => {
   const host = recordingUi();
   const searches: string[] = [];
@@ -515,6 +543,11 @@ test("malformed panel messages are dropped at the boundary, and well-formed ones
     { v: MESSAGE_VERSION, type: "pinned.save", payload: { name: "x" } },
     { v: MESSAGE_VERSION, type: "pinned.save", payload: { query: "x", name: 5 } },
     { v: MESSAGE_VERSION, type: "pinned.remove", payload: { query: null } },
+    { v: MESSAGE_VERSION, type: "context.set", payload: {} },
+    { v: MESSAGE_VERSION, type: "context.set", payload: { lines: 4 } },
+    { v: MESSAGE_VERSION, type: "context.set", payload: { lines: -1 } },
+    { v: MESSAGE_VERSION, type: "context.set", payload: { lines: 1.5 } },
+    { v: MESSAGE_VERSION, type: "context.set", payload: { lines: "2" } },
   ]) {
     assert.equal(parseWebviewMessage(raw), undefined, JSON.stringify(raw));
   }

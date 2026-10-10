@@ -144,6 +144,7 @@ async function connectPanel(page, host, daemon) {
     setContext: () => {},
     saveState: () => {},
     savePinned: () => {},
+    saveContextLines: () => {},
     // A screenshot previews a replace but never applies one.
     readDocument: async () => {},
     applyEdits: async () => false,

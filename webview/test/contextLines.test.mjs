@@ -6,13 +6,16 @@ import { test } from "node:test";
 import {
   CODE_LINE_RESULT,
   fromHost,
+  lastSent,
   openPanel,
   pageErrors,
   parsedQuery,
   restore,
   searchDone,
+  sentMessages,
   textNode,
   typeAndParse,
+  UI_SETTINGS,
   useBrowser,
   waitForSent,
 } from "./harness.mjs";
@@ -227,4 +230,39 @@ test("a replace preview keeps a match's place among its context lines", async (t
   assert.equal(await row.locator("ins").textContent(), "backoff");
   const shown = await row.evaluate((text) => text.textContent);
   assert.ok(shown.startsWith("    self."), `"${shown}" is still indented like the lines around it`);
+});
+
+test("the Context buttons show the setting and ask the host to change it", async (t) => {
+  // @covers msg:context.set screen:context-lines
+  const page = await panelWith(t, 0, [match(14, 0)]);
+  const options = page.locator('[data-testid="section-code"] [data-testid="context-switch"] button');
+  assert.deepEqual(await options.allTextContents(), ["0", "±1", "±2", "±3"]);
+  const pressed = () => options.evaluateAll((buttons) => buttons.map((option) => option.ariaPressed));
+  assert.deepEqual(await pressed(), ["true", "false", "false", "false"]);
+  assert.equal(await page.getByRole("group", { name: "Context lines" }).count(), 1);
+
+  await options.nth(2).click();
+  assert.deepEqual(await lastSent(page, "context.set"), { lines: 2 });
+  assert.deepEqual(await pressed(), ["false", "false", "true", "false"], "pressed at once");
+  assert.equal(
+    await page.evaluate(() => document.activeElement?.dataset.testid),
+    "query",
+    "the box keeps the keys, so ↑↓ still move through the results",
+  );
+
+  // The host saves the setting and sends it back, which runs the query again.
+  const before = (await sentMessages(page, "query.changed")).length;
+  await fromHost(page, "state.restore", {
+    text: "_retry",
+    recent: [],
+    pinned: [],
+    settings: { ...UI_SETTINGS, contextLines: 2 },
+  });
+  const changes = await sentMessages(page, "query.changed");
+  assert.equal(changes.length, before + 1, "the query runs again");
+  const { seq } = changes.at(-1).payload;
+  await fromHost(page, "parse.result", { seq, query: parsedQuery("_retry", textNode("_retry", 0)), completions: [] });
+  await fromHost(page, "search.batch", { seq, searchId: "s2", items: [match(14, 2)] });
+  assert.deepEqual(await pressed(), ["false", "false", "true", "false"]);
+  assert.deepEqual(await codeSection(page), ["# src/payments/client.py", "12", "13", "[14]", "15", "16"]);
 });
