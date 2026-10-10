@@ -987,6 +987,10 @@ ins {
 /* Who owns the file, by its repo's CODEOWNERS file. */
 .badge.owner {
   flex: none;
+  max-width: 18ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   color: var(--fg);
 }
 

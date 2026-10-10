@@ -56,7 +56,8 @@ test("each result names its file's owners, the first with a count of the rest", 
   // @covers screen:owner-filter op:owner
   const { page } = await ownedResults(t);
   const badges = page.locator('[data-testid="owner"]');
-  assert.deepEqual(await badges.allTextContents(), [`${TEAM} +1`, TEAM]);
+  // A team reads by its name alone; the tooltip has every owner in full.
+  assert.deepEqual(await badges.allTextContents(), ["payments-core +1", "payments-core"]);
   assert.equal(await badges.first().getAttribute("title"), `Owned by ${TEAM}, @jane`);
   // A result whose file nobody owns has no badge.
   const seq = (await lastSent(page, "query.changed")).seq;

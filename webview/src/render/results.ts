@@ -557,12 +557,15 @@ function rankBadge(reason: RankReason | undefined): HTMLElement | null {
 
 /**
  * The badge naming who owns a result's file by its repo's CODEOWNERS file:
- * the first owner, then "+1" for each other one, all of them in its tooltip.
+ * the first owner, a team by its name alone (payments-core for the team
+ * `@acme/payments-core`), then "+1" for each other one, all of them in
+ * full in its tooltip.
  */
 function ownerBadge(owners: string[] | undefined): HTMLElement | null {
   const [first, ...others] = owners ?? [];
   if (first === undefined) return null;
-  const label = others.length > 0 ? `${first} +${others.length}` : first;
+  const name = first.startsWith("@") && first.includes("/") ? first.slice(first.indexOf("/") + 1) : first;
+  const label = others.length > 0 ? `${name} +${others.length}` : name;
   return element(
     "span",
     { class: "badge owner", title: `Owned by ${owners?.join(", ")}`, "data-testid": "owner" },
