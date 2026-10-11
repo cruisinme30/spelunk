@@ -7,14 +7,8 @@ import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import {
-  type Backend,
-  type ControllerOptions,
-  type PersistedState,
-  SearchController,
-  type STOP_WATCHING,
-  type Ui,
-} from "../controller";
+import { type Backend, type ControllerOptions, SearchController, type STOP_WATCHING, type Ui } from "../controller";
+import type { PersistedState, SavedState } from "../savedState";
 import type {
   Completion,
   HostToWebview,
@@ -116,7 +110,7 @@ function recordingUi() {
   };
 }
 
-function newController(backend: Backend, ui: Ui, options: Partial<ControllerOptions> = {}, initial?: PersistedState) {
+function newController(backend: Backend, ui: Ui, options: Partial<ControllerOptions> = {}, initial?: SavedState) {
   const defaults: ControllerOptions = {
     recentLimit: () => 20,
     pinnedQueries: () => [],
@@ -191,6 +185,10 @@ const queryChanged = (text: string, seq: number, asTyped?: true): WebviewMessage
   type: "query.changed",
   payload: { text, cursor: text.length, seq, ...(asTyped ? { asTyped } : {}) },
 });
+
+/** The queries of a state.restore's recent list, newest first. */
+const recentQueries = (restored: { recent: { query: string }[] } | undefined) =>
+  restored?.recent.map((entry) => entry.query);
 
 /** Lets queued callbacks (such as a re-run search) run before the test continues. */
 const nextTurn = () => new Promise((resolve) => setImmediate(resolve));
@@ -369,7 +367,7 @@ test("recent queries are deduplicated, newest first, and capped", () => {
   controller.restore("c");
   controller.rememberQuery();
   controller.restore();
-  assert.deepEqual(host.payloads("state.restore").at(-1)?.recent, ["c", "a"]);
+  assert.deepEqual(recentQueries(host.payloads("state.restore").at(-1)), ["c", "a"]);
 });
 
 test("a query seeded from the editor keeps the one it replaces under Recent, and tells the panel to type it in", () => {
@@ -386,7 +384,7 @@ test("a query seeded from the editor keeps the one it replaces under Recent, and
   assert.ok(seeded);
   assert.equal(seeded.text, "RetryPolicy");
   assert.equal(seeded.seeded, true);
-  assert.deepEqual(seeded.recent, ["timeout"], "the replaced query stays under Recent");
+  assert.deepEqual(recentQueries(seeded), ["timeout"], "the replaced query stays under Recent");
   controller.restore("RetryPolicy", true);
   assert.equal(host.payloads("state.restore").at(-1)?.seeded, undefined, "the same query again replaces nothing");
   controller.restore("timeout");
@@ -411,16 +409,16 @@ test("lowering the recent-query limit drops the queries past it, and 0 drops the
     },
   );
   controller.restore();
-  assert.deepEqual(host.payloads("state.restore").at(-1)?.recent, ["a", "b", "c"]);
+  assert.deepEqual(recentQueries(host.payloads("state.restore").at(-1)), ["a", "b", "c"]);
   assert.equal(saved.length, 0, "nothing to drop, nothing saved");
   limit = 2;
   controller.settingsChanged();
-  assert.deepEqual(host.payloads("state.restore").at(-1)?.recent, ["a", "b"]);
+  assert.deepEqual(recentQueries(host.payloads("state.restore").at(-1)), ["a", "b"]);
   limit = 0;
   controller.restore();
-  assert.deepEqual(host.payloads("state.restore").at(-1)?.recent, []);
+  assert.deepEqual(recentQueries(host.payloads("state.restore").at(-1)), []);
   assert.deepEqual(
-    saved.map((state) => state.recent),
+    saved.map((state) => state.recent.map((entry) => entry.query)),
     [["a", "b"], []],
     "the shorter list is saved, so a reload keeps it",
   );
@@ -444,7 +442,7 @@ test("closing the panel hides it and remembers the query", async () => {
   await controller.handle({ v: MESSAGE_VERSION, type: "panel.close", payload: {} });
   assert.equal(host.closedPanels(), 1);
   controller.restore();
-  assert.deepEqual(host.payloads("state.restore").at(-1)?.recent, ["timeout"]);
+  assert.deepEqual(recentQueries(host.payloads("state.restore").at(-1)), ["timeout"]);
 });
 
 test("removing a recent query takes it off the list and keeps it off", async () => {
@@ -458,9 +456,9 @@ test("removing a recent query takes it off the list and keeps it off", async () 
   await remove("b");
   await remove("not there");
   controller.restore();
-  assert.deepEqual(host.payloads("state.restore").at(-1)?.recent, ["c", "a"]);
+  assert.deepEqual(recentQueries(host.payloads("state.restore").at(-1)), ["c", "a"]);
   assert.deepEqual(
-    saved.map((state) => state.recent),
+    saved.map((state) => state.recent.map((entry) => entry.query)),
     [["c", "a"]],
     "saved once, and not again for a query that isn't listed",
   );
@@ -1058,8 +1056,8 @@ test("a pasted query too long to keep is not saved for the next session, though 
   await controller.handle(queryChanged("retry", 1));
   await controller.handle(queryChanged("x".repeat(5_000_000), 2));
   assert.deepEqual(saved, [
-    { text: "retry", recent: ["short"] },
-    { text: "", recent: ["short"] },
+    { text: "retry", recent: [{ query: "short" }] },
+    { text: "", recent: [{ query: "short" }] },
   ]);
   assert.equal(controller.text.length, 5_000_000, "this session's box still holds it");
 });
@@ -1069,12 +1067,16 @@ test("a pasted query too long for the recent list is searched but not remembered
   const controller = newController(parseOnlyBackend().backend, host.ui, { recentLimit: () => Number.NaN });
   controller.restore("short");
   controller.rememberQuery();
-  assert.deepEqual(host.payloads("state.restore").at(-1)?.recent, [], "a limit that isn't a number keeps nothing");
+  assert.deepEqual(
+    recentQueries(host.payloads("state.restore").at(-1)),
+    [],
+    "a limit that isn't a number keeps nothing",
+  );
   const kept = newController(parseOnlyBackend().backend, host.ui, {}, { text: "", recent: ["short"] });
   kept.restore("x".repeat(5000));
   kept.rememberQuery();
   kept.restore();
-  assert.deepEqual(host.payloads("state.restore").at(-1)?.recent, ["short"]);
+  assert.deepEqual(recentQueries(host.payloads("state.restore").at(-1)), ["short"]);
 });
 
 /**
@@ -1400,7 +1402,7 @@ test("a folder's scope keeps the query it replaces under Recent, and the panel t
   assert.ok(restored);
   assert.equal(restored.seeded, true);
   assert.equal(restored.keepTyping, true, "the cursor goes to the end, to type the search after the scope");
-  assert.deepEqual(restored.recent, ["retry"], "the query it replaced stays under Recent");
+  assert.deepEqual(recentQueries(restored), ["retry"], "the query it replaced stays under Recent");
   controller.restore("RetryPolicy", true);
   assert.equal(host.payloads("state.restore").at(-1)?.keepTyping, undefined, "a query from the editor is selected");
 });
@@ -1479,4 +1481,46 @@ test("a question asked in plain words comes back as a query, and Ask's setup goe
   const off = recordingUi();
   await newController(backend, off.ui).handle(ask(2));
   assert.deepEqual(off.payloads("ask.result"), [{ seq: 2, question: "where is Retry defined", setup: "off" }]);
+});
+
+test("a query Ask wrote is under Recent at once, labeled with the question, and stays there after a reload", async () => {
+  // @covers msg:ask msg:state.restore
+  const host = recordingUi();
+  const saved: PersistedState[] = [];
+  const ui = { ...host.ui, saveState: (state: PersistedState) => saved.push(structuredClone(state)) };
+  const provider: AskProvider = {
+    translate: () => Promise.resolve({ query: "symbol:Retry", explanation: "", assumptions: [] }),
+  };
+  const { backend } = scriptedBackend((method, { text }) => {
+    if (method === "query/guide") return { text: "" };
+    if (method === "query/parse") return { query: parsedQuery(text, true), completions: [] };
+    return NO_RESULTS;
+  });
+  const ask = {
+    setup: () => Promise.resolve({ kind: "ready" as const, provider }),
+    shareNames: () => false,
+    setKey: () => Promise.resolve(),
+  };
+  const controller = newController(backend, ui, { ask }, { text: "", recent: ["timeout"] });
+  const question = "where is Retry defined";
+  await controller.handle({ v: MESSAGE_VERSION, type: "ask", payload: { question, seq: 1 } });
+  assert.deepEqual(
+    saved.at(-1)?.recent,
+    [{ query: "symbol:Retry", question }, { query: "timeout" }],
+    "kept before any result is opened",
+  );
+
+  // The panel runs the query, a result is opened: it stays one row, still labeled.
+  await controller.handle(queryChanged("symbol:Retry", 1));
+  controller.rememberQuery();
+  assert.deepEqual(saved.at(-1)?.recent, [{ query: "symbol:Retry", question }, { query: "timeout" }]);
+
+  // The window reloads: Recent still has it, labeled, and the box still holds it.
+  const reloaded = recordingUi();
+  const next = newController(backend, reloaded.ui, {}, saved.at(-1));
+  next.restore();
+  const restored = reloaded.payloads("state.restore").at(-1);
+  assert.ok(restored);
+  assert.equal(restored.text, "symbol:Retry");
+  assert.deepEqual(restored.recent, [{ query: "symbol:Retry", question }, { query: "timeout" }]);
 });

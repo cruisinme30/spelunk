@@ -5,6 +5,14 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- **An AI-written search stays under Recent.** A search Generate query wrote went under **Recent** only once you opened
+  one of its results, pressed Esc or ran Replace, so reading its results and reloading the window lost it. It now goes
+  under Recent as soon as it runs, shown under your question; clicking it runs the same search again without asking
+  the AI, and pinning it names the pin after the question. The search left in the box when the window closes also goes
+  under Recent, as Esc would have put it.
+
 ## [3.0.0] - 2026-10-11
 
 ### Added

@@ -7,6 +7,7 @@ import type {
   ParsedQuery,
   PinnedQuery,
   Preview,
+  RecentQuery,
   RemoteHost,
   RepoStatus,
   ResultItem,
@@ -73,8 +74,8 @@ export interface ViewState {
   preview: PreviewState | undefined;
   /** Whether a commit preview also lists the files its file filters (f:, lang:, is:test) hid. */
   showHiddenFiles: boolean;
-  /** Recent queries, newest first. */
-  recent: string[];
+  /** Recent queries, newest first, with the question Ask wrote each for, if any. */
+  recent: RecentQuery[];
   /** Pinned queries, in the order they were pinned (spelunk.ui.pinnedQueries). */
   pinned: PinnedQuery[];
   /** The empty box row ↑↓ has selected, counting the pinned queries first, then the recent ones. */
@@ -164,7 +165,7 @@ export function createViewState(): ViewState {
 export function emptyBoxQueries(state: ViewState): string[] {
   const pinned = state.pinned.map((entry) => entry.query);
   const kept = new Set(pinned);
-  return [...pinned, ...state.recent.filter((query) => !kept.has(query))];
+  return [...pinned, ...state.recent.map((entry) => entry.query).filter((query) => !kept.has(query))];
 }
 
 /** Whether the parsed query has errors; its results are then the last good query's. */

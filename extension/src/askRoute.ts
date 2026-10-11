@@ -19,6 +19,8 @@ export interface AskRouteDeps {
   openSettings(setting: string): void;
   /** The index's status, for the names of the repos open in the window; undefined before it is known. */
   status(): IndexStatusResult | undefined;
+  /** Keeps a query a question became under Recent, labeled with the question. */
+  remember(query: string, question: string): void;
   options: AskOptions | undefined;
 }
 
@@ -36,7 +38,7 @@ export class AskRoute {
     backend: { request: AskRouteDeps["request"] },
     ui: { post: AskRouteDeps["post"]; openSettings: AskRouteDeps["openSettings"] },
     options: AskOptions | undefined,
-    status: () => IndexStatusResult | undefined,
+    { status, remember }: Pick<AskRouteDeps, "status" | "remember">,
   ): AskRoute {
     return new AskRoute({
       request: (method, params) => backend.request(method, params),
@@ -47,6 +49,7 @@ export class AskRoute {
         ui.openSettings(setting);
       },
       status,
+      remember,
       options,
     });
   }
@@ -78,7 +81,10 @@ export class AskRoute {
     }
   }
 
-  /** Turns the question into a query and posts it for the panel to run; a newer question stops the one before. */
+  /**
+   * Turns the question into a query and posts it for the panel to run; a newer question stops
+   * the one before. The query goes under Recent at once: reading its results is using it.
+   */
   private async onAsk({ question, seq, broaden }: AskMessage): Promise<void> {
     this.asking?.abort();
     const control = new AbortController();
@@ -86,6 +92,7 @@ export class AskRoute {
     const outcome = await this.asker.ask(question, broaden, control.signal);
     if (control.signal.aborted) return;
     this.asking = undefined;
+    if (outcome.query !== undefined) this.deps.remember(outcome.query, question);
     this.deps.post("ask.result", { seq, question, ...outcome });
   }
 

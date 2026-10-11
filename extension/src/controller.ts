@@ -28,17 +28,11 @@ import {
 } from "./protocol.gen";
 import { movedTo } from "./openPosition";
 import { checkReplace, type DocumentLines, type LineEdit } from "./replaceEdits";
+import { openingState, persisted, type PersistedState, type SavedState, withRecent } from "./savedState";
 import { pinnedEntry } from "./settings";
 import { UnseenWatches, watchMessage } from "./watches";
 import * as panelMessages from "./webviewMessages";
 import type { WebviewMessage } from "./webviewMessages";
-
-/**
- * Longer queries (a pasted file, say) are not kept in globalState: not in
- * the recent list, and not as the box's text for the next session. The
- * daemon refuses a query this long anyway (query_too_long).
- */
-const MAX_REMEMBERED_QUERY_LENGTH = 1000;
 
 /** "1 match" / "3 matches". */
 function plural(count: number, one: string, many: string): string {
@@ -113,12 +107,6 @@ export interface Ui {
   showQuery(query: string): void;
   /** Tells the user something they asked for failed, and logs it. */
   showError(message: string): void;
-}
-
-/** Survives window reloads (globalState): the last query and recent queries. */
-export interface PersistedState {
-  text: string;
-  recent: string[];
 }
 
 /** Settings the controller reads each time it needs them, so changes apply at once. */
@@ -209,11 +197,14 @@ export class SearchController {
     private readonly backend: Backend,
     private readonly ui: Ui,
     private readonly options: ControllerOptions,
-    initial?: PersistedState,
+    initial?: SavedState,
   ) {
-    this.state = initial ?? { text: "", recent: [] };
+    this.state = openingState(initial, options.recentLimit());
     this.watches = options.unseen ?? new UnseenWatches(undefined);
-    this.askRoute = AskRoute.fromHost(backend, ui, options.ask, () => this.lastProgress);
+    this.askRoute = AskRoute.fromHost(backend, ui, options.ask, {
+      status: () => this.lastProgress,
+      remember: this.rememberQuery.bind(this),
+    });
     backend.on("batch", (batch) => {
       this.onBatch(batch);
     });
@@ -390,19 +381,17 @@ export class SearchController {
     }
   }
 
-  /** Puts the current query at the top of the recent list. */
-  rememberQuery(): void {
-    const text = this.state.text.trim();
-    const limit = this.options.recentLimit();
-    if (!text || text.length > MAX_REMEMBERED_QUERY_LENGTH || !(limit > 0)) return;
-    this.state.recent = [text, ...this.state.recent.filter((query) => query !== text)].slice(0, limit);
+  /** Puts a query, by default the box's, at the top of the recent list, with the question Ask wrote it for. */
+  rememberQuery(query = this.state.text, question?: string): void {
+    const recent = withRecent(this.state.recent, query, this.options.recentLimit(), question);
+    if (!recent) return;
+    this.state.recent = recent;
     this.saveState();
   }
 
   /** Saves the box's text, unless it is too long to keep, and the recent queries. */
   private saveState(): void {
-    const { text, recent } = this.state;
-    this.ui.saveState({ text: text.length > MAX_REMEMBERED_QUERY_LENGTH ? "" : text, recent: [...recent] });
+    this.ui.saveState(persisted(this.state));
   }
 
   /** Drops the recent queries past spelunk.ui.recentQueries, after it was lowered (0 keeps none). */
@@ -416,7 +405,7 @@ export class SearchController {
 
   /** Takes a query off the recent list. */
   private removeRecent(query: string): void {
-    const recent = this.state.recent.filter((kept) => kept !== query);
+    const recent = this.state.recent.filter((kept) => kept.query !== query);
     if (recent.length === this.state.recent.length) return;
     this.state.recent = recent;
     this.saveState();

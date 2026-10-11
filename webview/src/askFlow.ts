@@ -56,7 +56,10 @@ export class AskFlow {
     if (asked?.query !== undefined) this.ask(asked.question, asked.query);
   }
 
-  /** The answer to the newest ask: the query goes in the box and runs, or the line says what Ask needs. */
+  /**
+   * The answer to the newest ask: the query goes in the box and runs, and under Recent with the
+   * question, as the host keeps it; or the line says what Ask needs.
+   */
   onResult(result: AskResultMessage): void {
     const { state } = this.deps;
     const seq = state.asked?.seq;
@@ -73,7 +76,10 @@ export class AskFlow {
       ...(result.error === undefined ? {} : { error: result.error }),
     };
     this.render();
-    if (result.query !== undefined) this.deps.setQuery(result.query);
+    if (result.query === undefined) return;
+    const { query, question } = result;
+    state.recent = [{ query, question }, ...state.recent.filter((entry) => entry.query !== query)];
+    this.deps.setQuery(query);
   }
 
   /** Typing over the query a question became ends the question. */

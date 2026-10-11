@@ -33,7 +33,7 @@ test("a folder's scope goes in with the cursor at its end, typing adds to it, an
     text: scoped,
     seeded: true,
     keepTyping: true,
-    recent: ["timeout"],
+    recent: [{ query: "timeout" }],
     pinned: [],
     settings: UI_SETTINGS,
   });

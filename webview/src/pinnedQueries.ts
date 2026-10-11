@@ -3,12 +3,17 @@
 import type { PinnedQuery, PinnedWatchMessage } from "./protocol.gen";
 import type { ViewState } from "./state";
 
-/** Pins `query` at the end of the list and selects it; the pinned.save to send, or undefined when it is pinned. */
+/**
+ * Pins `query` at the end of the list and selects it, named after the question Ask wrote it
+ * for, if any; the pinned.save to send, or undefined when it is pinned.
+ */
 export function addPin(state: ViewState, query: string): PinnedQuery | undefined {
   if (state.pinned.some((entry) => entry.query === query)) return undefined;
-  state.pinned = [...state.pinned, { query }];
+  const question = state.recent.find((entry) => entry.query === query)?.question;
+  const pin: PinnedQuery = { query, ...(question ? { name: `${question}?` } : {}) };
+  state.pinned = [...state.pinned, pin];
   state.recentIndex = state.pinned.length - 1;
-  return { query };
+  return { ...pin };
 }
 
 /**
@@ -21,8 +26,8 @@ export function forgetQuery(state: ViewState, query: string): "pinned.remove" | 
     if (state.naming === query) state.naming = undefined;
     return "pinned.remove";
   }
-  if (!state.recent.includes(query)) return undefined;
-  state.recent = state.recent.filter((kept) => kept !== query);
+  if (!state.recent.some((entry) => entry.query === query)) return undefined;
+  state.recent = state.recent.filter((kept) => kept.query !== query);
   return "recent.remove";
 }
 

@@ -1,7 +1,7 @@
 // The empty box: pinned and recent queries, and the operator cheat sheet.
 import { button, element, icon } from "../format";
 import { OPERATOR_GROUPS, type OperatorGroup, shortName } from "../operators";
-import type { PinnedQuery } from "../protocol.gen";
+import type { PinnedQuery, RecentQuery } from "../protocol.gen";
 import { emptyBoxQueries, type ViewState } from "../state";
 import { sash } from "./sash";
 
@@ -112,20 +112,31 @@ function queryRow(query: string, selected: boolean, children: HTMLElement[], ext
   return element("div", { class: classes, "data-recent": query }, ...children);
 }
 
-/** A recent query: the row runs it, the star pins it, the × takes it off the list. */
-function recentRow(query: string, selected: boolean, handlers: EmptyStateHandlers): HTMLElement {
+/**
+ * A recent query, under the question Ask wrote it for, if any: the row runs
+ * the query, the star pins it, the × takes it off the list.
+ */
+function recentRow({ query, question }: RecentQuery, selected: boolean, handlers: EmptyStateHandlers): HTMLElement {
   const run = button(
-    { class: "recent-run", "data-testid": "recent" },
+    { class: "recent-run", "data-testid": "recent", title: question ? `${question}?\n${query}` : undefined },
     () => {
       handlers.onRunRecent(query);
     },
     icon(CLOCK_ICON),
-    element("code", {}, query),
+    question
+      ? element(
+          "span",
+          { class: "recent-asked" },
+          element("span", { class: "recent-question", "data-testid": "recent-question" }, `${question}?`),
+          element("code", { class: "muted" }, query),
+        )
+      : element("code", {}, query),
   );
-  const pin = { title: "Pin", label: `Pin ${query}`, testId: "recent-pin", svg: STAR_OUTLINE_ICON };
+  const label = question ? `${question}?` : query;
+  const pin = { title: "Pin", label: `Pin ${label}`, testId: "recent-pin", svg: STAR_OUTLINE_ICON };
   const remove = {
     title: "Remove from recent",
-    label: `Remove ${query} from recent`,
+    label: `Remove ${label} from recent`,
     testId: "recent-remove",
     svg: REMOVE_ICON,
   };
@@ -315,7 +326,11 @@ function renderRecent(state: ViewState, handlers: EmptyStateHandlers): HTMLEleme
       ? namingRow(entry, selected(entry.query), state, handlers)
       : pinnedRow(entry, selected(entry.query), state, handlers),
   );
-  const recent = rows.slice(pinned.length).map((query) => recentRow(query, selected(query), handlers));
+  const questions = new Map(state.recent.map((entry) => [entry.query, entry.question]));
+  const recent = rows.slice(pinned.length).map((query) => {
+    const question = questions.get(query);
+    return recentRow({ query, ...(question ? { question } : {}) }, selected(query), handlers);
+  });
   const placeholder = rows.length === 0 ? element("p", { class: "muted pad" }, "Queries you run show up here.") : null;
   return element(
     "div",

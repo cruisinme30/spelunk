@@ -61,8 +61,8 @@ const HAS_REQUIRED_FIELDS: Record<keyof HostToWebview, (payload: Fields) => bool
     (text === undefined || isString(text)) &&
     (seeded === undefined || typeof seeded === "boolean") &&
     (keepTyping === undefined || typeof keepTyping === "boolean") &&
-    Array.isArray(recent) &&
-    recent.every((query) => isString(query)) &&
+    isObjectArray(recent) &&
+    recent.every(({ query, question }) => isString(query) && (question === undefined || isString(question))) &&
     isObjectArray(pinned) &&
     pinned.every(
       ({ query, name, watch }) =>

@@ -184,6 +184,25 @@ test("an empty box lists pinned queries, named or not, above the recent ones", a
   assert.equal(await page.inputValue(QUERY), "author:jane timeout");
 });
 
+test("a recent query Ask wrote shows the question, runs the query, and pins named after the question", async (t) => {
+  const page = await openPanel(t);
+  const question = "where is the retry policy defined";
+  await restore(page, [{ query: "sym:RetryPolicy", question }, "timeout"]);
+  assert.deepEqual(await page.locator('[data-testid="recent-question"]').allTextContents(), [`${question}?`]);
+  assert.deepEqual(await page.locator('[data-testid="recent"] code').allTextContents(), ["sym:RetryPolicy", "timeout"]);
+  await page.locator('[data-testid="recent"]').first().click();
+  assert.equal(await page.inputValue(QUERY), "sym:RetryPolicy", "the row runs the query, not the question");
+
+  await page.fill(QUERY, "");
+  await page.locator(".recent-row").first().hover();
+  await page.locator('[data-testid="recent-pin"]').first().click();
+  assert.equal(await page.inputValue('[data-testid="pinned-name"]'), `${question}?`, "the name starts as the question");
+  assert.deepEqual(
+    (await sentMessages(page, "pinned.save")).map((message) => message.payload),
+    [{ query: "sym:RetryPolicy", name: `${question}?` }],
+  );
+});
+
 test("the star pins a recent query and asks for a name, which ↵ saves and Esc skips", async (t) => {
   // @covers msg:pinned.save
   const page = await openPanel(t);

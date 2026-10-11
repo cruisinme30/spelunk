@@ -823,6 +823,13 @@ export interface PinnedQuery {
   watch?: boolean;
 }
 
+/** RecentQuery is a query under Recent in the empty box, with the question Ask turned into it, if it came from one. */
+export interface RecentQuery {
+  query: string;
+  /** The plain-words question the query was written for; the row shows it, and running the row runs the query. */
+  question?: string;
+}
+
 /** PinnedRemoveMessage unpins a query. */
 export interface PinnedRemoveMessage {
   query: string;
@@ -948,7 +955,7 @@ export interface StateRestoreMessage {
   seeded?: boolean;
   /** With seeded, for Search in Folder's scope: the box types the text in, so ⌘Z brings back what it replaced, but leaves the cursor at its end, so typing adds to it. */
   keepTyping?: boolean;
-  recent: string[];
+  recent: RecentQuery[];
   pinned: PinnedQuery[];
   settings?: UiSettings;
 }

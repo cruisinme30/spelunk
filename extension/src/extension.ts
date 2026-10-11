@@ -12,20 +12,14 @@ import { registerEditorNavigation } from "./editorNavigation";
 import { editorCommands } from "./editorSeed";
 import { FolderScopeNotes } from "./folderScope";
 import { folderSearchCommand } from "./folderSearch";
-import {
-  type ControllerOptions,
-  type PersistedState,
-  SearchController,
-  SHOW_MATCHES,
-  STOP_WATCHING,
-  type Ui,
-} from "./controller";
+import { type ControllerOptions, SearchController, SHOW_MATCHES, STOP_WATCHING, type Ui } from "./controller";
 import { Daemon, type DaemonState } from "./daemon";
 import { followWorkspace, withEditorExcludes } from "./workspaceSettings";
 import { HelpPanel } from "./helpPanel";
 import { addLineEdit, openNotebookAt, readNotebook, saveFile } from "./notebookEditor";
 import { isNotebookPath } from "./notebookLines";
 import { SearchPanel } from "./panel";
+import type { SavedState } from "./savedState";
 import type {
   FileChange,
   IndexState,
@@ -134,7 +128,7 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi {
     daemon,
     ui,
     { ...controllerOptions(context), unseen },
-    globalState.get<PersistedState>(STATE_KEY),
+    globalState.get<SavedState>(STATE_KEY),
   );
   // The help page's Try runs its example in the search panel; its settings button opens Settings.
   const help = new HelpPanel(context.extensionUri, (message) => {

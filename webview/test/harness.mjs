@@ -142,11 +142,17 @@ export const fromHost = (page, type, payload) =>
   page.evaluate(([messageType, messagePayload]) => globalThis.__fromHost(messageType, messagePayload), [type, payload]);
 
 /**
- * The host's first message to a new panel: an empty box, `recent` queries,
- * UI_SETTINGS with `settings` over them, and `pinned` queries.
+ * The host's first message to a new panel: an empty box, `recent` queries
+ * (a string is a query no question was asked for), UI_SETTINGS with
+ * `settings` over them, and `pinned` queries.
  */
 export const restore = (page, recent = [], settings = {}, pinned = []) =>
-  fromHost(page, "state.restore", { text: "", recent, pinned, settings: { ...UI_SETTINGS, ...settings } });
+  fromHost(page, "state.restore", {
+    text: "",
+    recent: recent.map((entry) => (typeof entry === "string" ? { query: entry } : entry)),
+    pinned,
+    settings: { ...UI_SETTINGS, ...settings },
+  });
 
 /** The end of search "s1" for `seq`: nothing found, hidden or truncated, unless `fields` says otherwise. */
 export const searchDone = (page, seq, fields = {}) =>

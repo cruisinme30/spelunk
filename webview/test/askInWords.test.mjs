@@ -75,6 +75,16 @@ test("Enter on a question asks it, and the answer's query lands in the box and r
   assert.deepEqual(pageErrors(page), []);
 });
 
+test("the answer's query is under Recent at once, after the question", async (t) => {
+  const page = await askPanel(t);
+  await page.fill(QUERY, `${QUESTION}?`);
+  await page.press(QUERY, "Enter");
+  await answered(page, ANSWER, 2);
+  await page.fill(QUERY, "");
+  assert.deepEqual(await page.locator('[data-testid="recent-question"]').allTextContents(), [`${QUESTION}?`]);
+  assert.deepEqual(await page.locator('[data-testid="recent"] code').allTextContents(), [ANSWER]);
+});
+
 test("Generate query, left of the match toggles, asks the box's words, with or without a ?", async (t) => {
   const page = await askPanel(t);
   const tools = await page

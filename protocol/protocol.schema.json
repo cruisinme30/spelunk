@@ -2045,6 +2045,20 @@
       },
       "required": ["query"]
     },
+    "RecentQuery": {
+      "description": "RecentQuery is a query under Recent in the empty box, with the question Ask turned into it, if it came from one.",
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string"
+        },
+        "question": {
+          "description": "The plain-words question the query was written for; the row shows it, and running the row runs the query.",
+          "type": "string"
+        }
+      },
+      "required": ["query"]
+    },
     "PinnedRemoveMessage": {
       "description": "PinnedRemoveMessage unpins a query.",
       "type": "object",
@@ -2364,7 +2378,7 @@
         "recent": {
           "type": "array",
           "items": {
-            "type": "string"
+            "$ref": "#/$defs/RecentQuery"
           }
         },
         "pinned": {

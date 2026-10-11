@@ -1382,6 +1382,13 @@ type PinnedQuery struct {
 	Watch bool `json:"watch,omitempty"`
 }
 
+// RecentQuery is a query under Recent in the empty box, with the question Ask turned into it, if it came from one.
+type RecentQuery struct {
+	Query string `json:"query"`
+	// Question is the plain-words question the query was written for; the row shows it, and running the row runs the query.
+	Question string `json:"question,omitempty"`
+}
+
 // PinnedRemoveMessage unpins a query.
 type PinnedRemoveMessage struct {
 	Query string `json:"query"`
@@ -1570,7 +1577,7 @@ type StateRestoreMessage struct {
 	Seeded bool `json:"seeded,omitempty"`
 	// KeepTyping is with seeded, for Search in Folder's scope: the box types the text in, so ⌘Z brings back what it replaced, but leaves the cursor at its end, so typing adds to it.
 	KeepTyping bool          `json:"keepTyping,omitempty"`
-	Recent     []string      `json:"recent"`
+	Recent     []RecentQuery `json:"recent"`
 	Pinned     []PinnedQuery `json:"pinned"`
 	Settings   *UiSettings   `json:"settings,omitempty"`
 }
@@ -1580,7 +1587,7 @@ func (v StateRestoreMessage) MarshalJSON() ([]byte, error) {
 	type plain StateRestoreMessage
 	p := plain(v)
 	if p.Recent == nil {
-		p.Recent = []string{}
+		p.Recent = []RecentQuery{}
 	}
 	if p.Pinned == nil {
 		p.Pinned = []PinnedQuery{}
