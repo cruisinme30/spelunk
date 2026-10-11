@@ -629,6 +629,11 @@ export interface ParseParams {
   openFiles?: string[];
 }
 
+/** GuideResult is the query language in plain text, as spelunk help query prints it, for Ask's prompt. */
+export interface GuideResult {
+  text: string;
+}
+
 /** ParseResult is the parsed query plus completions at the cursor. */
 export interface ParseResult {
   query: ParsedQuery;
@@ -1140,6 +1145,7 @@ export interface RemotesStateMessage {
 export interface RpcRequests {
   "initialize": [InitializeParams, InitializeResult];
   "query/parse": [ParseParams, ParseResult];
+  "query/guide": [Empty, GuideResult];
   "search/start": [SearchStartParams, SearchResult];
   "preview/get": [PreviewParams, Preview];
   "open/resolve": [OpenResolveParams, OpenTarget];

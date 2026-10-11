@@ -3,6 +3,7 @@ package server
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/cruisinme30/spelunk/daemon/internal/protocol"
@@ -80,5 +81,20 @@ func TestValueSuggestionsDescribeTheIndexedWorkspace(t *testing.T) {
 	}
 	if got := suggest("repo:"); len(got) != 1 || got[0].Note != "Index ready" || got[0].Detail != dir || got[0].Context != "3 files" {
 		t.Errorf("repo: suggestions = %+v, want web with its path, 3 files and Index ready", got)
+	}
+}
+
+func TestGuideDescribesEveryOperatorForAsk(t *testing.T) {
+	// @covers rpc:query/guide
+	client := newTestClient(t)
+	client.mustInitialize(t)
+	var result protocol.GuideResult
+	if err := client.call(protocol.MethodQueryGuide, protocol.Empty{}, &result); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"symbol:", "kind:", "ref:", "since:", "type:commit", "author:"} {
+		if !strings.Contains(result.Text, name) {
+			t.Errorf("the guide doesn't name %s", name)
+		}
 	}
 }

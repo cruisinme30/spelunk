@@ -63,6 +63,7 @@ func (s *Server) ServeGuest(ctx context.Context, conn *rpc.Conn) error {
 	conn.Handle(protocol.MethodShareOpen, guest(s.openShared))
 	conn.Handle(protocol.MethodIndexStatus, guest(s.indexStatus))
 	conn.Handle(protocol.MethodQueryParse, guest(s.parse))
+	conn.Handle(protocol.MethodQueryGuide, guest(s.guide))
 	conn.Handle(protocol.MethodPreviewGet, guest(s.preview))
 	conn.Handle(protocol.MethodSearchStart, guest(func(ctx context.Context, raw json.RawMessage) (any, error) {
 		return s.searchOn(ctx, raw, conn, true)

@@ -27,3 +27,9 @@ func (s *Server) parse(_ context.Context, raw json.RawMessage) (any, error) {
 		Completions: query.Complete(params.Text, params.Cursor, resolver, s.now()),
 	}, nil
 }
+
+// guide answers query/guide: the query language in plain text, from the
+// operator table, for the extension's Ask prompt.
+func (*Server) guide(context.Context, json.RawMessage) (any, error) {
+	return protocol.GuideResult{Text: query.Guide()}, nil
+}

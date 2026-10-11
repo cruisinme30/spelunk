@@ -1595,6 +1595,16 @@
       },
       "required": ["text", "cursor"]
     },
+    "GuideResult": {
+      "description": "GuideResult is the query language in plain text, as spelunk help query prints it, for Ask's prompt.",
+      "type": "object",
+      "properties": {
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": ["text"]
+    },
     "ParseResult": {
       "description": "ParseResult is the parsed query plus completions at the cursor.",
       "type": "object",
@@ -2822,6 +2832,11 @@
       "kind": "request",
       "params": "ParseParams",
       "result": "ParseResult"
+    },
+    "query/guide": {
+      "kind": "request",
+      "params": "Empty",
+      "result": "GuideResult"
     },
     "search/start": {
       "kind": "request",

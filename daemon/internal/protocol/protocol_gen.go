@@ -1107,6 +1107,11 @@ type ParseParams struct {
 	OpenFiles []string `json:"openFiles,omitempty"`
 }
 
+// GuideResult is the query language in plain text, as spelunk help query prints it, for Ask's prompt.
+type GuideResult struct {
+	Text string `json:"text"`
+}
+
 // ParseResult is the parsed query plus completions at the cursor.
 type ParseResult struct {
 	Query       ParsedQuery  `json:"query"`
@@ -1884,6 +1889,7 @@ const (
 	MethodSettingsUpdate          = "settings/update"
 	MethodWatchSet                = "watch/set"
 	MethodQueryParse              = "query/parse"
+	MethodQueryGuide              = "query/guide"
 	MethodSearchStart             = "search/start"
 	MethodSearchBatch             = "search/batch"
 	MethodDollarCancelRequest     = "$/cancelRequest"
