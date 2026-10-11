@@ -130,6 +130,16 @@ export function saveRecentWidth(width: number | undefined): void {
   vscode.setState({ ...savedState(), recentWidth: width });
 }
 
+/** Keeps whether the preview's Outline is open across reloads. */
+export function saveOutlineOpen(open: boolean): void {
+  vscode.setState({ ...savedState(), outlineOpen: open });
+}
+
+/** Whether saveOutlineOpen last kept the Outline open; closed when it never did. */
+export function loadOutlineOpen(): boolean {
+  return savedState()["outlineOpen"] === true;
+}
+
 /** The width saveRecentWidth kept, if any. */
 export function loadRecentWidth(): number | undefined {
   const width = savedState()["recentWidth"];

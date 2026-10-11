@@ -88,7 +88,10 @@ test("markup in results, previews, notes and banners shows as text and never run
   await searchDone(page, seq, { total: 5, hidden });
   const lines = [MARKUP, MARKUP];
   const filePreview = { kind: "file", path: MARKUP, firstLine: 1, lines, focusLine: 1, hits: [], dirtyLines: [] };
-  await fromHost(page, "preview.result", { ref: "f1", preview: { ...filePreview, symbols: [{ name: MARKUP }] } });
+  await fromHost(page, "preview.result", {
+    ref: "f1",
+    preview: { ...filePreview, symbols: [{ name: MARKUP, line: 1, kind: "class", depth: 0 }] },
+  });
 
   assert.equal(await markupTookEffect(page), false);
   assert.equal(await page.locator('[data-ref="l1"] code.text').textContent(), MARKUP);

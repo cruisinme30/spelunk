@@ -1,15 +1,32 @@
 // The preview pane: a file excerpt around the match, or a commit's diff.
 import { button, element, fileStat, highlight, plural, scrollIntoContainer, shortSha, timeAgo } from "../format";
+import { saveOutlineOpen } from "../host";
 import { textTerms } from "../parsedQuery";
-import type { OpenPosition, OpenWhere, Ownership, Preview, ResultItem, SinceRevision } from "../protocol.gen";
+import type {
+  OpenPosition,
+  OpenWhere,
+  OutlineSymbol,
+  Ownership,
+  Preview,
+  ResultItem,
+  SinceRevision,
+  SymbolKind,
+} from "../protocol.gen";
 import { repoName, type ViewState } from "../state";
 import { markWhitespace } from "../syntax";
 
 type FilePreview = Extract<Preview, { kind: "file" }>;
 type CommitPreview = Extract<Preview, { kind: "commit" }>;
 
-/** Definitions listed under a file preview ("In this file: …"). */
-const MAX_OUTLINE_SYMBOLS = 8;
+/** The letter the Outline marks each kind of definition with, as VS Code's Outline marks them with an icon. */
+const OUTLINE_ICON: Record<SymbolKind, string> = {
+  class: "C",
+  interface: "I",
+  type: "T",
+  function: "ƒ",
+  method: "m",
+  other: "◇",
+};
 const DIFF_SIGN = { add: "+", del: "−", ctx: " " } as const;
 
 /** What the preview's buttons do. */
@@ -73,6 +90,11 @@ export function renderPreview(
   const header = { repo: of.repoId ? repoName(state, of.repoId) : "", actions, at: of.at?.label };
   if (preview.kind === "file") {
     renderFilePreview(container, preview, header, {
+      outlineOpen: state.outlineOpen,
+      onToggleOutline: (open) => {
+        state.outlineOpen = open;
+        saveOutlineOpen(open);
+      },
       replacementsFor: handlers.replacementsFor,
       decorate: (code, text, focus) => {
         markWhitespace(code, text, state.ui.renderWhitespace, focus);
@@ -83,6 +105,11 @@ export function renderPreview(
     container.querySelector(".code")?.addEventListener("dblclick", (event) => {
       const position = doubleClicked(event as MouseEvent);
       if (position) handlers.onOpen(current.ref, "side", position);
+    });
+    // A click on a definition in the Outline opens the file beside the panel, at its line.
+    container.querySelector(".outline-pane")?.addEventListener("click", (event) => {
+      const line = Number((event.target as Element).closest<HTMLElement>("[data-line]")?.dataset["line"]);
+      if (Number.isSafeInteger(line)) handlers.onOpen(current.ref, "side", { line, column: 1, length: 0 });
     });
   } else {
     renderCommitPreview(container, preview, header, {
@@ -125,6 +152,9 @@ function compareButton(since: SinceRevision | undefined): HTMLElement {
 
 /** How a file preview draws its lines: as a replace would change them, then decorated (colored, whitespace marked). */
 interface FileLineDrawing {
+  /** Whether the Outline starts open, and what keeps it so when it's toggled. */
+  outlineOpen: boolean;
+  onToggleOutline: (open: boolean) => void;
   replacementsFor: PreviewHandlers["replacementsFor"];
   decorate: (code: HTMLElement, text: string, focus: boolean) => void;
 }
@@ -133,8 +163,11 @@ function renderFilePreview(
   container: HTMLElement,
   preview: FilePreview,
   { repo, actions, at }: PreviewHeader,
-  { replacementsFor, decorate }: FileLineDrawing,
+  { outlineOpen, onToggleOutline, replacementsFor, decorate }: FileLineDrawing,
 ): void {
+  const symbols = preview.symbols ?? [];
+  const outline = symbols.length > 0 ? outlinePane(symbols, preview.focusLine, outlineOpen) : undefined;
+  const toggle = outline ? outlineToggle(outline, symbols.length, onToggleOutline) : null;
   container.append(
     element(
       "div",
@@ -149,6 +182,7 @@ function renderFilePreview(
         ? null
         : element("span", { class: "badge revision", "data-testid": "preview-revision" }, `${at} · read-only`),
       element("span", { class: "muted" }, focusLabel(preview)),
+      toggle,
       actions,
     ),
   );
@@ -177,13 +211,63 @@ function renderFilePreview(
       ),
     );
   }
-  container.append(code);
+  container.append(element("div", { class: "preview-body" }, code, outline ?? null));
   const focus = code.querySelector<HTMLElement>(".focus");
   if (focus) scrollIntoContainer(container, focus, "center");
-  if (preview.symbols && preview.symbols.length > 0) {
-    const names = preview.symbols.slice(0, MAX_OUTLINE_SYMBOLS).map((symbol) => element("code", {}, symbol.name));
-    container.append(element("div", { class: "outline muted" }, "In this file: ", ...names));
-  }
+}
+
+/**
+ * The Outline: every definition in the file, each class, type or interface followed by its members, indented. The
+ * one the focus line is in is marked. Hidden until its toggle opens it.
+ */
+function outlinePane(symbols: OutlineSymbol[], focusLine: number, open: boolean): HTMLElement {
+  let here: OutlineSymbol | undefined;
+  for (const symbol of symbols) if (symbol.line <= focusLine) here = symbol;
+  const rows = symbols.map((symbol) =>
+    element(
+      "button",
+      {
+        type: "button",
+        class: symbol === here ? "outline-row here" : "outline-row",
+        style: `--depth: ${symbol.depth}`,
+        "data-line": String(symbol.line),
+        title: `Open beside the panel at line ${symbol.line}`,
+        "aria-label": `${symbol.name}, ${symbol.kind}, line ${symbol.line}`,
+        ...(symbol === here ? { "aria-current": "true" } : {}),
+      },
+      element("span", { class: `outline-icon kind-${symbol.kind}`, "aria-hidden": "true" }, OUTLINE_ICON[symbol.kind]),
+      element("span", { class: "outline-name" }, symbol.name),
+      element("span", { class: "outline-line", "aria-hidden": "true" }, String(symbol.line)),
+    ),
+  );
+  return element(
+    "nav",
+    { class: "outline-pane", id: "preview-outline", "aria-label": "Outline", hidden: !open },
+    ...rows,
+  );
+}
+
+/** The header button that opens and closes the Outline, with how many definitions it lists. */
+function outlineToggle(outline: HTMLElement, count: number, onToggle: (open: boolean) => void): HTMLElement {
+  const toggle = element(
+    "button",
+    {
+      type: "button",
+      class: "btn outline-toggle",
+      "aria-controls": "preview-outline",
+      "aria-expanded": String(!outline.hidden),
+      "data-testid": "outline-toggle",
+      title: "Show or hide the file's definitions",
+    },
+    "Outline",
+    element("span", { class: "count" }, String(count)),
+  );
+  toggle.addEventListener("click", () => {
+    outline.hidden = !outline.hidden;
+    toggle.setAttribute("aria-expanded", String(!outline.hidden));
+    onToggle(!outline.hidden);
+  });
+  return toggle;
 }
 
 /**

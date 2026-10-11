@@ -399,6 +399,87 @@ test("a double-click in the preview opens its file to the side, at the word doub
   assert.deepEqual(pageErrors(page), []);
 });
 
+/** A file preview of client.py, at line 42 inside RetryClient.charge, with the file's Outline. */
+const PREVIEW_WITH_OUTLINE = {
+  kind: "file",
+  path: "src/payments/client.py",
+  firstLine: 41,
+  lines: ["    def charge(self):", "        self.retry_policy = RetryPolicy()"],
+  focusLine: 42,
+  hits: [{ line: 42, ranges: [{ start: 13, end: 25, termIndex: 0 }] }],
+  dirtyLines: [],
+  symbols: [
+    { name: "RetryClient", line: 30, kind: "class", depth: 0 },
+    { name: "__init__", line: 33, kind: "method", depth: 1 },
+    { name: "charge", line: 41, kind: "method", depth: 1 },
+    { name: "connect", line: 60, kind: "function", depth: 0 },
+  ],
+};
+
+test("the Outline lists the file's definitions, nested, closed until opened; a click opens one to the side", async (t) => {
+  // @covers screen:file-outline
+  const page = await panelWithResults(t);
+  await page.keyboard.press("ArrowDown");
+  await waitForSent(page, "result.select", { ref: "l1" });
+  await fromHost(page, "preview.result", { ref: "l1", preview: PREVIEW_WITH_OUTLINE });
+  const toggle = page.locator('[data-testid="outline-toggle"]');
+  const outline = page.locator('[data-testid="preview"] .outline-pane');
+  assert.equal(await toggle.textContent(), "Outline4");
+  assert.equal(await toggle.getAttribute("aria-expanded"), "false");
+  assert.equal(await outline.isVisible(), false);
+
+  await toggle.click();
+  assert.equal(await toggle.getAttribute("aria-expanded"), "true");
+  assert.equal(await outline.isVisible(), true);
+  const rows = await outline
+    .locator(".outline-row")
+    .evaluateAll((buttons) =>
+      buttons.map((button) => `${button.style.getPropertyValue("--depth")} ${button.getAttribute("aria-label")}`),
+    );
+  assert.deepEqual(rows, [
+    "0 RetryClient, class, line 30",
+    "1 __init__, method, line 33",
+    "1 charge, method, line 41",
+    "0 connect, function, line 60",
+  ]);
+  // The definition the match is in is marked.
+  assert.equal(await outline.locator('[aria-current="true"] .outline-name').textContent(), "charge");
+  // Members sit further right than the class they're in.
+  const left = async (name) =>
+    (await outline.locator(".outline-row", { hasText: name }).locator(".outline-name").boundingBox()).x;
+  assert.ok((await left("__init__")) > (await left("RetryClient")));
+
+  await outline.locator(".outline-row", { hasText: "connect" }).click();
+  assert.deepEqual(await lastSent(page, "result.open"), {
+    ref: "l1",
+    where: "side",
+    position: { line: 60, column: 1, length: 0 },
+  });
+
+  // It stays open for the next file, and across a reload; closing it is kept too.
+  assert.equal(await page.evaluate(() => globalThis.__savedState.outlineOpen), true);
+  await fromHost(page, "preview.result", { ref: "l1", preview: PREVIEW_WITH_OUTLINE });
+  assert.equal(await outline.isVisible(), true);
+  await toggle.click();
+  assert.equal(await outline.isVisible(), false);
+  assert.equal(await page.evaluate(() => globalThis.__savedState.outlineOpen), false);
+  assert.deepEqual(pageErrors(page), []);
+});
+
+test("a file with no definitions has no Outline, and a reload keeps an open Outline open", async (t) => {
+  const page = await openPanelWithSavedState(t, { outlineOpen: true });
+  await restore(page);
+  const seq = await typeAndParse(page, "retry_policy", parsedQuery("retry_policy", textNode("retry_policy", 0)));
+  await fromHost(page, "search.batch", { seq, searchId: "s1", items: [FILE_NAME_RESULT, CODE_LINE_RESULT] });
+  await searchDone(page, seq, { total: 2, ms: 3 });
+  await fromHost(page, "preview.result", { ref: "f1", preview: { ...PREVIEW_WITH_OUTLINE, symbols: [] } });
+  assert.equal(await page.locator('[data-testid="outline-toggle"]').count(), 0);
+  assert.equal(await page.locator(".outline-pane").count(), 0);
+  await fromHost(page, "preview.result", { ref: "f1", preview: PREVIEW_WITH_OUTLINE });
+  assert.equal(await page.locator('[data-testid="preview"] .outline-pane').isVisible(), true);
+  assert.deepEqual(pageErrors(page), []);
+});
+
 test("↑↓ go through the sections top to bottom, in the order their batches came, and stop at either end", async (t) => {
   const page = await panelWithResults(t);
   const { seq } = await lastSent(page, "query.changed");

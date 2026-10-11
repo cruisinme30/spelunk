@@ -811,6 +811,9 @@ ins {
 #preview {
   flex: 1.3 1 0;
   min-width: 0;
+
+  /* Sized by the row it's in, so the Outline can be as tall as what shows of the preview. */
+  container-type: size;
   background: var(--panel-2);
   overflow: auto;
   max-height: 100%;
@@ -1485,13 +1488,112 @@ pre.body {
   border-bottom: 1px solid var(--line);
 }
 
-.outline {
-  padding: 8px 14px;
+/* The Outline: the file's definitions in a column beside the code, which stays in view as the code scrolls. */
+.preview-body {
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+  align-items: flex-start;
+}
+
+.preview-body > .code {
+  flex: 1;
+  min-width: 0;
+}
+
+.outline-toggle .count {
+  color: var(--muted);
+}
+
+.outline-toggle[aria-expanded="true"] {
+  background: var(--sel);
+  color: var(--sel-fg);
+}
+
+.outline-pane {
+  position: sticky;
+  top: 0;
+  flex: none;
+  width: 210px;
+  max-height: 100cqh;
+  overflow-y: auto;
+  padding: 4px 0 8px;
+  border-left: 1px solid var(--line);
   font-size: 12px;
-  border-top: 1px solid var(--line);
+}
+
+.outline-pane[hidden] {
+  display: none;
+}
+
+.outline-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 1px 10px 1px calc(8px + var(--depth, 0) * 14px);
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  line-height: 20px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.outline-row:hover {
+  background: var(--hover);
+}
+
+.outline-row.here {
+  background: var(--sel);
+  color: var(--sel-fg);
+  font-weight: 600;
+}
+
+.outline-icon {
+  width: 14px;
+  flex: none;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.outline-icon.kind-class {
+  color: var(--vscode-symbolIcon-classForeground, #ee9d28);
+}
+
+.outline-icon.kind-interface {
+  color: var(--vscode-symbolIcon-interfaceForeground, #75beff);
+}
+
+.outline-icon.kind-type {
+  color: var(--vscode-symbolIcon-structForeground, #ee9d28);
+}
+
+.outline-icon.kind-function {
+  color: var(--vscode-symbolIcon-functionForeground, #b180d7);
+}
+
+.outline-icon.kind-method {
+  color: var(--vscode-symbolIcon-methodForeground, #b180d7);
+}
+
+.outline-icon.kind-other {
+  color: var(--vscode-symbolIcon-moduleForeground, var(--muted));
+}
+
+.outline-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-family: var(--mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.outline-line {
+  color: var(--muted);
+  font-size: 11px;
 }
 
 /* ===== Empty box: recent queries and the cheat sheet ===== */

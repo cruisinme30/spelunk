@@ -71,6 +71,8 @@ export interface ViewState {
   banner: BannerMessage | undefined;
   /** The width in pixels the divider gave the recent queries; undefined for the default split. */
   recentWidth: number | undefined;
+  /** Whether a file preview shows its Outline beside the code; closed until opened. */
+  outlineOpen: boolean;
   /** Each facet bucket seen, by filter, so a bucket the query leaves out (and so finds nothing) still shows. */
   facetLabels: Map<string, { field: Facet["field"]; label: string }>;
   /** The facets whose "+N" showed every bucket, until the next search. */
@@ -123,6 +125,7 @@ export function createViewState(): ViewState {
     repos: [],
     banner: undefined,
     recentWidth: undefined,
+    outlineOpen: false,
     facetLabels: new Map(),
     expandedFacets: new Set(),
   };

@@ -15,6 +15,11 @@ All notable changes to this project are documented here. The format follows
   the matched line), and code follows `editor.tabSize`, `editor.fontSize` and `editor.fontLigatures`. New settings:
   `spelunk.ui.syntaxHighlighting` (on by default) and `spelunk.ui.renderWhitespace` (`editor` by default, to follow
   the editor).
+- **Outline** in a code preview's header opens a column beside the code listing every definition in the file, as
+  VS Code's Outline does: members under their class, type or interface (a Go method under its receiver's type, a
+  Rust method under its `impl`), a letter for each kind, line numbers, and the definition the match is in marked.
+  A click opens that definition beside the editor. It's closed until you open it, and stays as you leave it. It
+  replaces the "In this file" line, which showed only the first eight names.
 
 ### Fixed
 

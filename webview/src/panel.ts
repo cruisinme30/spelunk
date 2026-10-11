@@ -5,7 +5,7 @@
 // toggles, the repo menu and the facet row all edit the query text, then send an
 // ordinary query.changed.
 import { element, plural, wrapIndex } from "./format";
-import { type HostMessage, loadDraft, loadRecentWidth, onHostMessage, saveDraft, send } from "./host";
+import { type HostMessage, loadDraft, loadOutlineOpen, loadRecentWidth, onHostMessage, saveDraft, send } from "./host";
 import { EmptyBox } from "./emptyBox";
 import { createLayout, type Layout } from "./layout";
 import { pathScope, scopedRepo } from "./parsedQuery";
@@ -121,6 +121,7 @@ export class SearchPanel {
     });
     renderIndexStatus(this.layout, this.state);
     this.state.recentWidth = loadRecentWidth();
+    this.state.outlineOpen = loadOutlineOpen();
     this.showEmptyState();
     const draft = loadDraft();
     if (draft) this.layout.input.value = draft;
