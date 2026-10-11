@@ -74,14 +74,16 @@ func PreviewText(repo *Repo, ref Ref, plan *query.Plan, contextLines int, doc *D
 
 	language := doc.Lang
 	var terms []*query.Content
+	matcher := newFileMatcher(doc, termCache{})
 	// With type:file the words matched the file's name, not its text, so the
 	// text has nothing to mark.
 	if plan != nil && (!ref.IsFile() || plan.Kinds[query.KindLine]) {
-		terms = query.Contributing(plan.Pred, contentLeaf(repo, doc, newFileMatcher(doc, termCache{})))
+		matcher.in = plan.In
+		terms = query.Contributing(plan.Pred, contentLeaf(repo, doc, matcher))
 	}
 	// A term that spans lines is matched against the whole file; the others
-	// line by line, as markLine does.
-	terms, acrossLines := splitAcrossLines(terms, content, language, first, last)
+	// line by line, as markLine does. Both mark only what in: keeps.
+	terms, acrossLines := splitAcrossLines(terms, content, language, first, last, matcher)
 	hits := []protocol.LineHits{}
 	shown := make([]string, 0, last-first+1)
 	for number := first; number <= last; number++ {
@@ -90,7 +92,7 @@ func PreviewText(repo *Repo, ref Ref, plan *query.Plan, contextLines int, doc *D
 		if number == ref.Line {
 			own = &ref
 		}
-		text, ranges := markLine(line, terms, acrossLines[number], own)
+		text, ranges := markLine(line, terms, acrossLines[number], own, matcher.keepsOnLine(number))
 		shown = append(shown, text)
 		if len(ranges) > 0 {
 			hits = append(hits, protocol.LineHits{Line: number, Ranges: ranges})
@@ -197,7 +199,7 @@ const maxPreviewLineRunes = 2_000
 // marked by start, in UTF-16 offsets into the text returned. The history
 // engine shows diff lines with it too.
 func PreviewLine(line string, terms []*query.Content) (string, []protocol.Hit) {
-	text, hits := markLine(line, terms, nil, nil)
+	text, hits := markLine(line, terms, nil, nil, nil)
 	if hits == nil {
 		hits = []protocol.Hit{}
 	}
@@ -208,10 +210,14 @@ func PreviewLine(line string, terms []*query.Content) (string, []protocol.Hit) {
 // matches in the line and the parts of matches across lines already found
 // on it, and when those mark nothing on the result's own line (own, nil on
 // other lines), its ref's match instead.
-func markLine(line string, terms []*query.Content, acrossLines []byteHit, own *Ref) (string, []protocol.Hit) {
+func markLine(line string, terms []*query.Content, acrossLines []byteHit, own *Ref, keep func(start, end int) bool) (string, []protocol.Hit) {
 	hits := slices.Clone(acrossLines)
 	for _, term := range terms {
-		hits = append(hits, lineHits(term, func(n int) [][]int { return term.FindAllStringIndex(line, n) })...)
+		for _, hit := range lineHits(term, func(n int) [][]int { return term.FindAllStringIndex(line, n) }) {
+			if keep == nil || keep(hit.start, hit.end) {
+				hits = append(hits, hit)
+			}
+		}
 	}
 	sortHits(hits)
 	if len(hits) == 0 && own != nil {

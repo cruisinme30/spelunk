@@ -61,7 +61,7 @@ export interface HoleValue {
 }
 
 /** OpName is an operator's name, the part before the colon. */
-export type OpName = "f" | "repo" | "lang" | "type" | "sym" | "kind" | "ref" | "is" | "owner" | "content" | "struct" | "author" | "msg" | "since" | "until" | "at" | "case" | "word" | "match" | "excludes" | "count" | "order";
+export type OpName = "f" | "repo" | "lang" | "type" | "sym" | "kind" | "ref" | "is" | "owner" | "content" | "struct" | "in" | "author" | "msg" | "since" | "until" | "at" | "case" | "word" | "match" | "excludes" | "count" | "order";
 
 /** CaseSetting is how capital letters match when the query has no case: ignored (off), matched (on), or matched only when the query has a capital letter (smart). */
 export type CaseSetting = "off" | "on" | "smart";
@@ -465,7 +465,7 @@ export interface FacetBucket {
 
 /** HiddenNote counts results a filter removed, with a fix that removes the filter. */
 export interface HiddenNote {
-  reason: "not" | "since" | "case" | "word" | "match" | "type" | "pathFilter" | "symbol" | "kind" | "owner" | "excludes";
+  reason: "not" | "since" | "case" | "word" | "match" | "type" | "pathFilter" | "symbol" | "kind" | "owner" | "excludes" | "in";
   /** The filter as typed, e.g. -f:vendor/ */
   filter: string;
   count: number;

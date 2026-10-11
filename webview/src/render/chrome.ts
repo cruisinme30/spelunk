@@ -284,6 +284,9 @@ function chipsFor(node: QueryNode, context: ChipContext): Node[] {
   }
 }
 
+/** How in:'s values read on its chip: in:strings reads "in quoted text". */
+const IN_LABEL: Record<string, string> = { comments: "comments", strings: "quoted text", code: "code only" };
+
 /** How case:'s values read on its chip. */
 const CASE_LABEL: Record<string, string> = { yes: "sensitive", no: "insensitive", smart: "smart" };
 
@@ -292,6 +295,7 @@ function operatorChipValue(node: OperatorNode): string {
   if (node.op === "case") return CASE_LABEL[node.value] ?? node.value;
   if (node.op === "word") return node.value === "yes" ? "whole words" : "parts of words";
   if (node.op === "type") return TYPE_LABEL[node.value] ?? node.value;
+  if (node.op === "in") return IN_LABEL[node.value] ?? node.value;
   return node.value;
 }
 

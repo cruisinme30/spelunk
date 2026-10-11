@@ -88,7 +88,9 @@ func walk(node *protocol.Node, visit func(*protocol.Node)) {
 }
 
 // collectGlobals fills query.Globals from top-level case:, word:, count:,
-// type: and order:, and reports globals that are nested or repeated.
+// type: and order:, and reports globals that are nested or repeated. in:
+// is a global the plan reads itself (see Plan.In), and the one that may
+// be negated at the top level.
 func collectGlobals(src *source, query *protocol.ParsedQuery, problems *diagnostics) {
 	atTop := map[*protocol.Node]bool{}
 	for _, node := range topLevel(query.Root) {
@@ -104,21 +106,8 @@ func collectGlobals(src *source, query *protocol.ParsedQuery, problems *diagnost
 		}
 		written := src.slice(node.Span.Start, node.Span.End)
 		switch {
-		case !atTop[node]:
-			// Moving a negated global drops its minus or NOT: "-count:5" isn't meaningful.
-			removed := node.Span
-			if parent != nil && parent.Kind == protocol.NodeKindNot {
-				removed = parent.Span
-			}
-			// The fix rewrites the whole query, so offering it for each of
-			// many globals in an over-long query would be quadratic; such a
-			// query can't run anyway.
-			fixes := []protocol.Fix{}
-			if src.length() <= maxQueryLength {
-				fixes = append(fixes, moveToTopLevel(src, written, removed))
-			}
-			problems.errorf(DiagGlobalMisplaced, node.Span, fixes,
-				"%s: applies to the whole query, so it can't be inside ( ), after - or NOT, or in an OR branch", node.Op)
+		case !globalAtTop(node, parent, atTop):
+			reportMisplacedGlobal(src, node, parent, problems)
 		case seen[node.Op]:
 			problems.errorf(DiagDuplicateGlobal, node.Span, []protocol.Fix{removeFix("Remove "+written, src, node.Span)},
 				"%s: can appear only once", node.Op)
@@ -127,6 +116,40 @@ func collectGlobals(src *source, query *protocol.ParsedQuery, problems *diagnost
 			setGlobal(&query.Globals, node)
 		}
 	})
+}
+
+// globalAtTop reports whether a global is where it belongs: at the top
+// level, or, for in:, negated there (-in:comments).
+func globalAtTop(node, parent *protocol.Node, atTop map[*protocol.Node]bool) bool {
+	negated := parent != nil && parent.Kind == protocol.NodeKindNot
+	return atTop[node] || (node.Op == protocol.OpNameIn && negated && atTop[parent])
+}
+
+// reportMisplacedGlobal reports a global inside ( ), after - or NOT, or in
+// an OR branch, with a fix that moves it to the top level. Moving a
+// negated global drops its minus or NOT, since "-count:5" isn't
+// meaningful; -in:comments keeps it.
+func reportMisplacedGlobal(src *source, node, parent *protocol.Node, problems *diagnostics) {
+	written := src.slice(node.Span.Start, node.Span.End)
+	removed := node.Span
+	if parent != nil && parent.Kind == protocol.NodeKindNot {
+		removed = parent.Span
+		if node.Op == protocol.OpNameIn {
+			written = src.slice(parent.Span.Start, parent.Span.End)
+		}
+	}
+	// The fix rewrites the whole query, so offering it for each of many
+	// globals in an over-long query would be quadratic; such a query can't
+	// run anyway.
+	fixes := []protocol.Fix{}
+	if src.length() <= maxQueryLength {
+		fixes = append(fixes, moveToTopLevel(src, written, removed))
+	}
+	where := "inside ( ), after - or NOT, or in an OR branch"
+	if node.Op == protocol.OpNameIn {
+		where = "inside ( ) or in an OR branch"
+	}
+	problems.errorf(DiagGlobalMisplaced, node.Span, fixes, "%s: applies to the whole query, so it can't be %s", node.Op, where)
 }
 
 // moveToTopLevel rewrites the whole query as "<global> <rest>", where rest

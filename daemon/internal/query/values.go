@@ -55,7 +55,7 @@ func valueCandidates(op operator, fragment string, resolver Resolver, now time.T
 		return ownerCandidates(fragment, resolver)
 	case protocol.OpNameAt:
 		return atCandidates(fragment, resolver.Tags(), now)
-	case protocol.OpNameType, protocol.OpNameKind, protocol.OpNameCase, protocol.OpNameWord, protocol.OpNameMatch, protocol.OpNameExcludes, protocol.OpNameCount, protocol.OpNameOrder:
+	case protocol.OpNameType, protocol.OpNameKind, protocol.OpNameCase, protocol.OpNameWord, protocol.OpNameMatch, protocol.OpNameExcludes, protocol.OpNameIn, protocol.OpNameCount, protocol.OpNameOrder:
 		return fixedCandidates(fixedValues[op.name], fragment)
 	default:
 		return nil
@@ -875,6 +875,11 @@ var fixedValues = map[protocol.OpName][]fixedValue{
 	protocol.OpNameExcludes: {
 		{"yes", "Leave out what VS Code hides", "The files files.exclude and search.exclude hide, as VS Code's search does"},
 		{"no", "Show what VS Code hides too", "Every indexed file, with the hidden ones marked excluded"},
+	},
+	protocol.OpNameIn: {
+		{InComments, "Inside comments", "// retry later, # TODO and Python docstrings; -in:comments leaves them out"},
+		{InStrings, "Inside quoted text", `"retry budget spent" and other string literals`},
+		{InCode, "In code only", "retryCount++, not the comment or the quotes beside it"},
 	},
 	protocol.OpNameCount: {
 		{"50", "50 results per page", "The quickest first page"},

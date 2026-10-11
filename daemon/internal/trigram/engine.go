@@ -225,6 +225,8 @@ type searcher struct {
 	hiddenByWord int
 	// hiddenByMatch counts the file names match:fuzzy would add.
 	hiddenByMatch int
+	// hiddenByIn counts the matches in: hid, in other parts of files.
+	hiddenByIn int
 	// excludedBy holds the patterns of VS Code's excludes that hid a result
 	// (or, with excludes:no, matched one), and shownExcluded counts the
 	// results those patterns match that excludes:no shows.
@@ -242,8 +244,8 @@ type searcher struct {
 	held      []*pageGroup
 }
 
-// countRelaxed counts what case:yes, word:yes and exact file names hid, by
-// searching again without each.
+// countRelaxed counts what case:yes, word:yes, exact file names and in:
+// hid, by searching again without each.
 func (s *searcher) countRelaxed(ctx context.Context, plan *query.Plan, repos []Repo) {
 	hidden := func(count int, complete bool) int {
 		return engine.HiddenBy(count, complete, s.counted, s.truncated || s.incomplete)
@@ -256,6 +258,9 @@ func (s *searcher) countRelaxed(ctx context.Context, plan *query.Plan, repos []R
 	}
 	if plan.MatchFilter != nil && plan.Kinds[query.KindFile] {
 		s.hiddenByMatch = hidden(engine.CountFuzzyNames(ctx, plan, repos, Search))
+	}
+	if plan.InFilter != nil {
+		s.hiddenByIn = hidden(engine.CountAnywhere(ctx, plan, repos, Search))
 	}
 }
 
@@ -332,7 +337,7 @@ func (s *searcher) add(repo *Repo, doc *Doc, item protocol.ResultItem, score, qu
 func (s *searcher) stats(unit string) engine.Stats {
 	stats := engine.NewStats(s.plan, s.counted, s.truncated || s.incomplete)
 	stats.Facets = s.facets.List()
-	hidden := engine.Hidden{ByFilter: s.hidden, ByCase: s.hiddenByCase, ByWord: s.hiddenByWord, ByType: s.hiddenByType, ByMatch: s.hiddenByMatch}
+	hidden := engine.Hidden{ByFilter: s.hidden, ByCase: s.hiddenByCase, ByWord: s.hiddenByWord, ByType: s.hiddenByType, ByMatch: s.hiddenByMatch, ByIn: s.hiddenByIn}
 	stats.AddHidden(s.plan, hidden, unit, "matches")
 	stats.AddExcludes(s.plan, s.excludedBy, s.shownExcluded, unit)
 	return stats
@@ -812,6 +817,7 @@ func (s *searcher) forEachCandidate(repos []Repo, visit func(c rankedCandidate, 
 			return
 		}
 		matcher := newFileMatcher(c.doc, s.terms)
+		matcher.in = s.plan.In
 		matcher.stop = s.stopped // a long file stops part way, marking the results truncated
 		visit(c, matcher, contentLeaf(c.repo, c.doc, matcher))
 		s.incomplete = s.incomplete || matcher.gaveUp

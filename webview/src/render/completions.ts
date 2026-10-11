@@ -30,6 +30,7 @@ const VALUE_LISTS: Partial<Record<OpName, { heading: string; hint?: string }>> =
   case: { heading: "Case" },
   word: { heading: "Whole words" },
   excludes: { heading: "VS Code's excludes" },
+  in: { heading: "Where matches are", hint: "Negate one to leave it out: -in:comments." },
   is: { heading: "File states", hint: "Negate one to leave those files out: -is:test." },
   count: { heading: "Results per page" },
   order: { heading: "Result order" },

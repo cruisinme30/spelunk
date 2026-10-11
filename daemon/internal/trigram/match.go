@@ -59,6 +59,10 @@ type lineMatcher struct {
 	// lang is the language of a file's text, which struct: terms read it
 	// by; "" for a text in none.
 	lang string
+	// in is the plan's in:, which keeps matches in comments, strings or
+	// code (places.go); inRead is the text read for it.
+	in     query.Places
+	inRead inText
 	// gaveUp is set when a struct: term ran out of steps before the end
 	// of the text, so its matches may be missing some.
 	gaveUp bool
@@ -218,6 +222,7 @@ func (m *lineMatcher) matches(term *query.Content) []matchedLine {
 	default:
 		found = m.everyLine(term)
 	}
+	found = m.keepIn(term, found)
 	if term.Reference && m.definitions != nil {
 		found = withoutDefinitions(found, term, m.definitions())
 	}

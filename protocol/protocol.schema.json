@@ -115,6 +115,7 @@
         "owner",
         "content",
         "struct",
+        "in",
         "author",
         "msg",
         "since",
@@ -1205,7 +1206,20 @@
       "type": "object",
       "properties": {
         "reason": {
-          "enum": ["not", "since", "case", "word", "match", "type", "pathFilter", "symbol", "kind", "owner", "excludes"]
+          "enum": [
+            "not",
+            "since",
+            "case",
+            "word",
+            "match",
+            "type",
+            "pathFilter",
+            "symbol",
+            "kind",
+            "owner",
+            "excludes",
+            "in"
+          ]
         },
         "filter": {
           "type": "string",

@@ -157,6 +157,9 @@ func (m *lineMatcher) matchAcrossLines(term *query.Content) []matchedLine {
 		if m.halted(loc[1] - loc[0] + 1) {
 			break
 		}
+		if m.in != 0 && !m.keeps(loc[0], loc[1]) {
+			continue // in: judges a match across lines as a whole
+		}
 		if match, ok := lines.match(loc[0], loc[1], term.TermIndex); ok {
 			found = append(found, match)
 		}
@@ -252,15 +255,17 @@ func (x lineIndex) match(start, end, termIndex int) (match matchedLine, ok bool)
 // with \n, or a struct: template, read as language), returning the rest and,
 // by line number, the parts of the taken terms' matches on lines first to
 // last of content.
-func splitAcrossLines(terms []*query.Content, content []byte, language string, first, last int) ([]*query.Content, map[int][]byteHit) {
+func splitAcrossLines(terms []*query.Content, content []byte, language string, first, last int, m *lineMatcher) ([]*query.Content, map[int][]byteHit) {
 	acrossLines := map[int][]byteHit{}
 	rest := slices.DeleteFunc(slices.Clone(terms), func(term *query.Content) bool {
 		var found map[int][]byteHit
 		switch {
+		case term.Structural != nil && !m.keepsStructure():
+			// in: leaves out code, all a template matches
 		case term.Structural != nil:
 			found = hitsOfStructure(lfText(content), term, language, first, last)
 		case term.Multiline:
-			found = hitsAcrossLines(lfText(content), term, first, last)
+			found = hitsAcrossLines(lfText(content), term, first, last, m)
 		default:
 			return false
 		}
@@ -275,11 +280,11 @@ func splitAcrossLines(terms []*query.Content, content []byte, language string, f
 // hitsAcrossLines returns, by line number, the parts of term's matches
 // that fall on lines first to last (1-based) of text, a text whose lines
 // end in "\n" alone. A preview marks a match that spans lines with them.
-func hitsAcrossLines(text []byte, term *query.Content, first, last int) map[int][]byteHit {
+func hitsAcrossLines(text []byte, term *query.Content, first, last int, m *lineMatcher) map[int][]byteHit {
 	lines := newLineIndex(text)
 	hits := map[int][]byteHit{}
 	for _, loc := range term.FindAllIndex(text, -1) {
-		if loc[0] == loc[1] {
+		if loc[0] == loc[1] || (m.in != 0 && !m.keeps(loc[0], loc[1])) {
 			continue
 		}
 		for i := max(lines.of(loc[0]), first-1); i <= min(lines.of(loc[1]-1), last-1); i++ {

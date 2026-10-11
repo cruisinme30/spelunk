@@ -42,7 +42,7 @@ func Replacements(ctx context.Context, plan *query.Plan, repos []Repo, term *que
 				continue // what a notebook cell printed; running the cell writes it
 			}
 			text := line.text // decodeText already dropped any byte order mark
-			edits := replaceEdits(term, text, replacement)
+			edits := replaceEdits(term, text, replacement, matcher.keepsOnLine(line.number))
 			if len(edits) == 0 {
 				continue // another term's line, or only empty matches
 			}
@@ -89,14 +89,15 @@ func excludedEdits(visible *query.And, leaf func(query.Pred) bool, matcher *line
 	}
 	count := 0
 	for _, line := range matcher.lines(query.Contributing(visible, leaf)) {
-		count += len(replaceEdits(term, line.text, replacement))
+		count += len(replaceEdits(term, line.text, replacement, matcher.keepsOnLine(line.number)))
 	}
 	return count
 }
 
 // replaceEdits replaces every non-empty match of term in text, a line
-// without its line end. Unlike a result's hits, matches aren't capped.
-func replaceEdits(term *query.Content, text, replacement string) []protocol.ReplaceEdit {
+// without its line end, that keep (in:, when set) keeps. Unlike a
+// result's hits, matches aren't capped.
+func replaceEdits(term *query.Content, text, replacement string, keep func(start, end int) bool) []protocol.ReplaceEdit {
 	line := []byte(text)
 	var groups [][]int
 	if term.Literal == "" && strings.Contains(replacement, "$") {
@@ -104,7 +105,7 @@ func replaceEdits(term *query.Content, text, replacement string) []protocol.Repl
 	}
 	var edits []protocol.ReplaceEdit
 	for _, loc := range term.FindAllIndex(line, -1) {
-		if loc[1] <= loc[0] {
+		if loc[1] <= loc[0] || (keep != nil && !keep(loc[0], loc[1])) {
 			continue
 		}
 		newText := replacement

@@ -100,6 +100,7 @@ const (
 	OpNameOwner    OpName = "owner"
 	OpNameContent  OpName = "content"
 	OpNameStruct   OpName = "struct"
+	OpNameIn       OpName = "in"
 	OpNameAuthor   OpName = "author"
 	OpNameMsg      OpName = "msg"
 	OpNameSince    OpName = "since"

@@ -59,6 +59,7 @@ var operators = []operator{
 	{name: protocol.OpNameOwner, full: "owner", scope: scopeWorkingTreeOnly, summary: "Code owner", interpret: asOwner},
 	{name: protocol.OpNameContent, full: "content", summary: "File text only", examples: []string{"retry", `"read timeout"`, "/Retry(Policy)?/"}, interpret: asText},
 	{name: protocol.OpNameStruct, full: "struct", scope: scopeWorkingTreeOnly, summary: "Structural search", interpret: asTemplate},
+	{name: protocol.OpNameIn, full: "in", global: true, scope: scopeWorkingTreeOnly, summary: "Where matches are", examples: fixedValueNames(protocol.OpNameIn), interpret: oneOf(fixedValueNames(protocol.OpNameIn)...)},
 	{name: protocol.OpNameLang, full: "language", short: "lang", summary: "Programming language", examples: []string{"python", "go", "typescript"}, interpret: asLanguage},
 	{name: protocol.OpNameRepo, full: "repo", summary: "Repos to search", interpret: asPathRegex},
 	{name: protocol.OpNameMsg, full: "message", short: "msg", scope: scopeHistoryOnly, summary: "Message text", interpret: asText},

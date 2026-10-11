@@ -124,6 +124,14 @@ type Plan struct {
 	// engines mark those files' results excluded and count them. Nil when
 	// no folder has any.
 	Excludes *excludes.Set
+	// In limits text matches to the comments, strings or code of each
+	// file (in:, -in:), each match judged on its own; zero means anywhere.
+	// Prose files (structural.IsProse) have none of these, so in: leaves
+	// their matches alone.
+	In Places
+	// InFilter is set with In, so engines can count the matches it hid
+	// ("12 matches hidden by in:comments").
+	InFilter *Filter
 	// ShownFilter is set when the query says excludes:no and VS Code's
 	// excludes hide something: its undo takes excludes:no out.
 	ShownFilter *Filter
@@ -414,8 +422,10 @@ func NewPlan(q protocol.ParsedQuery, settings protocol.Settings, now time.Time, 
 	plan.SymbolFilter = symbolFilter(q.Root, src)
 	plan.lookInsideDefinitions()
 	plan.addExcludes(q, settings, src)
+	plan.addIn(q.Root, src)
 	plan.addMatchFilter(q)
-	return plan, append(historyScanWarnings(plan), emptyWindowWarnings(q.Root, src, now)...), nil
+	warnings := append(historyScanWarnings(plan), emptyWindowWarnings(q.Root, src, now)...)
+	return plan, append(warnings, inWarnings(q.Root, src, plan)...), nil
 }
 
 // emptyWindowWarnings warns when a top-level until: ends before a
@@ -596,7 +606,8 @@ func fuzzyNames(query, setting string) bool {
 // file names by its letters: its undo turns match:exact into match:fuzzy,
 // or adds match:fuzzy.
 func (p *Plan) addMatchFilter(q protocol.ParsedQuery) {
-	if p.Fuzzy || !slices.ContainsFunc(p.Terms, func(c *Content) bool { return c != nil && c.FuzzyWord }) {
+	// in: searches file text only, so no file names are left to find.
+	if p.Fuzzy || p.In != 0 || !slices.ContainsFunc(p.Terms, func(c *Content) bool { return c != nil && c.FuzzyWord }) {
 		return
 	}
 	undo := insertFix("Show them", 0, "match:fuzzy ")
@@ -814,7 +825,7 @@ func (l *lowering) lowerOperator(node *protocol.Node) Pred {
 	case protocol.OpNameUntil:
 		// Changes up to the end are those not since it, so engines need no until:.
 		return &Not{Kid: &Since{After: until(l.now, node.Value)}}
-	default: // case:, word:, count:, type:, order:, at: shape the plan, not the predicate
+	default: // case:, word:, count:, type:, order:, at:, in: shape the plan, not the predicate
 		return nil
 	}
 }
@@ -1123,6 +1134,7 @@ func (p *Plan) OnEitherSide() *Plan {
 func (p *Plan) relaxed(term func(*Content), re func(*regexp.Regexp) *regexp.Regexp) *Plan {
 	copied := *p
 	copied.Filters, copied.TypeFilter, copied.CaseFilter, copied.WordFilter, copied.MatchFilter = nil, nil, nil, nil, nil
+	copied.InFilter = nil
 	r := relaxer{term: term, re: re, terms: map[*Content]*Content{}}
 	if r.re == nil {
 		r.re = func(re *regexp.Regexp) *regexp.Regexp { return re }

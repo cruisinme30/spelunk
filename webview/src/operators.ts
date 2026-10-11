@@ -30,7 +30,7 @@ export interface OperatorGroup {
   entries: OperatorEntry[];
 }
 
-/** Every operator and piece of syntax: 27 entries in five groups. */
+/** Every operator and piece of syntax: 29 entries in five groups. */
 export const OPERATOR_GROUPS: OperatorGroup[] = [
   {
     name: "Matching",
@@ -85,6 +85,15 @@ export const OPERATOR_GROUPS: OperatorGroup[] = [
         description:
           "Find code by its shape. The template is code with holes: backoff(:[call], tries=:[n]) finds every call of backoff with a tries= argument last, however it is laid out over lines, and a hole takes whole arguments, brackets and all. Spaces don't matter except between words, and code in comments and strings, read by each file's language, never matches. A name used twice must take the same code, so if :[x] == :[x] { finds a value compared with itself; :[_] takes anything. Current files only, and replace can't change it.",
         example: 'struct:"backoff(:[call], tries=:[n])"',
+      },
+      {
+        operator: "in",
+        label: "in:comments|strings|code",
+        insert: "in:comments ",
+        summary: "Matches inside comments, inside quoted text, or in code. -in: leaves one out.",
+        description:
+          "Keep only the matches inside comments (Python docstrings too), inside quoted text, or in code outside both, read by each file's language. Each match counts on its own, so on retryCount++; // retry again, in:comments marks only the second retry, and Replace changes only that one. -in:comments keeps everything outside comments. Plain text and Markdown have no code, so every in: keeps their matches. Current files only.",
+        example: "in:comments retry",
       },
     ],
   },
@@ -303,6 +312,7 @@ export const OPERATOR_TONE: Record<OpName, Tone> = {
   case: "match",
   word: "match",
   match: "match",
+  in: "match",
   excludes: "scope",
   f: "scope",
   repo: "scope",
@@ -340,6 +350,7 @@ const OPERATOR_NAMES: Record<OpName, { full: string; short: string }> = {
   owner: { full: "owner", short: "" },
   content: { full: "content", short: "" },
   struct: { full: "struct", short: "" },
+  in: { full: "in", short: "" },
   author: { full: "author", short: "a" },
   msg: { full: "message", short: "msg" },
   since: { full: "since", short: "" },

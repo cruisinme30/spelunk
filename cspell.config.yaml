@@ -55,6 +55,8 @@ words:
   - creatordate
   - diataxis
   - Diátaxis
+  - docstring
+  - docstrings
   - ebnf
   - fsnotify
   - gitignore
