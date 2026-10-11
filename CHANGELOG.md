@@ -89,6 +89,8 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- Show them, under a note for a left-out group such as `NOT (parse OR lex)`, left its closing parenthesis behind
+  and broke the query. It now removes the whole group.
 - Replace in a Jupyter notebook edited its JSON, so a replacement with a quote or a backslash left a notebook VS Code
   couldn't open, and it changed what cells had printed. It now edits the cells, through the notebook editor.
 - When a daemon that stopped answering was restarted, the searches waiting on it could fail with "write EPIPE"

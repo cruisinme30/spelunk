@@ -205,7 +205,10 @@ func (p *parser) parseUnary() *protocol.Node {
 	if operand == nil {
 		return nil
 	}
-	return &protocol.Node{Kind: protocol.NodeKindNot, Child: operand, Span: protocol.Span{Start: negation.start, End: operand.Span.End}}
+	// The negation runs to the last token its operand took, so -(a OR b)
+	// takes in the closing parenthesis that its group's span leaves out.
+	last := p.tokens[p.pos-1]
+	return &protocol.Node{Kind: protocol.NodeKindNot, Child: operand, Span: protocol.Span{Start: negation.start, End: max(operand.Span.End, last.end)}}
 }
 
 func (p *parser) parsePrimary() *protocol.Node {

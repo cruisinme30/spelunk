@@ -425,6 +425,22 @@ func TestFiltersThatCanHideResultsCarryAnUndo(t *testing.T) {
 	}
 }
 
+func TestALeftOutGroupIsUndoneWhole(t *testing.T) {
+	for _, text := range []string{"kind:function NOT (parse OR lex) file:query/", "kind:function -(parse OR lex) file:query/"} {
+		plan := mustPlan(t, text, defaultSettings)
+		var got []string
+		for _, f := range plan.Filters {
+			if f.Reason == "not" {
+				got = append(got, f.Text+"→"+ApplyFix(text, f.Undo))
+			}
+		}
+		group := text[len("kind:function ") : len(text)-len(" file:query/")]
+		if want := group + "→kind:function file:query/"; len(got) != 1 || got[0] != want {
+			t.Errorf("%s: not filters = %q, want [%q]", text, got, want)
+		}
+	}
+}
+
 func TestTypeSetsTypeFilterWithAnUndo(t *testing.T) {
 	text := "type:file lang:python retry"
 	plan := mustPlan(t, text, defaultSettings)
