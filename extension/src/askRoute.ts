@@ -8,7 +8,7 @@ export interface AskOptions {
   setup(): Promise<AskSetup>;
   /** spelunk.ask.shareNames: whether the repo and team names go with the question. */
   shareNames(): boolean;
-  /** Asks the user for the API key (Spelunk: Set Anthropic API Key). */
+  /** Asks the user for the API key (Spelunk: Set or Change Anthropic API Key). */
   setKey(): Promise<void>;
 }
 

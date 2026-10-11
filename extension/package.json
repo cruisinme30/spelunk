@@ -235,7 +235,7 @@
       },
       {
         "command": "spelunk.setAnthropicApiKey",
-        "title": "Set Anthropic API Key",
+        "title": "Set or Change Anthropic API Key",
         "category": "Spelunk"
       },
       {
@@ -1092,15 +1092,18 @@
               "Anthropic's Claude turns the question into a Spelunk query (needs an API key: Spelunk: Set Anthropic API Key)."
             ],
             "default": "off",
-            "markdownDescription": "Who turns a question in plain words into a Spelunk query. Type a question ending in `?`, or press Ask: the query it becomes shows under the box and runs. Only the question goes to the provider, never your code."
+            "order": 1,
+            "markdownDescription": "Who turns a question in plain words into a Spelunk query. Type a question ending in `?`, or press Generate query: the query it becomes shows under the box and runs. Only the question goes to the provider, never your code. [Set or change your Anthropic API key](command:spelunk.setAnthropicApiKey)."
           },
           "spelunk.ask.model": {
             "type": "string",
+            "order": 2,
             "default": "claude-opus-5-5",
             "markdownDescription": "[Choose from your Anthropic models](command:spelunk.chooseAskModel): a list of the models your API key can use, fetched from Anthropic, with the effort levels each takes. Or type a model name: `claude-opus-5-5` is the default; `claude-haiku-4-5` answers faster and costs less."
           },
           "spelunk.ask.effort": {
             "type": "string",
+            "order": 3,
             "enum": [
               "low",
               "medium",
@@ -1118,6 +1121,7 @@
           },
           "spelunk.ask.shareNames": {
             "type": "boolean",
+            "order": 4,
             "default": true,
             "markdownDescription": "Send the repo names and the CODEOWNERS team names with the question, so a query can name them (`repo:web`, `owner:payments-core`). Off, the question goes alone."
           }

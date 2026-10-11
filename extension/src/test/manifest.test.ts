@@ -28,7 +28,7 @@ interface Manifest {
       title: string;
       properties: Record<
         string,
-        { enum?: string[]; deprecationMessage?: string; scope?: string; markdownDescription?: string }
+        { enum?: string[]; deprecationMessage?: string; scope?: string; markdownDescription?: string; order?: number }
       >;
     }[];
   };
@@ -197,10 +197,10 @@ test("Search in Folder is on the Explorer's right-click menu for local folders, 
   assert.equal(palette?.when, "false", "it needs a folder, which only the Explorer gives");
 });
 
-test("Ask has its own settings section, and Set Anthropic API Key is in the Command Palette", () => {
+test("Ask has its own settings section, and Set or Change Anthropic API Key is in the Command Palette", () => {
   // @covers command:setAnthropicApiKey
   const command = manifest.contributes.commands.find((entry) => entry.command === "spelunk.setAnthropicApiKey");
-  assert.equal(command?.title, "Set Anthropic API Key");
+  assert.equal(command?.title, "Set or Change Anthropic API Key");
   const palette = manifest.contributes.menus.commandPalette.find(
     (item) => item.command === "spelunk.setAnthropicApiKey",
   );
@@ -209,6 +209,17 @@ test("Ask has its own settings section, and Set Anthropic API Key is in the Comm
   const choose = manifest.contributes.commands.find((entry) => entry.command === "spelunk.chooseAskModel");
   assert.equal(choose?.title, "Choose Ask Model");
   const section = manifest.contributes.configuration.find((entry) => entry.title === "Ask in plain words");
+  // Settings show in the order they're set up: provider (with the key), model, effort, names.
+  const order = Object.entries(section?.properties ?? {}).map(([key, value]) => [key, value.order]);
+  assert.deepEqual(order, [
+    ["spelunk.ask.provider", 1],
+    ["spelunk.ask.model", 2],
+    ["spelunk.ask.effort", 3],
+    ["spelunk.ask.shareNames", 4],
+  ]);
+  assert.ok(
+    section?.properties["spelunk.ask.provider"]?.markdownDescription?.includes("(command:spelunk.setAnthropicApiKey)"),
+  );
   // The model and effort settings link to the live list of the key's models.
   for (const key of ["spelunk.ask.model", "spelunk.ask.effort"]) {
     const description = section?.properties[key]?.markdownDescription ?? "";

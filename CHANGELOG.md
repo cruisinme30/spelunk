@@ -13,14 +13,14 @@ All notable changes to this project are documented here. The format follows
   button, and Spelunk writes the query for you, shows it under the box (**You asked** … · **Searched as** …, with what
   it had to assume) and runs it. A question about who changed something, or when, becomes a history search; when the
   query finds nothing, **Broaden** asks for one looser query. The provider is Anthropic's Claude
-  (`spelunk.ask.provider`, off by default; **Spelunk: Set Anthropic API Key** keeps the key in VS Code's secret storage
-  and turns Ask on); only the question, the repo names and the CODEOWNERS team names go to it (`spelunk.ask.shareNames`
-  sends the question alone), never your code. `spelunk.ask.model` picks the model and `spelunk.ask.effort` how long it
-  thinks; **Spelunk: Choose Ask Model** lists the models your key can use, with the effort levels each takes, and sets
-  both; the Model setting links to that list. A question too vague to search without guessing ("where are other files?")
-  gets a question back (**Spelunk asks** "Other than which files?") instead of a made-up query, and **Edit question**
-  puts your words back as typed. The daemon's parser checks every query it writes, and a query that doesn't parse goes
-  back once for a repair.
+  (`spelunk.ask.provider`, off by default; **Spelunk: Set or Change Anthropic API Key** keeps the key in VS Code's
+  secret storage, turns Ask on, and replaces or removes a saved key); only the question, the repo names and the
+  CODEOWNERS team names go to it (`spelunk.ask.shareNames` sends the question alone), never your code.
+  `spelunk.ask.model` picks the model and `spelunk.ask.effort` how long it thinks; **Spelunk: Choose Ask Model** lists
+  the models your key can use, with the effort levels each takes, and sets both; the Model setting links to that list. A
+  question too vague to search without guessing ("where are other files?") gets a question back (**Spelunk asks** "Other
+  than which files?") instead of a made-up query, and **Edit question** puts your words back as typed. The daemon's
+  parser checks every query it writes, and a query that doesn't parse goes back once for a repair.
 - **History follows files through renames.** `file:retry_policy.py` finds a file's commits under every name it had,
   each saying what the file is called now, and marks the commits that renamed it. A commit that only moved a file no
   longer counts every line as added, so `type:added` finds the commit that wrote a line. A search at an old release

@@ -26,14 +26,17 @@ export async function askSetup(context: vscode.ExtensionContext): Promise<AskSet
 }
 
 /**
- * Spelunk: Set Anthropic API Key. Asks for the key, keeps it in secret
+ * Spelunk: Set or Change Anthropic API Key. Asks for the key, keeps it in secret
  * storage, and turns Ask on when it was off: setting the key is asking
  * for it. An empty key removes the one kept.
  */
 export async function setAnthropicApiKey(context: vscode.ExtensionContext): Promise<void> {
+  const saved = await context.secrets.get(ANTHROPIC_KEY_SECRET);
   const apiKey = await vscode.window.showInputBox({
-    title: "Anthropic API key for Spelunk's Ask",
-    prompt: "Kept in VS Code's secret storage on this computer. Only your questions go to Anthropic, never your code.",
+    title: saved ? "Change the Anthropic API key for Spelunk's Ask" : "Anthropic API key for Spelunk's Ask",
+    prompt: saved
+      ? `A key ending in …${saved.slice(-4)} is saved. Enter a new one to replace it, or leave this empty to remove it.`
+      : "Kept in VS Code's secret storage on this computer. Only your questions go to Anthropic, never your code.",
     placeHolder: "sk-ant-…",
     password: true,
     ignoreFocusOut: true,
@@ -52,7 +55,7 @@ export async function setAnthropicApiKey(context: vscode.ExtensionContext): Prom
   );
 }
 
-/** Ask's commands: Set Anthropic API Key and Choose Ask Model. */
+/** Ask's commands: Set or Change Anthropic API Key and Choose Ask Model. */
 export function askCommands(context: vscode.ExtensionContext): vscode.Disposable[] {
   return [
     vscode.commands.registerCommand("spelunk.setAnthropicApiKey", () => setAnthropicApiKey(context)),
