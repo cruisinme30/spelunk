@@ -23,6 +23,10 @@ All notable changes to this project are documented here. The format follows
 - The line between the results and the preview, and the Outline's left edge, can be dragged (or focused and moved
   with ← →) to resize them; a double-click resets either, and both widths are remembered, as the empty box's divider
   already was.
+- Resting the mouse on any icon in the panel (⇄, Aa, the gear, ±1, Outline, a recent query's star or ×, a pinned
+  query's bell or pencil...) shows its name in a third of a second, in the theme's hover colors. VS Code's webviews
+  show no tooltips of their own, so these names were never seen before. The magnifying glass and the Replace row's
+  icon have names now too.
 
 ### Fixed
 

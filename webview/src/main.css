@@ -2427,3 +2427,22 @@ pre.body {
 .ws-tab::before {
   content: "→";
 }
+
+/* ===== Hover labels ===== */
+
+/* The name a control shows when the mouse rests on it (hoverLabel.ts), in VS Code's hover colors. */
+.hover-label {
+  position: fixed;
+  z-index: 100;
+  max-width: min(360px, calc(100vw - 8px));
+  padding: 3px 7px;
+  color: var(--vscode-editorHoverWidget-foreground, var(--fg));
+  background: var(--vscode-editorHoverWidget-background, var(--panel));
+  border: 1px solid var(--vscode-editorHoverWidget-border, var(--border));
+  border-radius: 4px;
+  box-shadow: 0 2px 8px var(--vscode-widget-shadow, rgb(0 0 0 / 36%));
+  font-size: 12px;
+  line-height: 1.4;
+  white-space: normal;
+  pointer-events: none;
+}
