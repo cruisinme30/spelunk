@@ -803,3 +803,51 @@ counts what it hid by searching again without it. Current files only.
   --theme "Dark Modern" --height 800 --query 'retry in:comments'` (`retry in:code f:src/api/retry.ts --select 1`, and
   `retry in:comments f:src/api/retry.ts --replace retries`). The operator sheet and help page screenshots
   (`empty-box-recent-and-operators.png`, `help-page.png`) are retaken with the new entry.
+
+## History through renames and merged branches (2.1)
+
+Mock 59 (`history-renames`): history reads renames (`git log --find-renames`), so a rename is one change that adds
+and removes only the lines it edited, and each changed file keeps its old path in the commit that renamed it and its
+name now. Names are given newest first as commits are read (`history.names`): a rename hands the old path to the
+older commits of the file now called by the new name, and a file created at a path ends that path's link to newer
+names. An update that brings in a rename names the older commits again, copying only the segments whose names
+change. `file:` matches a commit's file by any of the three names, so `-file:` leaves out the older names too. Copies
+aren't followed (`--find-copies-harder` was 41 times slower on the Linux kernel's last 100 commits, and then gave up).
+`at:` reads which files Git sees renamed between the revision and HEAD with the revision's files: such a file is
+`renamed` since, with `renamedTo`, and `file:` finds it by its name now. `spelunk.index.mergedBranches` (off by
+default) reads the commits each first-parent merge brought in, in landed order (`history/merges.go`: the branch's
+first-parent line in the window, then `git rev-list --parents --timestamp` over what landed after the commit before
+it, walked oldest first so each commit belongs to the first merge that brought it), through `git log
+--no-walk=unsorted --stdin --remerge-diff`: each merge holds only what it changed itself, a resolved conflict's lines
+marked `resolution` without its two sides. A merged-in commit carries its merge and when it was committed, which
+`since:`, `until:`, the result order, the month facet, the history window and a file's last commit go by. Git older
+than 2.36 keeps the first-parent line. The saved history format is 6.
+
+| Linux kernel, last 2 years | Commits | Read in | First searchable | Memory after | Peak | Saved | Load |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Before (first parents, no renames) | 5,707 | 50.4 s | 3.1 s | 584 MB | 2.97 GB | 389 MB | 4.0 s |
+| Renames (the default now) | 5,702 | 56.3 s | 3.7 s | 535 MB | 2.67 GB | 344 MB | 3.4 s |
+| Renames and `index.mergedBranches` | 175,670 | 2 min 13 s | 0.7 s | 1,826 MB | 5.45 GB | 530 MB | 10.5 s |
+
+On spelunk's own history (727 commits, one merge) each configuration reads in under 2 s, 20 MB in memory, 5 MB saved.
+The "before" row was measured on the same clone with the code before this change; the merged-branch run reads the
+first segment fast because the branch's newest merge and its commits come first.
+
+- Daemon: `daemon/internal/history/renames_test.go` (a rename as one change with its old path; `file:` through two
+  renames, an old name, `-file:`; a copy and a rewrite; a path taken over after a rename; an update naming older
+  commits without touching the store it started from; the preview of a rename),
+  `daemon/internal/history/merges_test.go` (landed order and each commit's merge; `author:`, a branch-only line,
+  `since:` and `until:` by landing, a conflict's resolution, an octopus merge, against the first-parent default; the
+  merge's preview; an update bringing in a new merge's branch; Git versions) and
+  `daemon/internal/server/revisions_test.go` (`at:` renamed since, and `file:` by the name now).
+- Host: `extension/src/test/settings.test.ts` (`index.mergedBranches` reaches the daemon, off by default).
+- Panel: `webview/test/historyRenames.test.mjs` (a rename's row, a file's name now, the mode chip, a pure rename's
+  preview, the merge, merged-in and conflict badges, a merge with no changes of its own) and
+  `webview/test/pastRevision.test.mjs` (the renamed-since badge and its tooltip).
+- Built: `docs/dev/proof/history-renames.png` (`file:retry_policy.py type:commit --select 1`),
+  `history-renames-merged.png` (`author:bob type:commit` with `--setting index.mergedBranches=true`) and
+  `history-renames-at.png` (`at:v0.1.0 next_delay`), from `node scripts/screenshotPanel.mjs --theme "Dark Modern"
+  --height 800 --workspace <a copy of testdata/workspace whose payments-api history renames backoff.py to policy.py
+  with an edit and then to retry_policy.py, tags v0.1.0 before the renames, copies a test file, rewrites
+  exceptions.py as errors.py, merges Bob's two-commit branch two days ago over a conflicting edit, and merges three
+  one-commit branches in an octopus merge; its files end as the fixture's>`.
