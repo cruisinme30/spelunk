@@ -9,12 +9,15 @@ import {
   type AskRequest,
   EXAMPLES,
   effortFor,
+  effortLevelsOf,
   fakeProviderFromEnvironment,
   parseAnswer,
   systemPrompt,
   userPrompt,
 } from "../ask";
+import type Anthropic from "@anthropic-ai/sdk";
 import type { ParsedQuery } from "../protocol.gen";
+import type { AskEffort } from "../settings";
 
 /** A parsed query with no diagnostics, or with one error. */
 function parsed(raw: string, error?: string): ParsedQuery {
@@ -182,13 +185,42 @@ test("a provider's answer is read out of whatever wraps it", () => {
   assert.throws(() => parseAnswer('{"explanation":"e","assumptions":[]}'), /without a query/);
 });
 
-test("the effort setting goes to models that take it, and not to Claude 4.5 or older", () => {
+test("the effort sent is the one asked for when the model takes it, else the nearest, or none", () => {
   // @covers setting:ask.effort
-  assert.deepEqual(effortFor("claude-opus-5-5", "high"), { effort: "high" });
-  assert.deepEqual(effortFor("claude-sonnet-5", "medium"), { effort: "medium" });
-  assert.deepEqual(effortFor("claude-haiku-4-5", "high"), {});
-  assert.deepEqual(effortFor("claude-sonnet-4-5-20250929", "low"), {});
-  assert.deepEqual(effortFor("claude-3-5-haiku-latest", "low"), {});
+  const all = new Set<AskEffort>(["low", "medium", "high", "max"]);
+  assert.deepEqual(effortFor(all, "high"), { effort: "high" });
+  // Claude 4.5 and older take no effort at all.
+  assert.deepEqual(effortFor(new Set(), "high"), {});
+  // A model without "max" gets the nearest level it has.
+  assert.deepEqual(effortFor(new Set<AskEffort>(["low", "medium", "high"]), "max"), { effort: "high" });
+  assert.deepEqual(effortFor(new Set<AskEffort>(["medium"]), "low"), { effort: "medium" });
+  // When Anthropic couldn't be asked, the setting goes as is.
+  assert.deepEqual(effortFor(undefined, "medium"), { effort: "medium" });
+});
+
+const YES = { supported: true };
+
+test("the effort levels of a model come from Anthropic's models API, once per model", async () => {
+  // @covers setting:ask.effort
+  let calls = 0;
+  const client = {
+    models: {
+      retrieve: (id: string) => {
+        calls += 1;
+        if (id === "unknown") return Promise.reject(new Error("not found"));
+        return Promise.resolve({
+          capabilities: {
+            effort: { low: YES, medium: YES, high: YES, max: id === "big" ? YES : { supported: false } },
+          },
+        });
+      },
+    },
+  } as unknown as Pick<Anthropic, "models">;
+  assert.deepEqual([...((await effortLevelsOf(client, "big")) ?? [])], ["low", "medium", "high", "max"]);
+  assert.deepEqual([...((await effortLevelsOf(client, "small")) ?? [])], ["low", "medium", "high"]);
+  assert.equal(await effortLevelsOf(client, "unknown"), undefined);
+  await effortLevelsOf(client, "big");
+  assert.equal(calls, 3, "each model is asked about once");
 });
 
 test("the fake provider of test builds answers from SPELUNK_ASK_FAKE, by question and by retry", async () => {

@@ -202,6 +202,9 @@ test("Ask has its own settings section, and Set Anthropic API Key is in the Comm
     (item) => item.command === "spelunk.setAnthropicApiKey",
   );
   assert.equal(palette, undefined, "always offered: the key can be set before Ask is turned on");
+  // @covers command:chooseAskModel
+  const choose = manifest.contributes.commands.find((entry) => entry.command === "spelunk.chooseAskModel");
+  assert.equal(choose?.title, "Choose Ask Model");
   const section = manifest.contributes.configuration.find((entry) => entry.title === "Ask in plain words");
   assert.deepEqual(Object.keys(section?.properties ?? {}), [
     "spelunk.ask.provider",

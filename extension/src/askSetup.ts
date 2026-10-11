@@ -1,8 +1,10 @@
 // How Ask is set up in VS Code: the spelunk.ask.* settings, the Anthropic
-// API key in secret storage, and the command that sets it.
+// API key in secret storage, the command that sets it, and the command that
+// picks the model and effort from what Anthropic lists for the key.
+import Anthropic from "@anthropic-ai/sdk";
 import * as vscode from "vscode";
 import { type AskSetup, anthropicProvider, fakeProviderFromEnvironment } from "./ask";
-import { askSettings } from "./settings";
+import { ASK_EFFORTS, type AskEffort, askSettings } from "./settings";
 
 /** Where the Anthropic API key is kept: VS Code's secret storage, never a settings file. */
 const ANTHROPIC_KEY_SECRET = "spelunk.ask.anthropicApiKey";
@@ -47,5 +49,85 @@ export async function setAnthropicApiKey(context: vscode.ExtensionContext): Prom
   if (turnedOn) await configuration().update("ask.provider", "anthropic", vscode.ConfigurationTarget.Global);
   void vscode.window.showInformationMessage(
     turnedOn ? "Saved the key and turned Ask on: end a question with ? or press Ask." : "Saved the Anthropic API key.",
+  );
+}
+
+/** Ask's commands: Set Anthropic API Key and Choose Ask Model. */
+export function askCommands(context: vscode.ExtensionContext): vscode.Disposable[] {
+  return [
+    vscode.commands.registerCommand("spelunk.setAnthropicApiKey", () => setAnthropicApiKey(context)),
+    vscode.commands.registerCommand("spelunk.chooseAskModel", () => chooseAskModel(context)),
+  ];
+}
+
+/** A model Anthropic lists for the key, as the picker shows it. */
+interface ModelPick extends vscode.QuickPickItem {
+  id: string;
+  levels: AskEffort[];
+}
+
+/** The effort levels a listed model takes, lowest first; none for Claude 4.5 and older. */
+function levelsOf(info: Anthropic.ModelInfo): AskEffort[] {
+  const effort = info.capabilities?.effort;
+  return effort ? ASK_EFFORTS.filter((level) => effort[level].supported) : [];
+}
+
+/** The models the key can use, newest first, with the levels each takes. Throws when Anthropic can't be asked. */
+export async function listModels(client: Pick<Anthropic, "models">, current: string): Promise<ModelPick[]> {
+  const picks: ModelPick[] = [];
+  for await (const info of client.models.list({ limit: 100 })) {
+    if (info.lifecycle === "retired") continue;
+    const levels = levelsOf(info);
+    const notes = [
+      info.id === current ? "current" : "",
+      info.lifecycle === "deprecated" ? "deprecated" : "",
+      levels.length > 0 ? `effort: ${levels.join(", ")}` : "no effort setting",
+    ].filter((note) => note !== "");
+    picks.push({ id: info.id, levels, label: info.display_name, description: info.id, detail: notes.join(" · ") });
+  }
+  return picks;
+}
+
+/**
+ * Spelunk: Choose Ask Model. Lists the models Anthropic offers the key,
+ * sets spelunk.ask.model to the one picked, then offers that model's
+ * effort levels for spelunk.ask.effort. Without a key, asks for it first.
+ */
+export async function chooseAskModel(context: vscode.ExtensionContext): Promise<void> {
+  const apiKey = await context.secrets.get(ANTHROPIC_KEY_SECRET);
+  if (!apiKey) {
+    await setAnthropicApiKey(context);
+    if (!(await context.secrets.get(ANTHROPIC_KEY_SECRET))) return;
+    return chooseAskModel(context);
+  }
+  const settings = askSettings(configuration());
+  const client = new Anthropic({ apiKey, maxRetries: 1 });
+  let picks: ModelPick[];
+  try {
+    picks = await listModels(client, settings.model);
+  } catch (error) {
+    void vscode.window.showErrorMessage(
+      `Couldn't list Anthropic's models: ${error instanceof Error ? error.message : String(error)}`,
+    );
+    return;
+  }
+  const model = await vscode.window.showQuickPick(picks, {
+    title: "The model that turns a question into a Spelunk query",
+    placeHolder: `Now ${settings.model}`,
+    matchOnDescription: true,
+  });
+  if (!model) return;
+  await configuration().update("ask.model", model.id, vscode.ConfigurationTarget.Global);
+  if (model.levels.length === 0) {
+    void vscode.window.showInformationMessage(`Ask now uses ${model.label}; it has no effort setting.`);
+    return;
+  }
+  const effort = await vscode.window.showQuickPick(
+    model.levels.map((level) => ({ label: level, description: level === settings.effort ? "current" : "" })),
+    { title: `How long ${model.label} thinks about a question`, placeHolder: `Now ${settings.effort}` },
+  );
+  if (effort) await configuration().update("ask.effort", effort.label, vscode.ConfigurationTarget.Global);
+  void vscode.window.showInformationMessage(
+    `Ask now uses ${model.label} at ${effort?.label ?? settings.effort} effort.`,
   );
 }

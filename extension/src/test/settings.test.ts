@@ -470,7 +470,7 @@ test("the ask settings: off by default, Anthropic with a model and effort, and w
   assert.equal(uiSettings(configWith({ "ask.provider": "anthropic" })).askEnabled, true);
   // A provider or effort that isn't one, or a blank model, falls back to the default.
   const wrong = askSettings(
-    configWith({ "ask.provider": "openai", "ask.model": "", "ask.effort": "max", "ask.shareNames": "yes" }),
+    configWith({ "ask.provider": "openai", "ask.model": "", "ask.effort": "lots", "ask.shareNames": "yes" }),
   );
   assert.deepEqual(wrong, { provider: "off", model: "claude-opus-5-5", effort: "low", shareNames: true });
 });

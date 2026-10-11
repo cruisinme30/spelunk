@@ -300,16 +300,17 @@ export function uiSettings(config: ConfigReader, editor: ConfigReader = NOTHING_
 type AskProviderName = "off" | "anthropic";
 const ASK_PROVIDERS: readonly AskProviderName[] = ["off", "anthropic"];
 
-/** How hard the model thinks about a question (spelunk.ask.effort): the provider's effort levels. */
-export type AskEffort = "low" | "medium" | "high";
-const ASK_EFFORTS: readonly AskEffort[] = ["low", "medium", "high"];
+/** How long the model thinks about a question (spelunk.ask.effort): the levels Anthropic's models API names. */
+export type AskEffort = "low" | "medium" | "high" | "max";
+/** Every effort level, lowest first. */
+export const ASK_EFFORTS: readonly AskEffort[] = ["low", "medium", "high", "max"];
 
 /** The spelunk.ask.* settings: asking in plain words. */
 export interface AskSettings {
   provider: AskProviderName;
   /** The provider's model, such as claude-opus-5-5. */
   model: string;
-  /** How long the model may think: low answers fastest, high reads the question most carefully. */
+  /** How long the model may think: low answers fastest, max reads the question most carefully. */
   effort: AskEffort;
   /** Whether the question goes with the repo and owner team names, so the query can name them. */
   shareNames: boolean;

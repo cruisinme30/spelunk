@@ -237,6 +237,11 @@
         "command": "spelunk.setAnthropicApiKey",
         "title": "Set Anthropic API Key",
         "category": "Spelunk"
+      },
+      {
+        "command": "spelunk.chooseAskModel",
+        "title": "Choose Ask Model",
+        "category": "Spelunk"
       }
     ],
     "menus": {
@@ -1092,22 +1097,24 @@
           "spelunk.ask.model": {
             "type": "string",
             "default": "claude-opus-5-5",
-            "markdownDescription": "The provider's model that writes the query. `claude-opus-5-5` is the default; `claude-haiku-4-5` answers faster and costs less."
+            "markdownDescription": "The provider's model that writes the query. `claude-opus-5-5` is the default; `claude-haiku-4-5` answers faster and costs less. **Spelunk: Choose Ask Model** lists the models your API key can use and sets this."
           },
           "spelunk.ask.effort": {
             "type": "string",
             "enum": [
               "low",
               "medium",
-              "high"
+              "high",
+              "max"
             ],
             "enumDescriptions": [
               "Answers fastest and costs least: enough for most questions.",
               "Thinks a little longer about the question.",
-              "Reads the question most carefully; slowest and costs the most."
+              "Reads the question carefully; slower and costs more.",
+              "Thinks as long as the model allows; slowest and costs the most."
             ],
             "default": "low",
-            "markdownDescription": "How long the model thinks before writing the query. Raise it when a question keeps becoming the wrong query. Claude 4.5 and older models ignore it."
+            "markdownDescription": "How long the model thinks before writing the query. Raise it when a question keeps becoming the wrong query. A level the model doesn't take becomes the nearest it does (Claude 4.5 and older take none); **Spelunk: Choose Ask Model** shows each model's levels."
           },
           "spelunk.ask.shareNames": {
             "type": "boolean",

@@ -6,6 +6,7 @@
 // never any code.
 import Anthropic from "@anthropic-ai/sdk";
 import type { AskResultMessage, ParsedQuery } from "./protocol.gen";
+import { ASK_EFFORTS, type AskEffort } from "./settings";
 
 /** What a provider is asked for: the question, and the context the query may use. */
 export interface AskRequest {
@@ -162,17 +163,49 @@ export function parseAnswer(text: string): AskAnswer {
 /** How long one provider call may take before Ask gives up on it. */
 const PROVIDER_TIMEOUT_MS = 45_000;
 
+/** The effort levels a model takes, as the models API reports them; undefined when it couldn't be asked. */
+const effortLevels = new Map<string, Promise<Set<AskEffort> | undefined>>();
+
+/** The effort levels `model` takes, asked of Anthropic once per model and kept for the session. */
+export function effortLevelsOf(client: Pick<Anthropic, "models">, model: string): Promise<Set<AskEffort> | undefined> {
+  let levels = effortLevels.get(model);
+  if (!levels) {
+    levels = client.models.retrieve(model).then(
+      (info) => {
+        const effort = info.capabilities?.effort;
+        return effort ? new Set(ASK_EFFORTS.filter((level) => effort[level].supported)) : new Set<AskEffort>();
+      },
+      () => undefined, // eslint-disable-line unicorn/no-useless-undefined -- the levels couldn't be asked
+    );
+    effortLevels.set(model, levels);
+  }
+  return levels;
+}
+
+/**
+ * The effort to send: the one asked for when the model takes it, else the
+ * nearest level it does take (Claude 4.5 and older take none). When Anthropic
+ * couldn't say, the one asked for goes as is.
+ */
+export function effortFor(levels: Set<AskEffort> | undefined, effort: AskEffort): { effort?: AskEffort } {
+  if (levels === undefined) return { effort };
+  if (levels.size === 0) return {};
+  if (levels.has(effort)) return { effort };
+  const nearest = [...ASK_EFFORTS].sort(
+    (a, b) =>
+      Math.abs(ASK_EFFORTS.indexOf(a) - ASK_EFFORTS.indexOf(effort)) -
+      Math.abs(ASK_EFFORTS.indexOf(b) - ASK_EFFORTS.indexOf(effort)),
+  );
+  const level = nearest.find((candidate) => levels.has(candidate));
+  return level === undefined ? {} : { effort: level };
+}
+
 /** Anthropic's Claude as the provider, through the official SDK. */
-export function anthropicProvider(options: {
-  apiKey: string;
-  model: string;
-  effort: "low" | "medium" | "high";
-}): AskProvider {
+export function anthropicProvider(options: { apiKey: string; model: string; effort: AskEffort }): AskProvider {
   const client = new Anthropic({ apiKey: options.apiKey, maxRetries: 1, timeout: PROVIDER_TIMEOUT_MS });
-  // Effort steers how long the model thinks; Claude 4.5 and older models reject it.
-  const effort = effortFor(options.model, options.effort);
   return {
     async translate(request, signal) {
+      const effort = effortFor(await effortLevelsOf(client, options.model), options.effort);
       let response: Anthropic.Message;
       try {
         response = await client.messages.create(
@@ -193,11 +226,6 @@ export function anthropicProvider(options: {
       return parseAnswer(text);
     },
   };
-}
-
-/** The effort to send for a model: none for Claude 4.5 and older, which reject the field. */
-export function effortFor(model: string, effort: "low" | "medium" | "high"): { effort?: "low" | "medium" | "high" } {
-  return /haiku-4-5|-4-5|-3-/.test(model) ? {} : { effort };
 }
 
 /** What went wrong with a call to Anthropic, in words the panel can show. */

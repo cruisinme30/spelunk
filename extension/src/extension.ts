@@ -7,7 +7,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import * as vscode from "vscode";
 import { registerAgentAccess } from "./agentAccess";
-import { askSetup, setAnthropicApiKey } from "./askSetup";
+import { askCommands, askSetup, setAnthropicApiKey } from "./askSetup";
 import { registerEditorNavigation } from "./editorNavigation";
 import { editorCommands } from "./editorSeed";
 import { FolderScopeNotes } from "./folderScope";
@@ -155,7 +155,7 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi {
     createStatusBar(daemon),
     ...registerCommands({ daemon, controller, panel, help, syntax, log, extensionId: context.extension.id, folders }),
     vscode.commands.registerCommand("spelunk.showWelcome", welcome.show.bind(welcome)),
-    vscode.commands.registerCommand("spelunk.setAnthropicApiKey", () => setAnthropicApiKey(context)),
+    ...askCommands(context),
     ...agentAccess(context, log),
     ...registerEditorNavigation(daemon),
     forwardFileChanges(daemon),
