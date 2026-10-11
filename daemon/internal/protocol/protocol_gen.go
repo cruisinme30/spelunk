@@ -107,6 +107,7 @@ const (
 	OpNameAt       OpName = "at"
 	OpNameCase     OpName = "case"
 	OpNameWord     OpName = "word"
+	OpNameMatch    OpName = "match"
 	OpNameExcludes OpName = "excludes"
 	OpNameCount    OpName = "count"
 	OpNameOrder    OpName = "order"
@@ -299,6 +300,8 @@ type Globals struct {
 	Type  *string `json:"type"`
 	// Word is the query's word: value, yes or no; absent when the query doesn't say.
 	Word string `json:"word,omitempty"`
+	// Match is the query's match: value: fuzzy also finds file names that have a word's letters in order, exact matches the text only; absent when the query doesn't say.
+	Match string `json:"match,omitempty"`
 	// Excludes is the query's excludes: value: yes leaves out the files VS Code's files.exclude and search.exclude hide, no keeps them; absent when the query doesn't say, which means yes unless spelunk.search.useExcludeSettings is off.
 	Excludes string `json:"excludes,omitempty"`
 	// Order is the query's order: value, such as best, file:desc or recent:asc; absent when the query doesn't say.
@@ -363,7 +366,9 @@ type Settings struct {
 	// CaseSensitive is the spelunk.search.caseSensitive setting: how a query without case: treats capital letters.
 	CaseSensitive CaseSetting `json:"caseSensitive"`
 	// WholeWord is the spelunk.search.wholeWord setting: match text terms only as whole words unless the query says word:no.
-	WholeWord      bool     `json:"wholeWord"`
+	WholeWord bool `json:"wholeWord"`
+	// Match is the spelunk.search.match setting: fuzzy lets a query without match: also find file names by a word's letters in order. Absent means exact.
+	Match          string   `json:"match,omitempty"`
 	DefaultCount   int      `json:"defaultCount"`
 	HistoryDepth   string   `json:"historyDepth"`
 	Symbols        bool     `json:"symbols"`

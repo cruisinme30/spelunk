@@ -62,7 +62,6 @@ func TestIsGeneratedAndIsVendoredFilterFiles(t *testing.T) {
 		want  []string
 	}{
 		{"RetryPolicy -is:generated -is:vendored", []string{
-			"file src/retry_policy.py",
 			"src/client.py:1 from payments.policies import RetryPolicy",
 			"src/retry_policy.py:1 class RetryPolicy:",
 		}},

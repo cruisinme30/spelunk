@@ -61,7 +61,7 @@ export interface HoleValue {
 }
 
 /** OpName is an operator's name, the part before the colon. */
-export type OpName = "f" | "repo" | "lang" | "type" | "sym" | "kind" | "ref" | "is" | "owner" | "content" | "struct" | "author" | "msg" | "since" | "until" | "at" | "case" | "word" | "excludes" | "count" | "order";
+export type OpName = "f" | "repo" | "lang" | "type" | "sym" | "kind" | "ref" | "is" | "owner" | "content" | "struct" | "author" | "msg" | "since" | "until" | "at" | "case" | "word" | "match" | "excludes" | "count" | "order";
 
 /** CaseSetting is how capital letters match when the query has no case: ignored (off), matched (on), or matched only when the query has a capital letter (smart). */
 export type CaseSetting = "off" | "on" | "smart";
@@ -148,6 +148,8 @@ export interface Globals {
   type: "file" | "code" | "commit" | "added" | "removed" | null;
   /** the query's word: value, yes or no; absent when the query doesn't say. */
   word?: "yes" | "no";
+  /** the query's match: value: fuzzy also finds file names that have a word's letters in order, exact matches the text only; absent when the query doesn't say. */
+  match?: "exact" | "fuzzy";
   /** the query's excludes: value: yes leaves out the files VS Code's files.exclude and search.exclude hide, no keeps them; absent when the query doesn't say, which means yes unless spelunk.search.useExcludeSettings is off. */
   excludes?: "yes" | "no";
   /** the query's order: value, such as best, file:desc or recent:asc; absent when the query doesn't say. */
@@ -193,6 +195,8 @@ export interface Settings {
   caseSensitive: CaseSetting;
   /** the spelunk.search.wholeWord setting: match text terms only as whole words unless the query says word:no. */
   wholeWord: boolean;
+  /** the spelunk.search.match setting: fuzzy lets a query without match: also find file names by a word's letters in order. Absent means exact. */
+  match?: "exact" | "fuzzy";
   defaultCount: number;
   historyDepth: "6m" | "2y" | "all";
   symbols: boolean;
@@ -445,7 +449,7 @@ export interface FacetBucket {
 
 /** HiddenNote counts results a filter removed, with a fix that removes the filter. */
 export interface HiddenNote {
-  reason: "not" | "since" | "case" | "word" | "type" | "pathFilter" | "symbol" | "kind" | "owner" | "excludes";
+  reason: "not" | "since" | "case" | "word" | "match" | "type" | "pathFilter" | "symbol" | "kind" | "owner" | "excludes";
   /** The filter as typed, e.g. -f:vendor/ */
   filter: string;
   count: number;

@@ -178,14 +178,7 @@ func Search(ctx context.Context, plan *query.Plan, repos []Repo, planID int, emi
 	if s.holding {
 		s.sendHeld()
 	}
-	if plan.CaseFilter != nil {
-		count, complete := engine.CountIgnoringCase(ctx, plan, repos, Search)
-		s.hiddenByCase = engine.HiddenBy(count, complete, s.counted, s.truncated || s.incomplete)
-	}
-	if plan.WordFilter != nil {
-		count, complete := engine.CountPartialWords(ctx, plan, repos, Search)
-		s.hiddenByWord = engine.HiddenBy(count, complete, s.counted, s.truncated || s.incomplete)
-	}
+	s.countRelaxed(ctx, plan, repos)
 	if errors.Is(ctx.Err(), context.Canceled) {
 		return engine.Stats{}, context.Cause(ctx)
 	}
@@ -228,6 +221,8 @@ type searcher struct {
 	hiddenByCase int
 	// hiddenByWord counts results that are only parts of words under word:yes.
 	hiddenByWord int
+	// hiddenByMatch counts the file names match:fuzzy would add.
+	hiddenByMatch int
 	// excludedBy holds the patterns of VS Code's excludes that hid a result
 	// (or, with excludes:no, matched one), and shownExcluded counts the
 	// results those patterns match that excludes:no shows.
@@ -243,6 +238,23 @@ type searcher struct {
 	literals  map[int]string
 	holding   bool
 	held      []*pageGroup
+}
+
+// countRelaxed counts what case:yes, word:yes and exact file names hid, by
+// searching again without each.
+func (s *searcher) countRelaxed(ctx context.Context, plan *query.Plan, repos []Repo) {
+	hidden := func(count int, complete bool) int {
+		return engine.HiddenBy(count, complete, s.counted, s.truncated || s.incomplete)
+	}
+	if plan.CaseFilter != nil {
+		s.hiddenByCase = hidden(engine.CountIgnoringCase(ctx, plan, repos, Search))
+	}
+	if plan.WordFilter != nil {
+		s.hiddenByWord = hidden(engine.CountPartialWords(ctx, plan, repos, Search))
+	}
+	if plan.MatchFilter != nil && plan.Kinds[query.KindFile] {
+		s.hiddenByMatch = hidden(engine.CountFuzzyNames(ctx, plan, repos, Search))
+	}
 }
 
 func newSearcher(ctx context.Context, plan *query.Plan, planID int, emit func(protocol.ResultItem)) *searcher {
@@ -318,7 +330,7 @@ func (s *searcher) add(repo *Repo, doc *Doc, item protocol.ResultItem, score, qu
 func (s *searcher) stats(unit string) engine.Stats {
 	stats := engine.NewStats(s.plan, s.counted, s.truncated || s.incomplete)
 	stats.Facets = s.facets.List()
-	hidden := engine.Hidden{ByFilter: s.hidden, ByCase: s.hiddenByCase, ByWord: s.hiddenByWord, ByType: s.hiddenByType}
+	hidden := engine.Hidden{ByFilter: s.hidden, ByCase: s.hiddenByCase, ByWord: s.hiddenByWord, ByType: s.hiddenByType, ByMatch: s.hiddenByMatch}
 	stats.AddHidden(s.plan, hidden, unit, "matches")
 	stats.AddExcludes(s.plan, s.excludedBy, s.shownExcluded, unit)
 	return stats

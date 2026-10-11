@@ -642,3 +642,37 @@ func TestSymbolQueriesOfferToSearchTheNameAsText(t *testing.T) {
 		t.Errorf("retry: symbol filter = %+v, want none", plan.SymbolFilter)
 	}
 }
+
+func TestMatchFuzzyMakesBareWordsFuzzyAndExactCountsWhatItWouldAdd(t *testing.T) {
+	fuzzySetting := defaultSettings
+	fuzzySetting.Match = "fuzzy"
+	for _, tc := range []struct {
+		text     string
+		settings protocol.Settings
+		fuzzy    bool
+		undo     string // what the note's Show them makes of text; "" for no note
+	}{
+		{"retry", defaultSettings, false, "match:fuzzy retry"},
+		{"match:fuzzy retry", defaultSettings, true, ""},
+		{"match:exact retry", defaultSettings, false, "match:fuzzy retry"},
+		{"retry", fuzzySetting, true, ""},
+		{"match:exact retry", fuzzySetting, false, "match:fuzzy retry"},
+		{`"retry"`, defaultSettings, false, ""},        // a phrase is never fuzzy, so there's nothing to count
+		{"word:yes retry", defaultSettings, false, ""}, // nor is a whole word
+		{"-retry lang:go", defaultSettings, false, ""}, // nor a NOT
+	} {
+		plan := mustPlan(t, tc.text, tc.settings)
+		if plan.Fuzzy != tc.fuzzy || plan.Terms[0].Fuzzy != (tc.fuzzy && plan.Terms[0].FuzzyWord) {
+			t.Errorf("%s: Fuzzy = %v, term %v; want %v", tc.text, plan.Fuzzy, plan.Terms[0].Fuzzy, tc.fuzzy)
+		}
+		switch f := plan.MatchFilter; {
+		case tc.undo == "" && f != nil:
+			t.Errorf("%s: unexpected MatchFilter %+v", tc.text, f)
+		case tc.undo != "" && (f == nil || f.Reason != "match" || ApplyFix(tc.text, f.Undo) != tc.undo):
+			t.Errorf("%s: MatchFilter = %+v, want its undo to give %q", tc.text, f, tc.undo)
+		}
+		if relaxed := plan.MatchingFuzzy(); plan.MatchFilter != nil && !relaxed.Terms[0].Fuzzy {
+			t.Errorf("%s: MatchingFuzzy leaves the word exact", tc.text)
+		}
+	}
+}

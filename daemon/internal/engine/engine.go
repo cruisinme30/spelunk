@@ -33,6 +33,8 @@ func NewStats(plan *query.Plan, counted int, truncated bool) Stats {
 type Hidden struct {
 	ByFilter               map[int]int
 	ByCase, ByWord, ByType int
+	// ByMatch counts the file names match:fuzzy would add.
+	ByMatch int
 }
 
 // AddHidden adds one hidden-results note per filter of plan that hid
@@ -50,6 +52,7 @@ func (s *Stats) AddHidden(plan *query.Plan, hidden Hidden, unit, typeUnit string
 	}{
 		{plan.CaseFilter, hidden.ByCase, unit},
 		{plan.WordFilter, hidden.ByWord, unit},
+		{plan.MatchFilter, hidden.ByMatch, "files"},
 		{plan.TypeFilter, hidden.ByType, typeUnit},
 	} {
 		if by.filter != nil && by.count > 0 {
@@ -90,6 +93,12 @@ type SearchFunc[R any] func(ctx context.Context, plan *query.Plan, repos []R, pl
 // case:yes (see the Count functions).
 func CountIgnoringCase[R any](ctx context.Context, plan *query.Plan, repos []R, search SearchFunc[R]) (count int, complete bool) {
 	return countAll(ctx, plan.IgnoringCase(), repos, search)
+}
+
+// CountFuzzyNames counts the results search finds for plan with words that
+// also find file names by their letters (see the Count functions).
+func CountFuzzyNames[R any](ctx context.Context, plan *query.Plan, repos []R, search SearchFunc[R]) (count int, complete bool) {
+	return countAll(ctx, plan.MatchingFuzzy(), repos, search)
 }
 
 // CountPartialWords counts the results search finds for plan without its

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"regexp"
 	"regexp/syntax"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -85,6 +86,14 @@ type Plan struct {
 	// WordFilter is set when the query says word:yes, so engines can count
 	// the matches that are only parts of words ("4 matches hidden by word:yes").
 	WordFilter *Filter
+	// MatchFilter is set when words match file names exactly (match:exact,
+	// or no match: and the setting) and a query word could find a name by
+	// its letters, so engines can count the names match:fuzzy adds ("3 file
+	// names have these letters in order · Show them").
+	MatchFilter *Filter
+	// Fuzzy is match:fuzzy, or the spelunk.search.match setting: bare words
+	// also find file names that have their letters in order.
+	Fuzzy bool
 	// SymbolFilter is set when the query has sym:. Its undo searches the
 	// symbol names as text, and the server counts what that finds ("Search
 	// RetryPolicy as text · 23").
@@ -182,6 +191,9 @@ type (
 		// (word:yes). Match with the term's Find methods, not Re's, so it
 		// applies.
 		WholeWord bool
+		// FuzzyWord is a bare word outside a NOT, without word:yes: one that
+		// matches file names by its letters under match:fuzzy (see Fuzzy).
+		FuzzyWord bool
 		// Fuzzy lets the term also match a file name whose characters it
 		// has in order, as Quick Open does: usrsvc finds UserService.ts.
 		// Only a bare word outside a NOT, without word:yes, is fuzzy, and
@@ -341,6 +353,7 @@ func NewPlan(q protocol.ParsedQuery, settings protocol.Settings, now time.Time, 
 	if q.Globals.Word != "" {
 		plan.WholeWord = q.Globals.Word == "yes"
 	}
+	plan.Fuzzy = fuzzyNames(q.Globals.Match, settings.Match)
 	src := newSource(q.Raw)
 	plan.At, plan.AtTime = revisionOf(q.Globals.At, atQuoted(q.Root, src), now)
 	plan.Order, plan.Descending = resultOrder(q.Globals.Order, settings.Order, plan.At != "")
@@ -367,6 +380,7 @@ func NewPlan(q protocol.ParsedQuery, settings protocol.Settings, now time.Time, 
 	}
 	plan.SymbolFilter = symbolFilter(q.Root, src)
 	plan.addExcludes(q, settings, src)
+	plan.addMatchFilter(q)
 	return plan, append(historyScanWarnings(plan), emptyWindowWarnings(q.Root, src, now)...), nil
 }
 
@@ -535,6 +549,31 @@ func (p *Plan) addGlobalFilter(node *protocol.Node, src *source) {
 	}
 }
 
+// fuzzyNames reports whether bare words also find file names by their
+// letters: the query's match: value, else the spelunk.search.match setting.
+func fuzzyNames(query, setting string) bool {
+	if query != "" {
+		return query == "fuzzy"
+	}
+	return setting == "fuzzy"
+}
+
+// addMatchFilter counts what exact matching hides when a word could find
+// file names by its letters: its undo turns match:exact into match:fuzzy,
+// or adds match:fuzzy.
+func (p *Plan) addMatchFilter(q protocol.ParsedQuery) {
+	if p.Fuzzy || !slices.ContainsFunc(p.Terms, func(c *Content) bool { return c != nil && c.FuzzyWord }) {
+		return
+	}
+	undo := insertFix("Show them", 0, "match:fuzzy ")
+	for _, node := range topLevel(q.Root) {
+		if node.Kind == protocol.NodeKindOp && node.Op == protocol.OpNameMatch {
+			undo = replaceFix("Show them", node.Span, "match:fuzzy")
+		}
+	}
+	p.MatchFilter = &Filter{Reason: "match", Index: -1, Text: "match:exact", Undo: undo}
+}
+
 // ExcludesText is how the hidden-results note names VS Code's excludes.
 const ExcludesText = "your VS Code excludes"
 
@@ -664,7 +703,8 @@ func (l *lowering) lower(node *protocol.Node) Pred {
 	case protocol.NodeKindText:
 		content := l.term(node, l.wholeWord, node.TermIndex)
 		content.ContentOnly = node.ContentOnly
-		content.Fuzzy = node.Match == protocol.MatchLiteral && !l.wholeWord && !l.negated && !node.ContentOnly
+		content.FuzzyWord = node.Match == protocol.MatchLiteral && !l.wholeWord && !l.negated && !node.ContentOnly
+		content.Fuzzy = content.FuzzyWord && l.plan.Fuzzy
 		return content
 	default:
 		if node.Op == protocol.OpNameRef {
@@ -1019,6 +1059,13 @@ func (p *Plan) IgnoringCase() *Plan {
 	return folded
 }
 
+// MatchingFuzzy returns a copy of the plan whose words also find file
+// names by their letters, to count what exact matching hid. The copy has no
+// filters of its own.
+func (p *Plan) MatchingFuzzy() *Plan {
+	return p.relaxed(func(c *Content) { c.Fuzzy = c.FuzzyWord }, nil)
+}
+
 // MatchingPartialWords returns a copy of the plan whose text terms match
 // parts of words too, to count what word:yes hid. The copy has no filters
 // of its own.
@@ -1041,7 +1088,7 @@ func (p *Plan) OnEitherSide() *Plan {
 // with term and every other regex with re (left alone when re is nil).
 func (p *Plan) relaxed(term func(*Content), re func(*regexp.Regexp) *regexp.Regexp) *Plan {
 	copied := *p
-	copied.Filters, copied.TypeFilter, copied.CaseFilter, copied.WordFilter = nil, nil, nil, nil
+	copied.Filters, copied.TypeFilter, copied.CaseFilter, copied.WordFilter, copied.MatchFilter = nil, nil, nil, nil, nil
 	r := relaxer{term: term, re: re, terms: map[*Content]*Content{}}
 	if r.re == nil {
 		r.re = func(re *regexp.Regexp) *regexp.Regexp { return re }

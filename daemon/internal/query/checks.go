@@ -162,6 +162,8 @@ func setGlobal(globals *protocol.Globals, node *protocol.Node) {
 		globals.Case = &value
 	case protocol.OpNameWord:
 		globals.Word = value
+	case protocol.OpNameMatch:
+		globals.Match = value
 	case protocol.OpNameExcludes:
 		globals.Excludes = value
 	case protocol.OpNameType:

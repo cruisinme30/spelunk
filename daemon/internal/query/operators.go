@@ -65,6 +65,7 @@ var operators = []operator{
 	{name: protocol.OpNameType, full: "type", global: true, summary: "Result kind", examples: fixedValueNames(protocol.OpNameType), interpret: oneOf(fixedValueNames(protocol.OpNameType)...)},
 	{name: protocol.OpNameCase, full: "case", global: true, summary: "Case matching", examples: fixedValueNames(protocol.OpNameCase), interpret: oneOf(fixedValueNames(protocol.OpNameCase)...)},
 	{name: protocol.OpNameWord, full: "word", global: true, summary: "Word boundaries", examples: fixedValueNames(protocol.OpNameWord), interpret: oneOf(fixedValueNames(protocol.OpNameWord)...)},
+	{name: protocol.OpNameMatch, full: "match", global: true, summary: "Fuzzy file names", examples: fixedValueNames(protocol.OpNameMatch), interpret: oneOf(fixedValueNames(protocol.OpNameMatch)...)},
 	{name: protocol.OpNameExcludes, full: "excludes", global: true, summary: "VS Code's excludes", examples: fixedValueNames(protocol.OpNameExcludes), interpret: oneOf(fixedValueNames(protocol.OpNameExcludes)...)},
 	{name: protocol.OpNameCount, full: "count", global: true, summary: "Page size", examples: []string{"50", "200", "all"}, interpret: asCount},
 	{name: protocol.OpNameOrder, full: "order", global: true, scope: scopeWorkingTreeOnly, summary: "Result order", examples: fixedValueNames(protocol.OpNameOrder), interpret: asOrder},
