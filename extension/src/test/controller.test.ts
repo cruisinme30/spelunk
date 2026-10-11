@@ -667,9 +667,17 @@ function openThreeResults(ref: string | undefined) {
   return { path: `/work/${result?.path ?? ""}`, line: result?.line ?? 1, column: 1, length: 5 };
 }
 
+/** The requests threeResultsBackend answers; any other is a test's mistake. */
+type ThreeResultsRequest = "query/parse" | "search/start" | "open/resolve";
+
+function answersThreeResults(method: string): method is ThreeResultsRequest {
+  return method === "query/parse" || method === "search/start" || method === "open/resolve";
+}
+
 /** A backend that finds THREE_RESULTS for any query and opens each at its path. */
 function threeResultsBackend() {
   const scripted = scriptedBackend((method, { text, searchId, ref }) => {
+    if (!answersThreeResults(method)) throw new Error(`unexpected request ${method}`);
     switch (method) {
       case "query/parse": {
         return { query: parsedQuery(text, true), completions: [] };
@@ -680,18 +688,6 @@ function threeResultsBackend() {
       }
       case "open/resolve": {
         return openThreeResults(ref);
-      }
-      case "initialize":
-      case "shutdown":
-      case "preview/get":
-      case "index/status":
-      case "index/rebuild":
-      case "replace/plan":
-      case "revision/text":
-      case "repo/remotes":
-      case "link/resolve":
-      case "folder/explain": {
-        throw new Error(`unexpected request ${method}`);
       }
     }
   });

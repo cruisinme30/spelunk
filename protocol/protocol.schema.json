@@ -531,6 +531,14 @@
         "commitCheckSeconds": {
           "description": "the spelunk.index.commitCheckSeconds setting: how often to ask Git whether HEAD moved, which brings new commits into history search and watches. Absent means 5.",
           "type": "integer"
+        },
+        "shareWindow": {
+          "description": "the spelunk.agent.shareWindow setting: let the spelunk command and AI agents on this computer search this window's roots, through a socket only the user can open. Absent means false.",
+          "type": "boolean"
+        },
+        "agentTimeLimitMs": {
+          "description": "the spelunk.agent.timeLimitMs setting: how long a search from the spelunk command or an agent runs before it returns what it found so far, marked truncated. Absent means 30000.",
+          "type": "integer"
         }
       },
       "required": [
@@ -1257,6 +1265,22 @@
         },
         "message": {
           "type": "string"
+        },
+        "root": {
+          "description": "the root's absolute path.",
+          "type": "string"
+        },
+        "savedAt": {
+          "description": "when the working-tree index being searched was saved, RFC 3339; absent until it is first saved.",
+          "type": "string"
+        },
+        "reread": {
+          "description": "how many files were re-read since that index was saved: they are searched as they are now.",
+          "type": "integer"
+        },
+        "writer": {
+          "description": "whether this daemon builds and saves the repo's index: false when another VS Code window does, and for the spelunk command's reader.",
+          "type": "boolean"
         }
       },
       "required": ["repoId", "name", "tree", "history"]
@@ -1523,6 +1547,19 @@
           "items": {
             "type": "string"
           }
+        },
+        "roots": {
+          "description": "the absolute paths of the roots to search, for a search from the spelunk command or an agent; absent means every open root.",
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "timeLimitMs": {
+          "description": "how long this search runs before it returns what it found so far, marked truncated; absent means the setting (spelunk.search.timeLimitMs).",
+          "type": "integer"
+        },
+        "count": {
+          "description": "how many results to return when the query has no count:; absent means the setting (spelunk.results.count).",
+          "type": "integer"
         }
       },
       "required": ["searchId", "text"]
@@ -1658,6 +1695,38 @@
         }
       },
       "required": ["repos"]
+    },
+    "ShareHelloResult": {
+      "description": "ShareHelloResult describes a daemon to the spelunk command or an agent that connects to its socket.",
+      "type": "object",
+      "properties": {
+        "daemonVersion": { "type": "string" },
+        "protocol": { "type": "integer" },
+        "reader": {
+          "description": "true for the spelunk command's background reader, false for a VS Code window.",
+          "type": "boolean"
+        },
+        "location": {
+          "description": "the index location it reads.",
+          "type": "string"
+        },
+        "repos": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/RepoStatus" }
+        }
+      },
+      "required": ["daemonVersion", "protocol", "reader", "location", "repos"]
+    },
+    "ShareOpenParams": {
+      "description": "ShareOpenParams ask the background reader to serve the saved index of the root that holds path.",
+      "type": "object",
+      "properties": {
+        "path": {
+          "description": "an absolute folder path: a root, or a folder inside one.",
+          "type": "string"
+        }
+      },
+      "required": ["path"]
     },
     "RebuildParams": {
       "description": "RebuildParams name the repo to rebuild, or all when repoId is absent.",
@@ -2660,7 +2729,9 @@
     },
     "repo/remotes": { "kind": "request", "params": "RepoRemotesParams", "result": "RepoRemotes" },
     "link/resolve": { "kind": "request", "params": "LinkParams", "result": "Links" },
-    "folder/explain": { "kind": "request", "params": "FolderExplainParams", "result": "FolderExplanation" }
+    "folder/explain": { "kind": "request", "params": "FolderExplainParams", "result": "FolderExplanation" },
+    "share/hello": { "kind": "request", "params": "Empty", "result": "ShareHelloResult" },
+    "share/open": { "kind": "request", "params": "ShareOpenParams", "result": "RepoStatus" }
   },
   "x-webview-messages": {
     "query.changed": {

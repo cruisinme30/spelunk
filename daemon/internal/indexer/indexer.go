@@ -452,7 +452,13 @@ func (ix *Indexer) Status() []protocol.RepoStatus {
 	statuses := make([]protocol.RepoStatus, 0, len(ix.order))
 	for _, id := range ix.order {
 		r := ix.repos[id]
-		status := protocol.RepoStatus{RepoID: id, Name: r.root.Name, Tree: r.state, History: r.historyState}
+		status := protocol.RepoStatus{
+			RepoID: id, Name: r.root.Name, Tree: r.state, History: r.historyState,
+			Root: r.root.Path, Reread: len(r.overlay.masked), Writer: r.lock != nil,
+		}
+		if !r.savedTree.IsZero() {
+			status.SavedAt = r.savedTree.UTC().Format(time.RFC3339)
+		}
 		switch {
 		case r.state == protocol.IndexStateIndexing:
 			status.Progress = r.progress
@@ -545,6 +551,29 @@ func shardPath(location string, root protocol.Root) string {
 // historyPath is where a root's history index is saved.
 func historyPath(location string, root protocol.Root) string {
 	return indexFile(location, "history", ".history", root)
+}
+
+// SavedRoot is the root a folder belongs to, for the spelunk command: the
+// nearest folder, from path up, that has a saved working-tree index under
+// location; failing that, the nearest that holds a .git; failing that,
+// path itself.
+func SavedRoot(location, path string) string {
+	gitRoot := ""
+	for dir := path; ; dir = filepath.Dir(dir) {
+		if !modTime(shardPath(location, protocol.Root{Path: dir})).IsZero() {
+			return dir
+		}
+		if _, err := os.Lstat(filepath.Join(dir, ".git")); err == nil && gitRoot == "" {
+			gitRoot = dir
+		}
+		if filepath.Dir(dir) == dir {
+			break
+		}
+	}
+	if gitRoot != "" {
+		return gitRoot
+	}
+	return path
 }
 
 // expandHome expands a leading "~" or "~/"; the host normally already has.

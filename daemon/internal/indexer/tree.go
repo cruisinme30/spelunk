@@ -131,6 +131,8 @@ func (ix *Indexer) build(job buildJob) {
 		r.owners = owners
 		if saveErr != nil {
 			r.message = "Index not saved: " + saveErr.Error()
+		} else {
+			r.savedTree = modTime(job.shardPath)
 		}
 		// The new shard read every file the overlay re-read before the
 		// build started; later changes stay in the overlay.

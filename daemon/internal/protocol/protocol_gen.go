@@ -394,6 +394,10 @@ type Settings struct {
 	EditorExcludes []RootExcludes `json:"editorExcludes,omitempty"`
 	// CommitCheckSeconds is the spelunk.index.commitCheckSeconds setting: how often to ask Git whether HEAD moved, which brings new commits into history search and watches. Absent means 5.
 	CommitCheckSeconds int `json:"commitCheckSeconds,omitempty"`
+	// ShareWindow is the spelunk.agent.shareWindow setting: let the spelunk command and AI agents on this computer search this window's roots, through a socket only the user can open. Absent means false.
+	ShareWindow bool `json:"shareWindow,omitempty"`
+	// AgentTimeLimitMs is the spelunk.agent.timeLimitMs setting: how long a search from the spelunk command or an agent runs before it returns what it found so far, marked truncated. Absent means 30000.
+	AgentTimeLimitMs int `json:"agentTimeLimitMs,omitempty"`
 }
 
 // MarshalJSON emits [] rather than null for required arrays.
@@ -892,6 +896,14 @@ type RepoStatus struct {
 	History  IndexState `json:"history"`
 	Progress float64    `json:"progress,omitempty"`
 	Message  string     `json:"message,omitempty"`
+	// Root is the root's absolute path.
+	Root string `json:"root,omitempty"`
+	// SavedAt is when the working-tree index being searched was saved, RFC 3339; absent until it is first saved.
+	SavedAt string `json:"savedAt,omitempty"`
+	// Reread is how many files were re-read since that index was saved: they are searched as they are now.
+	Reread int `json:"reread,omitempty"`
+	// Writer is whether this daemon builds and saves the repo's index: false when another VS Code window does, and for the spelunk command's reader.
+	Writer bool `json:"writer,omitempty"`
 }
 
 // OpenTarget is where opening a result goes: a file position (path, line, column, length, or to endLine and endColumn for a match that spans lines) or a commit (repoId, sha). A file at a revision (an at: result) also has revision, and opens read-only with the text of revision/text. Lines and columns are 1-based.
@@ -1068,6 +1080,12 @@ type SearchStartParams struct {
 	Cursor   string `json:"cursor,omitempty"`
 	// OpenFiles is the absolute paths of the files open in editor tabs, for is:open.
 	OpenFiles []string `json:"openFiles,omitempty"`
+	// Roots is the absolute paths of the roots to search, for a search from the spelunk command or an agent; absent means every open root.
+	Roots []string `json:"roots,omitempty"`
+	// TimeLimitMs is how long this search runs before it returns what it found so far, marked truncated; absent means the setting (spelunk.search.timeLimitMs).
+	TimeLimitMs int `json:"timeLimitMs,omitempty"`
+	// Count is how many results to return when the query has no count:; absent means the setting (spelunk.results.count).
+	Count int `json:"count,omitempty"`
 }
 
 // SearchResult ends a search after its batches.
@@ -1153,6 +1171,33 @@ func (v IndexStatusResult) MarshalJSON() ([]byte, error) {
 		p.Repos = []RepoStatus{}
 	}
 	return json.Marshal(p)
+}
+
+// ShareHelloResult describes a daemon to the spelunk command or an agent that connects to its socket.
+type ShareHelloResult struct {
+	DaemonVersion string `json:"daemonVersion"`
+	Protocol      int    `json:"protocol"`
+	// Reader is true for the spelunk command's background reader, false for a VS Code window.
+	Reader bool `json:"reader"`
+	// Location is the index location it reads.
+	Location string       `json:"location"`
+	Repos    []RepoStatus `json:"repos"`
+}
+
+// MarshalJSON emits [] rather than null for required arrays.
+func (v ShareHelloResult) MarshalJSON() ([]byte, error) {
+	type plain ShareHelloResult
+	p := plain(v)
+	if p.Repos == nil {
+		p.Repos = []RepoStatus{}
+	}
+	return json.Marshal(p)
+}
+
+// ShareOpenParams ask the background reader to serve the saved index of the root that holds path.
+type ShareOpenParams struct {
+	// Path is an absolute folder path: a root, or a folder inside one.
+	Path string `json:"path"`
 }
 
 // RebuildParams name the repo to rebuild, or all when repoId is absent.
@@ -1759,6 +1804,8 @@ const (
 	MethodRepoRemotes             = "repo/remotes"
 	MethodLinkResolve             = "link/resolve"
 	MethodFolderExplain           = "folder/explain"
+	MethodShareHello              = "share/hello"
+	MethodShareOpen               = "share/open"
 )
 
 // Search panel message types (webview <-> extension host).

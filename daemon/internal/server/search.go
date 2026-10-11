@@ -6,6 +6,7 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"slices"
 	"strconv"
 	"sync"
 	"time"
@@ -96,28 +97,35 @@ func (b *batcher) flushLocked() {
 // search/batch notifications, and answers with the totals and the cursor
 // of the next page.
 func (s *Server) search(ctx context.Context, raw json.RawMessage) (any, error) {
+	return s.searchOn(ctx, raw, s.conn, false)
+}
+
+// searchOn runs a search whose batches go to conn: the editor's, or a
+// guest's (see ServeGuest), whose searches get the agent time limit.
+func (s *Server) searchOn(ctx context.Context, raw json.RawMessage, conn *rpc.Conn, guest bool) (any, error) {
 	var params protocol.SearchStartParams
 	if err := decode(raw, &params); err != nil {
 		return nil, err
 	}
 	started := time.Now() // wall clock: Options.Now may be frozen
 	parsed := query.Parse(params.Text, s.resolver(params.OpenFiles))
-	plan, _, err := query.NewPlan(parsed, s.Settings(), s.now(), params.Cursor)
+	plan, _, err := query.NewPlan(parsed, s.searchSettings(params, guest), s.now(), params.Cursor)
 	if err != nil {
 		return nil, rpc.Errorf(protocol.CodeQueryInvalid, "%v", err)
 	}
 	planID := s.plans.remember(plan)
-	batch := &batcher{conn: s.conn, searchID: params.SearchID}
-	repos := trigram.WithOpenFiles(s.index.Repos(), params.OpenFiles)
+	batch := &batcher{conn: conn, searchID: params.SearchID}
+	repos := trigram.WithOpenFiles(onlyRoots(s.index.Repos(), params.Roots), params.OpenFiles)
 	var revisions []protocol.RevisionInfo
 	if plan.At != "" {
 		if repos, revisions, err = s.revisionRepos(ctx, plan); err != nil {
 			return nil, err
 		}
+		repos = onlyRoots(repos, params.Roots)
 	}
 	var stats engine.Stats
 	if plan.Mode == protocol.ModeHistory {
-		stats, err = history.Search(ctx, plan, s.index.HistoryRepos(), planID, batch.add)
+		stats, err = history.Search(ctx, plan, onlyHistoryRoots(s.index.HistoryRepos(), params.Roots), planID, batch.add)
 	} else {
 		stats, err = trigram.Search(ctx, plan, repos, planID, batch.add)
 	}
@@ -139,6 +147,42 @@ func (s *Server) search(ctx context.Context, raw json.RawMessage) (any, error) {
 		result.NextCursor = strconv.Itoa(stats.NextOffset)
 	}
 	return result, nil
+}
+
+// searchSettings are the settings one search runs under: its own time
+// limit and count when it asks for them, and the agent time limit for a
+// guest's search that doesn't.
+func (s *Server) searchSettings(params protocol.SearchStartParams, guest bool) protocol.Settings {
+	settings := s.Settings()
+	switch {
+	case params.TimeLimitMs > 0:
+		settings.TimeLimitMs = params.TimeLimitMs
+	case guest && settings.AgentTimeLimitMs > 0:
+		settings.TimeLimitMs = settings.AgentTimeLimitMs
+	case guest:
+		settings.TimeLimitMs = DefaultAgentTimeLimitMs
+	}
+	if params.Count > 0 {
+		settings.DefaultCount = params.Count
+	}
+	return settings
+}
+
+// onlyRoots keeps the repos whose root is one of roots; all of them when
+// roots is empty.
+func onlyRoots(repos []trigram.Repo, roots []string) []trigram.Repo {
+	if len(roots) == 0 {
+		return repos
+	}
+	return slices.DeleteFunc(slices.Clone(repos), func(repo trigram.Repo) bool { return !slices.Contains(roots, repo.Root) })
+}
+
+// onlyHistoryRoots is onlyRoots for history repos.
+func onlyHistoryRoots(repos []history.Repo, roots []string) []history.Repo {
+	if len(roots) == 0 {
+		return repos
+	}
+	return slices.DeleteFunc(slices.Clone(repos), func(repo history.Repo) bool { return !slices.Contains(roots, repo.Root) })
 }
 
 // symbolsAsText counts what the query finds with its sym: names searched as

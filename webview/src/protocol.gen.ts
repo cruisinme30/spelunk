@@ -222,6 +222,10 @@ export interface Settings {
   editorExcludes?: RootExcludes[];
   /** the spelunk.index.commitCheckSeconds setting: how often to ask Git whether HEAD moved, which brings new commits into history search and watches. Absent means 5. */
   commitCheckSeconds?: number;
+  /** the spelunk.agent.shareWindow setting: let the spelunk command and AI agents on this computer search this window's roots, through a socket only the user can open. Absent means false. */
+  shareWindow?: boolean;
+  /** the spelunk.agent.timeLimitMs setting: how long a search from the spelunk command or an agent runs before it returns what it found so far, marked truncated. Absent means 30000. */
+  agentTimeLimitMs?: number;
 }
 
 /** LastCommit is the newest commit that touched a file. */
@@ -487,6 +491,14 @@ export interface RepoStatus {
   history: IndexState;
   progress?: number;
   message?: string;
+  /** the root's absolute path. */
+  root?: string;
+  /** when the working-tree index being searched was saved, RFC 3339; absent until it is first saved. */
+  savedAt?: string;
+  /** how many files were re-read since that index was saved: they are searched as they are now. */
+  reread?: number;
+  /** whether this daemon builds and saves the repo's index: false when another VS Code window does, and for the spelunk command's reader. */
+  writer?: boolean;
 }
 
 /** OpenTarget is where opening a result goes: a file position (path, line, column, length, or to endLine and endColumn for a match that spans lines) or a commit (repoId, sha). A file at a revision (an at: result) also has revision, and opens read-only with the text of revision/text. Lines and columns are 1-based. */
@@ -596,6 +608,12 @@ export interface SearchStartParams {
   cursor?: string;
   /** the absolute paths of the files open in editor tabs, for is:open. */
   openFiles?: string[];
+  /** the absolute paths of the roots to search, for a search from the spelunk command or an agent; absent means every open root. */
+  roots?: string[];
+  /** how long this search runs before it returns what it found so far, marked truncated; absent means the setting (spelunk.search.timeLimitMs). */
+  timeLimitMs?: number;
+  /** how many results to return when the query has no count:; absent means the setting (spelunk.results.count). */
+  count?: number;
 }
 
 /** SearchResult ends a search after its batches. */
@@ -651,6 +669,23 @@ export interface OpenResolveParams {
 /** IndexStatusResult is the indexing state of every repo. */
 export interface IndexStatusResult {
   repos: RepoStatus[];
+}
+
+/** ShareHelloResult describes a daemon to the spelunk command or an agent that connects to its socket. */
+export interface ShareHelloResult {
+  daemonVersion: string;
+  protocol: number;
+  /** true for the spelunk command's background reader, false for a VS Code window. */
+  reader: boolean;
+  /** the index location it reads. */
+  location: string;
+  repos: RepoStatus[];
+}
+
+/** ShareOpenParams ask the background reader to serve the saved index of the root that holds path. */
+export interface ShareOpenParams {
+  /** an absolute folder path: a root, or a folder inside one. */
+  path: string;
 }
 
 /** RebuildParams name the repo to rebuild, or all when repoId is absent. */
@@ -1046,6 +1081,8 @@ export interface RpcRequests {
   "repo/remotes": [RepoRemotesParams, RepoRemotes];
   "link/resolve": [LinkParams, Links];
   "folder/explain": [FolderExplainParams, FolderExplanation];
+  "share/hello": [Empty, ShareHelloResult];
+  "share/open": [ShareOpenParams, RepoStatus];
 }
 
 /** Daemon JSON-RPC notifications: method -> params. */

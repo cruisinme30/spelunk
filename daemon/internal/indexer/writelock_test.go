@@ -187,7 +187,7 @@ func TestAReadOnlyIndexerNeverWrites(t *testing.T) {
 	time.Sleep(1500 * time.Millisecond) // a follow tick
 	status := reader.Status()[0]
 	if status.Tree != protocol.IndexStateQueued || !strings.Contains(status.Message, "Not indexed yet") {
-		t.Errorf("read-only status of an unindexed folder = %+v, want queued, not indexed yet", status)
+		t.Errorf("read-only status of a never-indexed folder = %+v, want queued, not indexed yet", status)
 	}
 	if entries, _ := os.ReadDir(settings.Location); len(entries) != 0 {
 		t.Errorf("read-only indexer wrote %v under the index location, want nothing", entries)

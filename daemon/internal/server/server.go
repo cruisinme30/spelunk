@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/cruisinme30/spelunk/daemon/internal/indexer"
@@ -47,6 +48,15 @@ type Server struct {
 
 	exitOnce sync.Once
 	exitCode chan int
+
+	// reader marks the spelunk command's background reader: it never
+	// writes an index, and opens folders guests ask for (share.go).
+	reader bool
+	// share is the window's socket for guests (share.go).
+	share sharing
+	// lastGuest is when a guest last asked for anything, in Unix
+	// nanoseconds, for the reader's idle exit.
+	lastGuest atomic.Int64
 }
 
 // Options configure a Server.
@@ -54,6 +64,9 @@ type Options struct {
 	// Now replaces the clock for date-relative logic (SPELUNK_NOW in
 	// tests). It is never used to time requests.
 	Now func() time.Time
+	// Reader makes the server the spelunk command's background reader: its
+	// indexer only reads saved indexes, and guests may open folders.
+	Reader bool
 }
 
 // New returns a Server with a handler for every daemon method registered on conn.
@@ -64,7 +77,13 @@ func New(conn *rpc.Conn, opts Options) *Server {
 	}
 	s.tags.now = time.Now // wall clock: SPELUNK_NOW may be frozen
 	s.life, s.stopLife = context.WithCancel(context.Background())
-	s.index = indexer.New(s.settings, s.notifyIndexStatus)
+	s.reader = opts.Reader
+	s.lastGuest.Store(time.Now().UnixNano())
+	if s.reader {
+		s.index = indexer.NewReadOnly(s.settings, s.notifyIndexStatus)
+	} else {
+		s.index = indexer.New(s.settings, s.notifyIndexStatus)
+	}
 	s.events.wake = make(chan struct{}, 1)
 	go s.applyIndexEvents(s.life)
 	conn.Handle(protocol.MethodShutdown, s.shutdown) // answered again after shutdown, as LSP allows
@@ -120,6 +139,9 @@ func (s *Server) Close() {
 // stopWork stops the work running outside requests: watched queries,
 // revision reads, and index work, which it waits up to shutdownGrace for.
 func (s *Server) stopWork() {
+	s.share.mu.Lock()
+	s.closeSharing()
+	s.share.mu.Unlock()
 	s.stopLife()
 	s.revisions.keep(nil)
 	s.index.Close(shutdownGrace)
@@ -235,6 +257,7 @@ func (s *Server) applySettings(settings protocol.Settings) {
 	s.settings = settings
 	s.mu.Unlock()
 	s.index.SetSettings(s.Settings())
+	s.updateSharing(s.life)
 }
 
 // withDefaults replaces the settings values the daemon cannot use with

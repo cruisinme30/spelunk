@@ -174,8 +174,9 @@ func (r workspaceResolver) Repos() []query.RepoStat {
 		unowned[repo.ID] = r.server.ownership.of(&repo).unowned
 	}
 	statuses := map[string]protocol.RepoStatus{}
-	for _, status := range r.server.index.Status() {
-		statuses[status.RepoID] = status
+	all := r.server.index.Status()
+	for i := range all {
+		statuses[all[i].RepoID] = all[i]
 	}
 	roots := r.server.Roots()
 	repos := make([]query.RepoStat, len(roots))
