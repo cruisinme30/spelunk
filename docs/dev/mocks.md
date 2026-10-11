@@ -61,5 +61,6 @@ covered.
 | 55 | Jump to a definition by name: ⌘T finds functions and classes in every repo and language; Go to Definition and Find References can fall back to Spelunk | `editor-navigation` | `EditorNavigation` | 2.1 |
 | 56 | Agents and the terminal: the `spelunk` command and Claude Code or Copilot search the same index, live from VS Code or from the saved index | `agent-access` | `AgentAccess` | 2.1 |
 | 57 | Comments, quoted text or code: `in:comments`, `in:strings` and `in:code` keep each match by where it is; `-in:` leaves one place out | `comments-strings` | `CommentsStrings` | 2.1 |
+| 59 | History through renames: a file's commits under every name it had, renames marked, and the name each file has now | `history-renames` | `HistoryRenamesMerges` | 2.1 |
 | 60 | Jupyter notebooks: searched by their cells, each result under its cell, opened at that cell | `notebook-cells` | `NotebookCells` | 2.1 |
 | 61 | Hover labels: rest the mouse on an icon and its name shows in a third of a second | `hover-labels` | `HoverLabels` | 2.1 |

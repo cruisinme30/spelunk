@@ -582,9 +582,7 @@ export class ResultsView {
       const term = terms.find((candidate) => candidate.termIndex === termIndex);
       return term ? element("span", { class: `tag ${termClass(termIndex)}` }, term.value) : null;
     });
-    const files: HTMLElement[] = item.files
-      .slice(0, COMMIT_FILES_SHOWN)
-      .map((file) => fileStat(file.path, file.added, file.removed));
+    const files: HTMLElement[] = item.files.slice(0, COMMIT_FILES_SHOWN).map((file) => fileStat(file));
     if (item.files.length > COMMIT_FILES_SHOWN)
       files.push(element("span", { class: "muted" }, `+${item.files.length - COMMIT_FILES_SHOWN} more`));
     return element(

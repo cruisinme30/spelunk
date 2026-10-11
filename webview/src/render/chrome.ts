@@ -4,7 +4,7 @@
 import { button, clamp, element, isIndexing, percent, plural, progressBar, termClass } from "../format";
 import type { Layout } from "../layout";
 import { fullName, OPERATOR_TONE } from "../operators";
-import { diffSide, scopedRepo, type OperatorNode, type TextNode } from "../parsedQuery";
+import { diffSide, operatorNodes, scopedRepo, type OperatorNode, type TextNode } from "../parsedQuery";
 import type {
   BannerMessage,
   CaseSetting,
@@ -175,9 +175,13 @@ export function renderChips(layout: Layout, state: ViewState, summary: HTMLEleme
   const at = query.mode === "workingTree" ? query.globals.at : undefined;
   const mode = at === undefined ? query.mode : "revision";
   const revisions = state.done?.seq === state.seq ? state.done.revisions : undefined;
-  const modeLabel = { history: "Commit history", workingTree: "Working tree", revision: revisionLabel(at, revisions) }[
-    mode
-  ];
+  // f: in history matches a file under the names it had before, which the chip says.
+  const follows = query.mode === "history" && operatorNodes(query, "f").length > 0;
+  const modeLabel = {
+    history: follows ? "Commit history · follows renames" : "Commit history",
+    workingTree: "Working tree",
+    revision: revisionLabel(at, revisions),
+  }[mode];
   layout.chips.append(
     element("span", { class: "label" }, "Query"),
     ...chipsFor(query.root, {

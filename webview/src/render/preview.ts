@@ -438,11 +438,7 @@ function renderCommitPreview(
   // Files the query's file filters (f:, lang:, is:test) leave out stay hidden until "Show all".
   const hiddenFiles = preview.files.filter((file) => file.hiddenByFilter);
   const shownFiles = preview.files.filter((file) => !file.hiddenByFilter || showHiddenFiles);
-  const files = element(
-    "div",
-    { class: "files" },
-    ...shownFiles.map((file) => fileStat(file.path, file.added, file.removed)),
-  );
+  const files = element("div", { class: "files" }, ...shownFiles.map((file) => fileStat(file)));
   if (hiddenFiles.length > 0 && !showHiddenFiles) {
     const showAll = button({ class: "btn link", "data-testid": "show-all-files" }, onShowHiddenFiles, "Show all");
     files.append(
@@ -451,6 +447,22 @@ function renderCommitPreview(
     );
   }
   container.append(files);
+  // A rename that changed no line has no hunk: say so, rather than show an empty diff.
+  const renamedOnly = shownFiles.filter(
+    (file) => file.oldPath && !preview.hunks.some((hunk) => hunk.path === file.path),
+  );
+  if (renamedOnly.length > 0) {
+    const [only] = renamedOnly;
+    container.append(
+      element(
+        "div",
+        { class: "message-note muted", "data-testid": "renamed-only" },
+        renamedOnly.length === 1 && only
+          ? `Renamed from ${only.oldPath ?? ""}; no lines changed.`
+          : `${plural(renamedOnly.length, "file")} renamed with no lines changed.`,
+      ),
+    );
+  }
 
   const hiddenPaths = new Set(hiddenFiles.map((file) => file.path));
   container.append(diffCode(preview.hunks, (hunk) => hiddenPaths.has(hunk.path) && !showHiddenFiles, paint));

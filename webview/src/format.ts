@@ -1,7 +1,7 @@
 // DOM and text helpers shared by the renderers: an element builder, match
 // highlighting, progress bars, relative times, plurals and small numeric
 // helpers.
-import type { CellPlace, Hit, HoleValue, IndexState, Range } from "./protocol.gen";
+import type { CellPlace, FileStat, Hit, HoleValue, IndexState, Range } from "./protocol.gen";
 
 /** Distinct highlight colors for text terms (main.css defines term-color-0 to -3); term N uses color N mod this. */
 const TERM_COLOR_COUNT = 4;
@@ -375,16 +375,36 @@ export function percent(progress: number | undefined): number {
   return Number.isFinite(progress) ? Math.round(clamp(progress ?? 0, 0, 1) * 100) : 0;
 }
 
-/** "path/to/file.py +9 −1" for a changed file. */
-export function fileStat(path: string, added: number, removed: number): HTMLElement {
+/**
+ * "path/to/file.py +9 −1" for a changed file; "old.py → new.py +0 −0 renamed" for one the commit renamed, and
+ * "now path" after it when later commits renamed it.
+ */
+export function fileStat(file: FileStat): HTMLElement {
   return element(
     "span",
     { class: "file" },
-    path,
+    file.oldPath ? element("span", { class: "renamed-from" }, `${file.oldPath} → `) : null,
+    file.path,
     " ",
-    element("span", { class: "add" }, `+${added}`),
+    element("span", { class: "add" }, `+${file.added}`),
     " ",
-    element("span", { class: "del" }, `−${removed}`),
+    element("span", { class: "del" }, `−${file.removed}`),
+    file.oldPath ? " " : null,
+    file.oldPath
+      ? element(
+          "span",
+          { class: "badge renamed", title: `Renamed from ${file.oldPath}`, "data-testid": "renamed" },
+          "renamed",
+        )
+      : null,
+    file.currentPath ? " " : null,
+    file.currentPath
+      ? element(
+          "span",
+          { class: "now-path", title: "The file's name now, after later renames", "data-testid": "now-path" },
+          `now ${file.currentPath}`,
+        )
+      : null,
   );
 }
 
