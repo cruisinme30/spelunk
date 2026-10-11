@@ -89,6 +89,10 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- Searches that ask for two things one list can't hold now say so instead of quietly dropping one:
+  `symbol:Parse OR timeout` (definitions on one side, code on the other) and `type:file symbol:Parse`, `type:code
+  kind:function` or `type:file ref:Parse` (a `type:` that rules out what the operator finds) are errors, with a fix
+  that removes either part.
 - A word left out with `-` or `NOT` left out the code lines of a file that has it, but not the file's name:
   `-inputGrace file:daemon/` still listed `daemon/main.go`, which mentions it. Files whose text has a left-out word are
   now left out too.

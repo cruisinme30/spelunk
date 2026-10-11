@@ -365,13 +365,33 @@ func TestTimeLimitComesFromTheSettingClamped(t *testing.T) {
 	}
 }
 
+func TestSearchesThatCantGoTogetherAreErrors(t *testing.T) {
+	for text, want := range map[string]string{
+		"type:code sym:Retry":            "sym:Retry lists definitions, but type:code lists only code lines",
+		"type:file kind:function":        "kind:function lists definitions, but type:file lists only file names",
+		"type:file ref:Retry":            "ref:Retry finds code lines, but type:file lists only file names",
+		"type:file content:retry":        "content:retry finds code lines, but type:file lists only file names",
+		"(symbol:Parse OR timeout)":      "Each side of OR must find the same thing: definitions (symbol:, kind:) or code and file names",
+		"kind:function parse OR timeout": "Each side of OR must find the same thing: definitions (symbol:, kind:) or code and file names",
+	} {
+		q := Parse(text, nil)
+		if len(q.Diagnostics) != 1 || q.Diagnostics[0].Severity != protocol.SeverityError || q.Diagnostics[0].Message != want {
+			t.Errorf("%s: diagnostics = %+v, want the error %q", text, q.Diagnostics, want)
+		}
+	}
+	for _, text := range []string{"symbol:Parse OR kind:class", "kind:function (parse OR lex)", "type:file -ref:Retry retry", "type:file -content:test retry"} {
+		if q := Parse(text, nil); len(q.Diagnostics) != 0 {
+			t.Errorf("%s: diagnostics = %+v, want none", text, q.Diagnostics)
+		}
+	}
+}
+
 func TestResultKinds(t *testing.T) {
 	tests := map[string]string{
 		"retry":                       "file,line",
 		"type:file lang:python retry": "file",
 		"type:code retry":             "line",
 		"sym:RetryPolicy":             "symbol",
-		"type:code sym:Retry":         "symbol",
 		"author:jane timeout":         "commit",
 		"type:commit timeout":         "commit",
 		"type:added timeout":          "commit",

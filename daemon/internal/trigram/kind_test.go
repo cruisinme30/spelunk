@@ -29,9 +29,9 @@ func parseRepo() Repo {
 func TestAWordNextToKindMatchesDefinitionNames(t *testing.T) {
 	repo := parseRepo()
 	for query, want := range map[string][]string{
-		"kind:function parse":        {"p.go:3 "},
-		"kind:function -parse":       {"p.go:5 ", "p.go:7 "},
-		"kind:function parse OR Clo": {"p.go:3 ", "p.go:7 "},
+		"kind:function parse":          {"p.go:3 "},
+		"kind:function -parse":         {"p.go:5 ", "p.go:7 "},
+		"kind:function (parse OR Clo)": {"p.go:3 ", "p.go:7 "},
 	} {
 		got, _ := run(t, query, repo)
 		if len(got) == 0 {

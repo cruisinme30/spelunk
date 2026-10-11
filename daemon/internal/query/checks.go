@@ -21,6 +21,10 @@ func check(src *source, query *protocol.ParsedQuery, problems *diagnostics) {
 		query.Mode = protocol.ModeHistory
 	}
 	checkOrModes(query.Root, problems)
+	checkOrDefinitions(query.Root, problems)
+	if query.Mode != protocol.ModeHistory {
+		reportTypeConflicts(src, query.Root, problems)
+	}
 	if query.Mode == protocol.ModeHistory {
 		reportWorkingTreeOperators(src, query.Root, problems)
 		reportMultilineInHistory(query.Root, problems)
@@ -236,6 +240,89 @@ func checkOrModes(root *protocol.Node, problems *diagnostics) {
 				"Each side of OR must search the same thing: commits (author:, msg:) or current files")
 		}
 	})
+}
+
+// checkOrDefinitions reports an OR with some sides that name definitions
+// (symbol:, kind:) and some that don't: one list can't hold definitions and
+// the code lines or file names the others find, and showing only one side's
+// results would drop the rest without a word.
+func checkOrDefinitions(root *protocol.Node, problems *diagnostics) {
+	walk(root, func(node *protocol.Node) {
+		if node.Kind != protocol.NodeKindOr {
+			return
+		}
+		naming := 0
+		for i := range node.Children {
+			if namesDefinitions(&node.Children[i]) {
+				naming++
+			}
+		}
+		if naming > 0 && naming < len(node.Children) {
+			problems.errorf(DiagMixedModeOr, node.Span, nil,
+				"Each side of OR must find the same thing: definitions (symbol:, kind:) or code and file names")
+		}
+	})
+}
+
+// namesDefinitions says whether node has a symbol: or kind: outside NOT,
+// which makes the query list definitions.
+func namesDefinitions(node *protocol.Node) bool {
+	found := false
+	walkPositive(node, func(n *protocol.Node) {
+		found = found || n.Kind == protocol.NodeKindOp && (n.Op == protocol.OpNameSym || n.Op == protocol.OpNameKind)
+	})
+	return found
+}
+
+// reportTypeConflicts reports what type:file or type:code rules out of the
+// results: symbol: and kind: list definitions, and, outside NOT, ref:,
+// content: and struct: find code lines, which type:file never lists.
+func reportTypeConflicts(src *source, root *protocol.Node, problems *diagnostics) {
+	typeNode := narrowingType(root)
+	if typeNode == nil {
+		return
+	}
+	typeText := src.slice(typeNode.Span.Start, typeNode.Span.End)
+	lists := map[string]string{"file": "lists only file names", "code": "lists only code lines"}[typeNode.Value]
+	report := func(node *protocol.Node, finds string) {
+		written := src.slice(node.Span.Start, node.Span.End)
+		problems.errorf(DiagOpWrongMode, node.Span,
+			[]protocol.Fix{removeFix("Remove "+written, src, node.Span), removeFix("Remove "+typeText, src, typeNode.Span)},
+			"%s %s, but %s %s", written, finds, typeText, lists)
+	}
+	walk(root, func(node *protocol.Node) {
+		if node.Kind == protocol.NodeKindOp && (node.Op == protocol.OpNameSym || node.Op == protocol.OpNameKind) {
+			report(node, "lists definitions")
+		}
+	})
+	if typeNode.Value != "file" {
+		return
+	}
+	walkPositive(root, func(node *protocol.Node) {
+		if findsOnlyCodeLines(node) {
+			report(node, "finds code lines")
+		}
+	})
+}
+
+// narrowingType is the query's type:file or type:code, or nil.
+func narrowingType(root *protocol.Node) *protocol.Node {
+	var found *protocol.Node
+	for _, node := range topLevel(root) {
+		if node.Kind == protocol.NodeKindOp && node.Op == protocol.OpNameType && (node.Value == "file" || node.Value == "code") {
+			found = node
+		}
+	}
+	return found
+}
+
+// findsOnlyCodeLines says whether node matches code lines and never a
+// file's name: ref:, content: or struct:.
+func findsOnlyCodeLines(node *protocol.Node) bool {
+	if node.Kind == protocol.NodeKindOp {
+		return node.Op == protocol.OpNameRef
+	}
+	return node.Kind == protocol.NodeKindText && (node.ContentOnly || node.Match == protocol.MatchStructural)
 }
 
 // reportWorkingTreeOperators reports sym:, order:, is:open, is:changed or
