@@ -12,6 +12,10 @@ type Symbol struct {
 	Name string
 	Kind protocol.SymbolKind
 	Line int // 1-based
+	// End is the definition's last line (1-based, at least Line): the last
+	// line indented under it, or the closing brace or end that lines up
+	// with it (see bodies).
+	End int
 }
 
 // maxLineBytes skips lines too long to be a definition someone wrote, such
@@ -28,14 +32,80 @@ func Extract(lang string, content []byte) []Symbol {
 	}
 	var found []Symbol
 	var squeezed []byte
+	var b bodies
 	eachLine(content, func(number int, line []byte) {
+		indent := indentOf(line)
+		if indent == len(line) {
+			return // a blank line ends nothing
+		}
+		b.read(found, number, line[indent:], indent)
 		squeezed = squeezeSpace(squeezed[:0], line)
 		if symbol, _, ok := match(rules, squeezed); ok {
 			symbol.Line = number
 			found = append(found, symbol)
+			b.open = append(b.open, openBody{index: len(found) - 1, indent: indent})
 		}
 	})
+	b.closeAll(found)
 	return found
+}
+
+// bodies finds where definitions end, as the outline finds what is inside
+// them: a definition's body is the lines indented under it. A line as far
+// left as the definition ends it, and is its last line when it closes it,
+// as a "}" or Ruby's "end" does; a ")" or "{" there still belongs to the
+// definition's first line, as in a Go signature spread over lines or a C
+// function whose brace sits on a line of its own.
+type bodies struct {
+	open     []openBody // innermost last
+	nonBlank int        // the last line read that wasn't blank
+}
+
+// openBody is a definition whose end hasn't been read yet.
+type openBody struct{ index, indent int }
+
+// read takes line number, without its indentation of indent, before it is
+// matched as a definition, and ends the definitions it closes.
+func (b *bodies) read(found []Symbol, number int, text []byte, indent int) {
+	for len(b.open) > 0 {
+		top := b.open[len(b.open)-1]
+		if top.indent < indent {
+			break
+		}
+		if top.indent == indent && continuesHeader(text) {
+			break
+		}
+		b.open = b.open[:len(b.open)-1]
+		if top.indent == indent && closesBody(text) {
+			found[top.index].End = number
+			break
+		}
+		found[top.index].End = b.nonBlank
+	}
+	b.nonBlank = number
+}
+
+// closeAll ends the definitions still open at the end of the file.
+func (b *bodies) closeAll(found []Symbol) {
+	for _, open := range b.open {
+		found[open.index].End = max(b.nonBlank, found[open.index].Line)
+	}
+	b.open = nil
+}
+
+// continuesHeader says whether a line as far left as a definition carries
+// on its first line rather than ending it.
+func continuesHeader(text []byte) bool {
+	return text[0] == ')' || text[0] == ']' || text[0] == '{'
+}
+
+// closesBody says whether a line as far left as a definition is its last.
+func closesBody(text []byte) bool {
+	if text[0] == '}' {
+		return true
+	}
+	rest, ok := bytes.CutPrefix(bytes.TrimRight(text, " \t\r"), []byte("end"))
+	return ok && (len(rest) == 0 || rest[0] == ';' || bytes.HasPrefix(rest, []byte(" #")))
 }
 
 // eachLine calls f with each line of content and its 1-based number,

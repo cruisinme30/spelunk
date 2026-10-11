@@ -55,6 +55,7 @@ func symbolsOf(language string, text []byte, cells []notebook.Cell) []symbols.Sy
 	eachCell(text, cells, func(cell notebook.Cell, cellText []byte) {
 		for _, symbol := range symbols.Extract(cell.Lang, cellText) {
 			symbol.Line += cell.StartLine - 1
+			symbol.End += cell.StartLine - 1
 			found = append(found, symbol)
 		}
 	})

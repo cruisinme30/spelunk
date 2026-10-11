@@ -142,3 +142,76 @@ func TestJavaMethodsDependOnTheLineNotItsIndent(t *testing.T) {
 		}
 	}
 }
+
+// spans renders Extract's result as "name first-last".
+func spans(lang, source string) []string {
+	var out []string
+	for _, s := range Extract(lang, []byte(source)) {
+		out = append(out, fmt.Sprintf("%s %d-%d", s.Name, s.Line, s.End))
+	}
+	return out
+}
+
+func TestExtractFindsWhereEachDefinitionEnds(t *testing.T) {
+	tests := []struct {
+		lang, source string
+		want         []string
+	}{
+		{"python", `class RetryPolicy:
+    """Backoff."""
+
+    def next_delay(self, attempt):
+        return attempt * 2
+
+    @property
+    def cap(self):
+        return 30
+
+def fetch(url):
+    return url
+TIMEOUT = 5
+`, []string{"RetryPolicy 1-9", "next_delay 4-5", "cap 8-9", "fetch 11-12"}},
+		{"go", `package retry
+
+func New(
+	attempts int,
+) *Policy {
+	return &Policy{}
+}
+
+func One() int { return 1 }
+
+type Policy struct {
+	attempts int
+}
+`, []string{"New 3-7", "One 9-9", "Policy 11-13"}},
+		{"c", `static int charge(int amount)
+{
+	return amount;
+}
+
+int refund(int amount) {
+	return -amount;
+}
+`, []string{"charge 1-4", "refund 6-8"}},
+		{"ruby", `class Policy
+  def next_delay(attempt)
+    attempt * 2
+  end
+end
+`, []string{"Policy 1-5", "next_delay 2-4"}},
+		{"typescript", `export class Client {
+  async charge(amount: number): Promise<void> {
+    return;
+  }
+}
+export function retry(fn: () => void) {
+  fn();
+`, []string{"Client 1-5", "charge 2-4", "retry 6-7"}},
+	}
+	for _, test := range tests {
+		if got := spans(test.lang, test.source); !reflect.DeepEqual(got, test.want) {
+			t.Errorf("%s: got %q, want %q", test.lang, got, test.want)
+		}
+	}
+}
