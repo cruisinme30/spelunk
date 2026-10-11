@@ -317,3 +317,31 @@ func TestASavedHistoryKnowsTheUncommittedFilesAtOnce(t *testing.T) {
 		t.Fatalf("a loaded history says main.go has no uncommitted change; is:changed would find nothing until the next update")
 	}
 }
+
+func TestAWindowCatchesUpOnFilesChangedWhereTheEditorIsNotLooking(t *testing.T) {
+	root := testutil.WriteTree(t, map[string]string{"a.txt": "alpha\n", "old/b.txt": "beta\n"})
+	ix := New(testSettings(t), nil)
+	defer ix.Close(time.Second)
+	ix.SetRoots([]protocol.Root{{ID: "r1", Path: root, Name: "app"}})
+	waitFor(t, ix, protocol.IndexStateReady)
+
+	// Changed on disk with no word from the editor, as in a folder
+	// files.watcherExclude leaves out, or while VS Code was closed.
+	later := time.Now().Add(time.Minute)
+	testutil.WriteFiles(t, root, map[string]string{"a.txt": "alpha two\n", "c.txt": "gamma\n"})
+	for _, path := range []string{"a.txt", "c.txt"} {
+		if err := os.Chtimes(filepath.Join(root, path), later, later); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.RemoveAll(filepath.Join(root, "old")); err != nil {
+		t.Fatal(err)
+	}
+	ix.sweepWriters(context.Background())
+	docs, masked := overlayPaths(t, ix)
+	slices.Sort(docs)
+	slices.Sort(masked)
+	if !slices.Equal(docs, []string{"a.txt", "c.txt"}) || !slices.Equal(masked, []string{"a.txt", "c.txt", "old/b.txt"}) {
+		t.Errorf("after a sweep, overlay = %q masking %q, want a.txt and c.txt re-read and old/b.txt gone", docs, masked)
+	}
+}

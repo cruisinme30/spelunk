@@ -141,9 +141,10 @@ func New(settings protocol.Settings, notify func([]protocol.RepoStatus)) *Indexe
 		treeQueue:    queue{wake: make(chan struct{}, 1)},
 		historyQueue: queue{wake: make(chan struct{}, 1)},
 	}
-	ix.workers.Add(2)
+	ix.workers.Add(3)
 	go ix.treeWork(ctx)
 	go ix.historyWork(ctx)
+	go ix.sweepWork(ctx)
 	return ix
 }
 

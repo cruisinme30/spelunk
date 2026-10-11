@@ -594,7 +594,7 @@ export interface FileChange {
   type: "changed" | "created" | "deleted";
 }
 
-/** DidChangeFilesParams forward file events from the host, a fast path ahead of the daemon's own watcher. */
+/** DidChangeFilesParams forward file events from the host; the daemon also lists each repo's files every few minutes, for changes no event told it of. */
 export interface DidChangeFilesParams {
   changes: FileChange[];
 }

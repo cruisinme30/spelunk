@@ -38,6 +38,7 @@ func (ix *Indexer) Sweep(ctx context.Context, root string) {
 // sweepJob is what one sweep compares the files on disk with.
 type sweepJob struct {
 	id       string
+	root     string
 	shard    *trigram.Shard
 	overlay  overlay
 	settings protocol.Settings
@@ -80,6 +81,65 @@ func (job *sweepJob) changedFiles(root string, files []trigram.File) []string {
 	return changed
 }
 
+// writerSweepAfter and writerSweepEvery are when a window sweeps the repos
+// it writes: soon after it starts, as a saved index may be older than files
+// changed while VS Code was closed, then every few minutes, for the files
+// VS Code doesn't watch (folders files.watcherExclude leaves out, or a disk
+// it can't watch).
+const (
+	writerSweepAfter = 2 * time.Second
+	writerSweepEvery = 2 * time.Minute
+)
+
+// sweepWork sweeps the repos this indexer writes, now and then, until ctx
+// ends.
+func (ix *Indexer) sweepWork(ctx context.Context) {
+	defer ix.workers.Done()
+	timer := time.NewTimer(writerSweepAfter)
+	defer timer.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-timer.C:
+			ix.sweepWriters(ctx)
+			timer.Reset(writerSweepEvery)
+		}
+	}
+}
+
+// sweepWriters re-reads the files of each repo this indexer writes that
+// changed on disk without the editor saying so, as Sweep does for a reader.
+func (ix *Indexer) sweepWriters(ctx context.Context) {
+	jobs := ix.writerSweepJobs()
+	for i := range jobs {
+		job := &jobs[i]
+		files, err := trigram.ListFiles(ctx, job.root, walkOptions(job.settings, job.nested))
+		if err != nil || ctx.Err() != nil {
+			continue
+		}
+		if changed := job.changedFiles(job.root, files); len(changed) > 0 {
+			ix.reread(job.id, changed)
+		}
+	}
+}
+
+// writerSweepJobs lists the repos this indexer writes that have an index.
+func (ix *Indexer) writerSweepJobs() []sweepJob {
+	ix.mu.Lock()
+	defer ix.mu.Unlock()
+	var jobs []sweepJob
+	for _, id := range ix.order {
+		r := ix.repos[id]
+		if r.lock == nil || r.shard == nil {
+			continue
+		}
+		r.swept = time.Now()
+		jobs = append(jobs, sweepJob{id: id, root: r.root.Path, shard: r.shard, overlay: r.overlay, settings: ix.settings, nested: ix.nestedRoots(r.root.Path)})
+	}
+	return jobs
+}
+
 // sweepStart finds the repo at root and marks it swept, if it is due.
 func (ix *Indexer) sweepStart(root string) (sweepJob, bool) {
 	ix.mu.Lock()
@@ -90,7 +150,7 @@ func (ix *Indexer) sweepStart(root string) (sweepJob, bool) {
 			continue
 		}
 		r.swept = time.Now()
-		return sweepJob{id: id, shard: r.shard, overlay: r.overlay, settings: ix.settings, nested: ix.nestedRoots(root)}, true
+		return sweepJob{id: id, root: root, shard: r.shard, overlay: r.overlay, settings: ix.settings, nested: ix.nestedRoots(root)}, true
 	}
 	return sweepJob{}, false
 }

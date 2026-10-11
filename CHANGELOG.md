@@ -89,6 +89,9 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- Files changed where VS Code doesn't look (a folder `files.watcherExclude` leaves out, a disk it can't watch) or
+  while it was closed could show their old text until the next full rebuild. Each window now checks its repos' files
+  a few seconds after it opens and every two minutes, and re-reads the changed ones.
 - Searches that ask for two things one list can't hold now say so instead of quietly dropping one:
   `symbol:Parse OR timeout` (definitions on one side, code on the other) and `type:file symbol:Parse`, `type:code
   kind:function` or `type:file ref:Parse` (a `type:` that rules out what the operator finds) are errors, with a fix
