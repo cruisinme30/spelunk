@@ -255,7 +255,7 @@ Jason Kim and Marta Ruiz, and one uncommitted edit:
 | 30 | `retry`; `type:commit timeout author:"Jane Doe" -repo:^shared-libs$` after `type:commit timeout` | [result-facets.png](proof/result-facets.png), [result-facets-commits.png](proof/result-facets-commits.png) |
 | 31 | An empty box with a named and an unnamed pin, the second being named | [pinned-queries.png](proof/pinned-queries.png) |
 | 32 | `RetryPolicy`, replaced with `BackoffPolicy` (`--replace`) | [replace-in-files.png](proof/replace-in-files.png) |
-| 33 | `cfg` | [fuzzy-file-names.png](proof/fuzzy-file-names.png) |
+| 33 | `match:fuzzy cfg`; `cfg` | [fuzzy-file-names.png](proof/fuzzy-file-names.png), [fuzzy-file-names-note.png](proof/fuzzy-file-names-note.png) |
 | 34 | `type:added retry_policy`, over a history where one commit only removed `retry_policy` lines | [added-removed-lines.png](proof/added-removed-lines.png) |
 | 35 | `sym:retry kind:class`, `ref:RetryPolicy` | [symbol-kinds.png](proof/symbol-kinds.png), [references.png](proof/references.png) |
 | 36 | `type:code f:http/ retry` with `--setting results.contextLines=2` | [context-lines.png](proof/context-lines.png) |
@@ -636,3 +636,22 @@ revision the choice is greyed out, a typed `order:recent` is an error, and the s
   `"Light Modern"`; the menu with `--click '[data-testid="order-button"]'` and the default order), over a copy of
   `testdata/workspace` whose payments-api has a few weeks of commits and an uncommitted edit, whose web-checkout was
   committed 2 hours ago, and whose shared-libs isn't a Git repository.
+
+## Exact words, fuzzy file names on request (2.1)
+
+Mock 33 (`fuzzy-file-names`) changed: a word matches its exact text, and `match:fuzzy` (the new `match:` operator,
+`exact` or `fuzzy`) lets a bare word also find file names that have its letters in order. `spelunk.search.match` set
+to `fuzzy` makes that the default, and `match:exact` turns it off. Without fuzzy matching, the plan's `MatchFilter`
+counts what a fuzzy copy of the search would add (`Plan.MatchingFuzzy`), and the panel's note says "3 file names have
+these letters in order" with Show them, which adds `match:fuzzy` or turns `match:exact` into it.
+
+- Daemon: `daemon/internal/query/plan_test.go` (bare words fuzzy only under `match:fuzzy` or the setting, `match:exact`
+  winning; the note's undo; no note for a phrase, a whole word or a NOT) and `daemon/internal/trigram/fuzzy_test.go`
+  (the earlier fuzzy cases under `match:fuzzy`; exact by default with each note's count and undo, the setting, and
+  `match:exact` over it).
+- Host: the setting's default and fallback in `settings.test.ts`, and the help page's new example run against the real
+  daemon.
+- Panel: "exact matching's note counts the file names match:fuzzy would add, and Show them adds it" in
+  `webview/test/webview.test.mjs`; the operator sheet and help list `match:`.
+- Built: `docs/dev/proof/fuzzy-file-names.png` (`match:fuzzy cfg`) and `docs/dev/proof/fuzzy-file-names-note.png`
+  (`cfg`, exact, with the note), from `node scripts/screenshotPanel.mjs`.

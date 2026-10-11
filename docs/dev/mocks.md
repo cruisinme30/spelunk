@@ -40,7 +40,7 @@ covered.
 | 30 | Facets — counts by repo, language and folder (author and month for commits) narrow the results | `result-facets` | `Facets` | 1.1 |
 | 31 | Pinned queries: star a recent query, name it, keep it on top | `pinned-queries` | `PinnedQueries` | 1.1 |
 | 32 | Replace in current files: preview every edit, then one undoable change | `replace-in-files` | `Replace` | 1.1 |
-| 33 | Bare words find file names by their letters in order | `fuzzy-file-names` | `FuzzyNames` | 1.1 |
+| 33 | `match:fuzzy` finds file names by their letters in order; without it, a note offers them | `fuzzy-file-names` | `FuzzyNames` | 2.1 |
 | 34 | `type:added` finds the commits that added a line | `added-removed-lines` | `AddedLines` | 1.1 |
 | 35 | `kind:` keeps one kind of definition; `ref:` finds a name's uses | `symbol-kinds` | `SymbolKinds` | 1.1 |
 | 36 | Context lines: a few lines around each code match, merged when they touch | `context-lines` | `ContextLines` | 1.2 |

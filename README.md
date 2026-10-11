@@ -29,8 +29,9 @@ removed `timeout` or `retry`. Drop `author:` and the same box searches current f
   `content:retry` matches text inside files but never file names, and `since:` and `until:` take dates too:
   `since:2026-09 until:2026-09` is September. A `/regex/` with `\n` in it matches across lines of current files, and
   `struct:"backoff(:[call], tries=:[n])"` finds code by its shape, its holes taking whole arguments over lines.
-- **File names the way Quick Open finds them.** A word also finds file names that have its letters in order, so
-  `usrsvc` finds `UserService.ts`; code lines still match exactly.
+- **Exact words, and file names the way Quick Open finds them when you ask.** A word matches its exact text;
+  `match:fuzzy usrsvc` also finds file names that have its letters in order, like `UserService.ts`, and a note offers
+  them when exact matching left them out. Code lines always match exactly.
 - **Best match first.** Files that define what you searched for, are open in the editor, or are named after it come
   first; tests, vendored and generated files come last. `order:file` sorts by path instead, and `order:recent` by
   when files last changed; the order name above the results picks one too.

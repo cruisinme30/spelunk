@@ -67,6 +67,11 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
+- A word now matches its exact text: `RetryPolicy` no longer lists `retry_policy.py`, nor `retry` `registry.go`.
+  `match:fuzzy` brings back file names that have a word's letters in order, as Quick Open finds files
+  (`match:fuzzy usrsvc` finds `UserService.ts`), and without it a note under the results counts them, "3 file names
+  have these letters in order", with Show them. New setting `spelunk.search.match` (`exact` by default; `fuzzy` makes
+  it the default again).
 - Only `file:`, `author:`, `symbol:`, `language:` and `message:` keep a short name, and it reads: `f:`, `a:`,
   `sym:`, `lang:` and `msg:`. The other one-letter names (`s:`, `i:`, `d:`, `r:` …) and `path:` are gone; typing one
   says **Unknown search word s: (now symbol:)** and the fix changes it to the full name.
