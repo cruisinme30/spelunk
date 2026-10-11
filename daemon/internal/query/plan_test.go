@@ -654,6 +654,11 @@ func TestSymbolQueriesOfferToSearchTheNameAsText(t *testing.T) {
 			t.Errorf("%s: undo gives %q, want %q", tt.query, got, tt.text)
 		}
 	}
+	for _, text := range []string{"-symbol:Parse kind:function", "kind:function NOT symbol:Parse"} {
+		if plan := mustPlan(t, text, defaultSettings); plan.SymbolFilter != nil {
+			t.Errorf("%s: symbol filter = %+v, want none for a left-out symbol:", text, plan.SymbolFilter)
+		}
+	}
 	if plan := mustPlan(t, "retry", defaultSettings); plan.SymbolFilter != nil {
 		t.Errorf("retry: symbol filter = %+v, want none", plan.SymbolFilter)
 	}

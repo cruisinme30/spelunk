@@ -470,12 +470,25 @@ func textTermCount(root *protocol.Node) int {
 	return count
 }
 
-// symbolFilter turns every sym: of the query into its value as text, or
-// returns nil when there is none.
+// walkPositive calls visit for every node of the tree at node that no NOT
+// or - encloses.
+func walkPositive(node *protocol.Node, visit func(*protocol.Node)) {
+	if node == nil || node.Kind == protocol.NodeKindNot {
+		return
+	}
+	visit(node)
+	for i := range node.Children {
+		walkPositive(&node.Children[i], visit)
+	}
+}
+
+// symbolFilter turns every sym: of the query that isn't left out into its
+// value as text, or returns nil when there is none: searching the text a
+// -symbol: leaves out would make no sense.
 func symbolFilter(root *protocol.Node, src *source) *Filter {
 	var edits []protocol.TextEdit
 	var texts, values []string
-	walk(root, func(n *protocol.Node) {
+	walkPositive(root, func(n *protocol.Node) {
 		if n.Kind != protocol.NodeKindOp || n.Op != protocol.OpNameSym {
 			return
 		}
