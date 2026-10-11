@@ -553,3 +553,31 @@ without one.
 - Built: `docs/dev/proof/hover-labels.png` and `docs/dev/proof/hover-labels-light.png`, from
   `node scripts/screenshotPanel.mjs --query 'retry_policy' --theme "Dark Modern" --hover
   '[data-testid="toggle-replace"]'` (and `"Light Modern"`).
+
+## Jupyter notebooks by cell (2.1)
+
+Mock 60 (`notebook-cells`): a notebook is indexed as its cells' text (`daemon/internal/notebook`), each cell's source
+in turn, never its JSON or outputs; results, symbols, previews and open targets carry each line's cell. The panel
+heads a notebook's results with their cell and numbers lines within it, and the preview draws the cells with their
+run numbers and a note of their outputs. VS Code opens a result in the notebook editor at its cell, Replace edits the
+cells there (so a quote can't break the JSON), and `at:` opens a past notebook read-only in the notebook editor.
+History diffs notebooks by their cells through a Git textconv filter, the daemon itself (ADR 0006).
+`spelunk.index.notebookOutputs` also searches the text cells printed.
+
+- Daemon: `daemon/internal/notebook/notebook_test.go` (cells' text and places, outputs after the source, kernel and
+  per-cell languages, what isn't nbformat 4); `daemon/internal/trigram/notebooks_test.go` (search by cell, never the
+  printed line, definitions and `ref:` by cell, `language:python`, the outputs setting, plots neither searched nor
+  counted toward the size limit, a broken notebook searched as text, context and regexes kept inside a cell, the
+  preview's cells and outline, open targets, Replace leaving outputs, at a revision);
+  `daemon/internal/history/notebooks_test.go` (a re-run is no change, a one-line edit is +1 −1 with each diff line's
+  cell, the filter never fails); `daemon/internal/server/notebooks_test.go` (at: by cell, revision/text the JSON).
+- Host: `extension/src/test/notebookLines.test.ts` (lines to cells as the daemon counts them),
+  `extension/src/test/syntaxColors.test.ts` (each cell in its own language, outputs plain), the new setting in
+  `settings.test.ts`.
+- Panel: `webview/test/notebooks.test.mjs` (cell headings, numbering within cells, context runs per cell, a
+  definition's cell, the preview's cells, run numbers, output notes and outline, a commit diff by cell).
+- End to end in VS Code: "A notebook result opens in the notebook editor at its cell, and Replace edits the cell,
+  quotes and all" in `extension/src/e2e/commands.test.ts`.
+- Built: `docs/dev/proof/notebook-cells.png` and `docs/dev/proof/notebook-cells-light.png`, from
+  `node scripts/screenshotPanel.mjs --workspace "$PWD/testdata/notebooks" --query 'retry_policy' --select 3 --height 900
+  --theme "Dark Modern"` (and `"Light Modern"`).

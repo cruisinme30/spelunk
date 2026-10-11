@@ -35,9 +35,18 @@ All notable changes to this project are documented here. The format follows
   query's bell or pencil...) shows its name in a third of a second, in the theme's hover colors. VS Code's webviews
   show no tooltips of their own, so these names were never seen before. The magnifying glass and the Replace row's
   icon have names now too.
+- Jupyter notebooks (`.ipynb`) are searched by their cells' code and notes instead of their JSON: each result sits
+  under a **Cell 2 · Python** heading with its line numbered within the cell, the preview shows the cells with their
+  run numbers and what their outputs are, and opening a result opens the notebook editor at that cell with the match
+  selected. `symbol:`, `kind:`, `ref:` and `language:` see notebook code, plots are never searched and don't count
+  toward `spelunk.index.maxFileSizeKB`, history diffs a notebook by its cells (re-running one is no change), and `at:`
+  opens a past notebook read-only in the notebook editor. New setting: `spelunk.index.notebookOutputs` (off) also
+  searches the text cells printed.
 
 ### Fixed
 
+- Replace in a Jupyter notebook edited its JSON, so a replacement with a quote or a backslash left a notebook VS Code
+  couldn't open, and it changed what cells had printed. It now edits the cells, through the notebook editor.
 - When a daemon that stopped answering was restarted, the searches waiting on it could fail with "write EPIPE"
   instead of saying why; they now fail with "the daemon stopped answering, so it was restarted".
 - A word next to `kind:` or `symbol:` now matches the definition's name: `kind:function parse` returns the functions
