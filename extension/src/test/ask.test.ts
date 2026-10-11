@@ -98,6 +98,7 @@ test("a question too vague to search gets a question back, and nothing is search
   assert.deepEqual(parsedTexts, [], "no query, so nothing to check");
   const system = systemPrompt({ guide: "g", repos: [], teams: [] });
   assert.match(system, /Never guess what the question leaves out/);
+  assert.match(system, /wants code, not text that\s+mentions it: add in:code/);
   assert.match(system, /never search terms/);
 });
 
