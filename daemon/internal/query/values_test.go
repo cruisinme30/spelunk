@@ -64,7 +64,7 @@ func TestUntilSuggestsTheSinceWindowsWithTheirEnd(t *testing.T) {
 			"1w | More than a week ago | Before Sat, Sep 26 | 9 files not changed since\n" +
 			"1m | More than a month ago | Before Thu, Sep 3 | 7 files not changed since\n" +
 			"1y | More than a year ago | Before Fri, Oct 3, 2025 | 2 files not changed since",
-		"u:y":          "[Calendar days] yesterday | Through yesterday | Before today | 12 files not changed since",
+		"until:y":      "[Calendar days] yesterday | Through yesterday | Before today | 12 files not changed since",
 		"until:2026-0": "",
 	}
 	for text, want := range tests {

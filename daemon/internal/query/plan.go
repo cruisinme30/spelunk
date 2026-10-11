@@ -415,7 +415,7 @@ func symbolFilter(root *protocol.Node, src *source) *Filter {
 		if n.Kind != protocol.NodeKindOp || n.Op != protocol.OpNameSym {
 			return
 		}
-		// The value as typed, quoted or /regex/, after sym:, symbol: or s:.
+		// The value as typed, quoted or /regex/, after symbol: or sym:.
 		_, value, _ := strings.Cut(src.slice(n.Span.Start, n.Span.End), ":")
 		edits = append(edits, protocol.TextEdit{Span: n.Span, NewText: value})
 		texts, values = append(texts, src.slice(n.Span.Start, n.Span.End)), append(values, value)

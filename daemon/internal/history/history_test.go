@@ -286,12 +286,12 @@ func TestWordYesMatchesWholeWordsInDiffs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	stats, err = Search(context.Background(), plan(t, "type:commit w:yes timeout"), []Repo{repo}, 1, func(protocol.ResultItem) {})
+	stats, err = Search(context.Background(), plan(t, "type:commit word:yes timeout"), []Repo{repo}, 1, func(protocol.ResultItem) {})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if timeout.Total == 0 || stats.Total != timeout.Total {
-		t.Errorf("w:yes timeout found %d commits, want the %d that timeout finds", stats.Total, timeout.Total)
+		t.Errorf("word:yes timeout found %d commits, want the %d that timeout finds", stats.Total, timeout.Total)
 	}
 }
 

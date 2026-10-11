@@ -99,22 +99,14 @@ func TestOperators(t *testing.T) {
 		{"case: yes", "case:yes x", "and(case=yes/literal literal:x)"},
 		{"count: number", "count:20 x", "and(count=20/literal literal:x)"},
 		{"count: all", "count:all x", "and(count=all/literal literal:x)"},
-		{"path: is file:, as GitHub spells it", "path:src/ -path:*.md x", "and(f=src//regex not(f=*.md/glob) literal:x)"},
 	}
-	// Every operator also answers to its short and full names.
+	// The operators people reach for most also answer to a short name.
 	aliases := []struct{ short, full, value, want string }{
 		{"f", "file", "src/", "f=src//regex"},
-		{"r", "repo", "web", "repo=web/regex"},
-		{"l", "language", "go", "lang=go/literal"},
-		{"t", "type", "code", "type=code/literal"},
-		{"s", "symbol", "Retry", "sym=Retry/literal"},
 		{"a", "author", "jane", "author=jane/literal"},
-		{"m", "message", "fix", "msg=fix/literal"},
-		{"d", "since", "2w", "since=2w/literal"},
-		{"u", "until", "2w", "until=2w/literal"},
-		{"c", "case", "yes", "case=yes/literal"},
-		{"w", "word", "yes", "word=yes/literal"},
-		{"n", "count", "all", "count=all/literal"},
+		{"sym", "symbol", "Retry", "sym=Retry/literal"},
+		{"lang", "language", "go", "lang=go/literal"},
+		{"msg", "message", "fix", "msg=fix/literal"},
 	}
 	for _, a := range aliases {
 		for _, name := range []string{a.short, a.full} {

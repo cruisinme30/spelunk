@@ -500,12 +500,17 @@ func nearestOwners(value string, owners []OwnerStat) []string {
 func (p *parser) reportUnknownOperator(t token) {
 	nameSpan := protocol.Span{Start: t.start, End: t.valueStart}
 	word := p.src.slice(t.start, t.end)
+	// A retired short name (s:, path:) has one fix, the operator it meant.
+	names, message := nearest(strings.ToLower(t.name), operatorNames()), "Unknown operator "+t.name+":"
+	if op, retired := retiredOperator(strings.ToLower(t.name)); retired {
+		names, message = []string{op.full}, fmt.Sprintf("Unknown operator %s: (now %s:)", t.name, op.full)
+	}
 	var fixes []protocol.Fix
-	for _, name := range nearest(strings.ToLower(t.name), operatorNames()) {
+	for _, name := range names {
 		fixes = append(fixes, replaceFix(fmt.Sprintf("Change to %s:", name), nameSpan, name+":"))
 	}
 	fixes = append(fixes, replaceFix("Search for the text instead", p.span(t), `"`+strings.ReplaceAll(word, `"`, `\"`)+`"`))
-	p.problems.errorf(DiagUnknownOperator, nameSpan, fixes, "Unknown operator %s:", t.name)
+	p.problems.errorf(DiagUnknownOperator, nameSpan, fixes, "%s", message)
 }
 
 func (p *parser) reportBadValue(op operator, t token, valueSpan protocol.Span, problem string) {

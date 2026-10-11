@@ -27,13 +27,10 @@ const (
 type operator struct {
 	// name is the operator in the parsed query, whichever spelling was typed.
 	name protocol.OpName
-	// full and short are the spellings people type: file: and f:. name is
-	// accepted too, so lang:, sym: and msg: keep working. content: has no
-	// short name, since c: is case:.
+	// full and short are the spellings people type: file: and f:. Only the
+	// operators people reach for most have a short name, one they can read:
+	// f:, a:, sym:, lang: and msg:. The rest are typed in full.
 	full, short string
-	// aliases are other spellings people bring from other tools: path: for
-	// file:, as GitHub and Sourcegraph spell it.
-	aliases []string
 	// global operators apply to the whole query and may appear once, at the top level.
 	global bool
 	scope  scope
@@ -48,29 +45,29 @@ type operator struct {
 }
 
 // operators lists every operator in completion order, most used first. A
-// word that is exactly a short name offers that operator first, so "s"
-// offers symbol: before since:.
+// word that is exactly a short name offers that operator first, so "a"
+// offers author: before at:.
 var operators = []operator{
-	{name: protocol.OpNameF, full: "file", short: "f", aliases: []string{"path"}, summary: "Paths to search", examples: []string{"*.py", `\.py$`, "src/", "test"}, interpret: asPathRegex},
+	{name: protocol.OpNameF, full: "file", short: "f", summary: "Paths to search", examples: []string{"*.py", `\.py$`, "src/", "test"}, interpret: asPathRegex},
 	{name: protocol.OpNameAuthor, full: "author", short: "a", scope: scopeHistoryOnly, summary: "Commit author", interpret: asName},
-	{name: protocol.OpNameSince, full: "since", short: "d", summary: "Changed since", examples: windowExamples, interpret: asWindow("since")},
-	{name: protocol.OpNameUntil, full: "until", short: "u", summary: "Changed before", examples: windowExamples, interpret: asWindow("until")},
-	{name: protocol.OpNameSym, full: "symbol", short: "s", scope: scopeWorkingTreeOnly, summary: "Symbol definitions", interpret: asText},
-	{name: protocol.OpNameKind, full: "kind", short: "k", scope: scopeWorkingTreeOnly, summary: "Definition kind", examples: SymbolKinds, interpret: oneOf(SymbolKinds...)},
-	{name: protocol.OpNameRef, full: "ref", short: "x", scope: scopeWorkingTreeOnly, summary: "References", interpret: asReference},
-	{name: protocol.OpNameIs, full: "is", short: "i", summary: "File state", examples: []string{StateOpen, StateChanged, StateTest, StateGenerated, StateVendored}, interpret: oneOf(StateOpen, StateChanged, StateTest, StateGenerated, StateVendored)},
+	{name: protocol.OpNameSince, full: "since", summary: "Changed since", examples: windowExamples, interpret: asWindow("since")},
+	{name: protocol.OpNameUntil, full: "until", summary: "Changed before", examples: windowExamples, interpret: asWindow("until")},
+	{name: protocol.OpNameSym, full: "symbol", short: "sym", scope: scopeWorkingTreeOnly, summary: "Symbol definitions", interpret: asText},
+	{name: protocol.OpNameKind, full: "kind", scope: scopeWorkingTreeOnly, summary: "Definition kind", examples: SymbolKinds, interpret: oneOf(SymbolKinds...)},
+	{name: protocol.OpNameRef, full: "ref", scope: scopeWorkingTreeOnly, summary: "References", interpret: asReference},
+	{name: protocol.OpNameIs, full: "is", summary: "File state", examples: []string{StateOpen, StateChanged, StateTest, StateGenerated, StateVendored}, interpret: oneOf(StateOpen, StateChanged, StateTest, StateGenerated, StateVendored)},
 	{name: protocol.OpNameOwner, full: "owner", scope: scopeWorkingTreeOnly, summary: "Code owner", interpret: asOwner},
 	{name: protocol.OpNameContent, full: "content", summary: "File text only", examples: []string{"retry", `"read timeout"`, "/Retry(Policy)?/"}, interpret: asText},
 	{name: protocol.OpNameStruct, full: "struct", scope: scopeWorkingTreeOnly, summary: "Structural search", interpret: asTemplate},
-	{name: protocol.OpNameLang, full: "language", short: "l", summary: "Programming language", examples: []string{"python", "go", "typescript"}, interpret: asLanguage},
-	{name: protocol.OpNameRepo, full: "repo", short: "r", summary: "Repos to search", interpret: asPathRegex},
-	{name: protocol.OpNameMsg, full: "message", short: "m", scope: scopeHistoryOnly, summary: "Message text", interpret: asText},
-	{name: protocol.OpNameType, full: "type", short: "t", global: true, summary: "Result kind", examples: fixedValueNames(protocol.OpNameType), interpret: oneOf(fixedValueNames(protocol.OpNameType)...)},
-	{name: protocol.OpNameCase, full: "case", short: "c", global: true, summary: "Case matching", examples: fixedValueNames(protocol.OpNameCase), interpret: oneOf(fixedValueNames(protocol.OpNameCase)...)},
-	{name: protocol.OpNameWord, full: "word", short: "w", global: true, summary: "Word boundaries", examples: fixedValueNames(protocol.OpNameWord), interpret: oneOf(fixedValueNames(protocol.OpNameWord)...)},
+	{name: protocol.OpNameLang, full: "language", short: "lang", summary: "Programming language", examples: []string{"python", "go", "typescript"}, interpret: asLanguage},
+	{name: protocol.OpNameRepo, full: "repo", summary: "Repos to search", interpret: asPathRegex},
+	{name: protocol.OpNameMsg, full: "message", short: "msg", scope: scopeHistoryOnly, summary: "Message text", interpret: asText},
+	{name: protocol.OpNameType, full: "type", global: true, summary: "Result kind", examples: fixedValueNames(protocol.OpNameType), interpret: oneOf(fixedValueNames(protocol.OpNameType)...)},
+	{name: protocol.OpNameCase, full: "case", global: true, summary: "Case matching", examples: fixedValueNames(protocol.OpNameCase), interpret: oneOf(fixedValueNames(protocol.OpNameCase)...)},
+	{name: protocol.OpNameWord, full: "word", global: true, summary: "Word boundaries", examples: fixedValueNames(protocol.OpNameWord), interpret: oneOf(fixedValueNames(protocol.OpNameWord)...)},
 	{name: protocol.OpNameExcludes, full: "excludes", global: true, summary: "VS Code's excludes", examples: fixedValueNames(protocol.OpNameExcludes), interpret: oneOf(fixedValueNames(protocol.OpNameExcludes)...)},
-	{name: protocol.OpNameCount, full: "count", short: "n", global: true, summary: "Page size", examples: []string{"50", "200", "all"}, interpret: asCount},
-	{name: protocol.OpNameOrder, full: "order", short: "o", global: true, scope: scopeWorkingTreeOnly, summary: "Result order", examples: fixedValueNames(protocol.OpNameOrder), interpret: oneOf(fixedValueNames(protocol.OpNameOrder)...)},
+	{name: protocol.OpNameCount, full: "count", global: true, summary: "Page size", examples: []string{"50", "200", "all"}, interpret: asCount},
+	{name: protocol.OpNameOrder, full: "order", global: true, scope: scopeWorkingTreeOnly, summary: "Result order", examples: fixedValueNames(protocol.OpNameOrder), interpret: oneOf(fixedValueNames(protocol.OpNameOrder)...)},
 	{name: protocol.OpNameAt, full: "at", global: true, scope: scopeWorkingTreeOnly, summary: "Past revision", examples: []string{"v1.0.0", "main", "HEAD~10", "6m", "2026-01-31"}, interpret: asRevision},
 }
 
@@ -112,6 +109,42 @@ func currentState(value string) bool {
 	return value == StateOpen || value == StateChanged
 }
 
+// retiredSpellings are the one-letter names, and path:, that operators no
+// longer answer to. They are unknown operators like any other, but their
+// fix names the operator they meant: s: becomes symbol:. lookupOperator
+// is asked first, so a new operator may take one of these names.
+var retiredSpellings = map[string]protocol.OpName{
+	"path": protocol.OpNameF,
+	"d":    protocol.OpNameSince,
+	"u":    protocol.OpNameUntil,
+	"s":    protocol.OpNameSym,
+	"k":    protocol.OpNameKind,
+	"x":    protocol.OpNameRef,
+	"i":    protocol.OpNameIs,
+	"l":    protocol.OpNameLang,
+	"r":    protocol.OpNameRepo,
+	"m":    protocol.OpNameMsg,
+	"t":    protocol.OpNameType,
+	"c":    protocol.OpNameCase,
+	"w":    protocol.OpNameWord,
+	"n":    protocol.OpNameCount,
+	"o":    protocol.OpNameOrder,
+}
+
+// retiredOperator finds the operator a retired spelling meant: s, path.
+func retiredOperator(name string) (operator, bool) {
+	opName, retired := retiredSpellings[name]
+	if !retired {
+		return operator{}, false
+	}
+	for _, op := range operators {
+		if op.name == opName {
+			return op, true
+		}
+	}
+	return operator{}, false
+}
+
 // lookupOperator finds an operator by any of its spellings: f, file.
 func lookupOperator(name string) (operator, bool) {
 	for i := range operators {
@@ -128,7 +161,7 @@ func (op operator) spellings() []string {
 	if op.short != "" {
 		names = append(names, op.short)
 	}
-	return append(names, op.aliases...)
+	return names
 }
 
 func (op operator) accepts(name string) bool {

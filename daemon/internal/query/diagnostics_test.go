@@ -32,6 +32,9 @@ func TestDiagnostics(t *testing.T) {
 		{"unclosed regex", "x /abc", DiagUnclosedRegex, "/abc", "x /abc/"},
 		{"unknown operator offers the nearest", "sinse:6m timeout", DiagUnknownOperator, "sinse:", "since:6m timeout"},
 		{"unknown operator far from any name offers quoting", "wibble:x y", DiagUnknownOperator, "wibble:", `"wibble:x" y`},
+		{"a retired short name offers the operator it meant", "s:Retry x", DiagUnknownOperator, "s:", "symbol:Retry x"},
+		{"path: offers file:", "path:src/ x", DiagUnknownOperator, "path:", "file:src/ x"},
+		{"a retired letter far from its operator's name still offers it", "x:Retry", DiagUnknownOperator, "x:", "ref:Retry"},
 		{"since: with a bad unit", "since:6x a", DiagBadValue, "since:6x", "since:30d a"},
 		{"since: a day that doesn't exist offers the month's last", "since:2026-02-30 a", DiagBadValue, "since:2026-02-30", "since:2026-02-28 a"},
 		{"since: a month that doesn't exist offers the nearest", "since:2026-13 a", DiagBadValue, "since:2026-13", "since:2026-12 a"},
@@ -113,7 +116,7 @@ func TestTwoProblemsAreReportedInTextOrder(t *testing.T) {
 }
 
 func TestEveryFixProducesAQueryWithoutThatDiagnostic(t *testing.T) {
-	queries := []string{"a ) b", "a () b", "a OR", `x "abc`, "x /abc", "sinse:6m x", "since:6x a", "since:2026-02-30 a", "since:2026-00 a", "until:2026-02-30 a", "u:6x a", "lang:pyhton a", "(case:yes a) OR b", "case:yes a case:no", "author:jane sym:Foo"}
+	queries := []string{"a ) b", "a () b", "a OR", `x "abc`, "x /abc", "sinse:6m x", "since:6x a", "since:2026-02-30 a", "since:2026-00 a", "until:2026-02-30 a", "until:6x a", "i:test a", "path:src/ a", "lang:pyhton a", "(case:yes a) OR b", "case:yes a case:no", "author:jane sym:Foo"}
 	for _, query := range queries {
 		q := Parse(query, testResolver)
 		for _, d := range q.Diagnostics {
@@ -296,11 +299,11 @@ func TestPipeInWord(t *testing.T) {
 func TestNoPositiveTermSaysWhyNothingIsSearchedFor(t *testing.T) {
 	// @covers diag:no_positive_term
 	tests := map[string]string{
-		"-timeout":            "Add something to search for: every term is excluded with - or NOT",
-		"case:yes -timeout":   "Add something to search for: every term is excluded with - or NOT",
-		"case:yes":            "Add something to search for: case:yes only shapes the search",
-		"case:yes count:5":    "Add something to search for: case:yes and count:5 only shape the search",
-		"c:yes n:5 type:file": "Add something to search for: c:yes, n:5 and type:file only shape the search",
+		"-timeout":                   "Add something to search for: every term is excluded with - or NOT",
+		"case:yes -timeout":          "Add something to search for: every term is excluded with - or NOT",
+		"case:yes":                   "Add something to search for: case:yes only shapes the search",
+		"case:yes count:5":           "Add something to search for: case:yes and count:5 only shape the search",
+		"case:yes count:5 type:file": "Add something to search for: case:yes, count:5 and type:file only shape the search",
 	}
 	for text, want := range tests {
 		q := Parse(text, testResolver)

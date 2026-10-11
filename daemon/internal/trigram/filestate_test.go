@@ -17,7 +17,7 @@ func TestIsFiltersFilesByState(t *testing.T) {
 		{"is:changed RetryPolicy", []string{"src/retry.ts:1 export class RetryPolicy {"}},
 		{"is:test timeout", []string{"src/retry_test.py:1 def test_timeout():", "src/retry_test.py:2     assert retry(timeout=1)"}},
 		{"retry -is:test -f:vendor/", []string{"file src/retry.ts", "README.md:1 Retries use a RetryPolicy.", "src/client.ts:1 import { RetryPolicy } from './retry';", "src/client.ts:3 new RetryPolicy();", "src/retry.ts:1 export class RetryPolicy {"}},
-		{"i:test f:retry", []string{"file src/retry_test.py"}},
+		{"is:test f:retry", []string{"file src/retry_test.py"}},
 	}
 	for _, tt := range tests {
 		if got, _ := run(t, tt.query, repo); !reflect.DeepEqual(got, tt.want) {
@@ -75,7 +75,7 @@ func TestIsGeneratedAndIsVendoredFilterFiles(t *testing.T) {
 			"dist/checkout.bundle.js:1 var RetryPolicy=function(e){};",
 			"third_party/stripe_compat/retry.py:1 class RetryPolicy(object):",
 		}},
-		{"i:generated OR i:vendored", []string{
+		{"is:generated OR is:vendored", []string{
 			"file dist/checkout.bundle.js",
 			"file src/proto/retry.py",
 			"file src/proto/retry_pb2.py",

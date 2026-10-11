@@ -42,7 +42,7 @@ func TestPlanLowersTheQuery(t *testing.T) {
 		{"sym:RetryPolicy", "and(sym:/(?i)RetryPolicy/)"},
 		{"sym:/Retry.*/", "and(sym:/(?i)Retry.*/)"},
 		{"sym:Retry kind:class", "and(sym:/(?i)Retry/ kind:class)"},
-		{"k:method -f:test", "and(kind:method not(path:/(?i)test/))"},
+		{"kind:method -f:test", "and(kind:method not(path:/(?i)test/))"},
 		{"timeout ref:RetryPolicy", "and(content#0:/(?i)timeout/ ref#1:/(?i)RetryPolicy/)"},
 		{`author:jane msg:"fix flaky" -f:vendor/`, `and(author:~"jane" msg:/(?i)fix flaky/ not(path:/(?i)vendor//))`},
 		{`author:"Jane Doe" x`, `and(author:="jane doe" content#0:/(?i)x/)`},
@@ -60,11 +60,11 @@ func TestPlanLowersTheQuery(t *testing.T) {
 func TestKindReturnsDefinitionsAndRefReturnsCodeLines(t *testing.T) {
 	// @covers op:kind op:ref
 	tests := map[string]string{
-		"kind:function":            "symbol",
-		"sym:Retry k:class":        "symbol",
-		"ref:RetryPolicy":          "line",
-		"x:RetryPolicy f:payments": "line",
-		"ref:RetryPolicy timeout":  "line",
+		"kind:function":              "symbol",
+		"sym:Retry kind:class":       "symbol",
+		"ref:RetryPolicy":            "line",
+		"ref:RetryPolicy f:payments": "line",
+		"ref:RetryPolicy timeout":    "line",
 	}
 	for query, want := range tests {
 		if got := kinds(mustPlan(t, query, defaultSettings)); got != want {
@@ -231,7 +231,7 @@ func TestUntilBeforeSinceWarnsThatNothingCanMatch(t *testing.T) {
 	}
 	tests := map[string]string{
 		"since:2026-09 until:2026-08 x": "until:2026-08 ends before since:2026-09 starts, so nothing can match both",
-		"until:1y d:1w x":               "until:1y ends before d:1w starts, so nothing can match both",
+		"until:1y since:1w x":           "until:1y ends before since:1w starts, so nothing can match both",
 		"since:2w until:2w x":           "until:2w ends before since:2w starts, so nothing can match both",
 		"since:today until:yesterday x": "until:yesterday ends before since:today starts, so nothing can match both",
 	}
@@ -292,7 +292,7 @@ func TestWholeWordComesFromWordOrTheSetting(t *testing.T) {
 		{"x", defaultSettings, false},
 		{"x", wholeWords, true},
 		{"word:yes x", defaultSettings, true},
-		{"w:no x", wholeWords, false},
+		{"word:no x", wholeWords, false},
 	}
 	for _, tt := range tests {
 		plan := mustPlan(t, tt.query, tt.settings)
@@ -313,7 +313,7 @@ func TestOrderComesFromOrderOrTheSetting(t *testing.T) {
 		{"x", defaultSettings, protocol.ResultOrderBest},
 		{"x", byPath, protocol.ResultOrderPath},
 		{"order:path x", defaultSettings, protocol.ResultOrderPath},
-		{"o:best x", byPath, protocol.ResultOrderBest},
+		{"order:best x", byPath, protocol.ResultOrderBest},
 	}
 	for _, tt := range tests {
 		if got := mustPlan(t, tt.query, tt.settings).Order; got != tt.want {
@@ -419,7 +419,7 @@ func TestTypeSetsTypeFilterWithAnUndo(t *testing.T) {
 
 func TestTypeAddedOrRemovedPicksOneSideOfTheDiff(t *testing.T) {
 	// @covers op:type
-	tests := map[string]string{"type:added retry": TypeAdded, "t:removed retry": TypeRemoved, "type:commit retry": "", "author:jane": ""}
+	tests := map[string]string{"type:added retry": TypeAdded, "type:removed retry": TypeRemoved, "type:commit retry": "", "author:jane": ""}
 	for text, want := range tests {
 		if got := mustPlan(t, text, defaultSettings).DiffSide; got != want {
 			t.Errorf("plan(%q).DiffSide = %q, want %q", text, got, want)
@@ -496,7 +496,7 @@ func TestWordYesIsAWordFilterThatCanBeUndone(t *testing.T) {
 }
 
 func TestMatchingPartialWordsDropsWholeWordOnly(t *testing.T) {
-	plan := mustPlan(t, "w:yes case:yes Retry f:Src/ -Draft", defaultSettings)
+	plan := mustPlan(t, "word:yes case:yes Retry f:Src/ -Draft", defaultSettings)
 	partial := plan.MatchingPartialWords()
 	if got, want := partial.Pred.String(), "and(content#0:/Retry/ path:/Src// not(content#1:/Draft/))"; got != want {
 		t.Errorf("MatchingPartialWords().Pred = %s, want %s", got, want)
@@ -607,7 +607,7 @@ func TestSymbolQueriesOfferToSearchTheNameAsText(t *testing.T) {
 		{"sym:RetryPolicy", "sym:RetryPolicy", "Search RetryPolicy as text", "RetryPolicy"},
 		{"case:yes sym:/Retry.*/ f:src/", "sym:/Retry.*/", "Search /Retry.*/ as text", "case:yes /Retry.*/ f:src/"},
 		{"symbol:RetryPolicy", "symbol:RetryPolicy", "Search RetryPolicy as text", "RetryPolicy"},
-		{`s:"Retry Policy"`, `s:"Retry Policy"`, `Search "Retry Policy" as text`, `"Retry Policy"`},
+		{`sym:"Retry Policy"`, `sym:"Retry Policy"`, `Search "Retry Policy" as text`, `"Retry Policy"`},
 	} {
 		plan := mustPlan(t, tt.query, defaultSettings)
 		f := plan.SymbolFilter

@@ -27,19 +27,19 @@ func TestCompletingOperatorsByPrefix(t *testing.T) {
 }
 
 func TestCompletingOperatorsOffersFullNames(t *testing.T) {
-	// A short name offers its operator first; an old name or an alias (path:)
-	// offers the full one.
+	// A short name offers its operator first, by its full name. A retired
+	// one-letter name (d:, n:) or path: offers nothing.
 	tests := map[string]string{
-		"s":    "symbol: since: struct:",
+		"s":    "since: symbol: struct:",
 		"str":  "struct:",
 		"f":    "file:",
-		"d":    "since:",
-		"u":    "until:",
-		"n":    "count:",
+		"a":    "author: at:",
+		"d":    "",
+		"n":    "",
+		"pa":   "",
 		"lang": "language:",
 		"msg":  "message:",
 		"sym":  "symbol:",
-		"pa":   "file:",
 		"co":   "content: count:",
 	}
 	for text, want := range tests {
@@ -50,20 +50,20 @@ func TestCompletingOperatorsOffersFullNames(t *testing.T) {
 	if got := Complete("con", 3, testResolver, fixedNow); len(got) != 1 || got[0].Note != "" {
 		t.Errorf("Complete(con) = %+v, want content: with no short name", got)
 	}
-	completions := Complete("s", 1, testResolver, fixedNow)
-	if completions[0].Note != "s:" {
-		t.Errorf("symbol: note = %q, want the short name s:", completions[0].Note)
+	completions := Complete("sym", 3, testResolver, fixedNow)
+	if completions[0].Note != "sym:" {
+		t.Errorf("symbol: note = %q, want the short name sym:", completions[0].Note)
 	}
 }
 
 func TestValueCompletionKeepsTheSpellingTyped(t *testing.T) {
-	text := "c:y"
+	text := "lang:pyt"
 	completions := Complete(text, len(text), testResolver, fixedNow)
 	if len(completions) == 0 {
 		t.Fatalf("Complete(%q) offered nothing", text)
 	}
-	if got := ApplyFix(text, completions[0].Insert); got != "c:yes " {
-		t.Errorf("accepting %s gives %q, want %q", completions[0].Label, got, "c:yes ")
+	if got := ApplyFix(text, completions[0].Insert); got != "lang:python " {
+		t.Errorf("accepting %s gives %q, want %q", completions[0].Label, got, "lang:python ")
 	}
 }
 
