@@ -332,7 +332,7 @@ test("with excludes:no, a note counts what the excludes would hide and Hide them
 test("the help page lists every operator with an example, and Try runs it", async (t) => {
   // @covers screen:help-page
   const page = await openHelp(t);
-  assert.equal(await page.locator('[data-testid="operator-row"]').count(), 27);
+  assert.equal(await page.locator('[data-testid="operator-row"]').count(), 28);
   assert.equal(await page.locator('[data-testid="example"]').count(), 6);
   // Each operator reads by its full name, with its short name beside it.
   // Only the operators people reach for most have one.

@@ -21,6 +21,7 @@ import { diffSide, operatorNodes, textNodes, textTerms } from "../parsedQuery";
 import type { Fix, HiddenNote, ResultItem, SearchDoneMessage } from "../protocol.gen";
 import { menuContext, repoName, type ViewState } from "../state";
 import { ChunkedList } from "./chunkedList";
+import { fuzzyNamesNote } from "./fuzzyNamesNote";
 import { excludesNote, hiddenByExcludes } from "./excludesNote";
 import { demoted, ownerBadge, rankBadge, sinceBadge } from "./fileBadges";
 import { cellHeading } from "./notebook";
@@ -361,6 +362,7 @@ export class ResultsView {
    */
   private renderNote(note: HiddenNote): HTMLElement {
     if (note.reason === "symbol") return this.renderTextSearchNote(note);
+    if (note.reason === "match") return fuzzyNamesNote(note, this.showHiddenButton(note, note.undo.title));
     if (note.reason === "excludes")
       return excludesNote(note, this.hiddenWhat(note), this.showHiddenButton(note, note.undo.title));
     // type:added and type:removed hide commits; their undo says what it searches instead.

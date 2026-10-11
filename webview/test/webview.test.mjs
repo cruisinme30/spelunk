@@ -104,13 +104,13 @@ test("? in an empty box scrolls the cheat sheet into view when it sits below the
   assert.equal(await page.inputValue(QUERY), "", "the ? isn't typed into the box");
 });
 
-test("an empty box shows recent queries and all 27 operators", async (t) => {
+test("an empty box shows recent queries and all 28 operators", async (t) => {
   // @covers screen:empty-box
   const page = await openPanel(t);
   assert.equal((await sentMessages(page, "ready")).length, 1);
   await restore(page, ["sym:RetryPolicy", "since:2w timeout"]);
   assert.equal(await page.locator('[data-testid="recent"]').count(), 2);
-  assert.equal(await page.locator('[data-testid="sheet-op"]').count(), 27);
+  assert.equal(await page.locator('[data-testid="sheet-op"]').count(), 28);
   // An operator's full and short names share one line.
   const [full, short] = await page.locator('[data-testid="sheet-op"]', { hasText: "file:" }).locator("code").all();
   assert.equal(await short.textContent(), "f:");
@@ -948,6 +948,19 @@ test("a word:yes note offers to match parts of words", async (t) => {
   const note = page.locator('[data-testid="hidden-notes"] .note');
   assert.equal(await note.locator("span").first().innerText(), "4 matches hidden by word:yes");
   assert.equal(await note.locator('[data-testid="show-hidden"]').innerText(), "Match parts of words");
+});
+
+test("exact matching's note counts the file names match:fuzzy would add, and Show them adds it", async (t) => {
+  // @covers screen:fuzzy-file-names
+  const page = await openPanel(t);
+  await restore(page);
+  const seq = await typeAndParse(page, "rtrypol", parsedQuery("rtrypol", textNode("rtrypol", 0)));
+  const undo = { title: "Show them", edits: [{ span: { start: 0, end: 0 }, newText: "match:fuzzy " }] };
+  await searchDone(page, seq, { hidden: [{ reason: "match", filter: "match:exact", count: 3, unit: "files", undo }] });
+  const note = page.locator('[data-testid="hidden-notes"] .note');
+  assert.equal(await note.locator("span").first().innerText(), "3 file names have these letters in order");
+  await note.locator('[data-testid="show-hidden"]').click();
+  assert.equal(await page.inputValue(QUERY), "match:fuzzy rtrypol");
 });
 
 test("hidden-result notes use singular units and name the filter", async (t) => {

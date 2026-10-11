@@ -55,6 +55,15 @@ export const OPERATOR_GROUPS: OperatorGroup[] = [
         example: "word:yes retry",
       },
       {
+        operator: "match",
+        label: "match:exact|fuzzy",
+        insert: "match:fuzzy ",
+        summary: "Exact text only, or file names by their letters too. Exact by default.",
+        description:
+          "A word matches its exact text. match:fuzzy also finds file names that have its letters in order, as VS Code's Quick Open does, so rtrypol finds retry_policy.py; lines of code still match exactly. When it would find more names, a note under the results counts them, with Show them. The Match setting makes fuzzy the default.",
+        example: "match:fuzzy rtrypol",
+      },
+      {
         label: '"exact phrase"',
         insert: '""',
         summary: "Keeps the spaces together.",
@@ -293,6 +302,7 @@ export const OPERATOR_GROUPS: OperatorGroup[] = [
 export const OPERATOR_TONE: Record<OpName, Tone> = {
   case: "match",
   word: "match",
+  match: "match",
   excludes: "scope",
   f: "scope",
   repo: "scope",
@@ -337,6 +347,7 @@ const OPERATOR_NAMES: Record<OpName, { full: string; short: string }> = {
   at: { full: "at", short: "" },
   case: { full: "case", short: "" },
   word: { full: "word", short: "" },
+  match: { full: "match", short: "" },
   excludes: { full: "excludes", short: "" },
   count: { full: "count", short: "" },
   order: { full: "order", short: "" },
