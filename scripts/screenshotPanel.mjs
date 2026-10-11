@@ -20,6 +20,8 @@
 //   --click-after <selector>  an element to click once --select has previewed a result, e.g.
 //                       '[data-testid="outline-toggle"]' (repeatable)
 //   --type <text>       text to type after the clicks, into whatever has the focus
+//   --hover <selector>  an element to rest the mouse on last, until its hover label shows, e.g.
+//                       '[data-testid="toggle-replace"]'
 //   --help-page         render the help page instead of the search panel
 //   --out <file>        where to save the PNG (default: panel.png)
 //   --select <n>        press ↓ n times after the results arrive, to preview a result
@@ -57,6 +59,7 @@ const { values: args } = parseArgs({
     click: { type: "string", multiple: true, default: [] },
     "click-after": { type: "string", multiple: true, default: [] },
     type: { type: "string" },
+    hover: { type: "string" },
     "help-page": { type: "boolean", default: false },
     first: { type: "string" },
     out: { type: "string", default: "panel.png" },
@@ -250,6 +253,11 @@ async function drivePanel(page, posted) {
   for (const selector of args["click-after"]) await page.click(selector);
   if (args.theme) await page.waitForTimeout(500); // the syntax colors follow the results and preview
   await page.waitForTimeout(100); // let the last render settle
+  if (args.hover) {
+    await page.hover(args.hover);
+    // A second at most: what someone resting the mouse there would see by then.
+    await page.waitForSelector('[data-testid="hover-label"]:not([hidden])', { timeout: 1000 }).catch(() => {});
+  }
 }
 
 /**
