@@ -75,6 +75,7 @@ func New(conn *rpc.Conn, opts Options) *Server {
 	s.onNotify(protocol.MethodWorkspaceDidChangeFiles, s.didChangeFiles)
 	s.handle(protocol.MethodQueryParse, s.parse)
 	s.registerSearch()
+	s.registerLinks()
 	s.registerIndex()
 	s.registerWatches()
 	return s

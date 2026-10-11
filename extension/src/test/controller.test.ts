@@ -634,7 +634,9 @@ function threeResultsBackend() {
       case "index/status":
       case "index/rebuild":
       case "replace/plan":
-      case "revision/text": {
+      case "revision/text":
+      case "repo/remotes":
+      case "link/resolve": {
         throw new Error(`unexpected request ${method}`);
       }
     }

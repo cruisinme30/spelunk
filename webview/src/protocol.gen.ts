@@ -852,6 +852,52 @@ export interface BannerMessage {
   message?: string;
 }
 
+/** Remote is one of a repo's Git remotes: its name and the URL git fetches from (after url.<base>.insteadOf). */
+export interface Remote {
+  name: string;
+  url: string;
+}
+
+/** RepoRemotesParams ask for a repo's Git remotes. */
+export interface RepoRemotesParams {
+  repoId: string;
+}
+
+/** RepoRemotes are a repo's Git remotes, and the one a link goes to. */
+export interface RepoRemotes {
+  /** Whether the repo's folder is in a Git repository. */
+  git: boolean;
+  remotes: Remote[];
+  /** The remote links go to: the one the current branch tracks, else origin, else the only one. Absent when there is none, or several and none of those rules picks one. */
+  preferred?: string;
+}
+
+/** LinkParams ask what a permalink to a result names: the remote, commit, path and lines. */
+export interface LinkParams {
+  ref: string;
+  /** The remote to link to, picked by the user when the repo has several and none is preferred. */
+  remote?: string;
+}
+
+/** LinkProblem is why a result has no permalink: its folder isn't in Git (notGit), the repo has no remote (noRemote) or several and none is preferred (pickRemote), the remote has none of its commits (notPushed), the result's own lines differ from the newest commit the remote has (lineChanged), or its file isn't in that commit (notOnRemote). */
+export type LinkProblem = "notGit" | "noRemote" | "pickRemote" | "notPushed" | "lineChanged" | "notOnRemote";
+
+/** Link is what a permalink to a result names, or why it has none. The host turns it into the remote's web address. A working-tree result's lines are mapped from the file on disk, as the index has it. */
+export interface Link {
+  remote?: Remote;
+  /** The full sha the link points at: a commit result's own; a revision's for an at: result; else HEAD when the remote has it, or the newest commit of the remote's branch that HEAD builds on. */
+  commit?: string;
+  /** The file's path in the repository, from its top folder (which may be above the workspace folder), as it is in commit: the old path of a file renamed since. */
+  path?: string;
+  /** The result's first line in commit's file, 1-based; it differs from the line on disk when edits above it aren't in commit. */
+  line?: number;
+  /** The result's last line in commit's file, when its match spans lines. */
+  endLine?: number;
+  problem?: LinkProblem;
+  /** With pickRemote, the remotes to pick from. */
+  remotes?: Remote[];
+}
+
 /** Daemon JSON-RPC requests: method -> [params, result]. */
 export interface RpcRequests {
   "initialize": [InitializeParams, InitializeResult];
@@ -864,6 +910,8 @@ export interface RpcRequests {
   "index/rebuild": [RebuildParams, Empty];
   "replace/plan": [ReplacePlanParams, ReplacePlan];
   "shutdown": [Empty, Empty];
+  "repo/remotes": [RepoRemotesParams, RepoRemotes];
+  "link/resolve": [LinkParams, Link];
 }
 
 /** Daemon JSON-RPC notifications: method -> params. */
