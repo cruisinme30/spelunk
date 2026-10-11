@@ -9,6 +9,9 @@ All notable changes to this project are documented here. The format follows
 
 - When a daemon that stopped answering was restarted, the searches waiting on it could fail with "write EPIPE"
   instead of saying why; they now fail with "the daemon stopped answering, so it was restarted".
+- A word next to `kind:` or `symbol:` now matches the definition's name: `kind:function parse` returns the functions
+  whose names contain "parse", not every function in a file that mentions it. `content:parse` still matches the file's
+  text.
 
 ## [2.0.0] - 2026-10-10
 

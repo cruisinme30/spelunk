@@ -530,10 +530,10 @@ func (s *searcher) addCodeLines(repos []Repo) {
 	})
 }
 
-// addSymbols adds a result for each definition whose name sym: matches and
-// whose kind kind: allows, in a file that satisfies the rest of the query
-// (the "Definitions" section), and credits a definition that only one
-// filter removed to that filter.
+// addSymbols adds a result for each definition whose name sym: and the
+// query's words match and whose kind kind: allows, in a file that satisfies
+// the rest of the query (the "Definitions" section), and credits a
+// definition that only one filter removed to that filter.
 func (s *searcher) addSymbols(repos []Repo) {
 	s.forEachCandidate(repos, func(c rankedCandidate, _ *lineMatcher, leaf func(query.Pred) bool) {
 		for j := range c.doc.Symbols {
@@ -544,6 +544,11 @@ func (s *searcher) addSymbols(repos []Repo) {
 					return p.Re.MatchString(symbol.Name)
 				case *query.Kind:
 					return symbol.Kind == p.Name
+				case *query.Content:
+					if namesDefinitions(p) {
+						return p.MatchString(symbol.Name)
+					}
+					return leaf(p)
 				default:
 					return leaf(p)
 				}
@@ -563,13 +568,21 @@ func (s *searcher) addSymbols(repos []Repo) {
 // the definition's line, so opening it selects the name.
 func (s *searcher) symbolResult(repo *Repo, doc *Doc, symbol *symbols.Symbol) protocol.ResultItem {
 	hits := []protocol.Hit{}
+	highlight := func(found [][]int) {
+		for _, loc := range found {
+			if loc[1] > loc[0] {
+				r := UTF16Range(symbol.Name, loc[0], loc[1])
+				hits = append(hits, protocol.Hit{Start: r.Start, End: r.End})
+			}
+		}
+	}
 	for _, kid := range s.plan.Pred.Kids {
 		query.VisitPositive(kid, func(sym *query.Symbol) {
-			for _, loc := range sym.Re.FindAllStringIndex(symbol.Name, -1) {
-				if loc[1] > loc[0] {
-					r := UTF16Range(symbol.Name, loc[0], loc[1])
-					hits = append(hits, protocol.Hit{Start: r.Start, End: r.End})
-				}
+			highlight(sym.Re.FindAllStringIndex(symbol.Name, -1))
+		})
+		query.VisitPositive(kid, func(term *query.Content) {
+			if namesDefinitions(term) {
+				highlight(term.FindAllStringIndex(symbol.Name, -1))
 			}
 		})
 	}
@@ -583,6 +596,14 @@ func (s *searcher) symbolResult(repo *Repo, doc *Doc, symbol *symbols.Symbol) pr
 		Kind: query.KindSymbol, Ref: ref.String(), RepoID: repo.ID, Path: doc.Path, Line: symbol.Line,
 		Name: symbol.Name, SymbolKind: symbol.Kind, Hits: hits, SinceRevision: repo.sinceRevision(doc),
 	}
+}
+
+// namesDefinitions reports whether term, in a query that returns
+// definitions, matches their names: a word or regex does, so
+// kind:function parse finds the functions named for parsing; content:,
+// ref:, struct: and a regex across lines match the file's text instead.
+func namesDefinitions(term *query.Content) bool {
+	return !term.ContentOnly && !term.Reference && term.Structural == nil && !term.Multiline
 }
 
 // lineOf returns line number (1-based) of content, without its line end.
