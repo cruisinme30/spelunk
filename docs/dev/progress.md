@@ -425,3 +425,27 @@ as they are now, and Replace refuse it in words.
 - Built: `docs/dev/proof/past-revision.png` and `docs/dev/proof/past-revision-values.png`, from
   `node scripts/screenshotPanel.mjs --workspace <the tagged copy> --query 'at:v1.0.0 retry_after' --select 1` and
   `--query 'retry_after at:'`.
+
+## Syntax colors and whitespace (2.1)
+
+Mock 43 (`syntax-colors`): code in results, context lines and the preview is colored by VS Code's own grammar engine
+(vscode-textmate with vscode-oniguruma) running the grammars the installed extensions contribute, with the active
+color theme's token colors and `editor.tokenColorCustomizations`. The host colors each batch and preview after posting
+it (`syntax.lines`), so coloring never holds results up; the panel wraps the text already drawn, matches included. The
+preview marks whitespace as `editor.renderWhitespace` says, and code follows `editor.tabSize`, `editor.fontSize` and
+`editor.fontLigatures`.
+
+- Host: `extension/src/test/syntaxColors.test.ts` (a contributed grammar and theme color a file by its extension or
+  name; consecutive lines carry a block comment over; a theme's comments, includes, tokenColors file, renamed ids and
+  customizations; batches and previews colored after they are posted, and from scratch on a theme change) and
+  `settings.test.ts` (the editor settings followed, the panel's own settings winning, wrong types).
+- Panel: `webview/test/syntax.test.mjs` (plain until the colors come, then in color with matches kept, a reset, code
+  drawn again colored again, a replace preview left plain, each `renderWhitespace` mode, marks keeping the text and
+  `editor.tabSize`).
+- End to end in VS Code: "Code in results is colored with the theme's colors, by the grammar VS Code colors the editor
+  with" in `extension/src/e2e/commands.test.ts` (the built-in theme and Python grammar, through the packaged
+  `onig.wasm`).
+- Cost: the grammar engine adds `dist/onig.wasm` (462 KB) and about 90 KB to `dist/extension.js`; the engine loads
+  the first time code is colored, and each grammar the first time a file of its language shows.
+- Built: `docs/dev/proof/syntax-colors.png` and `docs/dev/proof/syntax-colors-light.png`, from
+  `node scripts/screenshotPanel.mjs --query 'retry_policy' --select 3 --theme "Dark Modern"` (and `"Light Modern"`).
