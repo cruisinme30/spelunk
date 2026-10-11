@@ -27,12 +27,15 @@
 //                       ("Name <email>") with subject s, then waits for the watches to see it (repeatable). It
 //                       commits in --workspace, so point that at a copy whose repos have user.email set
 //   --workspace <dir>   a folder of repos, one root per subfolder (default: testdata/workspace)
+//   --theme <name>      a color theme of the VS Code scripts/e2e.mjs downloads, e.g. "Dark Modern" or "Light Modern":
+//                       the panel takes its colors, and code its syntax colors, by VS Code's own grammars
 //   --width, --height   the panel size in pixels (default: 1200 × 720)
 //
 // Needs the daemon binary (npm test builds it) and Playwright's Chromium
 // (or CHROMIUM_PATH).
 import { execFileSync } from "node:child_process";
-import { appendFileSync, mkdtempSync, readdirSync, rmSync, statSync } from "node:fs";
+import { appendFileSync, existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from "node:fs";
+import { readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -56,6 +59,7 @@ const { values: args } = parseArgs({
     out: { type: "string", default: "panel.png" },
     select: { type: "string", default: "0" },
     workspace: { type: "string", default: join(repoRoot, "testdata/workspace") },
+    theme: { type: "string" },
     width: { type: "string", default: "1200" },
     height: { type: "string", default: "720" },
   },
@@ -100,8 +104,10 @@ async function main() {
   try {
     await untilIndexed(daemon);
     const page = await browser.newPage({ viewport: { width: Number(args.width), height: Number(args.height) } });
-    const posted = await connectPanel(page, host, daemon);
+    const theme = args.theme === undefined ? undefined : await loadTheme(host, args.theme);
+    const posted = await connectPanel(page, host, daemon, theme);
     await page.goto(pathToFileURL(join(repoRoot, "webview/test/out/searchPanel.html")).href);
+    if (theme) await applyThemeColors(page, theme);
     await postToPanel(page, "index.status", await daemon.request("index/status", {}));
     await commitForWatches(posted);
     await drivePanel(page, posted);
@@ -135,12 +141,20 @@ function postToPanel(page, type, payload) {
  * controller. Returns the list of message types posted so far, which the
  * caller waits on.
  */
-async function connectPanel(page, host, daemon) {
+async function connectPanel(page, host, daemon, theme) {
   const posted = [];
+  // With --theme, code is colored as the extension colors it: after the results and previews that carry it.
+  const syntax =
+    theme &&
+    new host.SyntaxPosts(theme.syntax, (message) => {
+      posted.push("syntax.lines");
+      void postToPanel(page, "syntax.lines", message);
+    });
   const ui = {
     post: (type, payload) => {
       posted.push(type);
       void postToPanel(page, type, payload);
+      syntax?.posted(type, payload);
     },
     openTarget: async () => {},
     hidePanel: () => {},
@@ -230,7 +244,69 @@ async function drivePanel(page, posted) {
   const rowsDown = Number(args.select);
   for (let row = 0; row < rowsDown; row++) await page.keyboard.press("ArrowDown");
   if (rowsDown > 0) await until("preview.result", () => posted.includes("preview.result"));
+  if (args.theme) await page.waitForTimeout(500); // the syntax colors follow the results and preview
   await page.waitForTimeout(100); // let the last render settle
+}
+
+/**
+ * --theme, from the VS Code scripts/e2e.mjs downloads into .vscode-test/:
+ * its uiTheme, its workbench colors, and syntax colors by VS Code's own grammars.
+ */
+async function loadTheme(host, name) {
+  const extensions = builtInExtensions();
+  const found = host.themeFile(extensions, name);
+  if (!found)
+    throw new Error(`No color theme ${name} in .vscode-test/; run node scripts/e2e.mjs once to download VS Code`);
+  const { rules, colors } = await host.readColorTheme(found.file, name, {}); // no customizations
+  const engine = join(
+    dirname(createRequire(join(repoRoot, "extension/package.json")).resolve("vscode-oniguruma")),
+    "onig.wasm",
+  );
+  const syntax = new host.SyntaxColors(new host.GrammarCatalog(extensions), rules, () => readFile(engine));
+  return { uiTheme: found.uiTheme, colors, syntax };
+}
+
+/** The extensions built into the downloaded VS Code: its themes and language grammars. */
+function builtInExtensions() {
+  const folder = extensionsFolder(join(repoRoot, ".vscode-test"), 0);
+  if (!folder) throw new Error("No VS Code in .vscode-test/; run node scripts/e2e.mjs once to download it");
+  return readdirSync(folder)
+    .map((name) => join(folder, name))
+    .filter((path) => existsSync(join(path, "package.json")))
+    .map((path) => ({
+      extensionPath: path,
+      packageJSON: JSON.parse(readFileSync(join(path, "package.json"), "utf8")),
+    }));
+}
+
+/** The folder of built-in extensions under `folder`: the one holding theme-defaults. */
+function extensionsFolder(folder, depth) {
+  if (existsSync(join(folder, "theme-defaults", "package.json"))) return folder;
+  if (depth > 6 || !existsSync(folder) || !statSync(folder).isDirectory()) return;
+  for (const name of readdirSync(folder)) {
+    const found = extensionsFolder(join(folder, name), depth + 1);
+    if (found) return found;
+  }
+}
+
+/** Gives the page the theme's colors, as VS Code gives a webview: a body class for its kind, and --vscode-* properties. */
+function applyThemeColors(page, { uiTheme, colors }) {
+  const bodyClass = {
+    vs: "vscode-light",
+    "vs-dark": "vscode-dark",
+    "hc-black": "vscode-high-contrast",
+    "hc-light": "vscode-high-contrast vscode-high-contrast-light",
+  }[uiTheme];
+  return page.evaluate(
+    ([className, themeColors]) => {
+      const { body, documentElement } = globalThis.document;
+      body.className = className;
+      for (const [key, value] of Object.entries(themeColors)) {
+        documentElement.style.setProperty(`--vscode-${key.replaceAll(".", "-")}`, value);
+      }
+    },
+    [bodyClass ?? "vscode-dark", colors],
+  );
 }
 
 /** The help page needs no daemon: it is static until Try is clicked. */
@@ -257,6 +333,9 @@ async function loadHost() {
         'export { Daemon } from "./daemon";',
         'export { makeRoot } from "./roots";',
         'export { daemonSettings, pinnedQueries, previewContextLines, uiSettings, watchedQueries } from "./settings";',
+        'export { readColorTheme, themeFile } from "./colorTheme";',
+        'export { GrammarCatalog, SyntaxColors } from "./syntaxColors";',
+        'export { SyntaxPosts } from "./syntaxLines";',
       ].join("\n"),
       resolveDir: join(repoRoot, "extension/src"),
       loader: "ts",
