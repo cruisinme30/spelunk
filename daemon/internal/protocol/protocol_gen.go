@@ -1358,7 +1358,9 @@ func (v IndexStatusMessage) MarshalJSON() ([]byte, error) {
 // StateRestoreMessage restores the panel's query, recent and pinned queries, and settings.
 type StateRestoreMessage struct {
 	// Text is the query box's text; absent after a settings change, which leaves the box as it is.
-	Text     string        `json:"text,omitempty"`
+	Text string `json:"text,omitempty"`
+	// Seeded is whether text came from the editor (a selection, or Find Definitions or Find Uses): the box types it in, so ⌘Z brings back what it replaced, and selects it, so typing replaces it.
+	Seeded   bool          `json:"seeded,omitempty"`
 	Recent   []string      `json:"recent"`
 	Pinned   []PinnedQuery `json:"pinned"`
 	Settings *UiSettings   `json:"settings,omitempty"`

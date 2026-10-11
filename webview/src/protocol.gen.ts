@@ -791,6 +791,8 @@ export interface IndexStatusMessage {
 export interface StateRestoreMessage {
   /** The query box's text; absent after a settings change, which leaves the box as it is. */
   text?: string;
+  /** Whether text came from the editor (a selection, or Find Definitions or Find Uses): the box types it in, so ⌘Z brings back what it replaced, and selects it, so typing replaces it. */
+  seeded?: boolean;
   recent: string[];
   pinned: PinnedQuery[];
   settings?: UiSettings;

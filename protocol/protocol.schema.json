@@ -2020,6 +2020,10 @@
           "description": "The query box's text; absent after a settings change, which leaves the box as it is.",
           "type": "string"
         },
+        "seeded": {
+          "description": "Whether text came from the editor (a selection, or Find Definitions or Find Uses): the box types it in, so ⌘Z brings back what it replaced, and selects it, so typing replaces it.",
+          "type": "boolean"
+        },
         "recent": {
           "type": "array",
           "items": {

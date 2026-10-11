@@ -5,6 +5,7 @@
 // toggles, the repo menu and the facet row all edit the query text, then send an
 // ordinary query.changed.
 import { element, plural, wrapIndex } from "./format";
+import { setBoxText } from "./boxText";
 import { type HostMessage, loadDraft, loadOutlineOpen, loadRecentWidth, onHostMessage, saveDraft, send } from "./host";
 import { EmptyBox } from "./emptyBox";
 import { createLayout, type Layout } from "./layout";
@@ -505,7 +506,7 @@ export class SearchPanel {
    * The host's saved box text, recent and pinned queries, and settings: on
    * opening, and, without the text, after settings change.
    */
-  private onRestore({ text, recent, pinned, settings }: StateRestoreMessage): void {
+  private onRestore({ text, seeded, recent, pinned, settings }: StateRestoreMessage): void {
     const { input } = this.layout;
     if (settings) this.state.ui = settings;
     applyCodeSettings(this.state.ui);
@@ -519,10 +520,7 @@ export class SearchPanel {
     this.state.naming = undefined;
     // A shorter list mustn't leave ↵ pointing past its end.
     this.emptyBox.clampIndex();
-    if (text !== undefined && text !== input.value) {
-      input.value = text;
-      input.setSelectionRange(text.length, text.length);
-    }
+    if (text !== undefined && text !== input.value) setBoxText(input, text, seeded === true);
     if (input.value) this.queryChanged(true);
     else this.showEmptyState();
     this.renderFooter();

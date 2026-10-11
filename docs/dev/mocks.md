@@ -52,5 +52,6 @@ covered.
 | 42 | `owner:` keeps the files a team owns in CODEOWNERS | `owner-filter` | `OwnerFilter` | 1.2 |
 | 43 | Syntax colors and whitespace: code in the theme's colors, by VS Code's grammars | `syntax-colors` | `SyntaxColors` | 2.1 |
 | 44 | Outline: the previewed file's definitions, members under their type, closed until opened | `file-outline` | `FileOutline` | 2.1 |
+| 50 | Search from your code: the editor's selection, or the name at the cursor, starts the search | `seed-from-editor` | `SeedFromEditor` | 2.1 |
 | 53 | Result menu: right-click a result to copy it, its path, its link on GitHub (or GitLab, Bitbucket, Gitea, Azure DevOps), every result, or a link to the search | `share-result` | `Permalinks` | 2.1 |
 | 61 | Hover labels: rest the mouse on an icon and its name shows in a third of a second | `hover-labels` | `HoverLabels` | 2.1 |
