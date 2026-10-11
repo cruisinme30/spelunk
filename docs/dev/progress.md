@@ -858,19 +858,22 @@ Mock 62 (`ask-in-words`): a question ending in `?`, or the **Generate query** bu
 provider that writes the Spelunk query, the daemon's parser checks it (one repair when it doesn't parse), and the panel
 puts it in the box under a line that says what was asked and what it was searched as, with the provider's one-line
 explanation and assumptions. The provider is Anthropic's Claude through the official SDK (`extension/src/ask.ts`: the
-system prompt is the daemon's `query/guide` text, which the operator table writes, plus the Recipes examples and the
-shared repo and team names; structured JSON output; the system prompt cached); `spelunk.ask.provider`,
-`spelunk.ask.model`, `spelunk.ask.effort` (the request's `output_config.effort`; the models API's `capabilities.effort`
-says which levels a model takes, asked once per model, so a level it lacks becomes the nearest it has and Claude 4.5 and
-older get none) and `spelunk.ask.shareNames` set it up, **Spelunk: Choose Ask Model** picks both from `models.list`, and
-**Spelunk: Set or Change Anthropic API Key** keeps the key in secret storage and turns Ask on
-(`extension/src/askSetup.ts`). The panel's `ask` and `ask.setup` messages go through `AskRoute`
-(`extension/src/askRoute.ts`), which also fetches the CODEOWNERS teams from the `owner:` suggestions; the webview's
-`AskFlow` (`webview/src/askFlow.ts`) owns the question, the line (`render/asked.ts`) and Broaden. A question too vague
-to search without guessing comes back as `clarify` (the answer schema's question back; `AskResultMessage.clarify`), so
-no query is written and the box keeps the question. A test build takes a fake provider from `SPELUNK_ASK_FAKE`, which
-the screenshots use, so no screenshot or test calls a real provider. To keep `panel.ts` within its size, the box's keys
-moved to `webview/src/keys.ts` and the results view's handlers to `webview/src/resultHandlers.ts`.
+system prompt, in `extension/src/askPrompt.ts`, is the rules (how a search works, how to choose, what never to do, when
+to ask back), a reference paragraph for every operator, the daemon's `query/guide` text, which the operator table
+writes, fifty worked examples and the shared repo and team names, and `extension/src/test/askPrompt.test.ts` checks
+against the real daemon that the reference covers every operator the guide lists and that every example parses cleanly;
+structured JSON output; the system prompt cached); `spelunk.ask.provider`, `spelunk.ask.model`, `spelunk.ask.effort`
+(the request's `output_config.effort`; the models API's `capabilities.effort` says which levels a model takes, asked
+once per model, so a level it lacks becomes the nearest it has and Claude 4.5 and older get none) and
+`spelunk.ask.shareNames` set it up, **Spelunk: Choose Ask Model** picks both from `models.list`, and **Spelunk: Set or
+Change Anthropic API Key** keeps the key in secret storage and turns Ask on (`extension/src/askSetup.ts`). The panel's
+`ask` and `ask.setup` messages go through `AskRoute` (`extension/src/askRoute.ts`), which also fetches the CODEOWNERS
+teams from the `owner:` suggestions; the webview's `AskFlow` (`webview/src/askFlow.ts`) owns the question, the line
+(`render/asked.ts`) and Broaden. A question too vague to search without guessing comes back as `clarify` (the answer
+schema's question back; `AskResultMessage.clarify`), so no query is written and the box keeps the question. A test build
+takes a fake provider from `SPELUNK_ASK_FAKE`, which the screenshots use, so no screenshot or test calls a real
+provider. To keep `panel.ts` within its size, the box's keys moved to `webview/src/keys.ts` and the results view's
+handlers to `webview/src/resultHandlers.ts`.
 
 - Daemon: `daemon/internal/server/parse_test.go` (`query/guide` names every operator).
 - Host: `extension/src/test/ask.test.ts` (the question becomes the provider's query, checked by the parser; one repair

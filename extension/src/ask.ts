@@ -6,6 +6,7 @@
 // never any code.
 import Anthropic from "@anthropic-ai/sdk";
 import type { AskResultMessage, ParsedQuery } from "./protocol.gen";
+import { systemPrompt, userPrompt } from "./askPrompt";
 import { ASK_EFFORTS, type AskEffort } from "./settings";
 
 /** What a provider is asked for: the question, and the context the query may use. */
@@ -51,99 +52,6 @@ export interface AskDependencies {
   /** The repo and team names to send, or none when the user keeps them back. */
   names(): Promise<{ repos: string[]; teams: string[] }>;
   today?: () => string;
-}
-
-/** Worked examples from the wiki's Recipes page, so the provider writes queries the way the docs do. */
-export const EXAMPLES: readonly [question: string, query: string][] = [
-  ["Where is RetryPolicy defined?", "symbol:RetryPolicy"],
-  ["Every interface whose name has Retry", "kind:interface symbol:Retry"],
-  ["Every Go function whose name has parse", "kind:function parse lang:go"],
-  ["Where is RetryPolicy used, not defined?", "ref:RetryPolicy"],
-  ["Which functions use kmalloc?", "kind:function ref:kmalloc"],
-  ["Which methods mention timeout?", "kind:method content:timeout"],
-  ["Every call of backoff with a tries argument", 'struct:"backoff(:[call], tries=:[n])"'],
-  ["Python files with retry in the name", "type:file language:python retry"],
-  ["Lines that mention retry, without the files named after it", "content:retry"],
-  ["What do the comments say about retrying?", "retry in:comments"],
-  ["The error message users see about the budget", '"budget spent" in:strings'],
-  [
-    "In which functions does retrying happen? Not in tests or generated files",
-    "kind:function content:retry in:code -is:test -is:generated",
-  ],
-  ["Retries outside the tests", "retry -is:test"],
-  ["Timeouts outside vendored code, either spelling", "(timeout OR time_out) -file:vendor/"],
-  ["Who introduced retry_policy?", "type:added retry_policy"],
-  ["When did retry_after go away?", "type:removed retry_after"],
-  ["What did Jane change in the tests?", "author:jane is:test"],
-  ["Tests Jane changed this month that mention a timeout", String.raw`author:jane since:30d file:_test\.py$ timeout`],
-  ["Flaky-test fixes in the web repo", 'message:"fix flaky" repo:web'],
-  ["Where was retry_after used in the v1.0.0 release?", "at:v1.0.0 retry_after"],
-  ["How did RetryPolicy look six months ago?", "at:6m RetryPolicy"],
-  ["TODOs in what I haven't committed yet", "is:changed TODO"],
-  ["Retries in the files open in my editor", "is:open retry"],
-  ["Retries in the files the payments team owns", "retry owner:payments-core"],
-  ["Files nobody owns yet", "type:file owner:none"],
-  ["Retry results in the payments repo only", "repo:payments retry"],
-  ["Commits about timeouts in the last two weeks", "type:commit since:2w timeout"],
-];
-
-/** The system prompt: the rules, the guide, the examples and the names. It is the same for every question in a window, so it caches. */
-export function systemPrompt(request: Pick<AskRequest, "guide" | "repos" | "teams">): string {
-  const lines = [
-    "You turn a question about a codebase into one query in Spelunk's search language; the user's editor then runs",
-    "the query and shows it to them. Answer only with the JSON asked for.",
-    "",
-    "Rules:",
-    "- Use only the search words the guide lists, spelled as it spells them. Spaces mean AND; OR with parentheses",
-    "  joins alternatives; - in front leaves something out.",
-    "- Keep the question's names (identifiers, paths, people, repos) exactly as written, and never invent any.",
-    "- Pick the most specific form: a definition by name is symbol:; its uses are ref:; the functions (or methods,",
-    "  classes) that use a name are kind:function ref:Name; who changed something or when is a commit search",
-    "  (type:commit with author:, since:, until:, message:); what added or removed a line is type:added or",
-    "  type:removed; everything else searches the current files.",
-    "- A question about what code does (where something happens, is called, done or set) wants code, not text that",
-    "  mentions it: add in:code, so comments and quoted text (log messages, errors) don't match. Use in:comments or",
-    "  in:strings only when the question asks about comments or messages.",
-    '- Read spans of time plainly: "last month" is since:30d, "this week" since:7d, "yesterday" since:yesterday,',
-    "  and say each such reading in assumptions.",
-    '- Never guess what the question leaves out. When it leans on something it doesn\'t name ("other files", "these',
-    '  functions", "that bug", "the new code") or asks what no search word can find, write no query: leave query empty',
-    '  and put in clarify one short question back that names what is missing ("Other than which files?"). Filler',
-    "  words such as other, files, code, stuff or things are never search terms. clarify is empty whenever you write",
-    "  a query.",
-    "- explanation: one short sentence in plain words on what the query finds. assumptions: each reading you had",
-    "  to choose; an empty list when none.",
-    "",
-    "The query language:",
-    request.guide.trim(),
-    "",
-    "Questions and the queries they become:",
-    ...EXAMPLES.map(([question, query]) => `- ${question} → ${query}`),
-  ];
-  if (request.repos.length > 0) lines.push("", `Repos open in the editor (for repo:): ${request.repos.join(", ")}`);
-  if (request.teams.length > 0) lines.push(`Owner teams in CODEOWNERS (for owner:): ${request.teams.join(", ")}`);
-  if (request.repos.length === 0 && request.teams.length === 0) {
-    lines.push("", "No repo or team names were shared: don't use repo: or owner: unless the question names one.");
-  }
-  return lines.join("\n");
-}
-
-/** The user turn: today, the question, and what to fix when a query is being retried. */
-export function userPrompt(request: Pick<AskRequest, "question" | "today" | "retry">): string {
-  const lines = [`Today is ${request.today}.`, `Question: ${request.question}`];
-  if (request.retry?.problem === "parse") {
-    lines.push(
-      `Spelunk rejected the query ${JSON.stringify(request.retry.query)}: ${request.retry.detail}`,
-      "Write a corrected query.",
-    );
-  } else if (request.retry) {
-    lines.push(
-      `The query ${JSON.stringify(request.retry.query)} found nothing.`,
-      "Write one looser query for the same question: fewer words, part of a name, or a filter dropped. Say in",
-      "assumptions what you loosened.",
-    );
-  }
-  return lines.join("\n");
 }
 
 /** The shape the provider answers in. */

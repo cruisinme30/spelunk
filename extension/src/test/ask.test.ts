@@ -7,15 +7,13 @@ import {
   Asker,
   type AskProvider,
   type AskRequest,
-  EXAMPLES,
   effortFor,
   effortLevelsOf,
   fakeProviderFromEnvironment,
   parseAnswer,
-  systemPrompt,
-  userPrompt,
 } from "../ask";
 import type Anthropic from "@anthropic-ai/sdk";
+import { EXAMPLES, systemPrompt, userPrompt } from "../askPrompt";
 import type { ParsedQuery } from "../protocol.gen";
 import type { AskEffort } from "../settings";
 
@@ -97,9 +95,9 @@ test("a question too vague to search gets a question back, and nothing is search
   assert.deepEqual(await instance.ask("Where are other files"), { clarify: "Other than which files?" });
   assert.deepEqual(parsedTexts, [], "no query, so nothing to check");
   const system = systemPrompt({ guide: "g", repos: [], teams: [] });
-  assert.match(system, /Never guess what the question leaves out/);
-  assert.match(system, /wants code, not text that\s+mentions it: add in:code/);
-  assert.match(system, /never search terms/);
+  assert.match(system, /Guess what the question leaves out/);
+  assert.match(system, /Add in:code when the question is about what code does/);
+  assert.match(system, /Search filler or grammar words/);
 });
 
 test("a query that doesn't parse is sent back once for a repair", async () => {

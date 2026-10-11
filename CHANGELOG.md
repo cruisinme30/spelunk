@@ -19,7 +19,8 @@ All notable changes to this project are documented here. The format follows
   `spelunk.ask.model` picks the model and `spelunk.ask.effort` how long it thinks; **Spelunk: Choose Ask Model** lists
   the models your key can use, with the effort levels each takes, and sets both; the Model setting links to that list. A
   question too vague to search without guessing ("where are other files?") gets a question back (**Spelunk asks** "Other
-  than which files?") instead of a made-up query, and **Edit question** puts your words back as typed. The daemon's
+  than which files?") instead of a made-up query, and **Edit question** puts your words back as typed. The provider gets
+  a full guide to the search language, with every search word, when to use it and fifty worked examples. The daemon's
   parser checks every query it writes, and a query that doesn't parse goes back once for a repair.
 - **History follows files through renames.** `file:retry_policy.py` finds a file's commits under every name it had,
   each saying what the file is called now, and marks the commits that renamed it. A commit that only moved a file no
