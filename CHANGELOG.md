@@ -7,6 +7,13 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- Select text in the editor and press the search key to search it: the box holds the selection, selected so typing
+  replaces it, and ⌘Z brings back the query it replaced (also kept under Recent). Text that looks like query syntax
+  is searched as text, several lines as one regex across them, and Aa, ab and .* carry over. With nothing selected,
+  or with the focus outside the editor, the key reopens the last query as before. New setting:
+  `spelunk.search.seedFromSelection` (on by default).
+- **Spelunk: Find Definitions** and **Spelunk: Find Uses**, on the editor's right-click menu and in the Command
+  Palette, search where the name at the cursor is defined (exactly that name) and the lines that use it.
 - Double-click a word in a code preview to open the file beside the editor with that word selected, at the line and
   column you double-clicked; a double-click on a line number opens at the start of that line. The panel stays open.
 - Code in results and the preview is colored like the editor: the active color theme's syntax colors, by the language
