@@ -18,10 +18,9 @@ removed `timeout` or `retry`. Drop `author:` and the same box searches current f
 ## What it does
 
 - **One query language.** Combine words, `"phrases"`, `/regex/`, `AND`, `OR`, `( )` and `-exclusions` (or `NOT`) with
-  operators. Each has a full name and a one-letter short one: `file:` / `f:`, `repo:` / `r:`, `language:` / `l:`,
-  `type:` / `t:`, `symbol:` / `s:`, `kind:` / `k:`, `ref:` / `x:`, `is:` / `i:`, `author:` / `a:`, `message:` / `m:`,
-  `since:` / `d:`, `until:` / `u:`, `case:` / `c:`, `word:` / `w:`, `count:` / `n:`, `order:` / `o:`, plus
-  `content:`, `owner:`, `struct:` and `at:`, and `path:` for `file:`. `is:open`, `is:changed`, `is:test`, `is:generated`
+  operators: `file:` / `f:`, `author:` / `a:`, `symbol:` / `sym:`, `language:` / `lang:`, `message:` / `msg:`,
+  `repo:`, `type:`, `kind:`, `ref:`, `is:`, `since:`, `until:`, `case:`, `word:`, `count:`, `order:`, `content:`,
+  `owner:`, `struct:`, `excludes:` and `at:`. `is:open`, `is:changed`, `is:test`, `is:generated`
   and `is:vendored` keep the files open in the editor, the uncommitted ones, the tests, the ones a tool wrote or the
   ones copied in, so
   `-is:generated -is:vendored` keeps a replace to code you wrote, `word:yes` matches whole words only, `case:smart`
