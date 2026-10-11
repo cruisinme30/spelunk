@@ -7,6 +7,11 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- **Uses inside definitions.** `kind:function ref:RetryPolicy` lists each line that uses `RetryPolicy` inside a
+  function, each ending in the function it is in, instead of every function in a file that uses it; `content:`,
+  `struct:` and a regex across lines work the same way, and `-ref:` leaves out the functions that use a name. The
+  preview marks the definition's lines, a note counts the matches outside one, and agents and `spelunk search --json`
+  get the definition too. Saved indexes are rebuilt once.
 - **Spelunk for agents and the terminal.** Claude Code, Copilot and a shell search with Spelunk's query language and
   index. **Spelunk: Install 'spelunk' Command in PATH** adds the `spelunk` command (`spelunk search`, `status` and
   `help query`; ripgrep-style lines, `--vimgrep` or `--json`, exit 0, 1 or 2). **Spelunk: Add to Claude Code** runs
@@ -76,8 +81,8 @@ All notable changes to this project are documented here. The format follows
 - When a daemon that stopped answering was restarted, the searches waiting on it could fail with "write EPIPE"
   instead of saying why; they now fail with "the daemon stopped answering, so it was restarted".
 - A word next to `kind:` or `symbol:` now matches the definition's name: `kind:function parse` returns the functions
-  whose names contain "parse", not every function in a file that mentions it. `content:parse` still matches the file's
-  text.
+  whose names contain "parse", not every function in a file that mentions it. `kind:function content:parse`
+  finds the lines inside functions that mention it.
 
 ### Changed
 

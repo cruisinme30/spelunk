@@ -720,3 +720,26 @@ Add to Claude Code with its `CLAUDE.md` note, Spelunk's MCP server for VS Code's
   Claude Code with Sonnet: 63.3 s of `git log` without Spelunk, 8.7 s with it and the `CLAUDE.md` note, the same
   commits, and Spelunk right that neither commit removed a line). Without the note, in three earlier tries, Claude
   never called Spelunk.
+
+## Uses inside definitions (2.1)
+
+Mock 45 (`uses-in-definitions`): `kind:` or `symbol:` with `ref:`, `content:`, `struct:` or a regex across lines
+matches inside the definitions it keeps. Before, `kind:function ref:kmalloc file:mm/slub.c` listed all 369 functions
+of the file; now it lists each line that uses `kmalloc` inside a function, as a code result naming the innermost kept
+definition that holds it (`ResultItem.within`, with its first and last line). The symbol extractor records where each
+definition ends (`symbols.Symbol.End`): the last line indented under it, or a `}` or `end` lined up with it, with a `)`
+or `{` there still part of its first line. The index format is 4, so saved indexes are rebuilt once. The plan sets
+`InDefinitions` and asks for code lines; matches outside every kept definition are counted for `kind:`'s note, "2
+matches outside a method", with Show every match. Left out, these terms leave out the definitions whose body has
+them (`kind:function -ref:X`).
+
+- Daemon: `daemon/internal/symbols/symbols_test.go` (where definitions end in Python, Go, C, Ruby and TypeScript,
+  multi-line signatures and braces on their own line included), `daemon/internal/trigram/kind_test.go` (`ref:`,
+  `content:` and `struct:` inside functions, methods and classes; the innermost kept definition named; a word still
+  naming the definition; a left-out `ref:`; the note's count; each result carrying its definition's lines) and
+  `daemon/internal/cli/cli_test.go` (`within` in `--json`, and `[in function build]` for agents).
+- Panel: `webview/test/usesInDefinitions.test.mjs` (each row names its definition; the note and Show every match; the
+  preview marks the definition's lines and names them).
+- Built: `docs/dev/proof/uses-in-definitions.png` (`kind:method ref:RetryPolicy`) and
+  `docs/dev/proof/uses-in-definitions-content.png` (`kind:method content:timeout`), from
+  `node scripts/screenshotPanel.mjs`.

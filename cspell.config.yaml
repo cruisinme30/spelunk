@@ -40,6 +40,7 @@ words:
   - Mittal
   # Tools, libraries and formats
   - isinstance
+  - kmalloc
   - Codeberg
   - Forgejo
   - Gitea
