@@ -13,6 +13,7 @@ import {
   plural,
   redrawCodeLineText,
   shortSha,
+  shownLineNumber,
   termClass,
   timeAgo,
 } from "../format";
@@ -22,6 +23,7 @@ import { menuContext, repoName, type ViewState } from "../state";
 import { ChunkedList } from "./chunkedList";
 import { excludesNote } from "./excludesNote";
 import { demoted, rankBadge } from "./rankBadge";
+import { cellHeading } from "./notebook";
 import { ResultIndex } from "./resultIndex";
 import { resultsSash } from "./sash";
 
@@ -111,6 +113,8 @@ interface OpenCodeFile {
   /** The header's count, updated as the file's lines arrive. */
   countLabel: HTMLElement;
   lineCount: number;
+  /** In a notebook, the cell of the lines shown last (its number and kind), whose heading is above them. */
+  cell?: string;
   /** The run of lines shown last, when results carry context lines. */
   block?: CodeBlock;
 }
@@ -495,6 +499,12 @@ export class ResultsView {
     }
     this.openCodeFile.lineCount++;
     this.openCodeFile.countLabel.textContent = String(this.openCodeFile.lineCount);
+    const cell = item.cell && `${String(item.cell.number)} ${item.cell.kind}`;
+    if (item.cell && cell && this.openCodeFile.cell !== cell) {
+      this.openCodeFile.cell = cell;
+      delete this.openCodeFile.block; // one cell's lines never run into another's
+      group.append(cellHeading(item.cell));
+    }
     if (this.withContext) return { node: group, row: this.appendWithContext(group, item, this.openCodeFile) };
     const row = codeLineRow(item, this.codeRowAttributes(item, this.openCodeFile), this.handlers.replacementsFor(item));
     group.append(row);
@@ -526,7 +536,7 @@ export class ResultsView {
     }
     const { indent, redraws } = block;
     const appendContext = (line: number, text: string) => {
-      const row = contextRow(line, text, indent);
+      const row = contextRow(line, shownLineNumber(item, line), text, indent);
       group.append(row);
       redraws.push((less) => row.querySelector(".text")?.replaceChildren(withoutIndent(text, less)));
       return row;
@@ -557,7 +567,13 @@ export class ResultsView {
       { ...this.rowAttributes(item), class: `row symbol${demoted(item.rankReason)}` },
       element("span", { class: `badge kind-${item.symbolKind}` }, item.symbolKind),
       element("code", { class: "name" }, highlight(item.name, item.hits)),
-      element("span", { class: "path muted" }, `${item.path}:${item.line}`),
+      element(
+        "span",
+        { class: "path muted" },
+        item.cell
+          ? `${item.path} · cell ${String(item.cell.number)}, line ${String(item.cell.line)}`
+          : `${item.path}:${item.line}`,
+      ),
       sinceBadge(item.sinceRevision),
       element("span", { class: "repo" }, repoName(this.state, item.repoId)),
     );
@@ -683,14 +699,15 @@ function sharedIndent(item: ItemOf<"line">, before: string[], after: string[]): 
 
 /**
  * A dimmed line around a code result, without the first `indent`
- * characters of its indentation. It isn't a result: the arrow keys skip it,
+ * characters of its indentation, numbered `shownLine` (a notebook numbers
+ * lines within their cell). It isn't a result: the arrow keys skip it,
  * and screen readers read the match on its own.
  */
-function contextRow(line: number, text: string, indent: number): HTMLElement {
+function contextRow(line: number, shownLine: number, text: string, indent: number): HTMLElement {
   return element(
     "div",
     { class: "context-line", "aria-hidden": "true", "data-testid": "context-line", "data-line": String(line) },
-    element("span", { class: "line-number" }, String(line)),
+    element("span", { class: "line-number" }, String(shownLine)),
     element("code", { class: "text" }, withoutIndent(text, indent)),
   );
 }

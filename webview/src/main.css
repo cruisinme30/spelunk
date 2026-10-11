@@ -1482,6 +1482,48 @@ pre.body {
   padding: 6px 14px 2px;
 }
 
+/*
+ * A Jupyter notebook's cell, above its lines: "[3] Cell 2 · Python". In results it sits under the file's path,
+ * indented like the lines; in a preview it starts each cell, with a rule between cells as the notebook editor has.
+ */
+.cell-heading {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 4px 14px 0 calc(14px + 3.5em + 12px);
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+.cell-heading .cell-number {
+  font-weight: 500;
+  color: var(--fg);
+}
+
+.cell-heading .cell-run {
+  margin-left: calc(-3.5em - 12px);
+  width: 3.5em;
+  font-family: var(--mono);
+  text-align: right;
+}
+
+.code .cell-heading {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--border);
+}
+
+.code .cell-heading:first-child {
+  margin-top: 0;
+  border-top: 0;
+}
+
+.cell-outputs {
+  padding: 2px 14px 2px calc(14px + 3.5em + 12px);
+  font-size: 11.5px;
+  font-style: italic;
+}
+
 .ownership {
   display: flex;
   flex-wrap: wrap;

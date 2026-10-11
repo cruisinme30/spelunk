@@ -3,6 +3,8 @@ import { button, element, fileStat, highlight, plural, scrollIntoContainer, shor
 import { saveOutlineOpen } from "../host";
 import { textTerms } from "../parsedQuery";
 import type {
+  Hunk,
+  NotebookCell,
   OpenPosition,
   OpenWhere,
   OutlineSymbol,
@@ -14,6 +16,7 @@ import type {
 } from "../protocol.gen";
 import { repoName, type ViewState } from "../state";
 import { markWhitespace } from "../syntax";
+import { cellHeading, cellHeadingAt, cellOfLine, lineInCell, outputsNoteAt, shownLine } from "./notebook";
 import { outlineSash } from "./sash";
 
 type FilePreview = Extract<Preview, { kind: "file" }>;
@@ -167,7 +170,8 @@ function renderFilePreview(
   { outlineOpen, onToggleOutline, replacementsFor, decorate }: FileLineDrawing,
 ): void {
   const symbols = preview.symbols ?? [];
-  const outline = symbols.length > 0 ? outlinePane(symbols, preview.focusLine, outlineOpen) : undefined;
+  const cells = preview.cells ?? [];
+  const outline = symbols.length > 0 ? outlinePane(symbols, preview.focusLine, outlineOpen, cells) : undefined;
   const toggle = outline ? outlineToggle(outline, symbols.length, onToggleOutline) : null;
   container.append(
     element(
@@ -188,11 +192,24 @@ function renderFilePreview(
     ),
   );
   if (preview.ownership) container.append(ownershipLine(preview.ownership));
+  const code = fileCode(preview, { replacementsFor, decorate });
+  container.append(element("div", { class: "preview-body" }, code, outline ?? null));
+  const focus = code.querySelector<HTMLElement>(".focus");
+  if (focus) scrollIntoContainer(container, focus, "center");
+}
+
+/** A file preview's code: its lines, numbered, the focus and dirty lines marked; a notebook's under their cells. */
+function fileCode(
+  preview: FilePreview,
+  { replacementsFor, decorate }: Pick<FileLineDrawing, "replacementsFor" | "decorate">,
+): HTMLElement {
+  const cells = preview.cells ?? [];
   const hitsByLine = new Map(preview.hits.map((hits) => [hits.line, hits.ranges]));
   const dirtyLines = new Set(preview.dirtyLines);
   const code = element("div", { class: "code" });
   for (const [index, text] of preview.lines.entries()) {
     const lineNumber = preview.firstLine + index;
+    code.append(...cellHeadingAt(cells, lineNumber, index === 0));
     const classes = ["code-line"];
     const focus = lineNumber >= preview.focusLine && lineNumber <= (preview.focusEndLine ?? preview.focusLine);
     if (focus) classes.push("focus");
@@ -207,40 +224,40 @@ function renderFilePreview(
       element(
         "div",
         { class: classes.join(" "), "data-line": String(lineNumber) },
-        element("span", { class: "line-number" }, String(lineNumber)),
+        element("span", { class: "line-number" }, String(shownLine(cells, lineNumber))),
         lineCode,
       ),
+      ...outputsNoteAt(cells, lineNumber),
     );
   }
-  container.append(element("div", { class: "preview-body" }, code, outline ?? null));
-  const focus = code.querySelector<HTMLElement>(".focus");
-  if (focus) scrollIntoContainer(container, focus, "center");
+  return code;
 }
 
 /**
  * The Outline: every definition in the file, each class, type or interface followed by its members, indented. The
  * one the focus line is in is marked. Hidden until its toggle opens it.
  */
-function outlinePane(symbols: OutlineSymbol[], focusLine: number, open: boolean): HTMLElement {
+function outlinePane(symbols: OutlineSymbol[], focusLine: number, open: boolean, cells: NotebookCell[]): HTMLElement {
   let here: OutlineSymbol | undefined;
   for (const symbol of symbols) if (symbol.line <= focusLine) here = symbol;
-  const rows = symbols.map((symbol) =>
-    element(
+  const rows = symbols.map((symbol) => {
+    const where = placeOf(cells, symbol.line);
+    return element(
       "button",
       {
         type: "button",
         class: symbol === here ? "outline-row here" : "outline-row",
         style: `--depth: ${symbol.depth}`,
         "data-line": String(symbol.line),
-        title: `Open beside the panel at line ${symbol.line}`,
-        "aria-label": `${symbol.name}, ${symbol.kind}, line ${symbol.line}`,
+        title: `Open beside the panel at ${where.words}`,
+        "aria-label": `${symbol.name}, ${symbol.kind}, ${where.words}`,
         ...(symbol === here ? { "aria-current": "true" } : {}),
       },
       element("span", { class: `outline-icon kind-${symbol.kind}`, "aria-hidden": "true" }, OUTLINE_ICON[symbol.kind]),
       element("span", { class: "outline-name" }, symbol.name),
-      element("span", { class: "outline-line", "aria-hidden": "true" }, String(symbol.line)),
-    ),
-  );
+      element("span", { class: "outline-line", "aria-hidden": "true" }, where.short),
+    );
+  });
   const pane = element("div", { class: "outline-pane", id: "preview-outline", hidden: !open });
   pane.append(outlineSash(pane), element("nav", { class: "outline-list", "aria-label": "Outline" }, ...rows));
   return pane;
@@ -299,11 +316,26 @@ function columnOf(code: HTMLElement, node: Node, offset: number): number {
   return fragment.textContent.length;
 }
 
-/** "line 14", or "lines 29–30" for a match that spans lines. */
-function focusLabel({ focusLine, focusEndLine }: FilePreview): string {
-  return focusEndLine !== undefined && focusEndLine > focusLine
-    ? `lines ${focusLine}–${focusEndLine}`
-    : `line ${focusLine}`;
+/** "line 14", or "lines 29–30" for a match that spans lines; in a notebook, "cell 3, line 2". */
+function focusLabel({ focusLine, focusEndLine, cells }: FilePreview): string {
+  const cell = cellOfLine(cells ?? [], focusLine);
+  const shown = (line: number) => (cell ? lineInCell(cell, line) : line);
+  const lines =
+    focusEndLine !== undefined && focusEndLine > focusLine
+      ? `lines ${shown(focusLine)}–${shown(focusEndLine)}`
+      : `line ${shown(focusLine)}`;
+  return cell ? `cell ${String(cell.number)}, ${lines}` : lines;
+}
+
+/** How the Outline names a definition's line: "line 14", or in a notebook "cell 3, line 1", short "3:1". */
+function placeOf(cells: NotebookCell[], line: number): { words: string; short: string } {
+  const cell = cellOfLine(cells, line);
+  if (!cell) return { words: `line ${String(line)}`, short: String(line) };
+  const inCell = lineInCell(cell, line);
+  return {
+    words: `cell ${String(cell.number)}, line ${String(inCell)}`,
+    short: `${String(cell.number)}:${String(inCell)}`,
+  };
 }
 
 /**
@@ -398,12 +430,30 @@ function renderCommitPreview(
   container.append(files);
 
   const hiddenPaths = new Set(hiddenFiles.map((file) => file.path));
+  container.append(diffCode(preview.hunks, (hunk) => hiddenPaths.has(hunk.path) && !showHiddenFiles, paint));
+}
+
+/** A commit preview's diff: each hunk's lines, a notebook's under their cells, but those `hidden` says to skip. */
+function diffCode(hunks: Hunk[], hidden: (hunk: Hunk) => boolean, paint: CommitPreviewOptions["paint"]): HTMLElement {
   const code = element("div", { class: "code diff" });
-  for (const hunk of preview.hunks) {
-    if (hiddenPaths.has(hunk.path) && !showHiddenFiles) continue;
-    code.append(element("div", { class: "hunk" }, element("span", { class: "muted" }, `${hunk.path}  ${hunk.header}`)));
+  for (const hunk of hunks) {
+    if (hidden(hunk)) continue;
+    // A notebook's diff numbers lines of its cells' text, which mean nothing to read: each line's cell says instead.
+    const notebook = hunk.lines.some((line) => line.cell);
+    code.append(
+      element(
+        "div",
+        { class: "hunk" },
+        element("span", { class: "muted" }, notebook ? hunk.path : `${hunk.path}  ${hunk.header}`),
+      ),
+    );
+    let lastCell = "";
     for (const line of hunk.lines) {
-      const lineNumber = line.kind === "del" ? line.oldNo : line.newNo;
+      if (line.cell && `${String(line.cell.number)} ${line.cell.kind}` !== lastCell) {
+        lastCell = `${String(line.cell.number)} ${line.cell.kind}`;
+        code.append(cellHeading(line.cell));
+      }
+      const lineNumber = line.cell ? line.cell.line : line.kind === "del" ? line.oldNo : line.newNo;
       const lineCode = element("code", {}, highlight(line.text, line.hits));
       paint(lineCode, hunk.path, line.text);
       code.append(
@@ -417,5 +467,5 @@ function renderCommitPreview(
       );
     }
   }
-  container.append(code);
+  return code;
 }

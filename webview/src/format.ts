@@ -1,7 +1,7 @@
 // DOM and text helpers shared by the renderers: an element builder, match
 // highlighting, progress bars, relative times, plurals and small numeric
 // helpers.
-import type { Hit, HoleValue, IndexState, Range } from "./protocol.gen";
+import type { CellPlace, Hit, HoleValue, IndexState, Range } from "./protocol.gen";
 
 /** Distinct highlight colors for text terms (main.css defines term-color-0 to -3); term N uses color N mod this. */
 const TERM_COLOR_COUNT = 4;
@@ -203,6 +203,13 @@ export interface CodeLines {
   spanLines?: { text: string; hits: Hit[] }[];
   endLine?: number;
   holes?: HoleValue[];
+  /** In a Jupyter notebook, the cell `line` is in and its line there: rows number lines within their cell. */
+  cell?: CellPlace;
+}
+
+/** How a result's row numbers `number`, a line of its file: within its notebook cell, for a notebook. */
+export function shownLineNumber(line: Pick<CodeLines, "line" | "cell">, number: number): number {
+  return line.cell ? line.cell.line + number - line.line : number;
 }
 
 /**
@@ -223,7 +230,7 @@ export function codeLineRow(
   return element(
     "div",
     { ...attributes, class: "row line" },
-    element("span", { class: "line-number" }, String(line.line)),
+    element("span", { class: "line-number" }, String(shownLineNumber(line, line.line))),
     element("code", { class: "text" }, codeLineText(line, replacements, indent)),
   );
 }
@@ -251,7 +258,7 @@ function spanRow(
       element(
         "div",
         { class: "span-line" },
-        element("span", { class: "line-number" }, String(line.line + index)),
+        element("span", { class: "line-number" }, String(shownLineNumber(line, line.line + index))),
         element("code", { class: "text" }, codeLineText(shown, undefined, drop)),
       ),
     );
@@ -263,7 +270,11 @@ function spanRow(
         "div",
         { class: "span-line span-more", "data-testid": "span-more" },
         element("span", { class: "line-number" }, "⋯"),
-        element("span", { class: "text" }, `${plural(line.endLine - lastShown, "more line")}, to line ${line.endLine}`),
+        element(
+          "span",
+          { class: "text" },
+          `${plural(line.endLine - lastShown, "more line")}, to line ${shownLineNumber(line, line.endLine)}`,
+        ),
       ),
     );
   }
