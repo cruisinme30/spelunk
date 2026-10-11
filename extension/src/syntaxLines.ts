@@ -7,6 +7,11 @@ export interface FileLines {
   path: string;
   lines: string[];
   continued: boolean;
+  /**
+   * The language to color them in, as Spelunk names languages, when it isn't the one `path` says: a notebook cell's
+   * (python, markdown); null for text no grammar colors, such as a cell's printed output.
+   */
+  language?: string | null;
 }
 
 /** Colors lines of code; undefined when nothing colors them (syntax colors are off, or no grammar knows the files). */
@@ -28,6 +33,7 @@ function resultLines(items: readonly ResultItem[]): FileLines[] {
               ...(item.contextAfter ?? []),
             ],
             continued: true,
+            ...(item.cell ? { language: item.cell.language ?? null } : {}),
           },
         ]
       : [],
@@ -37,12 +43,23 @@ function resultLines(items: readonly ResultItem[]): FileLines[] {
 /** The lines of code `preview` shows: a file's excerpt, or each line of a commit's diff on its own. */
 function previewLines(preview: Preview | null): FileLines[] {
   if (!preview) return [];
-  if (preview.kind === "file") return [{ path: preview.path, lines: preview.lines, continued: true }];
-  return preview.hunks.map((hunk) => ({
-    path: hunk.path,
-    lines: hunk.lines.map((line) => line.text),
-    continued: false,
-  }));
+  if (preview.kind === "file") {
+    if (!preview.cells) return [{ path: preview.path, lines: preview.lines, continued: true }];
+    // A notebook's cells, each in its own language.
+    const { path, firstLine, lines } = preview;
+    return preview.cells.flatMap((cell) => {
+      const shown = lines.slice(Math.max(0, cell.startLine - firstLine), cell.startLine + cell.lineCount - firstLine);
+      return shown.length > 0 ? [{ path, lines: shown, continued: true, language: cell.language ?? null }] : [];
+    });
+  }
+  return preview.hunks.flatMap((hunk) =>
+    hunk.lines.map((line) => ({
+      path: hunk.path,
+      lines: [line.text],
+      continued: false,
+      ...(line.cell ? { language: line.cell.language ?? null } : {}),
+    })),
+  );
 }
 
 /**

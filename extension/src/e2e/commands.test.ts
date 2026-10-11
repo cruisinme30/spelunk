@@ -3,6 +3,8 @@
 // calls run() once the extension under test is loaded. A failed assertion
 // rejects, and VS Code exits with an error.
 import assert from "node:assert/strict";
+import { readFileSync, rmSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import * as vscode from "vscode";
 import type { TestState } from "../extension";
 import { MESSAGE_VERSION } from "../webviewMessages";
@@ -315,6 +317,80 @@ const TESTS: [name: string, run: () => Promise<void>][] = [
     },
   ],
   [
+    "A notebook result opens in the notebook editor at its cell, and Replace edits the cell, quotes and all",
+    async () => {
+      // @covers screen:notebook-cells
+      const folder = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+      assert.ok(folder, "the fixture workspace is open");
+      const file = join(folder, "web-checkout", "e2e-churn.ipynb");
+      writeFileSync(
+        file,
+        JSON.stringify({
+          cells: [
+            notebookCell("markdown", ["# Churn model\n", "Notes about quokka_cell_marker."]),
+            notebookCell("code", ["import pandas as pd\n", "quokka_cell_marker = RetryPolicy(max_tries=5)"]),
+          ],
+          metadata: { kernelspec: { language: "python" } },
+          nbformat: 4,
+          nbformat_minor: 5,
+        }),
+      );
+      try {
+        // The file watcher tells the daemon about the new file; it is searched by cell.
+        await poll(
+          "the notebook indexed",
+          async () => {
+            const query = '"quokka_cell_marker = RetryPolicy"';
+            await vscode.commands.executeCommand("spelunk.open", { query });
+            return (await until("the search to finish", (state) => state.searched === query)).results.length;
+          },
+          (found) => found > 0,
+        );
+        await vscode.commands.executeCommand("spelunk.nextResult");
+        const notebook = await poll(
+          "the notebook open at cell 2",
+          () => vscode.window.activeNotebookEditor,
+          (editor) => (editor ? editor.notebook.uri.fsPath === file && editor.selection.start === 1 : false),
+        );
+        assert.ok(notebook);
+        const cellEditor = await poll(
+          "the match selected in the cell",
+          () => vscode.window.activeTextEditor,
+          (editor) => editor?.document.uri.scheme === "vscode-notebook-cell" && !editor.selection.isEmpty,
+        );
+        assert.equal(cellEditor?.document.getText(cellEditor.selection), "quokka_cell_marker = RetryPolicy");
+
+        const query = "quokka_cell_marker";
+        await searchFor(query);
+        const replacement = 'os.environ["QUOKKA"]';
+        for (const [type, payload] of [
+          ["replace.preview", { seq: 90, text: query, replacement }],
+          ["replace.apply", { seq: 91, text: query, replacement, matches: 2 }],
+        ] as const) {
+          await vscode.commands.executeCommand("spelunk._testPanelMessage", { v: MESSAGE_VERSION, type, payload });
+        }
+        const replaced = await poll(
+          "the cells replaced, unsaved",
+          () => vscode.workspace.notebookDocuments.find((open) => open.uri.fsPath === file),
+          (open) => open?.isDirty === true && open.cellAt(1).document.getText().includes(replacement),
+        );
+        assert.ok(replaced?.cellAt(0).document.getText().includes(`Notes about ${replacement}.`));
+        await replaced?.save();
+        const saved = JSON.parse(readFileSync(file, "utf8")) as { cells: { source: string[] | string }[] };
+        const source = (index: number) => [saved.cells[index]?.source ?? ""].flat().join("");
+        assert.equal(
+          source(1),
+          `import pandas as pd\n${replacement} = RetryPolicy(max_tries=5)`,
+          "valid JSON, quotes kept",
+        );
+      } finally {
+        await vscode.commands.executeCommand("workbench.action.revertAndCloseActiveEditor");
+        await vscode.commands.executeCommand("workbench.action.closeAllEditors");
+        rmSync(file, { force: true });
+      }
+    },
+  ],
+  [
     "Restart Search restarts the daemon and search keeps working",
     async () => {
       // @covers command:restartDaemon
@@ -333,6 +409,11 @@ async function openClientAt(selection: vscode.Selection): Promise<vscode.TextEdi
     vscode.Uri.joinPath(folder.uri, "payments-api/src/payments/client.py"),
   );
   return vscode.window.showTextDocument(document, { selection, preserveFocus: false });
+}
+
+/** A notebook cell as nbformat 4 saves it. */
+function notebookCell(type: string, source: string[]): object {
+  return { cell_type: type, metadata: {}, source, outputs: [] };
 }
 
 function sameEditor(state: TestState, other: TestState): boolean {

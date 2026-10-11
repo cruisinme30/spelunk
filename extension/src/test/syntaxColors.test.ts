@@ -8,9 +8,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { readColorTheme, themeFile } from "../colorTheme";
-import type { ResultItem, SyntaxLinesMessage } from "../protocol.gen";
+import type { CellPlace as ResultCell, ResultItem, SyntaxLinesMessage } from "../protocol.gen";
 import { GrammarCatalog, type InstalledExtension, SyntaxColors, type ThemeRule } from "../syntaxColors";
-import { type FileLines, SyntaxPosts } from "../syntaxLines";
+import { type FileLines, SyntaxPosts, type SyntaxSource } from "../syntaxLines";
 
 /** vscode-oniguruma's engine, from the repo's node_modules (dist-test/ is two folders down). */
 const wasm = () =>
@@ -214,6 +214,87 @@ test("results and previews posted to the panel are colored after them, and again
     ["if z", "# more", "if y", "return x"],
     "the new search's results (not the old one's) and the preview",
   );
+});
+
+/** Where a notebook result is: its cell, line 1. */
+function cellAt(number: number, kind: "code" | "markdown" | "output", language?: string): ResultCell {
+  return { number, kind, line: 1, ...(language ? { language } : {}) };
+}
+
+/** Takes what the panel would be posted, and drops it. */
+function ignore(): void {
+  // Only what is asked to be colored matters here.
+}
+
+test("a notebook's cells are colored each in its own language, and printed output not at all", async () => {
+  // @covers screen:notebook-cells
+  const colors = new SyntaxColors(new GrammarCatalog([toyExtension()]), RULES, wasm);
+  assert.equal(await colors.tokenize("nb.ipynb", ["return x"], true), undefined, "a notebook's path says no language");
+  assert.ok(await colors.tokenize("nb.ipynb", ["return x"], true, "toy"), "its cell's language colors it");
+  assert.equal(
+    await colors.color([{ path: "a.toy", lines: ["return x"], continued: true, language: null }]),
+    undefined,
+  );
+
+  const asked: FileLines[][] = [];
+  const color: SyntaxSource["color"] = (files) => {
+    asked.push([...files]);
+    return Promise.resolve({ colors: [], lines: [] });
+  };
+  const posts = new SyntaxPosts({ color }, ignore);
+  posts.posted("search.batch", {
+    seq: 1,
+    searchId: "s1",
+    items: [
+      {
+        kind: "line",
+        ref: "l1",
+        repoId: "r",
+        path: "nb.ipynb",
+        line: 4,
+        text: "return x",
+        hits: [],
+        cell: cellAt(2, "code", "toy"),
+      },
+      {
+        kind: "line",
+        ref: "l2",
+        repoId: "r",
+        path: "nb.ipynb",
+        line: 9,
+        text: "loaded 5",
+        hits: [],
+        cell: cellAt(4, "output"),
+      },
+    ],
+  });
+  posts.posted("preview.result", {
+    ref: "l1",
+    preview: {
+      kind: "file",
+      path: "nb.ipynb",
+      firstLine: 2,
+      lines: ["notes", "return x", "if y"],
+      focusLine: 3,
+      hits: [],
+      dirtyLines: [],
+      cells: [
+        { number: 1, kind: "markdown", language: "markdown", startLine: 1, lineCount: 2 },
+        { number: 2, kind: "code", language: "toy", startLine: 3, lineCount: 2 },
+      ],
+    },
+  });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(asked, [
+    [
+      { path: "nb.ipynb", lines: ["return x"], continued: true, language: "toy" },
+      { path: "nb.ipynb", lines: ["loaded 5"], continued: true, language: null },
+    ],
+    [
+      { path: "nb.ipynb", lines: ["notes"], continued: true, language: "markdown" },
+      { path: "nb.ipynb", lines: ["return x", "if y"], continued: true, language: "toy" },
+    ],
+  ]);
 });
 
 test("with nothing to color, a theme change still clears the old colors", async () => {

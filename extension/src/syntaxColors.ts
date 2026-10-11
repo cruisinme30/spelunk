@@ -105,6 +105,14 @@ export class GrammarCatalog {
     return undefined;
   }
 
+  /**
+   * The scope of the grammar that colors `language`, as Spelunk names languages (python, c++), by VS Code's language
+   * of the same name, or the one VS Code calls it otherwise.
+   */
+  scopeForLanguage(language: string): string | undefined {
+    return this.scopeByLanguage.get(VSCODE_LANGUAGE_IDS[language] ?? language);
+  }
+
   /** The grammar file of `scope`. */
   fileOf(scope: string): string | undefined {
     return this.fileByScope.get(scope);
@@ -163,7 +171,8 @@ export class SyntaxColors implements SyntaxSource {
   async color(files: readonly FileLines[]): Promise<SyntaxLinesMessage | undefined> {
     const lines: SyntaxLinesMessage["lines"] = [];
     for (const file of files) {
-      const tokens = await this.tokenize(file.path, file.lines, file.continued);
+      if (file.language === null) continue;
+      const tokens = await this.tokenize(file.path, file.lines, file.continued, file.language);
       if (!tokens) continue;
       for (const [index, text] of file.lines.entries())
         lines.push({ path: file.path, text, tokens: tokens[index] ?? [] });
@@ -175,10 +184,15 @@ export class SyntaxColors implements SyntaxSource {
    * The tokens of `lines` of `path`, or undefined when no grammar colors it.
    * With `continued`, the lines are consecutive and each picks up where the
    * one above left off (so a comment opened above stays a comment); otherwise
-   * each is colored on its own.
+   * each is colored on its own. A `language` colors them in it rather than in the one `path` says.
    */
-  async tokenize(path: string, lines: readonly string[], continued: boolean): Promise<LineTokens[] | undefined> {
-    const scope = this.catalog.scopeFor(path);
+  async tokenize(
+    path: string,
+    lines: readonly string[],
+    continued: boolean,
+    language?: string,
+  ): Promise<LineTokens[] | undefined> {
+    const scope = language === undefined ? this.catalog.scopeFor(path) : this.catalog.scopeForLanguage(language);
     if (scope === undefined) return undefined;
     let grammar = this.grammars.get(scope);
     if (!grammar) {
@@ -199,6 +213,15 @@ export class SyntaxColors implements SyntaxSource {
     });
   }
 }
+
+/** VS Code's ids for the languages Spelunk names otherwise; the rest are the same in both. */
+const VSCODE_LANGUAGE_IDS: Readonly<Record<string, string>> = {
+  "c++": "cpp",
+  shell: "shellscript",
+  make: "makefile",
+  docker: "dockerfile",
+  text: "plaintext",
+};
 
 /** vscode-textmate's [start, attributes, …] as LineTokens, merging neighbours of the same style. */
 function lineTokens(encoded: Uint32Array): LineTokens {

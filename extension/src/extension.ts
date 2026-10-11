@@ -6,10 +6,7 @@ import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import * as vscode from "vscode";
-import { CommitDocuments } from "./commitDocuments";
 import { editorCommands } from "./editorSeed";
-import { RevisionDocuments } from "./revisionDocuments";
-import { revisionDiffTitle } from "./revisionPath";
 import {
   type ControllerOptions,
   type PersistedState,
@@ -21,6 +18,8 @@ import {
 import { Daemon, type DaemonState } from "./daemon";
 import { followWorkspace, withEditorExcludes } from "./workspaceSettings";
 import { HelpPanel } from "./helpPanel";
+import { addLineEdit, openNotebookAt, readNotebook, saveFile } from "./notebookEditor";
+import { isNotebookPath } from "./notebookLines";
 import { SearchPanel } from "./panel";
 import type {
   FileChange,
@@ -38,6 +37,13 @@ import type {
 import type { DocumentLines, LineEdit } from "./replaceEdits";
 import { ShownResults } from "./resultActions";
 import { registerResultMenu } from "./resultMenu";
+import {
+  openAtRevision,
+  type ReadOnlyDocuments,
+  readOnlyDocuments,
+  registerReadOnlyDocuments,
+  selectionOf,
+} from "./readOnlyDocuments";
 import { makeRoot } from "./roots";
 import {
   closeOnOpen,
@@ -98,7 +104,7 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi {
     },
   });
   activeDaemon = daemon;
-  const documents = { commits: new CommitDocuments(daemon), revisions: new RevisionDocuments(daemon) };
+  const documents = readOnlyDocuments(daemon);
   const openedStatus = createOpenedStatus();
   // The panel forwards messages only after show(), by which time `controller` below exists.
   const panel = new SearchPanel(
@@ -136,8 +142,7 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi {
     help,
     welcome,
     openedStatus,
-    vscode.workspace.registerTextDocumentContentProvider(CommitDocuments.scheme, documents.commits),
-    vscode.workspace.registerTextDocumentContentProvider(RevisionDocuments.scheme, documents.revisions),
+    ...registerReadOnlyDocuments(documents),
     createStatusBar(daemon),
     ...registerCommands({ daemon, controller, panel, help, syntax, log, extensionId: context.extension.id }),
     vscode.commands.registerCommand("spelunk.showWelcome", () => {
@@ -392,8 +397,10 @@ function openEditorFiles(): string[] {
   for (const group of vscode.window.tabGroups.all) {
     for (const { input } of group.tabs) {
       let uri: vscode.Uri | undefined;
-      if (input instanceof vscode.TabInputText) uri = input.uri;
-      else if (input instanceof vscode.TabInputTextDiff) uri = input.modified;
+      if (input instanceof vscode.TabInputText || input instanceof vscode.TabInputNotebook) uri = input.uri;
+      else if (input instanceof vscode.TabInputTextDiff || input instanceof vscode.TabInputNotebookDiff) {
+        uri = input.modified;
+      }
       if (uri?.scheme === "file") paths.add(uri.fsPath);
     }
   }
@@ -447,18 +454,14 @@ function createUi({ panel, daemon, documents, openedStatus, globalState, logErro
       void vscode.window.showErrorMessage(message);
     },
     saveFiles: (files) => {
-      for (const file of files) {
-        // As URIs, which normalize the drive letter's case that a path may spell either way.
-        const uri = vscode.Uri.file(file).toString();
-        const document = vscode.workspace.textDocuments.find((open) => open.uri.toString() === uri);
-        if (document?.isDirty) void document.save().then(undefined, logError("save after replace"));
-      }
+      for (const file of files) saveFile(file, logError("save after replace"));
     },
   };
 }
 
 /** A file as the editor has it, unsaved changes included; undefined when it isn't a text file that opens. */
 async function readDocument(file: string): Promise<DocumentLines | undefined> {
+  if (isNotebookPath(file)) return readNotebook(file);
   try {
     const document = await vscode.workspace.openTextDocument(vscode.Uri.file(file));
     return { lineCount: document.lineCount, lineText: (index) => document.lineAt(index).text };
@@ -474,8 +477,8 @@ async function readDocument(file: string): Promise<DocumentLines | undefined> {
 async function applyEdits(edits: LineEdit[], label: string): Promise<boolean> {
   const edit = new vscode.WorkspaceEdit();
   const metadata: vscode.WorkspaceEditEntryMetadata = { label, needsConfirmation: false };
-  for (const { file, line, start, end, newText } of edits) {
-    edit.replace(vscode.Uri.file(file), new vscode.Range(line, start, line, end), newText, metadata);
+  for (const lineEdit of edits) {
+    if (!(await addLineEdit(edit, lineEdit, metadata))) return false;
   }
   return vscode.workspace.applyEdit(edit);
 }
@@ -678,29 +681,6 @@ interface Opening {
 }
 
 /**
- * The selection a file target makes: its match, from its line and column to
- * endLine and endColumn when it spans lines. OpenTarget lines and columns are
- * 1-based; VS Code positions are 0-based.
- */
-function selectionOf(target: OpenTarget): vscode.Selection {
-  const line = Math.max(0, (target.line ?? 1) - 1);
-  const column = Math.max(0, (target.column ?? 1) - 1);
-  if (target.endLine === undefined) return new vscode.Selection(line, column, line, column + (target.length ?? 0));
-  return new vscode.Selection(
-    line,
-    column,
-    Math.max(line, target.endLine - 1),
-    Math.max(0, (target.endColumn ?? 1) - 1),
-  );
-}
-
-/** The read-only documents results open in: commits as diffs, and files as they were at a revision. */
-interface ReadOnlyDocuments {
-  commits: CommitDocuments;
-  revisions: RevisionDocuments;
-}
-
-/**
  * Opens a resolved result: a commit as a diff document; a file at a revision read-only, or compared with the file
  * now; or a file with the match selected, all of it when it spans lines.
  */
@@ -709,7 +689,7 @@ async function openTarget({ target, where, preview, item }: Opening, documents: 
   if (target.revision) {
     // Without its item there's no repo-relative path to read the file as it was; the file now would be wrong.
     if (!target.path || !item || !("path" in item)) return false;
-    await openAtRevision(documents.revisions, { target, where, preview, item }, item.path);
+    await openAtRevision(documents, { target, where, preview, ref: item.ref }, item.path);
     return true;
   }
   if (target.sha) {
@@ -721,35 +701,12 @@ async function openTarget({ target, where, preview, item }: Opening, documents: 
     return true;
   }
   if (!target.path) return false;
+  if (isNotebookPath(target.path)) {
+    await openNotebookAt(vscode.Uri.file(target.path), target, { viewColumn, preview });
+    return true;
+  }
   const selection = selectionOf(target);
   const editor = await vscode.window.showTextDocument(vscode.Uri.file(target.path), { viewColumn, preview, selection });
   editor.revealRange(selection, vscode.TextEditorRevealType.InCenterIfOutsideViewport);
   return true;
-}
-
-/**
- * Opens a result at a revision: its file as it was, read-only, with the match selected; or, for compare, a diff of
- * that file against the file now. A file deleted since has nothing to compare with, so it opens read-only instead.
- * `path` is the file's repo-relative path.
- */
-async function openAtRevision(revisions: RevisionDocuments, opening: Opening, path: string): Promise<void> {
-  const { target, where, preview, item } = opening;
-  const label = target.revisionLabel ?? target.revision?.slice(0, 7) ?? "";
-  const uri = revisions.uriFor(item?.ref ?? "", label, path);
-  if (where === "compare" && target.path && existsSync(target.path)) {
-    await vscode.commands.executeCommand(
-      "vscode.diff",
-      uri,
-      vscode.Uri.file(target.path),
-      revisionDiffTitle(label, path),
-      {
-        preview,
-      },
-    );
-    return;
-  }
-  const selection = selectionOf(target);
-  const viewColumn = where === "side" ? vscode.ViewColumn.Beside : vscode.ViewColumn.Active;
-  const editor = await vscode.window.showTextDocument(uri, { viewColumn, preview, selection });
-  editor.revealRange(selection, vscode.TextEditorRevealType.InCenterIfOutsideViewport);
 }
