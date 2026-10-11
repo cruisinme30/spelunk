@@ -67,7 +67,7 @@ var operators = []operator{
 	{name: protocol.OpNameWord, full: "word", global: true, summary: "Word boundaries", examples: fixedValueNames(protocol.OpNameWord), interpret: oneOf(fixedValueNames(protocol.OpNameWord)...)},
 	{name: protocol.OpNameExcludes, full: "excludes", global: true, summary: "VS Code's excludes", examples: fixedValueNames(protocol.OpNameExcludes), interpret: oneOf(fixedValueNames(protocol.OpNameExcludes)...)},
 	{name: protocol.OpNameCount, full: "count", global: true, summary: "Page size", examples: []string{"50", "200", "all"}, interpret: asCount},
-	{name: protocol.OpNameOrder, full: "order", global: true, scope: scopeWorkingTreeOnly, summary: "Result order", examples: fixedValueNames(protocol.OpNameOrder), interpret: oneOf(orderValues()...)},
+	{name: protocol.OpNameOrder, full: "order", global: true, scope: scopeWorkingTreeOnly, summary: "Result order", examples: fixedValueNames(protocol.OpNameOrder), interpret: asOrder},
 	{name: protocol.OpNameAt, full: "at", global: true, scope: scopeWorkingTreeOnly, summary: "Past revision", examples: []string{"v1.0.0", "main", "HEAD~10", "6m", "2026-01-31"}, interpret: asRevision},
 }
 
@@ -440,8 +440,22 @@ func oneOf(values ...string) func(string, valueForm) (protocol.Match, string) {
 	}
 }
 
+// retiredOrders are the order: values that named path order before it was
+// called file, as file: names paths: each is an error whose one fix is the
+// value it meant.
+var retiredOrders = map[string]string{"path": "file:asc", "path:asc": "file:asc", "path:desc": "file:desc"}
+
+// asOrder accepts the values order: takes (orderValues), and says what a
+// retired one is now.
+func asOrder(value string, form valueForm) (protocol.Match, string) {
+	if now, retired := retiredOrders[value]; retired {
+		return protocol.MatchLiteral, "order:" + value + " is now order:" + now
+	}
+	return oneOf(orderValues()...)(value, form)
+}
+
 // orderValues are the values order: takes: the suggested ones, which name a
-// direction, and plain path and recent, which run their usual way.
+// direction, and plain file and recent, which run their usual way.
 func orderValues() []string {
-	return append(fixedValueNames(protocol.OpNameOrder), protocol.ResultOrderPath, protocol.ResultOrderRecent)
+	return append(fixedValueNames(protocol.OpNameOrder), protocol.ResultOrderFile, protocol.ResultOrderRecent)
 }

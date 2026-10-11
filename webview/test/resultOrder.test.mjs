@@ -98,10 +98,10 @@ test("the arrow says which way path and recently changed run, and flips it", asy
   await oldest.locator('[data-testid="section-code"] [data-testid="order-direction"]').click();
   assert.deepEqual(await lastSent(oldest, "order.set"), { order: "recent" });
 
-  const byPath = await panelWithOrder(t, "path");
+  const byPath = await panelWithOrder(t, "file");
   assert.deepEqual(await orderControl(byPath), ["Path order", "↑ a to z"]);
   await byPath.locator('[data-testid="section-code"] [data-testid="order-direction"]').click();
-  assert.deepEqual(await lastSent(byPath, "order.set"), { order: "path:desc" });
+  assert.deepEqual(await lastSent(byPath, "order.set"), { order: "file:desc" });
 
   // Best match runs one way: its arrow shows the direction but isn't a button.
   const best = await panelWithOrder(t, "best");
@@ -111,13 +111,13 @@ test("the arrow says which way path and recently changed run, and flips it", asy
 });
 
 test("an order typed in the query is rewritten there instead of the setting", async (t) => {
-  const text = "retry order:path:desc";
-  const order = { kind: "op", op: "order", value: "path:desc", match: "literal", span: { start: 6, end: 21 } };
+  const text = "retry order:file:desc";
+  const order = { kind: "op", op: "order", value: "file:desc", match: "literal", span: { start: 6, end: 21 } };
   const query = parsedQuery(
     text,
     { kind: "and", children: [textNode("retry", 0), order], span: { start: 0, end: 21 } },
     {
-      globals: { case: null, count: null, type: null, order: "path:desc" },
+      globals: { case: null, count: null, type: null, order: "file:desc" },
     },
   );
   const page = await panelWithOrder(t, "best", { text, query });
@@ -130,7 +130,7 @@ test("an order typed in the query is rewritten there instead of the setting", as
 
   const fresh = await panelWithOrder(t, "best", { text, query });
   await fresh.locator('[data-testid="section-code"] [data-testid="order-direction"]').click();
-  assert.equal(await fresh.inputValue(QUERY), "retry order:path:asc", "the arrow flips the typed direction");
+  assert.equal(await fresh.inputValue(QUERY), "retry order:file:asc", "the arrow flips the typed direction");
 });
 
 test("at a past revision, recently changed is unavailable and the setting's falls back to best match", async (t) => {
@@ -150,7 +150,7 @@ test("the menu moves with ↑↓ and Esc closes it back to its button", async (t
   const opener = page.locator('[data-testid="section-code"] [data-testid="order-button"]');
   await opener.click();
   await page.keyboard.press("ArrowDown");
-  assert.equal(await page.evaluate(() => document.activeElement?.dataset.order), "path");
+  assert.equal(await page.evaluate(() => document.activeElement?.dataset.order), "file");
   await page.keyboard.press("End");
   assert.equal(await page.evaluate(() => document.activeElement?.dataset.order), "recent");
   await page.keyboard.press("Escape");

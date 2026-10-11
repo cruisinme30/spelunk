@@ -16,7 +16,7 @@ func TestAtIsAGlobalThatSearchesFilesAtARevision(t *testing.T) {
 		"at:v1.0.0 retry_after f:payments/", "retry at:main", "at:3f9c2e1 sym:Retry", "at:HEAD~10 retry",
 		"at:release/2.x retry", "at:HEAD^2 retry", "at:HEAD@{1} retry", `at:"v1.0.0" retry`, "at:v1.0.0+build retry",
 		"at:6m retry", "at:2026-01-31 retry", "at:2026-01 retry", "at:yesterday retry", "at:v1.0.0 is:test retry",
-		"at:v1.0.0 struct:\"retry(:[a])\"", "at:v1.0.0 order:path retry", "at:v1.0.0 type:file retry",
+		"at:v1.0.0 struct:\"retry(:[a])\"", "at:v1.0.0 order:file retry", "at:v1.0.0 type:file retry",
 	} {
 		q := mustParseCleanly(t, text)
 		if q.Mode != protocol.ModeWorkingTree {

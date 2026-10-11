@@ -879,8 +879,8 @@ var fixedValues = map[protocol.OpName][]fixedValue{
 	},
 	protocol.OpNameOrder: {
 		{"best", "Best match first", "Definitions and file-name matches first; tests, vendored and generated files last"},
-		{"path:asc", "Path order, A to Z", "Repo by repo, then by path, then by line"},
-		{"path:desc", "Path order, Z to A", "Repo by repo, paths from Z to A; lines stay top to bottom"},
+		{"file:asc", "Path order, A to Z", "Repo by repo, then by file path, then by line"},
+		{"file:desc", "Path order, Z to A", "Repo by repo, file paths from Z to A; lines stay top to bottom"},
 		{"recent:desc", "Recently changed, newest first", "By when each file last changed: its uncommitted edits, or its newest commit"},
 		{"recent:asc", "Recently changed, oldest first", "The files changed longest ago first"},
 	},

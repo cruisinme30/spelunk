@@ -78,12 +78,12 @@ export const MAX_CONTEXT_LINES = 3;
 /** The index.historyDepth values. */
 export const HISTORY_DEPTHS: readonly Settings["historyDepth"][] = ["6m", "2y", "all"];
 const OPEN_TRIGGERS: readonly UiSettings["openTrigger"][] = ["doubleClick", "singleClick"];
-/** The results.order values; path and recent run their usual way (A to Z, newest first) without a direction. */
+/** The results.order values; file and recent run their usual way (A to Z, newest first) without a direction. */
 export const ORDERS: readonly UiSettings["order"][] = [
   "best",
-  "path",
-  "path:asc",
-  "path:desc",
+  "file",
+  "file:asc",
+  "file:desc",
   "recent",
   "recent:asc",
   "recent:desc",
@@ -212,7 +212,7 @@ export function daemonSettings(config: ConfigReader, home: string): Settings {
     ),
     notebookOutputs: boolean(read("index.notebookOutputs", DEFAULTS.notebookOutputs), DEFAULTS.notebookOutputs),
     location: indexLocation(config, home),
-    order: oneOf(read("results.order", DEFAULTS.order), ORDERS, DEFAULTS.order),
+    order: resultOrder(read("results.order", DEFAULTS.order)),
     contextLines: contextLines(config),
     timeLimitMs: clamp(
       read("search.timeLimitMs", DEFAULTS.timeLimitMs),
@@ -256,7 +256,7 @@ export function uiSettings(config: ConfigReader, editor: ConfigReader = NOTHING_
     showParsedQuery: boolean(read("ui.showParsedQuery", DEFAULTS.showParsedQuery), DEFAULTS.showParsedQuery),
     caseSensitive: caseSetting(read("search.caseSensitive", DEFAULTS.caseSensitive)),
     wholeWord: boolean(read("search.wholeWord", DEFAULTS.wholeWord), DEFAULTS.wholeWord),
-    order: oneOf(read("results.order", DEFAULTS.order), ORDERS, DEFAULTS.order),
+    order: resultOrder(read("results.order", DEFAULTS.order)),
     contextLines: contextLines(config),
     renderWhitespace: renderWhitespace(config, editor),
     tabSize: clamp(editor.get<unknown>("tabSize", EDITOR_DEFAULTS.tabSize), 1, MAX_TAB_SIZE, EDITOR_DEFAULTS.tabSize),
@@ -415,4 +415,9 @@ export function welcomeSettings(config: ConfigReader, mac: boolean): WelcomeStat
     symbols: settings.symbols,
     mac,
   };
+}
+
+/** The results.order setting; a value saved as path, before path order was called file, still means A to Z. */
+function resultOrder(value: unknown): UiSettings["order"] {
+  return value === "path" ? "file" : oneOf(value, ORDERS, DEFAULTS.order);
 }

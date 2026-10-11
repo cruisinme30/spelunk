@@ -160,7 +160,7 @@ const pixel = (page, png, x, y) =>
 test("a file name's path takes the row first, and a highlight cut by its ellipsis leaves nothing after it", async (t) => {
   const page = await openPanel(t);
   await page.setViewportSize({ width: 760, height: 500 });
-  await restore(page, [], { order: "path" });
+  await restore(page, [], { order: "file" });
   const seq = await typeAndParse(page, "payment", parsedQuery("payment", textNode("payment", 0)));
   const fits = "src/payments/retry/payment_retry_policy.py";
   const cut = `tests/payments/${"integration/".repeat(4)}gateway.py`;

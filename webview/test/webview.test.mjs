@@ -325,10 +325,10 @@ test("a file name matched by its letters in order highlights each run of them", 
   assert.deepEqual(await marks.allInnerTexts(), ["c", "f", "g"]);
 });
 
-test("order:path, or the order setting, makes the titles say path order", async (t) => {
+test("order:file, or the order setting, makes the titles say path order", async (t) => {
   // @covers screen:path-order
   const page = await openPanel(t);
-  await restore(page, [], { order: "path" });
+  await restore(page, [], { order: "file" });
   const seq = await typeAndParse(page, "retry", parsedQuery("retry", textNode("retry", 0)));
   await fromHost(page, "search.batch", { seq, searchId: "s1", items: [CODE_LINE_RESULT] });
   assert.match(await page.locator('[data-testid="section-code"] .section-title').innerText(), /path order/i);

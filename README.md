@@ -32,7 +32,8 @@ removed `timeout` or `retry`. Drop `author:` and the same box searches current f
 - **File names the way Quick Open finds them.** A word also finds file names that have its letters in order, so
   `usrsvc` finds `UserService.ts`; code lines still match exactly.
 - **Best match first.** Files that define what you searched for, are open in the editor, or are named after it come
-  first; tests, vendored and generated files come last. `order:path` sorts by path instead.
+  first; tests, vendored and generated files come last. `order:file` sorts by path instead, and `order:recent` by
+  when files last changed; the order name above the results picks one too.
 - **Facets** count the results by repo, language, CODEOWNERS owner and top folder (repo, author and month for
   commits). Click one to
   keep only it, Alt-click to leave it out.

@@ -598,7 +598,7 @@ export class SearchPanel {
         this.layout.input.focus();
       },
       // An order typed in the query is rewritten there; otherwise the host saves the setting and searches again.
-      onOrder: (base: "best" | "path" | "recent", descending: boolean) => {
+      onOrder: (base: "best" | "file" | "recent", descending: boolean) => {
         if (topLevelOperators(state.parsed, "order").length === 0)
           send("order.set", { order: joinOrder(base, descending) });
         else this.editQuery((text) => setOrder(text, state.parsed, joinOrder(base, descending, true)), searchedText);

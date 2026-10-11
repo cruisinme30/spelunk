@@ -242,7 +242,7 @@ func TestFixedValuesExplainThemselves(t *testing.T) {
 	for _, c := range completions {
 		orders = append(orders, c.Label)
 	}
-	if want := []string{"best", "path:asc", "path:desc", "recent:desc", "recent:asc"}; !slices.Equal(orders, want) {
+	if want := []string{"best", "file:asc", "file:desc", "recent:desc", "recent:asc"}; !slices.Equal(orders, want) {
 		t.Errorf("order: offers %q, want %q", orders, want)
 	}
 }

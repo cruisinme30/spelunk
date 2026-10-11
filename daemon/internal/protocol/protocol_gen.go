@@ -122,15 +122,15 @@ const (
 	CaseSettingSmart CaseSetting = "smart"
 )
 
-// ResultOrder is how current files are sorted: best match first, by repo, path and line (path or path:asc A to Z, path:desc Z to A), or by when each file last changed (recent or recent:desc newest first, recent:asc oldest first).
+// ResultOrder is how current files are sorted: best match first, by repo, file path and line (file or file:asc A to Z, file:desc Z to A), or by when each file last changed (recent or recent:desc newest first, recent:asc oldest first).
 type ResultOrder = string
 
 // ResultOrder values.
 const (
 	ResultOrderBest       ResultOrder = "best"
-	ResultOrderPath       ResultOrder = "path"
-	ResultOrderPathAsc    ResultOrder = "path:asc"
-	ResultOrderPathDesc   ResultOrder = "path:desc"
+	ResultOrderFile       ResultOrder = "file"
+	ResultOrderFileAsc    ResultOrder = "file:asc"
+	ResultOrderFileDesc   ResultOrder = "file:desc"
 	ResultOrderRecent     ResultOrder = "recent"
 	ResultOrderRecentAsc  ResultOrder = "recent:asc"
 	ResultOrderRecentDesc ResultOrder = "recent:desc"
@@ -301,7 +301,7 @@ type Globals struct {
 	Word string `json:"word,omitempty"`
 	// Excludes is the query's excludes: value: yes leaves out the files VS Code's files.exclude and search.exclude hide, no keeps them; absent when the query doesn't say, which means yes unless spelunk.search.useExcludeSettings is off.
 	Excludes string `json:"excludes,omitempty"`
-	// Order is the query's order: value, such as best, path:desc or recent:asc; absent when the query doesn't say.
+	// Order is the query's order: value, such as best, file:desc or recent:asc; absent when the query doesn't say.
 	Order ResultOrder `json:"order,omitempty"`
 	// At is the query's at: value as written: the tag, branch, commit or time whose files it searches; absent when the query doesn't say.
 	At string `json:"at,omitempty"`

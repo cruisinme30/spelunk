@@ -152,7 +152,7 @@ func TestOrderRecentPagesNeverRepeatOrSkipAResult(t *testing.T) {
 func TestOrderPathDescRunsEachReposPathsFromZToA(t *testing.T) {
 	first := rankedRepo()
 	second := repoOf("lib", map[string]string{"a/retry.go": "retry\n", "z/retry.go": "retry\n"})
-	items, _ := runItems(t, "order:path:desc retry", bestMatchSettings, "", first, second)
+	items, _ := runItems(t, "order:file:desc retry", bestMatchSettings, "", first, second)
 	want := []string{
 		"file vendor/lib/retry.js", "file tests/retry_test.py", "file src/retry_policy.py", "file src/retry.py",
 		"file z/retry.go", "file a/retry.go",
@@ -171,9 +171,9 @@ func TestOrderPathDescRunsEachReposPathsFromZToA(t *testing.T) {
 	if !reflect.DeepEqual(client, []int{1, 3}) {
 		t.Errorf("src/client.py lines = %v, want [1 3]: lines stay top to bottom", client)
 	}
-	asc, _ := runItems(t, "order:path:asc retry", bestMatchSettings, "", first, second)
-	plain, _ := runItems(t, "order:path retry", bestMatchSettings, "", first, second)
+	asc, _ := runItems(t, "order:file:asc retry", bestMatchSettings, "", first, second)
+	plain, _ := runItems(t, "order:file retry", bestMatchSettings, "", first, second)
 	if !reflect.DeepEqual(files(asc), files(plain)) {
-		t.Errorf("order:path:asc = %q, want the same as order:path, %q", files(asc), files(plain))
+		t.Errorf("order:file:asc = %q, want the same as order:file, %q", files(asc), files(plain))
 	}
 }

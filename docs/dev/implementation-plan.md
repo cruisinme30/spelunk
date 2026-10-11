@@ -514,7 +514,7 @@ Results, Opening results, Indexing, Display and Watches. A key belongs to the se
 | Search | `spelunk.search.typingDelayMs` | integer, 0–1000 | `120` | application |
 | Search | `spelunk.search.timeLimitMs` | integer, 100–60000 | `2000` | resource |
 | Results | `spelunk.results.count` | integer, 1–50000 | `500` | resource |
-| Results | `spelunk.results.order` | `"best"` \| `"path"` | `"best"` | resource |
+| Results | `spelunk.results.order` | `"best"` \| `"file"` \| `"file:desc"` \| `"recent"` \| `"recent:asc"` | `"best"` | resource |
 | Results | `spelunk.results.contextLines` | integer, 0–3 | `0` | resource |
 | Opening results | `spelunk.open.trigger` | `"doubleClick"` \| `"singleClick"` | `"doubleClick"` | application |
 | Opening results | `spelunk.open.preview` | boolean | `true` | application |

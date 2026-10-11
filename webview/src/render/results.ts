@@ -78,7 +78,7 @@ interface ResultsHandlers {
   /** A Context button was pressed: show `lines` lines around each code match from now on. */
   onContextLines(lines: number): void;
   /** An order was picked from a section title's menu, or its arrow flipped. */
-  onOrder(base: "best" | "path" | "recent", descending: boolean): void;
+  onOrder(base: "best" | "file" | "recent", descending: boolean): void;
   /** What a replace would make of a code line's matches, while the Replace row previews one. */
   replacementsFor(item: ItemOf<"line">): string[] | undefined;
   /** Colors the code a code result's `node` shows: its lines and the context lines around them. */

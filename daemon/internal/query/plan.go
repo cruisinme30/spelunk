@@ -486,7 +486,7 @@ func resultOrder(order, setting protocol.ResultOrder, atRevision bool) (protocol
 	}
 	base, direction, _ := strings.Cut(order, ":")
 	switch {
-	case base == protocol.ResultOrderPath:
+	case base == protocol.ResultOrderFile:
 		return base, direction == "desc"
 	case base == protocol.ResultOrderRecent && !atRevision:
 		return base, direction != "asc"

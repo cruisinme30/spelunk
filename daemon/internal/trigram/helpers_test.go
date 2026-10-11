@@ -37,7 +37,7 @@ func shardOf(files map[string]string) *Shard {
 // they sort results by path, so most tests' expectations read in path
 // order. rank_test.go tests best-match order with bestMatchSettings.
 var (
-	defaultSettings   = protocol.Settings{DefaultCount: 500, HistoryDepth: "2y", Order: protocol.ResultOrderPath}
+	defaultSettings   = protocol.Settings{DefaultCount: 500, HistoryDepth: "2y", Order: protocol.ResultOrderFile}
 	bestMatchSettings = protocol.Settings{DefaultCount: 500, HistoryDepth: "2y"}
 )
 

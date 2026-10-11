@@ -66,8 +66,8 @@ export type OpName = "f" | "repo" | "lang" | "type" | "sym" | "kind" | "ref" | "
 /** CaseSetting is how capital letters match when the query has no case: ignored (off), matched (on), or matched only when the query has a capital letter (smart). */
 export type CaseSetting = "off" | "on" | "smart";
 
-/** ResultOrder is how current files are sorted: best match first, by repo, path and line (path or path:asc A to Z, path:desc Z to A), or by when each file last changed (recent or recent:desc newest first, recent:asc oldest first). */
-export type ResultOrder = "best" | "path" | "path:asc" | "path:desc" | "recent" | "recent:asc" | "recent:desc";
+/** ResultOrder is how current files are sorted: best match first, by repo, file path and line (file or file:asc A to Z, file:desc Z to A), or by when each file last changed (recent or recent:desc newest first, recent:asc oldest first). */
+export type ResultOrder = "best" | "file" | "file:asc" | "file:desc" | "recent" | "recent:asc" | "recent:desc";
 
 /** RankReason is why best-match order put a file where it is: it defines a searched name or is open in the editor, or it was moved down as a test, vendored or generated file, or as one VS Code's excludes hide (shown by excludes:no). Absent when nothing stands out or the order is path. */
 export type RankReason = "definition" | "open" | "test" | "vendored" | "generated" | "excluded";
@@ -150,7 +150,7 @@ export interface Globals {
   word?: "yes" | "no";
   /** the query's excludes: value: yes leaves out the files VS Code's files.exclude and search.exclude hide, no keeps them; absent when the query doesn't say, which means yes unless spelunk.search.useExcludeSettings is off. */
   excludes?: "yes" | "no";
-  /** the query's order: value, such as best, path:desc or recent:asc; absent when the query doesn't say. */
+  /** the query's order: value, such as best, file:desc or recent:asc; absent when the query doesn't say. */
   order?: ResultOrder;
   /** the query's at: value as written: the tag, branch, commit or time whose files it searches; absent when the query doesn't say. */
   at?: string;

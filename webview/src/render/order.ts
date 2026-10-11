@@ -5,22 +5,22 @@ import { button, element, timeAgo } from "../format";
 import type { Globals, ResultItem, ResultOrder } from "../protocol.gen";
 
 /** An order without its direction. */
-type BaseOrder = "best" | "path" | "recent";
+type BaseOrder = "best" | "file" | "recent";
 
 /** Each order's name in the menu, and what it does. */
 const ORDERS: Record<BaseOrder, { name: string; detail: string }> = {
   best: { name: "Best match first", detail: "Definitions and name matches first; tests last" },
-  path: { name: "Path order", detail: "Repo by repo, then by path and line" },
+  file: { name: "Path order", detail: "Repo by repo, then by path and line" },
   recent: { name: "Recently changed", detail: "By when each file last changed" },
 };
 
-/** What the arrow says for path and recent order: ascending, then descending. */
+/** What the arrow says for path order (file) and recent order: ascending, then descending. */
 const DIRECTIONS: Record<Exclude<BaseOrder, "best">, [string, string]> = {
-  path: ["A to Z", "Z to A"],
+  file: ["A to Z", "Z to A"],
   recent: ["Oldest first", "Newest first"],
 };
 
-/** An order's base and direction; plain path runs A to Z and plain recent newest first. */
+/** An order's base and direction; plain file runs A to Z and plain recent newest first. */
 function splitOrder(order: ResultOrder): { base: BaseOrder; descending: boolean } {
   const [base, direction] = order.split(":") as [BaseOrder, string | undefined];
   if (!Object.hasOwn(ORDERS, base)) return { base: "best", descending: false };
@@ -29,8 +29,8 @@ function splitOrder(order: ResultOrder): { base: BaseOrder; descending: boolean 
 
 /**
  * The order value for a base and direction: the setting's short form
- * (path, recent:asc), or with `explicit` the form the suggestions offer
- * (path:asc, recent:desc), which a query's order: is rewritten to.
+ * (file, recent:asc), or with `explicit` the form the suggestions offer
+ * (file:asc, recent:desc), which a query's order: is rewritten to.
  */
 export function joinOrder(base: BaseOrder, descending: boolean, explicit = false): ResultOrder {
   if (base === "best") return "best";

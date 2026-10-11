@@ -651,8 +651,8 @@
             "type": "string",
             "enum": [
               "best",
-              "path",
-              "path:desc",
+              "file",
+              "file:desc",
               "recent",
               "recent:asc"
             ],

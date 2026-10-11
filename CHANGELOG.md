@@ -11,8 +11,9 @@ All notable changes to this project are documented here. The format follows
   is now a menu of best match, path order and **Recently changed**, and an arrow beside it flips the direction
   (newest or oldest first, A to Z or Z to A). Recently changed goes by the save time of a file with uncommitted edits
   or outside Git, otherwise its newest commit, and each code result says when its file changed. Typed, it's
-  `order:recent:desc` (or plain `order:recent`) and `order:recent:asc`, and `order:path:desc` runs paths from Z to A.
-  The pick is saved in `spelunk.results.order`, which takes the same values.
+  `order:recent:desc` (or plain `order:recent`) and `order:recent:asc`. Path order is now `order:file` (`file:asc`, or
+  `file:desc` for Z to A), as `file:` names paths; `order:path` offers the new name. The pick is saved in
+  `spelunk.results.order`, which takes the same values; a value saved as `path` still works.
 - Files you hide with VS Code's `files.exclude` and `search.exclude` are left out of searches, as in VS Code's own
   search, read per folder and the way VS Code reads them (`when` clauses too). A note under the results counts them
   and names the patterns; **Show them** adds the new `excludes:no`, which shows them last, marked excluded. History

@@ -521,6 +521,8 @@ func (p *parser) reportBadValue(op operator, t token, valueSpan protocol.Span, p
 		examples = nearestLanguages(t.value)
 	case isWindowOp(op.name) && nearestDate(t.value) != "": // a date that doesn't exist
 		examples = []string{nearestDate(t.value)}
+	case op.name == protocol.OpNameOrder && retiredOrders[t.value] != "": // path order, now file
+		examples = []string{retiredOrders[t.value]}
 	}
 	// A quoted or /regex/ value may touch the next word, as in case:/ /y;
 	// a bare value put in its place must not join it.

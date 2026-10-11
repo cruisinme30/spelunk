@@ -581,9 +581,9 @@ test("the order menu and arrow save spelunk.results.order when it changes", asyn
   await set({ order: "recent" });
   await set({ order: "recent" });
   await set({ order: "recent:asc" });
-  await set({ order: "path:desc" });
+  await set({ order: "file:desc" });
   await set({ order: "best" });
-  assert.deepEqual(saves, ["recent", "recent:asc", "path:desc", "best"], "saved only when it changes");
+  assert.deepEqual(saves, ["recent", "recent:asc", "file:desc", "best"], "saved only when it changes");
 });
 
 test("a search typed while a repo was indexing runs again when the repo is ready", async () => {

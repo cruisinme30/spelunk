@@ -165,7 +165,7 @@ func TestContentMatchesTextButNeverFileNames(t *testing.T) {
 		{`content:"retry(timeout"`, []string{"src/retry_test.py:2     assert retry(timeout=1)"}},
 	}
 	for _, tt := range tests {
-		got, _ := run(t, "order:path "+tt.query, webRepo)
+		got, _ := run(t, "order:file "+tt.query, webRepo)
 		if !reflect.DeepEqual(got, tt.want) {
 			t.Errorf("%s:\n got %q\nwant %q", tt.query, got, tt.want)
 		}

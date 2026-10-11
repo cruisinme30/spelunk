@@ -79,7 +79,7 @@ type docRank struct {
 // ranking reports whether this search sorts by best match or by when files
 // changed. A count-only search (Limit 0) emits nothing, so it never sorts.
 func (s *searcher) ranking() bool {
-	return s.plan.Order != protocol.ResultOrderPath && s.plan.Limit > 0
+	return s.plan.Order != protocol.ResultOrderFile && s.plan.Limit > 0
 }
 
 // byChange reports whether this search sorts by when files last changed.

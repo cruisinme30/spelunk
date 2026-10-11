@@ -133,9 +133,9 @@
       "enum": ["off", "on", "smart"]
     },
     "ResultOrder": {
-      "description": "ResultOrder is how current files are sorted: best match first, by repo, path and line (path or path:asc A to Z, path:desc Z to A), or by when each file last changed (recent or recent:desc newest first, recent:asc oldest first).",
+      "description": "ResultOrder is how current files are sorted: best match first, by repo, file path and line (file or file:asc A to Z, file:desc Z to A), or by when each file last changed (recent or recent:desc newest first, recent:asc oldest first).",
       "type": "string",
-      "enum": ["best", "path", "path:asc", "path:desc", "recent", "recent:asc", "recent:desc"]
+      "enum": ["best", "file", "file:asc", "file:desc", "recent", "recent:asc", "recent:desc"]
     },
     "RankReason": {
       "description": "RankReason is why best-match order put a file where it is: it defines a searched name or is open in the editor, or it was moved down as a test, vendored or generated file, or as one VS Code's excludes hide (shown by excludes:no). Absent when nothing stands out or the order is path.",
@@ -361,7 +361,7 @@
           "enum": ["yes", "no"]
         },
         "order": {
-          "description": "the query's order: value, such as best, path:desc or recent:asc; absent when the query doesn't say.",
+          "description": "the query's order: value, such as best, file:desc or recent:asc; absent when the query doesn't say.",
           "$ref": "#/$defs/ResultOrder"
         },
         "at": {

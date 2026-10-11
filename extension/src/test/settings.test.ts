@@ -54,10 +54,14 @@ test("daemon settings clamp to the maximum the manifest declares", () => {
 
 test("the order setting reaches both the daemon and the panel", () => {
   // @covers setting:results.order
-  const config = configWith({ "results.order": "path" });
-  assert.equal(daemonSettings(config, "/home/u").order, "path");
-  assert.equal(uiSettings(config).order, "path");
-  for (const order of ["path:desc", "recent", "recent:asc", "recent:desc", "path:asc"] as const) {
+  const config = configWith({ "results.order": "file" });
+  assert.equal(daemonSettings(config, "/home/u").order, "file");
+  assert.equal(uiSettings(config).order, "file");
+  // Saved before path order was called file.
+  const saved = configWith({ "results.order": "path" });
+  assert.equal(daemonSettings(saved, "/home/u").order, "file");
+  assert.equal(uiSettings(saved).order, "file");
+  for (const order of ["file:desc", "recent", "recent:asc", "recent:desc", "file:asc"] as const) {
     const each = configWith({ "results.order": order });
     assert.equal(daemonSettings(each, "/home/u").order, order);
     assert.equal(uiSettings(each).order, order);

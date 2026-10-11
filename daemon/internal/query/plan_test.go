@@ -316,21 +316,21 @@ func TestOrderComesFromOrderOrTheSetting(t *testing.T) {
 		descending bool
 	}{
 		{"x", defaultSettings, protocol.ResultOrderBest, false},
-		{"x", setting(protocol.ResultOrderPath), protocol.ResultOrderPath, false},
-		{"order:path x", defaultSettings, protocol.ResultOrderPath, false},
-		{"order:best x", setting(protocol.ResultOrderPath), protocol.ResultOrderBest, false},
-		{"order:path:asc x", defaultSettings, protocol.ResultOrderPath, false},
-		{"order:path:desc x", defaultSettings, protocol.ResultOrderPath, true},
+		{"x", setting(protocol.ResultOrderFile), protocol.ResultOrderFile, false},
+		{"order:file x", defaultSettings, protocol.ResultOrderFile, false},
+		{"order:best x", setting(protocol.ResultOrderFile), protocol.ResultOrderBest, false},
+		{"order:file:asc x", defaultSettings, protocol.ResultOrderFile, false},
+		{"order:file:desc x", defaultSettings, protocol.ResultOrderFile, true},
 		{"order:recent x", defaultSettings, protocol.ResultOrderRecent, true},
 		{"order:recent:desc x", defaultSettings, protocol.ResultOrderRecent, true},
-		{"order:recent:asc x", setting(protocol.ResultOrderPath), protocol.ResultOrderRecent, false},
+		{"order:recent:asc x", setting(protocol.ResultOrderFile), protocol.ResultOrderRecent, false},
 		{"x", setting(protocol.ResultOrderRecent), protocol.ResultOrderRecent, true},
 		{"x", setting("recent:asc"), protocol.ResultOrderRecent, false},
-		{"x", setting("path:desc"), protocol.ResultOrderPath, true},
+		{"x", setting("file:desc"), protocol.ResultOrderFile, true},
 		{"order:best x", setting("recent:asc"), protocol.ResultOrderBest, false},
 		// A past revision's files have no last change: the setting's recent falls back to best.
 		{"at:v1.0.0 x", setting(protocol.ResultOrderRecent), protocol.ResultOrderBest, false},
-		{"at:v1.0.0 x", setting("path:desc"), protocol.ResultOrderPath, true},
+		{"at:v1.0.0 x", setting("file:desc"), protocol.ResultOrderFile, true},
 	}
 	for _, tt := range tests {
 		plan := mustPlan(t, tt.query, tt.settings)

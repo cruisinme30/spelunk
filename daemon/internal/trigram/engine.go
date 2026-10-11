@@ -811,7 +811,7 @@ func describeChange(repo *Repo, doc *Doc, item *protocol.ResultItem) {
 }
 
 // reversePaths sorts each repo's run of candidates by path from Z to A,
-// for order:path:desc. Repos keep their workspace order.
+// for order:file:desc. Repos keep their workspace order.
 func reversePaths(candidates []rankedCandidate) {
 	for start := 0; start < len(candidates); {
 		end := start + 1
