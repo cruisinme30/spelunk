@@ -114,7 +114,7 @@ bare     = 1*( any char except space, "(", ")", '"' ) ;
 
 - Every operator has a full name. Five also have a short name: `file:` `f:`, `author:` `a:`, `symbol:` `sym:`,
   `language:` `lang:`, `message:` `msg:`. The one-letter names the others once had (`s:`, `i:`, `d:` …) and `path:`
-  are unknown operators whose fix offers the full name. Suggestions and help show the full name.
+  are unknown search words whose fix offers the full name. Suggestions and help show the full name.
 - `AND` and `OR` are keywords only in uppercase. Lowercase `or` is a search term.
 - AND binds tighter than OR. `a b OR c` means `(a b) OR c`.
 - A word shaped like `name:` with an unknown name is an error, not a term. Quoting it (`"sinse:6m"`) makes it a term.

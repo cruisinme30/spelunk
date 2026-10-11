@@ -69,7 +69,7 @@ All notable changes to this project are documented here. The format follows
 
 - Only `file:`, `author:`, `symbol:`, `language:` and `message:` keep a short name, and it reads: `f:`, `a:`,
   `sym:`, `lang:` and `msg:`. The other one-letter names (`s:`, `i:`, `d:`, `r:` …) and `path:` are gone; typing one
-  says **Unknown operator s: (now symbol:)** and the fix changes it to the full name.
+  says **Unknown search word s: (now symbol:)** and the fix changes it to the full name.
 
 ## [2.0.0] - 2026-10-10
 
