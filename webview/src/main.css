@@ -521,6 +521,79 @@ ins {
   color: var(--err);
 }
 
+/* Ask, in the toolbar: ✦ Ask. */
+.toggle.ask {
+  gap: 6px;
+  padding: 0 10px;
+  border-color: #2d4a6e;
+  background: #16263a;
+  color: var(--tone-scope);
+}
+
+/* The line under the box after a question: what was asked and the query it became, or what Ask needs. */
+.asked {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  padding: 8px 14px;
+  font-size: 12px;
+  color: var(--muted);
+  border-bottom: 1px solid var(--line);
+}
+
+.asked.ok {
+  background: #141a24;
+}
+
+.asked.warn {
+  background: var(--warn-bg);
+  color: var(--warn);
+}
+
+.asked.error {
+  background: var(--err-bg);
+  color: var(--err);
+}
+
+.asked .sparkle {
+  display: inline-flex;
+  color: var(--tone-scope);
+}
+
+.asked .label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--tone-scope);
+}
+
+.asked .question {
+  color: var(--fg);
+}
+
+.asked code {
+  font-family: var(--mono);
+  color: var(--fg);
+}
+
+.asked .sep {
+  width: 1px;
+  height: 14px;
+  background: var(--border);
+}
+
+.asked .problem {
+  color: var(--warn);
+}
+
+.asked .actions {
+  display: inline-flex;
+  gap: 12px;
+  margin-left: auto;
+}
+
 .progress {
   flex: 1 1 160px;
   min-width: 120px;

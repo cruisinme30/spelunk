@@ -22,6 +22,24 @@ interface PreviewState {
   stale?: boolean;
 }
 
+/** A question asked in plain words (Ask): its answer, or what Ask needs before it can answer. */
+export interface AskedState {
+  /** Numbers the ask; an ask.result for an older one is dropped. */
+  seq: number;
+  /** The question, without its final "?". */
+  question: string;
+  /** True from the ask until its result arrives. */
+  pending: boolean;
+  /** The query the question became, now in the box. */
+  query?: string;
+  explanation?: string;
+  assumptions: string[];
+  /** Why Ask can't answer yet: off in settings, or no API key. */
+  setup?: "off" | "noKey";
+  /** What went wrong: the provider, or a query that doesn't parse (then `query` is set too). */
+  error?: string;
+}
+
 /** The panel's state; see createViewState for the starting values. */
 export interface ViewState {
   /** Sequence number of the newest query.changed; older responses are dropped. */
@@ -73,6 +91,8 @@ export interface ViewState {
   remoteHosts: Map<string, RemoteHost>;
   /** Daemon health; undefined while it is healthy. */
   banner: BannerMessage | undefined;
+  /** The question asked in plain words and what came of it; undefined when the box was typed as a query. */
+  asked: AskedState | undefined;
   /** The width in pixels the divider gave the recent queries; undefined for the default split. */
   recentWidth: number | undefined;
   /** Whether a file preview shows its Outline beside the code; closed until opened. */
@@ -99,6 +119,7 @@ const DEFAULT_UI_SETTINGS: UiSettings = {
   renderWhitespace: "selection",
   tabSize: 4,
   fontLigatures: '"liga" off, "calt" off',
+  askEnabled: false,
 };
 
 /** The state of a panel that has just opened: an empty box and no results. */
@@ -129,6 +150,7 @@ export function createViewState(): ViewState {
     repos: [],
     remoteHosts: new Map(),
     banner: undefined,
+    asked: undefined,
     recentWidth: undefined,
     outlineOpen: false,
     facetLabels: new Map(),

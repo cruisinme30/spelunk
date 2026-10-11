@@ -23,6 +23,7 @@ import { menuContext, repoName, type ViewState } from "../state";
 import { ChunkedList } from "./chunkedList";
 import { hiddenWhat } from "./hiddenWhat";
 import { outsideDefinitions, withinLabel } from "./withinLabel";
+import { broadenNote } from "./asked";
 import { fuzzyNamesNote } from "./fuzzyNamesNote";
 import { excludesNote, hiddenByExcludes } from "./excludesNote";
 import { demoted, mergeBadges, ownerBadge, rankBadge, sinceBadge } from "./fileBadges";
@@ -71,6 +72,8 @@ interface Section {
 /** What the result list's buttons do. */
 interface ResultsHandlers {
   onApplyFix(fix: Fix): void;
+  /** Broaden, under no results for a question asked in plain words: ask for a looser query. */
+  onBroaden: () => void;
   onLoadMore(searchId: string, cursor: string): void;
   /** A Context button was pressed: show `lines` lines around each code match from now on. */
   onContextLines(lines: number): void;
@@ -303,6 +306,10 @@ export class ResultsView {
       ...(done.folderNotes ?? []).flatMap((note) => folderNotes(note, this.state.parsed?.mode === "history")),
       ...done.hidden.filter((note) => note.count > 0).map((note) => this.renderNote(note)),
     );
+    const asked = this.state.asked;
+    if (done.total === 0 && asked?.query !== undefined && !asked.pending && asked.error === undefined) {
+      this.notes.append(broadenNote(this.handlers.onBroaden));
+    }
     this.loadMore.replaceChildren();
     // The daemon sends a cursor when there are more pages; Load more asks for the next one.
     if (done.nextCursor) {

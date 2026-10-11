@@ -11,6 +11,9 @@
 //
 // Options:
 //   --query <text>      what to type in the search box (default: leave it empty)
+//   --ask <question>    a question to ask in plain words after --query: typed, ↵, answered by the fake provider
+//                       SPELUNK_ASK_FAKE names (a JSON object from each question to its query or answer), with
+//                       --setting ask.provider=anthropic so Ask is on
 //   --first <text>      a query to run before --query, e.g. to show that a broken query keeps the last results
 //   --replace <text>    open the Replace row and preview replacing the query's matches with <text>
 //   --recent <text>     a recent query (repeatable, newest first)
@@ -51,6 +54,7 @@ const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const { values: args } = parseArgs({
   options: {
     query: { type: "string", default: "" },
+    ask: { type: "string" },
     recent: { type: "string", multiple: true, default: [] },
     replace: { type: "string" },
     open: { type: "string", multiple: true, default: [] },
@@ -196,10 +200,18 @@ async function connectPanel(page, host, daemon, theme) {
   const openFiles = args.open.map((path) => join(args.workspace, path));
   // The extension's settings, minus the typing delay, so each keystroke searches at once.
   const uiSettings = { ...host.uiSettings(configured), typingDelayMs: 0 };
+  // --ask's provider: the fake SPELUNK_ASK_FAKE describes, so a screenshot never calls a real one.
+  const fakeProvider = host.fakeProviderFromEnvironment();
+  const ask = fakeProvider && {
+    setup: async () => ({ kind: "ready", provider: fakeProvider }),
+    shareNames: () => true,
+    setKey: async () => {},
+  };
   const controller = new host.SearchController(
     daemon,
     ui,
     {
+      ...(ask ? { ask } : {}),
       recentLimit: () => 20,
       pinnedQueries: () => host.pinnedQueries(configured),
       closeOnOpen: () => false,
@@ -250,6 +262,15 @@ async function drivePanel(page, posted) {
     await page.fill('[data-testid="query"]', args.query);
     await until("search.done or parse errors", () => posted.includes("search.done") || posted.includes("parse.result"));
     await page.waitForTimeout(150); // a query with errors gets no search.done
+  }
+  if (args.ask !== undefined) {
+    posted.length = 0;
+    await page.fill('[data-testid="query"]', args.ask);
+    await page.keyboard.press("Enter");
+    await until("the question's answer", () => posted.includes("ask.result"));
+    posted.length = 0;
+    await until("the answer's results", () => posted.includes("search.done") || posted.includes("parse.result"));
+    await page.waitForTimeout(150);
   }
   if (args.replace !== undefined) {
     await page.click('[data-testid="toggle-replace"]');
@@ -354,6 +375,7 @@ async function loadHost() {
     stdin: {
       contents: [
         'export { SearchController } from "./controller";',
+        'export { fakeProviderFromEnvironment } from "./ask";',
         'export { Daemon } from "./daemon";',
         'export { makeRoot } from "./roots";',
         'export { editorExcludes } from "./editorExcludes";',

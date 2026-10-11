@@ -72,6 +72,7 @@ test("settings are grouped in sections, each key under the section its name star
       "Links",
       "Agents and terminal",
       "Editor navigation",
+      "Ask in plain words",
     ],
   );
   for (const section of sections) {
@@ -191,4 +192,23 @@ test("Search in Folder is on the Explorer's right-click menu for local folders, 
   ]);
   const palette = manifest.contributes.menus.commandPalette.find((item) => item.command === "spelunk.searchInFolder");
   assert.equal(palette?.when, "false", "it needs a folder, which only the Explorer gives");
+});
+
+test("Ask has its own settings section, and Set Anthropic API Key is in the Command Palette", () => {
+  // @covers command:setAnthropicApiKey
+  const command = manifest.contributes.commands.find((entry) => entry.command === "spelunk.setAnthropicApiKey");
+  assert.equal(command?.title, "Set Anthropic API Key");
+  const palette = manifest.contributes.menus.commandPalette.find(
+    (item) => item.command === "spelunk.setAnthropicApiKey",
+  );
+  assert.equal(palette, undefined, "always offered: the key can be set before Ask is turned on");
+  const section = manifest.contributes.configuration.find((entry) => entry.title === "Ask in plain words");
+  assert.deepEqual(Object.keys(section?.properties ?? {}), [
+    "spelunk.ask.provider",
+    "spelunk.ask.model",
+    "spelunk.ask.shareNames",
+  ]);
+  const provider = section?.properties["spelunk.ask.provider"];
+  assert.ok(provider);
+  assert.deepEqual(provider.enum, ["off", "anthropic"]);
 });

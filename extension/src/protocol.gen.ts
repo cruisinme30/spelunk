@@ -955,6 +955,8 @@ export interface StateRestoreMessage {
 
 /** UiSettings are the UI-facing settings the host forwards to the webview. */
 export interface UiSettings {
+  /** the spelunk.ask.provider setting is not off: the panel offers Ask, and a question ending in ? is asked. */
+  askEnabled: boolean;
   typingDelayMs: number;
   openTrigger: "doubleClick" | "singleClick";
   preview: boolean;
@@ -1001,6 +1003,36 @@ export interface SyntaxLinesMessage {
   colors: string[];
   lines: SyntaxLine[];
   reset?: boolean;
+}
+
+/** AskMessage asks the host to turn a question in plain words into a query (Ask). */
+export interface AskMessage {
+  question: string;
+  /** Numbers the ask; the panel drops an answer to an older one. */
+  seq: number;
+  /** For a query that found nothing: ask for one looser query for the same question, from `query`. */
+  broaden?: string;
+}
+
+/** AskSetupMessage asks the host to set Ask up: enter the API key, or open its settings. */
+export interface AskSetupMessage {
+  action: "key" | "settings";
+}
+
+/** AskResultMessage answers an AskMessage: the query the question became, or why there is none. */
+export interface AskResultMessage {
+  seq: number;
+  question: string;
+  /** The query, which the panel puts in the box and runs; absent with `error` or `setup`. */
+  query?: string;
+  /** One line on how the query answers the question. */
+  explanation?: string;
+  /** What the query had to assume, such as how long ago "last month" is. */
+  assumptions?: string[];
+  /** Why Ask can't run yet: off in settings, or no API key. */
+  setup?: "off" | "noKey";
+  /** Why the question got no query: the provider failed, or the query it wrote doesn't parse (the query is then set too). */
+  error?: string;
 }
 
 /** BannerMessage reports daemon health: restarting, stopped or cleared. */
@@ -1198,11 +1230,14 @@ export interface WebviewToHost {
   "order.set": OrderSetMessage;
   "replace.preview": ReplacePreviewMessage;
   "replace.apply": ReplaceApplyMessage;
+  "ask": AskMessage;
+  "ask.setup": AskSetupMessage;
   "replace.save": Empty;
 }
 
 /** Search panel messages, host->webview: type -> payload. */
 export interface HostToWebview {
+  "ask.result": AskResultMessage;
   "parse.result": ParseResultMessage;
   "search.batch": SearchBatchMessage;
   "search.done": SearchDoneMessage;

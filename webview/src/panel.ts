@@ -4,12 +4,12 @@
 // The panel is a pure view: it never parses. Fix-its, completions, the Aa / ab / .*
 // toggles, the repo menu and the facet row all edit the query text, then send an
 // ordinary query.changed.
-import { element, wrapIndex } from "./format";
+import { element } from "./format";
 import { setBoxText } from "./boxText";
 import { type HostMessage, loadDraft, loadOutlineOpen, loadRecentWidth, onHostMessage, saveDraft, send } from "./host";
 import { EmptyBox } from "./emptyBox";
 import { createLayout, type Layout } from "./layout";
-import { pathScope, scopedRepo, topLevelOperators } from "./parsedQuery";
+import { pathScope, scopedRepo } from "./parsedQuery";
 import type {
   Completion,
   Fix,
@@ -27,7 +27,6 @@ import {
   isRegexPressed,
   isWordPressed,
   scopeToRepo,
-  setOrder,
   toggleCase,
   toggleFacet,
   toggleRegex,
@@ -42,6 +41,9 @@ import {
   renderFooter,
   renderIndexStatus,
 } from "./render/chrome";
+import { AskFlow } from "./askFlow";
+import { PanelKeys } from "./keys";
+import { type ResultHandlerDeps, resultHandlers } from "./resultHandlers";
 import {
   completionsVisible,
   GLIMPSE_LINES,
@@ -51,7 +53,6 @@ import {
 } from "./render/completions";
 import { renderEmptyState } from "./render/emptyState";
 import { renderFacets } from "./render/facets";
-import { joinOrder } from "./render/order";
 import { applyRemoteHosts } from "./render/menuContext";
 import { RepoMenu } from "./render/repoMenu";
 import { previewOf, renderPreview } from "./render/preview";
@@ -63,6 +64,16 @@ import { applyCodeSettings, SyntaxPainter } from "./syntax";
 
 /** Cheat-sheet snippets that put the cursor between a pair: "|", /|/, (|). */
 const PAIRED_SNIPPETS = new Set(['""', "//", "()", 'struct:""']);
+
+/** The messages about the search on screen. */
+type ResultMessage = Extract<HostMessage, { type: "parse.result" | "search.batch" | "search.done" | "preview.result" }>;
+/** Their types, to tell them apart. */
+const RESULT_MESSAGES = new Set<HostMessage["type"]>(["parse.result", "search.batch", "search.done", "preview.result"]);
+
+/** Whether `message` is about the search on screen. */
+function isResultMessage(message: HostMessage): message is ResultMessage {
+  return RESULT_MESSAGES.has(message.type);
+}
 
 /** The search panel's controller in the webview: one per page. */
 export class SearchPanel {
@@ -76,6 +87,12 @@ export class SearchPanel {
   private results: ResultsView | undefined;
   /** The theme's syntax colors, which color the code of results and previews. */
   private readonly painter = new SyntaxPainter();
+  /** Ask: the box's question, in plain words, and the line that says what became of it. */
+  private readonly askFlow: AskFlow;
+  /** What each search's results view asks of the panel. */
+  private readonly resultHandlerDeps: ResultHandlerDeps;
+  /** What the box's keys do. */
+  private readonly keys: PanelKeys;
   private debounceTimer: ReturnType<typeof setTimeout> | undefined;
   /** Set while the panel itself edits the box, so its input event isn't taken for typing. */
   private editingBox = false;
@@ -83,6 +100,24 @@ export class SearchPanel {
   /** Builds the panel's skeleton into `root`; start() brings it to life. */
   constructor(root: HTMLElement) {
     this.layout = createLayout(root);
+    const { layout, state } = this;
+    this.askFlow = new AskFlow({
+      layout,
+      state,
+      setQuery: this.setQuery.bind(this),
+      typeIntoBox: this.typeIntoBox.bind(this),
+    });
+    this.resultHandlerDeps = {
+      state,
+      input: layout.input,
+      applyFix: this.applyFix.bind(this),
+      editQuery: this.editQuery.bind(this),
+      replacementsFor: (repoId, path, line) => this.replace.replacementsFor(repoId, path, line),
+      paintCode: this.painter.paintCode.bind(this.painter),
+      broaden: () => {
+        this.askFlow.broaden();
+      },
+    };
     this.emptyBox = new EmptyBox(this.state, this.layout, this);
     this.replace = new ReplaceBox(this.layout, {
       searchedText: () => this.searchedText(),
@@ -106,6 +141,24 @@ export class SearchPanel {
       selected: () => scopedRepo(this.state.parsed),
       onPick: (repoName) => {
         if (this.editQuery((text) => scopeToRepo(text, this.state.parsed, repoName))) this.layout.input.focus();
+      },
+    });
+    this.keys = new PanelKeys({
+      layout,
+      state,
+      emptyBox: this.emptyBox,
+      repoMenu: this.repoMenu,
+      askFlow: this.askFlow,
+      completionsVisible: () => this.completionsVisible,
+      acceptCompletion: this.acceptCompletion.bind(this),
+      renderCompletions: this.renderCompletions.bind(this),
+      searchAsTyped: this.searchAsTyped.bind(this),
+      applyFirstFix: this.applyFirstFix.bind(this),
+      moveSelection: (step) => {
+        this.selection.move(step);
+      },
+      openSelected: (event) => {
+        this.open(this.state.selectedRef, event);
       },
     });
   }
@@ -243,16 +296,17 @@ export class SearchPanel {
   // ------------------------------------------------------------ user input
 
   private bindEvents(): void {
-    const { input, caseButton, wordButton, regexButton, settingsButton, body } = this.layout;
+    const { input, caseButton, wordButton, regexButton, askButton, settingsButton, body } = this.layout;
     input.addEventListener("input", () => {
       if (this.editingBox) return;
+      this.askFlow.onTyped();
       this.state.completionsOpen = true;
       this.state.completionIndex = 0;
       this.queryChanged();
       if (!input.value) this.showEmptyState();
     });
     input.addEventListener("keydown", (event) => {
-      this.onKeyDown(event);
+      this.keys.onKeyDown(event);
     });
     input.addEventListener("focus", () => {
       this.renderCompletions();
@@ -272,6 +326,9 @@ export class SearchPanel {
     });
     regexButton.addEventListener("click", () => {
       this.editQuery((text) => toggleRegex(text, this.state.parsed));
+    });
+    askButton.addEventListener("click", () => {
+      this.askFlow.askBox();
     });
     settingsButton.addEventListener("click", () => {
       send("settings.open", {});
@@ -325,128 +382,32 @@ export class SearchPanel {
     this.queryChanged(true, true);
   }
 
-  private onKeyDown(event: KeyboardEvent): void {
-    // While an input method composes (Japanese, Chinese, Korean…), Enter, Esc and the arrows are its keys.
-    if (event.isComposing) return;
-    const handled = this.handleKey(event);
-    if (handled) event.preventDefault();
-  }
-
-  /**
-   * ? while operators are suggested opens the help page; in an empty box it
-   * brings the operator sheet into view, which a narrow panel stacks below
-   * the recent queries. Returns false for a literal ?, as in a value: f:'s
-   * globs and regexes and a /regex/ use it.
-   */
-  private showOperators(): boolean {
-    if (this.completionsVisible && this.state.completions[0]?.group === "operator") {
-      send("help.open", {}); // every operator, explained
-      return true;
-    }
-    if (this.layout.input.value) return false;
-    this.layout.body.querySelector(".sheet")?.scrollIntoView({ block: "nearest" });
-    return true;
-  }
-
-  /** Returns whether the key was handled (and its default should be prevented). */
-  private handleKey(event: KeyboardEvent): boolean {
-    const modifier = event.metaKey || event.ctrlKey;
-    switch (event.key) {
-      case "?": {
-        return this.showOperators();
-      }
-      case ".": {
-        if (!modifier) return false;
-        this.applyFirstFix();
-        return true;
-      }
-      case "Tab": {
-        if (!this.completionsVisible) return false;
-        this.acceptCompletion(this.state.completionIndex);
-        return true;
-      }
-      case "Escape": {
-        this.onEscape();
-        return true;
-      }
-      case "ArrowDown":
-      case "ArrowUp": {
-        this.onArrow(event.key === "ArrowDown" ? 1 : -1);
-        return true;
-      }
-      case "Enter": {
-        this.onEnter(event, modifier);
-        return true;
-      }
-      case "Backspace": {
-        return this.emptyBox.removeSelected(event);
-      }
-      default: {
-        return this.emptyBox.watchSelected(event);
-      }
-    }
-  }
-
   /** ⌘. applies the first fix of the first diagnostic that has one. */
   private applyFirstFix(): void {
     const firstFix = this.state.parsed?.diagnostics.find((diagnostic) => diagnostic.fixes.length)?.fixes[0];
     if (firstFix) this.applyFix(firstFix);
   }
 
-  /** Esc closes the suggestions first, keeping the word as typed, then the panel. */
-  private onEscape(): void {
-    if (this.repoMenu.isOpen) this.repoMenu.toggle(false);
-    else if (this.completionsVisible) this.searchAsTyped();
-    else send("panel.close", {});
-  }
-
-  /** ↑↓ move through suggestions when they are open, otherwise through rows. */
-  private onArrow(step: 1 | -1): void {
-    if (this.completionsVisible) {
-      this.state.completionIndex = wrapIndex(this.state.completionIndex, step, this.state.completions.length);
-      this.renderCompletions();
-    } else if (this.layout.input.value) {
-      this.selection.move(step);
-    } else {
-      this.emptyBox.moveSelection(step);
-    }
-  }
-
-  /** Enter searches as typed while suggesting (Tab accepts), runs a pinned or recent query, or opens the selected result. */
-  private onEnter(event: KeyboardEvent, modifier: boolean): void {
-    if (this.completionsVisible && !modifier) this.searchAsTyped();
-    else if (!this.layout.input.value) this.emptyBox.runSelected();
-    else if (this.state.selectedRef) this.open(this.state.selectedRef, event);
-  }
-
   // ------------------------------------------------------------ host messages
 
   private onHostMessage(message: Exclude<HostMessage, { type: "syntax.lines" | "remotes.state" }>): void {
+    if (isResultMessage(message)) {
+      this.onResultMessage(message);
+      return;
+    }
     const state = this.state;
     switch (message.type) {
       case "state.restore": {
         this.onRestore(message.payload);
         return;
       }
+      case "ask.result": {
+        this.askFlow.onResult(message.payload);
+        return;
+      }
       case "focus": {
         this.layout.input.focus();
         this.layout.input.select();
-        return;
-      }
-      case "parse.result": {
-        if (message.payload.seq === state.seq) this.onParsed(message.payload);
-        return;
-      }
-      case "search.batch": {
-        this.onSearchBatch(message.payload);
-        return;
-      }
-      case "search.done": {
-        this.onSearchDone(message.payload);
-        return;
-      }
-      case "preview.result": {
-        this.onPreviewResult(message.payload);
         return;
       }
       case "index.status": {
@@ -479,6 +440,28 @@ export class SearchPanel {
   }
 
   /** Which pinned queries can be watched and what each watch found: the empty box shows them. */
+  /** The messages about the search on screen: its parse, its results and its preview. */
+  private onResultMessage(message: ResultMessage): void {
+    switch (message.type) {
+      case "parse.result": {
+        if (message.payload.seq === this.state.seq) this.onParsed(message.payload);
+        return;
+      }
+      case "search.batch": {
+        this.onSearchBatch(message.payload);
+        return;
+      }
+      case "search.done": {
+        this.onSearchDone(message.payload);
+        return;
+      }
+      case "preview.result": {
+        this.onPreviewResult(message.payload);
+        return;
+      }
+    }
+  }
+
   private onWatchState({ watchable, unseen }: WatchStateMessage): void {
     this.state.watchable = new Set(watchable);
     this.state.unseen = new Map(unseen.map((entry) => [entry.query, entry]));
@@ -584,30 +567,7 @@ export class SearchPanel {
     this.layout.input.removeAttribute("aria-activedescendant"); // the old results' rows go
     // A note's undo indexes the text this search ran on, which may be the box without the word being completed.
     const searchedText = state.searchText ?? state.parsed?.raw;
-    const handlers = {
-      onApplyFix: (fix: Fix) => {
-        this.applyFix(fix, searchedText);
-      },
-      // Load more fetches the next page of this same search; its batches carry the same searchId.
-      onLoadMore: (id: string, cursor: string) => {
-        send("results.more", { searchId: id, cursor });
-      },
-      // The host saves the setting, and the query runs again with it; the box keeps the keys meanwhile.
-      onContextLines: (lines: number) => {
-        send("context.set", { lines });
-        this.layout.input.focus();
-      },
-      // An order typed in the query is rewritten there; otherwise the host saves the setting and searches again.
-      onOrder: (base: "best" | "file" | "recent", descending: boolean) => {
-        if (topLevelOperators(state.parsed, "order").length === 0)
-          send("order.set", { order: joinOrder(base, descending) });
-        else this.editQuery((text) => setOrder(text, state.parsed, joinOrder(base, descending, true)), searchedText);
-        this.layout.input.focus();
-      },
-      replacementsFor: (item: { repoId: string; path: string; line: number }) =>
-        this.replace.replacementsFor(item.repoId, item.path, item.line),
-      paintCode: this.painter.paintCode.bind(this.painter),
-    };
+    const handlers = resultHandlers(this.resultHandlerDeps, searchedText);
     const errors = hasErrors(state);
     // Named once its results show: a query whose results never came isn't the one on screen.
     if (!errors && state.parsed?.root) state.lastGoodText = state.parsed.raw;
@@ -646,6 +606,7 @@ export class SearchPanel {
     this.layout.chips.replaceChildren();
     this.layout.facets.replaceChildren();
     this.layout.diagnostics.replaceChildren();
+    this.askFlow.clear();
     renderEmptyState(this.layout.body, state, this.emptyBox.handlers());
     this.pointAtActiveOption(); // the old results' rows are gone
     this.renderFooter();
@@ -683,7 +644,11 @@ export class SearchPanel {
   renderFooter(): void {
     const mode = this.footerMode();
     const emptyRow = mode === "empty" ? this.emptyBox.selectedRow() : undefined;
-    renderFooter(this.layout, mode, this.state.parsed?.mode === "history", emptyRow);
+    renderFooter(this.layout, mode, {
+      isHistory: this.state.parsed?.mode === "history",
+      emptyRow,
+      askEnabled: this.state.ui.askEnabled,
+    });
   }
 
   /** What the panel shows right now, which picks the key hints. */

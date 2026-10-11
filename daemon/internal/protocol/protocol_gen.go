@@ -1590,6 +1590,8 @@ func (v StateRestoreMessage) MarshalJSON() ([]byte, error) {
 
 // UiSettings are the UI-facing settings the host forwards to the webview.
 type UiSettings struct {
+	// AskEnabled is the spelunk.ask.provider setting is not off: the panel offers Ask, and a question ending in ? is asked.
+	AskEnabled      bool        `json:"askEnabled"`
 	TypingDelayMs   int         `json:"typingDelayMs"`
 	OpenTrigger     string      `json:"openTrigger"`
 	Preview         bool        `json:"preview"`
@@ -1669,6 +1671,36 @@ func (v SyntaxLinesMessage) MarshalJSON() ([]byte, error) {
 		p.Lines = []SyntaxLine{}
 	}
 	return json.Marshal(p)
+}
+
+// AskMessage asks the host to turn a question in plain words into a query (Ask).
+type AskMessage struct {
+	Question string `json:"question"`
+	// Seq is numbers the ask; the panel drops an answer to an older one.
+	Seq int `json:"seq"`
+	// Broaden is for a query that found nothing: ask for one looser query for the same question, from `query`.
+	Broaden string `json:"broaden,omitempty"`
+}
+
+// AskSetupMessage asks the host to set Ask up: enter the API key, or open its settings.
+type AskSetupMessage struct {
+	Action string `json:"action"`
+}
+
+// AskResultMessage answers an AskMessage: the query the question became, or why there is none.
+type AskResultMessage struct {
+	Seq      int    `json:"seq"`
+	Question string `json:"question"`
+	// Query is the query, which the panel puts in the box and runs; absent with `error` or `setup`.
+	Query string `json:"query,omitempty"`
+	// Explanation is one line on how the query answers the question.
+	Explanation string `json:"explanation,omitempty"`
+	// Assumptions is what the query had to assume, such as how long ago "last month" is.
+	Assumptions []string `json:"assumptions,omitempty"`
+	// Setup is why Ask can't run yet: off in settings, or no API key.
+	Setup string `json:"setup,omitempty"`
+	// Error is why the question got no query: the provider failed, or the query it wrote doesn't parse (the query is then set too).
+	Error string `json:"error,omitempty"`
 }
 
 // BannerMessage reports daemon health: restarting, stopped or cleared.
@@ -1934,7 +1966,10 @@ const (
 	MsgOrderSet        = "order.set"
 	MsgReplacePreview  = "replace.preview"
 	MsgReplaceApply    = "replace.apply"
+	MsgAsk             = "ask"
+	MsgAskSetup        = "ask.setup"
 	MsgReplaceSave     = "replace.save"
+	MsgAskResult       = "ask.result"
 	MsgParseResult     = "parse.result"
 	MsgSearchBatch     = "search.batch"
 	MsgSearchDone      = "search.done"

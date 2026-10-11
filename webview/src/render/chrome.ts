@@ -333,11 +333,24 @@ function emptyBoxHints(row: EmptyBoxRow | undefined): HTMLElement[] {
   return [...hints, hintAtEnd("?", "opens this sheet anytime")];
 }
 
+/** What decides the footer's hints besides its mode: history or files, the empty box's row, and whether Ask is on. */
+export interface FooterContext {
+  isHistory: boolean;
+  emptyRow?: EmptyBoxRow | undefined;
+  askEnabled?: boolean;
+}
+
 /** Key hints along the bottom, which change with what the panel shows; `emptyRow` is the empty box's selected row. */
-export function renderFooter(layout: Layout, mode: FooterMode, isHistory: boolean, emptyRow?: EmptyBoxRow): void {
+export function renderFooter(
+  layout: Layout,
+  mode: FooterMode,
+  { isHistory, emptyRow, askEnabled }: FooterContext,
+): void {
+  // With Ask on, a question ending in ? is asked in plain words.
+  const ask = askEnabled === true ? [hint("…?", "ask in plain words")] : [];
   const hints: Record<FooterMode, HTMLElement[]> = {
     empty: emptyBoxHints(emptyRow),
-    errors: [hint("⌘.", "apply first fix"), hint("Tab", "complete operator"), hintAtEnd("?", "all operators")],
+    errors: [hint("⌘.", "apply first fix"), hint("Tab", "complete operator"), ...ask, hintAtEnd("?", "all operators")],
     operators: [
       hint("↑↓", "pick"),
       hint("Tab", "insert operator"),
@@ -351,6 +364,7 @@ export function renderFooter(layout: Layout, mode: FooterMode, isHistory: boolea
       hint("↵", isHistory ? "open diff" : "open"),
       hint("⌘↵", "open to side"),
       hint("Tab", "complete operator"),
+      ...ask,
       hintAtEnd("Esc", "close"),
     ],
   };

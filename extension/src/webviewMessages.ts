@@ -28,9 +28,7 @@ export function messageGuard<const T extends readonly WebviewMessage["type"][]>(
 }
 
 /** The messages a messageGuard lets through. */
-export type GuardedBy<G> = G extends ((message: WebviewMessage) => message is infer M extends WebviewMessage)
-  ? M
-  : never;
+type GuardedBy<G> = G extends ((message: WebviewMessage) => message is infer M extends WebviewMessage) ? M : never;
 
 type Fields = Record<string, unknown>;
 /** Returns the checked payload of one message type, or undefined when its shape is wrong. */
@@ -104,6 +102,14 @@ const PAYLOAD_CHECKS: { [K in keyof WebviewToHost]: PayloadCheck<K> } = {
   ready: noPayload,
   "daemon.restart": noPayload,
   "replace.save": noPayload,
+  ask: ({ question, seq, broaden }) => {
+    if (!isString(question) || !isCount(seq) || (broaden !== undefined && !isString(broaden))) return;
+    return broaden === undefined ? { question, seq } : { question, seq, broaden };
+  },
+  "ask.setup": ({ action }) => {
+    const checked = member(action, ["key", "settings"] as const);
+    return checked ? { action: checked } : undefined;
+  },
 };
 
 /** The message, with a checked payload, or undefined when it isn't a well-formed message of a known type. */
@@ -116,3 +122,25 @@ export function parseWebviewMessage(raw: unknown): WebviewMessage | undefined {
   const checked = check(payload as Fields);
   return checked === undefined ? undefined : ({ v: MESSAGE_VERSION, type, payload: checked } as WebviewMessage);
 }
+
+/** The help and welcome pages' messages, which extension.ts handles. */
+export const fromHelpOrWelcome = messageGuard(["help.try", "welcome.choose", "welcome.shortcut", "welcome.start"]);
+/** A message fromHelpOrWelcome lets through. */
+type HelpOrWelcomeMessage = GuardedBy<typeof fromHelpOrWelcome>;
+/** The empty box's messages about recent and pinned queries, which handleQueryList handles. */
+export const fromQueryList = messageGuard(["recent.remove", "pinned.save", "pinned.remove", "pinned.watch"]);
+/** A message fromQueryList lets through. */
+export type QueryListMessage = GuardedBy<typeof fromQueryList>;
+/** The Replace row's messages, which handleReplace handles. */
+export const fromReplaceRow = messageGuard(["replace.preview", "replace.apply", "replace.save"]);
+/** A message fromReplaceRow lets through. */
+export type ReplaceMessage = GuardedBy<typeof fromReplaceRow>;
+/** Ask's messages, which the controller's AskRoute handles. */
+export const fromAsk = messageGuard(["ask", "ask.setup"]);
+/** A message fromAsk lets through. */
+type AskMessages = GuardedBy<typeof fromAsk>;
+/** The search panel's other messages, which the controller's handleSearch handles. */
+export type SearchMessage = Exclude<
+  WebviewMessage,
+  HelpOrWelcomeMessage | QueryListMessage | ReplaceMessage | AskMessages
+>;

@@ -26,6 +26,7 @@ const UI_SETTINGS: UiSettings = {
   renderWhitespace: "selection",
   tabSize: 4,
   fontLigatures: '"liga" off, "calt" off',
+  askEnabled: false,
 };
 
 /** A document holding `text`. */

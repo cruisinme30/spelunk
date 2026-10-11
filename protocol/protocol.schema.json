@@ -2383,6 +2383,10 @@
       "description": "UiSettings are the UI-facing settings the host forwards to the webview.",
       "type": "object",
       "properties": {
+        "askEnabled": {
+          "description": "the spelunk.ask.provider setting is not off: the panel offers Ask, and a question ending in ? is asked.",
+          "type": "boolean"
+        },
         "typingDelayMs": {
           "type": "integer"
         },
@@ -2431,7 +2435,8 @@
         "contextLines",
         "renderWhitespace",
         "tabSize",
-        "fontLigatures"
+        "fontLigatures",
+        "askEnabled"
       ]
     },
     "ReplacePlanMessage": {
@@ -2519,6 +2524,70 @@
         }
       },
       "required": ["colors", "lines"]
+    },
+    "AskMessage": {
+      "description": "AskMessage asks the host to turn a question in plain words into a query (Ask).",
+      "type": "object",
+      "properties": {
+        "question": {
+          "type": "string"
+        },
+        "seq": {
+          "description": "Numbers the ask; the panel drops an answer to an older one.",
+          "type": "integer"
+        },
+        "broaden": {
+          "description": "For a query that found nothing: ask for one looser query for the same question, from `query`.",
+          "type": "string"
+        }
+      },
+      "required": ["question", "seq"]
+    },
+    "AskSetupMessage": {
+      "description": "AskSetupMessage asks the host to set Ask up: enter the API key, or open its settings.",
+      "type": "object",
+      "properties": {
+        "action": {
+          "enum": ["key", "settings"]
+        }
+      },
+      "required": ["action"]
+    },
+    "AskResultMessage": {
+      "description": "AskResultMessage answers an AskMessage: the query the question became, or why there is none.",
+      "type": "object",
+      "properties": {
+        "seq": {
+          "type": "integer"
+        },
+        "question": {
+          "type": "string"
+        },
+        "query": {
+          "description": "The query, which the panel puts in the box and runs; absent with `error` or `setup`.",
+          "type": "string"
+        },
+        "explanation": {
+          "description": "One line on how the query answers the question.",
+          "type": "string"
+        },
+        "assumptions": {
+          "description": "What the query had to assume, such as how long ago \"last month\" is.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "setup": {
+          "description": "Why Ask can't run yet: off in settings, or no API key.",
+          "enum": ["off", "noKey"]
+        },
+        "error": {
+          "description": "Why the question got no query: the provider failed, or the query it wrote doesn't parse (the query is then set too).",
+          "type": "string"
+        }
+      },
+      "required": ["seq", "question"]
     },
     "BannerMessage": {
       "description": "BannerMessage reports daemon health: restarting, stopped or cleared.",
@@ -2993,9 +3062,21 @@
       "direction": "webview->host",
       "payload": "ReplaceApplyMessage"
     },
+    "ask": {
+      "direction": "webview->host",
+      "payload": "AskMessage"
+    },
+    "ask.setup": {
+      "direction": "webview->host",
+      "payload": "AskSetupMessage"
+    },
     "replace.save": {
       "direction": "webview->host",
       "payload": "Empty"
+    },
+    "ask.result": {
+      "direction": "host->webview",
+      "payload": "AskResultMessage"
     },
     "parse.result": {
       "direction": "host->webview",

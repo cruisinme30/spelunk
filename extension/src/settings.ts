@@ -63,6 +63,9 @@ const DEFAULTS = {
   workspaceSymbols: true,
   definitions: "off",
   includeGeneratedAndVendored: false,
+  askProvider: "off",
+  askModel: "claude-opus-5-5",
+  askShareNames: true,
 } as const;
 
 /** VS Code's defaults for the editor.* settings the panel's code follows. */
@@ -288,6 +291,30 @@ export function uiSettings(config: ConfigReader, editor: ConfigReader = NOTHING_
     renderWhitespace: renderWhitespace(config, editor),
     tabSize: clamp(editor.get<unknown>("tabSize", EDITOR_DEFAULTS.tabSize), 1, MAX_TAB_SIZE, EDITOR_DEFAULTS.tabSize),
     fontLigatures: fontFeatures(editor.get<unknown>("fontLigatures", EDITOR_DEFAULTS.fontLigatures)),
+    askEnabled: askSettings(config).provider !== "off",
+  };
+}
+
+/** Who turns a question into a query (spelunk.ask.provider): nobody, or Anthropic. */
+type AskProviderName = "off" | "anthropic";
+const ASK_PROVIDERS: readonly AskProviderName[] = ["off", "anthropic"];
+
+/** The spelunk.ask.* settings: asking in plain words. */
+export interface AskSettings {
+  provider: AskProviderName;
+  /** The provider's model, such as claude-opus-5-5. */
+  model: string;
+  /** Whether the question goes with the repo and owner team names, so the query can name them. */
+  shareNames: boolean;
+}
+
+/** The spelunk.ask.* settings, each falling back to its default when it isn't a sensible value. */
+export function askSettings(config: ConfigReader): AskSettings {
+  const model = config.get<unknown>("ask.model", DEFAULTS.askModel);
+  return {
+    provider: oneOf(config.get<unknown>("ask.provider", DEFAULTS.askProvider), ASK_PROVIDERS, DEFAULTS.askProvider),
+    model: typeof model === "string" && model.trim() !== "" ? model.trim() : DEFAULTS.askModel,
+    shareNames: boolean(config.get<unknown>("ask.shareNames", DEFAULTS.askShareNames), DEFAULTS.askShareNames),
   };
 }
 

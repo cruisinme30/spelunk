@@ -21,6 +21,7 @@ export const UI_SETTINGS = {
   renderWhitespace: "selection",
   tabSize: 4,
   fontLigatures: '"liga" off, "calt" off',
+  askEnabled: false,
 };
 
 /** The query box. */

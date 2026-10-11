@@ -1,6 +1,7 @@
 // Host side of the search panel: turns panel messages into daemon calls and
 // streams results back. It has no vscode import: extension.ts supplies the
 // Ui, and tests drive the controller against the real daemon in plain Node.
+import { type AskOptions, AskRoute } from "./askRoute";
 import { textWithoutCompletedWord } from "./completedWord";
 import type { DaemonState } from "./daemon";
 import { CancelSource, RpcError, errorMessage } from "./jsonRpc";
@@ -29,7 +30,8 @@ import { movedTo } from "./openPosition";
 import { checkReplace, type DocumentLines, type LineEdit } from "./replaceEdits";
 import { pinnedEntry } from "./settings";
 import { UnseenWatches, watchMessage } from "./watches";
-import { type GuardedBy, messageGuard, type WebviewMessage } from "./webviewMessages";
+import * as panelMessages from "./webviewMessages";
+import type { WebviewMessage } from "./webviewMessages";
 
 /**
  * Longer queries (a pasted file, say) are not kept in globalState: not in
@@ -134,6 +136,8 @@ export interface ControllerOptions {
   watchNotify(): boolean;
   /** What query watches found that hasn't been looked at; the caller keeps it, to save it. None found when left out. */
   unseen?: UnseenWatches;
+  /** Ask, a question in plain words: how it is set up, and what the user shares. Off when left out. */
+  ask?: AskOptions;
 }
 
 /** A query/parse answer, plus the text to search while a word is being completed. */
@@ -159,16 +163,6 @@ interface RunningSearch {
   failed?: boolean;
 }
 
-/** The help and welcome pages' messages, which extension.ts handles. */
-const fromHelpOrWelcome = messageGuard(["help.try", "welcome.choose", "welcome.shortcut", "welcome.start"]);
-type HelpOrWelcomeMessage = GuardedBy<typeof fromHelpOrWelcome>;
-/** The empty box's messages about recent and pinned queries, which handleQueryList handles. */
-const fromQueryList = messageGuard(["recent.remove", "pinned.save", "pinned.remove", "pinned.watch"]);
-type QueryListMessage = GuardedBy<typeof fromQueryList>;
-/** The Replace row's messages, which handleReplace handles. */
-const fromReplaceRow = messageGuard(["replace.preview", "replace.apply", "replace.save"]);
-type ReplaceMessage = GuardedBy<typeof fromReplaceRow>;
-
 /** Turns panel messages into daemon calls; one per window. */
 export class SearchController {
   /** Openable results of the current search, for F4 / Shift+F4. */
@@ -193,6 +187,7 @@ export class SearchController {
   private readyRepos = new Set<string>();
   /** The last index/progress, which a panel opened later needs: the daemon only reports changes. */
   private lastProgress: IndexStatusResult | undefined;
+  private readonly askRoute: AskRoute;
   /** The files the last replace changed, which Save saves. */
   private replacedFiles: string[] = [];
   /**
@@ -218,6 +213,7 @@ export class SearchController {
   ) {
     this.state = initial ?? { text: "", recent: [] };
     this.watches = options.unseen ?? new UnseenWatches(undefined);
+    this.askRoute = AskRoute.fromHost(backend, ui, options.ask, () => this.lastProgress);
     backend.on("batch", (batch) => {
       this.onBatch(batch);
     });
@@ -282,15 +278,14 @@ export class SearchController {
 
   /** Handles one message from the search panel. */
   async handle(message: WebviewMessage): Promise<void> {
-    if (fromHelpOrWelcome(message)) return;
-    if (fromQueryList(message)) await this.handleQueryList(message);
-    else await (fromReplaceRow(message) ? this.handleReplace(message) : this.handleSearch(message));
+    if (panelMessages.fromHelpOrWelcome(message)) return;
+    if (panelMessages.fromQueryList(message)) await this.handleQueryList(message);
+    else if (panelMessages.fromAsk(message)) await this.askRoute.handle(message);
+    else await (panelMessages.fromReplaceRow(message) ? this.handleReplace(message) : this.handleSearch(message));
   }
 
   /** Handles the search panel's messages other than the Replace row's and the query list's. */
-  private async handleSearch(
-    message: Exclude<WebviewMessage, HelpOrWelcomeMessage | ReplaceMessage | QueryListMessage>,
-  ): Promise<void> {
+  private async handleSearch(message: panelMessages.SearchMessage): Promise<void> {
     switch (message.type) {
       case "ready": {
         // A new webview counts seq from zero again, so a search still running
@@ -329,6 +324,7 @@ export class SearchController {
         this.ui.openSettings(message.payload.setting);
         return;
       }
+
       case "daemon.restart": {
         this.ui.restartDaemon();
         return;
@@ -345,7 +341,7 @@ export class SearchController {
   }
 
   /** Handles the empty box's messages: removing a recent query, and pinning, naming and watching. */
-  private async handleQueryList(message: QueryListMessage): Promise<void> {
+  private async handleQueryList(message: panelMessages.QueryListMessage): Promise<void> {
     switch (message.type) {
       case "recent.remove": {
         this.removeRecent(message.payload.query);
@@ -367,7 +363,7 @@ export class SearchController {
   }
 
   /** Handles the Replace row's messages. */
-  private async handleReplace(message: ReplaceMessage): Promise<void> {
+  private async handleReplace(message: panelMessages.ReplaceMessage): Promise<void> {
     switch (message.type) {
       case "replace.preview": {
         await this.onReplacePreview(message.payload);

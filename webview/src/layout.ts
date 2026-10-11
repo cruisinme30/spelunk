@@ -12,6 +12,8 @@ export interface Layout {
   regexButton: HTMLButtonElement;
   /** ⇄: opens and closes the Replace row. */
   replaceButton: HTMLButtonElement;
+  /** Ask: turns the box's question into a query. */
+  askButton: HTMLButtonElement;
   replaceRow: ReplaceRow;
   reposButton: HTMLButtonElement;
   repoMenu: HTMLElement;
@@ -20,6 +22,8 @@ export interface Layout {
   statusText: HTMLElement;
   completions: HTMLElement;
   banner: HTMLElement;
+  /** What was asked in plain words and the query it became, or what Ask needs first. */
+  asked: HTMLElement;
   diagnostics: HTMLElement;
   chips: HTMLElement;
   facets: HTMLElement;
@@ -141,10 +145,29 @@ function createReplaceToggle(): HTMLButtonElement {
   );
 }
 
+/** ✦ Ask: asks the box's question in plain words. */
+function createAskButton(): HTMLButtonElement {
+  const sparkle =
+    '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M19 17l.7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7z"/></svg>';
+  const button = element(
+    "button",
+    {
+      type: "button",
+      class: "toggle ask",
+      "data-testid": "ask",
+      "aria-label": "Ask in plain words",
+      title: "Ask in plain words: type a question, end it with ? or press this, and the query it becomes runs",
+    },
+    "Ask",
+  );
+  button.insertAdjacentHTML("afterbegin", sparkle);
+  return button;
+}
+
 /** The regions under the search bar, in display order. */
 function createRegions(): Pick<
   Layout,
-  "completions" | "banner" | "diagnostics" | "chips" | "facets" | "body" | "footer"
+  "completions" | "banner" | "asked" | "diagnostics" | "chips" | "facets" | "body" | "footer"
 > {
   return {
     completions: element("div", {
@@ -155,6 +178,7 @@ function createRegions(): Pick<
       hidden: true,
     }),
     banner: element("div", { id: "banner", "data-testid": "banner" }),
+    asked: element("div", { id: "asked", "data-testid": "asked" }),
     diagnostics: element("div", { id: "diagnostics", "data-testid": "diagnostics" }),
     chips: element("div", { id: "chips", "data-testid": "chips" }),
     facets: element("div", {
@@ -173,6 +197,7 @@ export function createLayout(root: HTMLElement): Layout {
   const input = createQueryInput();
   const { caseButton, wordButton, regexButton } = createMatchToggles();
   const replaceButton = createReplaceToggle();
+  const askButton = createAskButton();
   const replaceRow = createReplaceRow();
   const reposButton = element(
     "button",
@@ -203,6 +228,7 @@ export function createLayout(root: HTMLElement): Layout {
       wordButton,
       regexButton,
       replaceButton,
+      askButton,
       element("span", { class: REPO_MENU_ANCHOR_CLASS }, reposButton, repoMenu),
       settingsButton,
     ),
@@ -224,6 +250,7 @@ export function createLayout(root: HTMLElement): Layout {
     wordButton,
     regexButton,
     replaceButton,
+    askButton,
     replaceRow,
     reposButton,
     repoMenu,

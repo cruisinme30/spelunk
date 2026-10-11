@@ -32,6 +32,7 @@ import type {
   UiSettings,
   WatchMatchedParams,
 } from "../protocol.gen";
+import type { AskProvider, AskRequest } from "../ask";
 import { textWithoutCompletedWord } from "../completedWord";
 import { RpcError } from "../jsonRpc";
 import { ErrorCodes } from "../protocol.gen";
@@ -52,6 +53,7 @@ const TEST_UI_SETTINGS: UiSettings = {
   renderWhitespace: "selection",
   tabSize: 4,
   fontLigatures: '"liga" off, "calt" off',
+  askEnabled: false,
 };
 
 /** What search/start answers in the scripted backends: no results. */
@@ -1416,4 +1418,65 @@ test("a panel may open Settings at one of Spelunk's settings, and at nothing els
   assert.deepEqual(open({ setting: "editor.fontSize" })?.payload, {}, "another extension's setting opens Spelunk's");
   assert.deepEqual(open({ setting: "spelunk.x; rm" })?.payload, {});
   assert.deepEqual(open({ setting: 5 })?.payload, {});
+});
+
+test("a question asked in plain words comes back as a query, and Ask's setup goes to the host", async () => {
+  // @covers msg:ask msg:ask.result msg:ask.setup
+  const host = recordingUi();
+  const requests: AskRequest[] = [];
+  const provider: AskProvider = {
+    translate: (request) => {
+      requests.push(request);
+      return Promise.resolve({ query: "symbol:Retry", explanation: "Where Retry is defined", assumptions: [] });
+    },
+  };
+  const { backend } = scriptedBackend((method, { text }) => {
+    if (method === "query/guide") return { text: "symbol: kind:" };
+    if (method !== "query/parse") throw new Error(`unexpected request ${method}`);
+    const teams: Completion[] =
+      text === "owner:" ? [{ label: "@acme/core", detail: "", group: "value", insert: { title: "", edits: [] } }] : [];
+    return { query: parsedQuery(text, true), completions: teams };
+  });
+  let keyPrompts = 0;
+  const opened: string[] = [];
+  const ui = { ...host.ui, openSettings: (setting?: string) => void opened.push(setting ?? "") };
+  const controller = newController(backend, ui, {
+    ask: {
+      setup: () => Promise.resolve({ kind: "ready", provider }),
+      shareNames: () => true,
+      setKey: () => {
+        keyPrompts++;
+        return Promise.resolve();
+      },
+    },
+  });
+  const ask = (seq: number): WebviewMessage => ({
+    v: MESSAGE_VERSION,
+    type: "ask",
+    payload: { question: "where is Retry defined", seq },
+  });
+  await controller.handle(ask(1));
+  assert.deepEqual(host.payloads("ask.result"), [
+    {
+      seq: 1,
+      question: "where is Retry defined",
+      query: "symbol:Retry",
+      explanation: "Where Retry is defined",
+      assumptions: [],
+    },
+  ]);
+  const [request] = requests;
+  assert.ok(request);
+  assert.deepEqual(request.teams, ["@acme/core"], "the team names came from the owner: suggestions");
+  assert.equal(request.guide, "symbol: kind:");
+
+  await controller.handle({ v: MESSAGE_VERSION, type: "ask.setup", payload: { action: "key" } });
+  await controller.handle({ v: MESSAGE_VERSION, type: "ask.setup", payload: { action: "settings" } });
+  assert.equal(keyPrompts, 1);
+  assert.deepEqual(opened, ["spelunk.ask.provider"]);
+
+  // Without Ask set up at all, the panel hears that it is off.
+  const off = recordingUi();
+  await newController(backend, off.ui).handle(ask(2));
+  assert.deepEqual(off.payloads("ask.result"), [{ seq: 2, question: "where is Retry defined", setup: "off" }]);
 });

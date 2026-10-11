@@ -7,6 +7,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import * as vscode from "vscode";
 import { registerAgentAccess } from "./agentAccess";
+import { askSetup, setAnthropicApiKey } from "./askSetup";
 import { registerEditorNavigation } from "./editorNavigation";
 import { editorCommands } from "./editorSeed";
 import { FolderScopeNotes } from "./folderScope";
@@ -59,6 +60,7 @@ import {
   pinnedQueries,
   previewContextLines,
   recentQueriesLimit,
+  askSettings,
   uiSettings,
   watchedQueries,
   offerToCopilot,
@@ -131,7 +133,7 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi {
   const controller = new SearchController(
     daemon,
     ui,
-    { ...controllerOptions(), unseen },
+    { ...controllerOptions(context), unseen },
     globalState.get<PersistedState>(STATE_KEY),
   );
   // The help page's Try runs its example in the search panel; its settings button opens Settings.
@@ -153,6 +155,7 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi {
     createStatusBar(daemon),
     ...registerCommands({ daemon, controller, panel, help, syntax, log, extensionId: context.extension.id, folders }),
     vscode.commands.registerCommand("spelunk.showWelcome", welcome.show.bind(welcome)),
+    vscode.commands.registerCommand("spelunk.setAnthropicApiKey", () => setAnthropicApiKey(context)),
     ...agentAccess(context, log),
     ...registerEditorNavigation(daemon),
     forwardFileChanges(daemon),
@@ -401,8 +404,13 @@ function setContext(key: string, value: boolean): void {
   void vscode.commands.executeCommand("setContext", key, value);
 }
 
-function controllerOptions(): ControllerOptions {
+function controllerOptions(context: vscode.ExtensionContext): ControllerOptions {
   return {
+    ask: {
+      setup: () => askSetup(context),
+      shareNames: () => askSettings(configuration()).shareNames,
+      setKey: () => setAnthropicApiKey(context),
+    },
     recentLimit: () => recentQueriesLimit(configuration()),
     pinnedQueries: () => pinnedQueries(configuration()),
     closeOnOpen: () => closeOnOpen(configuration()),
