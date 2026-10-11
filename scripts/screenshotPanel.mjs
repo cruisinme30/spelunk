@@ -17,6 +17,8 @@
 //   --open <path>       a file open in the editor, relative to --workspace, for is:open (repeatable)
 //   --key <key>         a key to press after typing, as Playwright names it, e.g. Tab or ? (repeatable)
 //   --click <selector>  an element to click after the keys, e.g. '[data-testid="repos"]' (repeatable)
+//   --click-after <selector>  an element to click once --select has previewed a result, e.g.
+//                       '[data-testid="outline-toggle"]' (repeatable)
 //   --type <text>       text to type after the clicks, into whatever has the focus
 //   --help-page         render the help page instead of the search panel
 //   --out <file>        where to save the PNG (default: panel.png)
@@ -53,6 +55,7 @@ const { values: args } = parseArgs({
     "new-commit": { type: "string", multiple: true, default: [] },
     key: { type: "string", multiple: true, default: [] },
     click: { type: "string", multiple: true, default: [] },
+    "click-after": { type: "string", multiple: true, default: [] },
     type: { type: "string" },
     "help-page": { type: "boolean", default: false },
     first: { type: "string" },
@@ -244,6 +247,7 @@ async function drivePanel(page, posted) {
   const rowsDown = Number(args.select);
   for (let row = 0; row < rowsDown; row++) await page.keyboard.press("ArrowDown");
   if (rowsDown > 0) await until("preview.result", () => posted.includes("preview.result"));
+  for (const selector of args["click-after"]) await page.click(selector);
   if (args.theme) await page.waitForTimeout(500); // the syntax colors follow the results and preview
   await page.waitForTimeout(100); // let the last render settle
 }
