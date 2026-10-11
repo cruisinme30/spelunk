@@ -37,6 +37,10 @@ words:
   - Gourav
   - Mittal
   # Tools, libraries and formats
+  - Codeberg
+  - Forgejo
+  - Gitea
+  - SourceHut
   - cacheinfo
   - chromium
   - contentvisibilityautostatechange

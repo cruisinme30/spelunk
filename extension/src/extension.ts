@@ -34,6 +34,8 @@ import type {
   WelcomeStateMessage as WelcomeState,
 } from "./protocol.gen";
 import type { DocumentLines, LineEdit } from "./replaceEdits";
+import { ShownResults } from "./resultActions";
+import { registerResultMenu } from "./resultMenu";
 import { makeRoot } from "./roots";
 import {
   closeOnOpen,
@@ -68,6 +70,8 @@ const FILE_EVENT_BATCH_MS = 50;
 
 /** The running daemon, kept for deactivate(). */
 let activeDaemon: Daemon | undefined;
+/** What the panel shows that the result menu needs, read off the messages the panel is sent. */
+const shownResults = new ShownResults();
 
 /** What activate() returns: the extension's exports, which end-to-end tests can reach. */
 export interface ExtensionApi {
@@ -133,7 +137,7 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi {
     vscode.workspace.registerTextDocumentContentProvider(CommitDocuments.scheme, documents.commits),
     vscode.workspace.registerTextDocumentContentProvider(RevisionDocuments.scheme, documents.revisions),
     createStatusBar(daemon),
-    ...registerCommands({ daemon, controller, panel, help, syntax }),
+    ...registerCommands({ daemon, controller, panel, help, syntax, log, extensionId: context.extension.id }),
     vscode.commands.registerCommand("spelunk.showWelcome", () => {
       welcome.show();
     }),
@@ -408,6 +412,7 @@ function createUi({ panel, daemon, documents, openedStatus, globalState, logErro
     post: (type, payload) => {
       panel.post(type, payload);
       syntax.posts.posted(type, payload);
+      shownResults.posted(type, payload);
     },
     openTarget: (target, where, preview, item) => openTarget({ target, where, preview, item }, documents),
     hidePanel: () => {
@@ -548,10 +553,13 @@ interface CommandTargets {
   panel: SearchPanel;
   help: HelpPanel;
   syntax: { posts: SyntaxPosts };
+  log: vscode.OutputChannel;
+  extensionId: string;
 }
 
 /** One handler per command declared in package.json. */
-function registerCommands({ daemon, controller, panel, help, syntax }: CommandTargets): vscode.Disposable[] {
+function registerCommands(targets: CommandTargets): vscode.Disposable[] {
+  const { daemon, controller, panel, help, syntax, log, extensionId } = targets;
   const commands: Record<string, (argument?: unknown) => unknown> = {
     "spelunk.open": (argument) => {
       panel.show();
@@ -574,7 +582,10 @@ function registerCommands({ daemon, controller, panel, help, syntax }: CommandTa
       await controller.handle(message);
     };
   }
-  return Object.entries(commands).map(([id, run]) => vscode.commands.registerCommand(id, run));
+  return [
+    ...Object.entries(commands).map(([id, run]) => vscode.commands.registerCommand(id, run)),
+    ...registerResultMenu({ daemon, controller, panel, shown: shownResults, log }, extensionId),
+  ];
 }
 
 /** What the spelunk._testState command returns. */

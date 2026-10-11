@@ -10,6 +10,7 @@ import {
   indexLocationProblem,
   MOVED_SETTINGS,
   movedValue,
+  permalinkHosts,
   pinnedQueries,
   previewContextLines,
   recentQueriesLimit,
@@ -349,4 +350,16 @@ test("watch.notify pops up a watch's new commits unless it is off", () => {
   assert.equal(watchNotify(configWith({})), true, "on by default");
   assert.equal(watchNotify(configWith({ "watch.notify": false })), false);
   assert.equal(watchNotify(configWith({ "watch.notify": "no" })), true, "not a boolean: the default");
+});
+
+test("permalinks.hosts keeps the servers named as a kind of host Spelunk knows", () => {
+  // @covers setting:permalinks.hosts
+  assert.deepEqual(permalinkHosts(configWith({})), {});
+  assert.deepEqual(
+    permalinkHosts(
+      configWith({ "permalinks.hosts": { "git.acme.corp": "gitlab", "code.acme.corp": "sourcehut", x: 3 } }),
+    ),
+    { "git.acme.corp": "gitlab" },
+  );
+  assert.deepEqual(permalinkHosts(configWith({ "permalinks.hosts": ["gitlab"] })), {});
 });

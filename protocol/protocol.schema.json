@@ -2300,6 +2300,37 @@
         "links": { "type": "array", "items": { "$ref": "#/$defs/Link" } }
       },
       "required": ["links"]
+    },
+    "RemoteHost": {
+      "description": "RemoteHost is which kind of Git host a repo's links go to, which names the result menu's link items: a known host, other (one Spelunk can't place without the spelunk.permalinks.hosts setting), none (no Git, or no remote), or pick (several remotes; choosing an item asks which).",
+      "type": "string",
+      "enum": ["github", "gitlab", "bitbucket", "gitea", "azure", "other", "none", "pick"]
+    },
+    "RepoHost": {
+      "description": "RepoHost is the kind of host one repo's links go to.",
+      "type": "object",
+      "properties": {
+        "repoId": {
+          "type": "string"
+        },
+        "host": {
+          "$ref": "#/$defs/RemoteHost"
+        }
+      },
+      "required": ["repoId", "host"]
+    },
+    "RemotesStateMessage": {
+      "description": "RemotesStateMessage tells the panel which kind of host each repo's links go to, for the result menu.",
+      "type": "object",
+      "properties": {
+        "repos": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/RepoHost"
+          }
+        }
+      },
+      "required": ["repos"]
     }
   },
   "x-rpc-methods": {
@@ -2531,7 +2562,8 @@
     "replace.done": {
       "direction": "host->webview",
       "payload": "ReplaceDoneMessage"
-    }
+    },
+    "remotes.state": { "direction": "host->webview", "payload": "RemotesStateMessage" }
   },
   "x-error-codes": {
     "RequestCancelled": {

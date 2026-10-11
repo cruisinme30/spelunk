@@ -904,6 +904,20 @@ export interface Links {
   links: Link[];
 }
 
+/** RemoteHost is which kind of Git host a repo's links go to, which names the result menu's link items: a known host, other (one Spelunk can't place without the spelunk.permalinks.hosts setting), none (no Git, or no remote), or pick (several remotes; choosing an item asks which). */
+export type RemoteHost = "github" | "gitlab" | "bitbucket" | "gitea" | "azure" | "other" | "none" | "pick";
+
+/** RepoHost is the kind of host one repo's links go to. */
+export interface RepoHost {
+  repoId: string;
+  host: RemoteHost;
+}
+
+/** RemotesStateMessage tells the panel which kind of host each repo's links go to, for the result menu. */
+export interface RemotesStateMessage {
+  repos: RepoHost[];
+}
+
 /** Daemon JSON-RPC requests: method -> [params, result]. */
 export interface RpcRequests {
   "initialize": [InitializeParams, InitializeResult];
@@ -973,4 +987,5 @@ export interface HostToWebview {
   "welcome.state": WelcomeStateMessage;
   "replace.plan": ReplacePlanMessage;
   "replace.done": ReplaceDoneMessage;
+  "remotes.state": RemotesStateMessage;
 }

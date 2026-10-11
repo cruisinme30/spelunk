@@ -77,6 +77,8 @@ const HAS_REQUIRED_FIELDS: Record<keyof HostToWebview, (payload: Fields) => bool
     ),
   focus: () => true,
   "welcome.state": ({ preset, historyDepth }) => isString(preset) && isString(historyDepth),
+  "remotes.state": ({ repos }) =>
+    isObjectArray(repos) && repos.every(({ repoId, host }) => isString(repoId) && isString(host)),
   "replace.plan": ({ seq, plan }) =>
     isNumber(seq) &&
     (plan === undefined || (isObject(plan) && isNumber(plan["matches"]) && isObjectArray(plan["files"]))),

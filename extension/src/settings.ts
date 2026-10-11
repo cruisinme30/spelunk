@@ -349,6 +349,20 @@ export function watchedQueries(config: ConfigReader): string[] {
     .map((pin) => pin.query);
 }
 
+/** The kinds of Git host spelunk.permalinks.hosts may name. */
+const HOST_KINDS = new Set(["github", "gitlab", "bitbucket", "gitea", "azure"]);
+
+/** spelunk.permalinks.hosts: host names to kinds of Git host, the entries that name a known kind. */
+export function permalinkHosts(config: ConfigReader): Record<string, string> {
+  const value = config.get<unknown>("permalinks.hosts", {});
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return {};
+  return Object.fromEntries(
+    Object.entries(value).filter(
+      (entry): entry is [string, string] => typeof entry[1] === "string" && HOST_KINDS.has(entry[1]),
+    ),
+  );
+}
+
 /** Whether a watch's new commits pop up a notification (spelunk.watch.notify). */
 export function watchNotify(config: ConfigReader): boolean {
   return boolean(config.get<unknown>("watch.notify", DEFAULTS.watchNotify), DEFAULTS.watchNotify);

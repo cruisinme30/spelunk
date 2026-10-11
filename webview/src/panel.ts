@@ -49,6 +49,7 @@ import {
 } from "./render/completions";
 import { renderEmptyState } from "./render/emptyState";
 import { renderFacets } from "./render/facets";
+import { applyRemoteHosts } from "./render/menuContext";
 import { RepoMenu } from "./render/repoMenu";
 import { previewOf, renderPreview } from "./render/preview";
 import { ResultsView } from "./render/results";
@@ -117,6 +118,7 @@ export class SearchPanel {
     this.bindEvents();
     onHostMessage((message) => {
       if (message.type === "syntax.lines") this.painter.receive(message.payload);
+      else if (message.type === "remotes.state") applyRemoteHosts(this.state, this.results, message.payload);
       else this.onHostMessage(message);
     });
     renderIndexStatus(this.layout, this.state);
@@ -416,7 +418,7 @@ export class SearchPanel {
 
   // ------------------------------------------------------------ host messages
 
-  private onHostMessage(message: Exclude<HostMessage, { type: "syntax.lines" }>): void {
+  private onHostMessage(message: Exclude<HostMessage, { type: "syntax.lines" | "remotes.state" }>): void {
     const state = this.state;
     switch (message.type) {
       case "state.restore": {

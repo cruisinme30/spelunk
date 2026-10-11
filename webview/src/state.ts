@@ -7,7 +7,9 @@ import type {
   ParsedQuery,
   PinnedQuery,
   Preview,
+  RemoteHost,
   RepoStatus,
+  ResultItem,
   SearchDoneMessage,
   UiSettings,
   UnseenCommits,
@@ -67,6 +69,8 @@ export interface ViewState {
   newCommits: Set<string>;
   ui: UiSettings;
   repos: RepoStatus[];
+  /** Which kind of Git host each repo's links go to, by repoId, for the result menu (remotes.state). */
+  remoteHosts: Map<string, RemoteHost>;
   /** Daemon health; undefined while it is healthy. */
   banner: BannerMessage | undefined;
   /** The width in pixels the divider gave the recent queries; undefined for the default split. */
@@ -123,6 +127,7 @@ export function createViewState(): ViewState {
     newCommits: new Set(),
     ui: { ...DEFAULT_UI_SETTINGS },
     repos: [],
+    remoteHosts: new Map(),
     banner: undefined,
     recentWidth: undefined,
     outlineOpen: false,
@@ -146,4 +151,22 @@ export function hasErrors(state: ViewState): boolean {
 /** A repo's display name, or its id before index.status has named it. */
 export function repoName(state: ViewState, repoId: string): string {
   return state.repos.find((repo) => repo.repoId === repoId)?.name ?? repoId;
+}
+
+/**
+ * What VS Code's right-click menu reads from a result row's
+ * data-vscode-context: the result it is (its ref, which the menu's commands
+ * get), its kind, and which kind of Git host its repo's links go to, which
+ * names the link items. VS Code's own Cut, Copy and Paste are left off:
+ * they act on text, not on a result.
+ */
+export function menuContext(state: ViewState, item: ResultItem): string {
+  const host = state.remoteHosts.get(item.repoId);
+  return JSON.stringify({
+    webviewSection: "result",
+    ref: item.ref,
+    resultKind: item.kind,
+    ...(host === undefined ? {} : { remoteHost: host }),
+    preventDefaultContextMenuItems: true,
+  });
 }

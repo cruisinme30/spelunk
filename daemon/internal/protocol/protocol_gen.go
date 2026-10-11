@@ -1558,6 +1558,42 @@ func (v Links) MarshalJSON() ([]byte, error) {
 	return json.Marshal(p)
 }
 
+// RemoteHost is which kind of Git host a repo's links go to, which names the result menu's link items: a known host, other (one Spelunk can't place without the spelunk.permalinks.hosts setting), none (no Git, or no remote), or pick (several remotes; choosing an item asks which).
+type RemoteHost = string
+
+// RemoteHost values.
+const (
+	RemoteHostGithub    RemoteHost = "github"
+	RemoteHostGitlab    RemoteHost = "gitlab"
+	RemoteHostBitbucket RemoteHost = "bitbucket"
+	RemoteHostGitea     RemoteHost = "gitea"
+	RemoteHostAzure     RemoteHost = "azure"
+	RemoteHostOther     RemoteHost = "other"
+	RemoteHostNone      RemoteHost = "none"
+	RemoteHostPick      RemoteHost = "pick"
+)
+
+// RepoHost is the kind of host one repo's links go to.
+type RepoHost struct {
+	RepoID string     `json:"repoId"`
+	Host   RemoteHost `json:"host"`
+}
+
+// RemotesStateMessage tells the panel which kind of host each repo's links go to, for the result menu.
+type RemotesStateMessage struct {
+	Repos []RepoHost `json:"repos"`
+}
+
+// MarshalJSON emits [] rather than null for required arrays.
+func (v RemotesStateMessage) MarshalJSON() ([]byte, error) {
+	type plain RemotesStateMessage
+	p := plain(v)
+	if p.Repos == nil {
+		p.Repos = []RepoHost{}
+	}
+	return json.Marshal(p)
+}
+
 // Daemon JSON-RPC method names.
 const (
 	MethodInitialize              = "initialize"
@@ -1619,4 +1655,5 @@ const (
 	MsgWelcomeState    = "welcome.state"
 	MsgReplacePlan     = "replace.plan"
 	MsgReplaceDone     = "replace.done"
+	MsgRemotesState    = "remotes.state"
 )

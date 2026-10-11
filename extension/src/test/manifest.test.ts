@@ -15,7 +15,11 @@ interface Keybinding {
 interface Manifest {
   contributes: {
     commands: { command: string }[];
-    menus: { commandPalette: { command: string; when?: string }[] };
+    menus: {
+      commandPalette: { command: string; when?: string }[];
+      "webview/context": { command?: string; submenu?: string; when: string }[];
+      "spelunk.export": { command: string }[];
+    };
     keybindings: Keybinding[];
     configuration: {
       title: string;
@@ -54,7 +58,7 @@ test("settings are grouped in sections, each key under the section its name star
   const sections = manifest.contributes.configuration;
   assert.deepEqual(
     sections.map((section) => section.title),
-    ["Shortcut", "Search", "Results", "Opening results", "Indexing", "Display", "Watches"],
+    ["Shortcut", "Search", "Results", "Opening results", "Indexing", "Display", "Watches", "Links"],
   );
   for (const section of sections) {
     const current = Object.entries(section.properties).filter(([, property]) => !property.deprecationMessage);
@@ -92,11 +96,37 @@ test("F4 and Shift+F4 step through Spelunk's results except where VS Code's own 
 });
 
 test("the Command Palette lists Next and Previous Result only while there are results to step through", () => {
-  const palette = new Map(manifest.contributes.menus.commandPalette.map((entry) => [entry.command, entry.when]));
+  // The result menu's commands are hidden there (when: false): see the next test.
+  const palette = new Map(
+    manifest.contributes.menus.commandPalette
+      .filter((entry) => entry.when !== "false")
+      .map((entry) => [entry.command, entry.when]),
+  );
   assert.deepEqual(Object.fromEntries(palette), {
     "spelunk.nextResult": "spelunk.hasResults",
     "spelunk.prevResult": "spelunk.hasResults",
   });
   const declared = new Set(manifest.contributes.commands.map((entry) => entry.command));
   for (const command of palette.keys()) assert.ok(declared.has(command), `${command} is a declared command`);
+});
+
+test("the result menu's items are on results in the panel only, and kept out of the Command Palette", () => {
+  const { commands, menus } = manifest.contributes;
+  const declared = new Set(commands.map((entry) => entry.command));
+  const hidden = new Set(menus.commandPalette.filter((entry) => entry.when === "false").map((entry) => entry.command));
+  const items = [...menus["webview/context"], ...menus["spelunk.export"]];
+  for (const item of menus["webview/context"]) {
+    assert.match(item.when, /^webviewId == 'spelunk' && webviewSection == 'result'/u, JSON.stringify(item));
+  }
+  for (const { command } of items) {
+    if (command === undefined) continue;
+    assert.ok(declared.has(command), `${command} isn't declared`);
+    assert.ok(hidden.has(command), `${command} shows in the Command Palette, where it has no result to act on`);
+  }
+  // Each kind of host has its own pair of items; the generic pair stands in for the rest.
+  for (const host of ["github", "gitlab", "bitbucket", "gitea", "azure"]) {
+    assert.ok(
+      declared.has(`spelunk.result.copyPermalink.${host}`) && declared.has(`spelunk.result.openOnRemote.${host}`),
+    );
+  }
 });

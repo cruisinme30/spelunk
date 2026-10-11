@@ -248,6 +248,37 @@ const TESTS: [name: string, run: () => Promise<void>][] = [
     },
   ],
   [
+    "The result menu opens and copies the clicked result, and copies a link to the search",
+    async () => {
+      // @covers command:result.open command:result.openToSide command:result.copy command:result.copyPath command:result.copyRelativePath command:results.copySearchLink
+      const query = '"retry_policy: exponential"';
+      const state = await searchFor(query);
+      const context = { webviewSection: "result", ref: state.results[0], resultKind: "line" };
+      const copied = async (command: string) => {
+        await vscode.env.clipboard.writeText("");
+        await vscode.commands.executeCommand(command, context);
+        return vscode.env.clipboard.readText();
+      };
+      assert.equal(await copied("spelunk.result.copyRelativePath"), "shared-libs/http/config.yaml:9");
+      assert.equal(await copied("spelunk.result.copy"), "shared-libs/http/config.yaml:9: retry_policy: exponential");
+      assert.match(await copied("spelunk.result.copyPath"), /[/\\]shared-libs[/\\]http[/\\]config\.yaml:9$/u);
+      assert.equal(
+        await copied("spelunk.results.copySearchLink"),
+        `vscode://spelunk.spelunk/search?q=${encodeURIComponent(query)}`,
+      );
+      await vscode.commands.executeCommand("spelunk.result.openToSide", context);
+      const opened = await until(
+        "config.yaml open at line 9",
+        (now) => now.editor?.path.endsWith("config.yaml") === true,
+      );
+      assert.equal(opened.editor?.line, 9);
+      await vscode.commands.executeCommand("workbench.action.closeActiveEditor");
+      await searchFor(query);
+      await vscode.commands.executeCommand("spelunk.result.open", context);
+      await until("config.yaml open again", (now) => now.editor?.path.endsWith("config.yaml") === true);
+    },
+  ],
+  [
     "Restart Search restarts the daemon and search keeps working",
     async () => {
       // @covers command:restartDaemon

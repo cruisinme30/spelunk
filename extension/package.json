@@ -83,6 +83,133 @@
       {
         "command": "spelunk.showWelcome",
         "title": "Spelunk: Show Welcome"
+      },
+      {
+        "command": "spelunk.result.open",
+        "title": "Open",
+        "category": "Spelunk"
+      },
+      {
+        "command": "spelunk.result.openToSide",
+        "title": "Open to the Side",
+        "category": "Spelunk"
+      },
+      {
+        "command": "spelunk.result.copy",
+        "title": "Copy",
+        "category": "Spelunk"
+      },
+      {
+        "command": "spelunk.result.copyPath",
+        "title": "Copy Path",
+        "category": "Spelunk"
+      },
+      {
+        "command": "spelunk.result.copyRelativePath",
+        "title": "Copy Relative Path",
+        "category": "Spelunk"
+      },
+      {
+        "command": "spelunk.result.copySha",
+        "title": "Copy SHA",
+        "category": "Spelunk"
+      },
+      {
+        "command": "spelunk.result.copyShaAndSubject",
+        "title": "Copy SHA and Subject",
+        "category": "Spelunk"
+      },
+      {
+        "command": "spelunk.result.copyPermalink",
+        "title": "Copy Permalink",
+        "category": "Spelunk",
+        "enablement": "remoteHost != 'none'"
+      },
+      {
+        "command": "spelunk.result.openOnRemote",
+        "title": "Open on Remote",
+        "category": "Spelunk",
+        "enablement": "remoteHost != 'none'"
+      },
+      {
+        "command": "spelunk.result.copyPermalink.github",
+        "title": "Copy GitHub Permalink",
+        "category": "Spelunk"
+      },
+      {
+        "command": "spelunk.result.openOnRemote.github",
+        "title": "Open on GitHub",
+        "category": "Spelunk"
+      },
+      {
+        "command": "spelunk.result.copyPermalink.gitlab",
+        "title": "Copy GitLab Permalink",
+        "category": "Spelunk"
+      },
+      {
+        "command": "spelunk.result.openOnRemote.gitlab",
+        "title": "Open on GitLab",
+        "category": "Spelunk"
+      },
+      {
+        "command": "spelunk.result.copyPermalink.bitbucket",
+        "title": "Copy Bitbucket Permalink",
+        "category": "Spelunk"
+      },
+      {
+        "command": "spelunk.result.openOnRemote.bitbucket",
+        "title": "Open on Bitbucket",
+        "category": "Spelunk"
+      },
+      {
+        "command": "spelunk.result.copyPermalink.gitea",
+        "title": "Copy Gitea Permalink",
+        "category": "Spelunk"
+      },
+      {
+        "command": "spelunk.result.openOnRemote.gitea",
+        "title": "Open on Gitea",
+        "category": "Spelunk"
+      },
+      {
+        "command": "spelunk.result.copyPermalink.azure",
+        "title": "Copy Azure DevOps Permalink",
+        "category": "Spelunk"
+      },
+      {
+        "command": "spelunk.result.openOnRemote.azure",
+        "title": "Open on Azure DevOps",
+        "category": "Spelunk"
+      },
+      {
+        "command": "spelunk.results.copyAll",
+        "title": "Copy All Results",
+        "category": "Spelunk"
+      },
+      {
+        "command": "spelunk.results.exportText",
+        "title": "Text (.txt)",
+        "category": "Spelunk"
+      },
+      {
+        "command": "spelunk.results.exportMarkdown",
+        "title": "Markdown (.md)",
+        "category": "Spelunk"
+      },
+      {
+        "command": "spelunk.results.exportCsv",
+        "title": "CSV (.csv)",
+        "category": "Spelunk"
+      },
+      {
+        "command": "spelunk.results.exportJson",
+        "title": "JSON (.json)",
+        "category": "Spelunk"
+      },
+      {
+        "command": "spelunk.results.copySearchLink",
+        "title": "Copy Link to This Search",
+        "category": "Spelunk"
       }
     ],
     "menus": {
@@ -94,6 +221,236 @@
         {
           "command": "spelunk.prevResult",
           "when": "spelunk.hasResults"
+        },
+        {
+          "command": "spelunk.result.open",
+          "when": "false"
+        },
+        {
+          "command": "spelunk.result.openToSide",
+          "when": "false"
+        },
+        {
+          "command": "spelunk.result.copy",
+          "when": "false"
+        },
+        {
+          "command": "spelunk.result.copyPath",
+          "when": "false"
+        },
+        {
+          "command": "spelunk.result.copyRelativePath",
+          "when": "false"
+        },
+        {
+          "command": "spelunk.result.copySha",
+          "when": "false"
+        },
+        {
+          "command": "spelunk.result.copyShaAndSubject",
+          "when": "false"
+        },
+        {
+          "command": "spelunk.result.copyPermalink",
+          "when": "false"
+        },
+        {
+          "command": "spelunk.result.openOnRemote",
+          "when": "false"
+        },
+        {
+          "command": "spelunk.result.copyPermalink.github",
+          "when": "false"
+        },
+        {
+          "command": "spelunk.result.openOnRemote.github",
+          "when": "false"
+        },
+        {
+          "command": "spelunk.result.copyPermalink.gitlab",
+          "when": "false"
+        },
+        {
+          "command": "spelunk.result.openOnRemote.gitlab",
+          "when": "false"
+        },
+        {
+          "command": "spelunk.result.copyPermalink.bitbucket",
+          "when": "false"
+        },
+        {
+          "command": "spelunk.result.openOnRemote.bitbucket",
+          "when": "false"
+        },
+        {
+          "command": "spelunk.result.copyPermalink.gitea",
+          "when": "false"
+        },
+        {
+          "command": "spelunk.result.openOnRemote.gitea",
+          "when": "false"
+        },
+        {
+          "command": "spelunk.result.copyPermalink.azure",
+          "when": "false"
+        },
+        {
+          "command": "spelunk.result.openOnRemote.azure",
+          "when": "false"
+        },
+        {
+          "command": "spelunk.results.copyAll",
+          "when": "false"
+        },
+        {
+          "command": "spelunk.results.exportText",
+          "when": "false"
+        },
+        {
+          "command": "spelunk.results.exportMarkdown",
+          "when": "false"
+        },
+        {
+          "command": "spelunk.results.exportCsv",
+          "when": "false"
+        },
+        {
+          "command": "spelunk.results.exportJson",
+          "when": "false"
+        },
+        {
+          "command": "spelunk.results.copySearchLink",
+          "when": "false"
+        }
+      ],
+      "webview/context": [
+        {
+          "command": "spelunk.result.open",
+          "when": "webviewId == 'spelunk' && webviewSection == 'result'",
+          "group": "1_open@1"
+        },
+        {
+          "command": "spelunk.result.openToSide",
+          "when": "webviewId == 'spelunk' && webviewSection == 'result'",
+          "group": "1_open@2"
+        },
+        {
+          "command": "spelunk.result.copy",
+          "when": "webviewId == 'spelunk' && webviewSection == 'result' && resultKind != 'commit' && resultKind != 'file'",
+          "group": "2_copy@1"
+        },
+        {
+          "command": "spelunk.result.copyPath",
+          "when": "webviewId == 'spelunk' && webviewSection == 'result' && resultKind != 'commit'",
+          "group": "2_copy@2"
+        },
+        {
+          "command": "spelunk.result.copyRelativePath",
+          "when": "webviewId == 'spelunk' && webviewSection == 'result' && resultKind != 'commit'",
+          "group": "2_copy@3"
+        },
+        {
+          "command": "spelunk.result.copySha",
+          "when": "webviewId == 'spelunk' && webviewSection == 'result' && resultKind == 'commit'",
+          "group": "2_copy@1"
+        },
+        {
+          "command": "spelunk.result.copyShaAndSubject",
+          "when": "webviewId == 'spelunk' && webviewSection == 'result' && resultKind == 'commit'",
+          "group": "2_copy@2"
+        },
+        {
+          "command": "spelunk.result.copyPermalink.github",
+          "when": "webviewId == 'spelunk' && webviewSection == 'result' && remoteHost == 'github'",
+          "group": "3_link@1"
+        },
+        {
+          "command": "spelunk.result.openOnRemote.github",
+          "when": "webviewId == 'spelunk' && webviewSection == 'result' && remoteHost == 'github'",
+          "group": "3_link@2"
+        },
+        {
+          "command": "spelunk.result.copyPermalink.gitlab",
+          "when": "webviewId == 'spelunk' && webviewSection == 'result' && remoteHost == 'gitlab'",
+          "group": "3_link@1"
+        },
+        {
+          "command": "spelunk.result.openOnRemote.gitlab",
+          "when": "webviewId == 'spelunk' && webviewSection == 'result' && remoteHost == 'gitlab'",
+          "group": "3_link@2"
+        },
+        {
+          "command": "spelunk.result.copyPermalink.bitbucket",
+          "when": "webviewId == 'spelunk' && webviewSection == 'result' && remoteHost == 'bitbucket'",
+          "group": "3_link@1"
+        },
+        {
+          "command": "spelunk.result.openOnRemote.bitbucket",
+          "when": "webviewId == 'spelunk' && webviewSection == 'result' && remoteHost == 'bitbucket'",
+          "group": "3_link@2"
+        },
+        {
+          "command": "spelunk.result.copyPermalink.gitea",
+          "when": "webviewId == 'spelunk' && webviewSection == 'result' && remoteHost == 'gitea'",
+          "group": "3_link@1"
+        },
+        {
+          "command": "spelunk.result.openOnRemote.gitea",
+          "when": "webviewId == 'spelunk' && webviewSection == 'result' && remoteHost == 'gitea'",
+          "group": "3_link@2"
+        },
+        {
+          "command": "spelunk.result.copyPermalink.azure",
+          "when": "webviewId == 'spelunk' && webviewSection == 'result' && remoteHost == 'azure'",
+          "group": "3_link@1"
+        },
+        {
+          "command": "spelunk.result.openOnRemote.azure",
+          "when": "webviewId == 'spelunk' && webviewSection == 'result' && remoteHost == 'azure'",
+          "group": "3_link@2"
+        },
+        {
+          "command": "spelunk.result.copyPermalink",
+          "when": "webviewId == 'spelunk' && webviewSection == 'result' && remoteHost != 'github' && remoteHost != 'gitlab' && remoteHost != 'bitbucket' && remoteHost != 'gitea' && remoteHost != 'azure'",
+          "group": "3_link@1"
+        },
+        {
+          "command": "spelunk.result.openOnRemote",
+          "when": "webviewId == 'spelunk' && webviewSection == 'result' && remoteHost != 'github' && remoteHost != 'gitlab' && remoteHost != 'bitbucket' && remoteHost != 'gitea' && remoteHost != 'azure'",
+          "group": "3_link@2"
+        },
+        {
+          "command": "spelunk.results.copyAll",
+          "when": "webviewId == 'spelunk' && webviewSection == 'result'",
+          "group": "4_results@1"
+        },
+        {
+          "submenu": "spelunk.export",
+          "when": "webviewId == 'spelunk' && webviewSection == 'result'",
+          "group": "4_results@2"
+        },
+        {
+          "command": "spelunk.results.copySearchLink",
+          "when": "webviewId == 'spelunk' && webviewSection == 'result'",
+          "group": "4_results@3"
+        }
+      ],
+      "spelunk.export": [
+        {
+          "command": "spelunk.results.exportText",
+          "group": "1_formats@1"
+        },
+        {
+          "command": "spelunk.results.exportMarkdown",
+          "group": "1_formats@2"
+        },
+        {
+          "command": "spelunk.results.exportCsv",
+          "group": "1_formats@3"
+        },
+        {
+          "command": "spelunk.results.exportJson",
+          "group": "1_formats@4"
         }
       ]
     },
@@ -125,6 +482,18 @@
         "command": "spelunk.prevResult",
         "key": "shift+f4",
         "when": "spelunk.hasResults && !searchViewletFocus && !inSearchEditor && !referenceSearchVisible && !inReferenceSearchEditor && focusedView != 'references-view.tree'"
+      },
+      {
+        "command": "spelunk.result.copyPath",
+        "key": "shift+alt+c",
+        "mac": "alt+cmd+c",
+        "when": "activeWebviewPanelId == 'spelunk'"
+      },
+      {
+        "command": "spelunk.result.copyRelativePath",
+        "key": "ctrl+k ctrl+shift+c",
+        "mac": "shift+alt+cmd+c",
+        "when": "activeWebviewPanelId == 'spelunk'"
       }
     ],
     "configuration": [
@@ -507,6 +876,34 @@
             "description": "Pop up a notification when new commits by others match a watched pinned query. Off, the pin's count of new commits still shows in the empty box."
           }
         }
+      },
+      {
+        "title": "Links",
+        "order": 8,
+        "properties": {
+          "spelunk.permalinks.hosts": {
+            "type": "object",
+            "default": {},
+            "scope": "window",
+            "additionalProperties": {
+              "type": "string",
+              "enum": [
+                "github",
+                "gitlab",
+                "bitbucket",
+                "gitea",
+                "azure"
+              ]
+            },
+            "markdownDescription": "Which kind of Git host a server is, for **Copy Permalink** on the right-click menu of a result. Spelunk knows github.com, gitlab.com, bitbucket.org, codeberg.org and dev.azure.com, and guesses from a name with `github`, `gitlab`, `gitea` or `forgejo` in it; add any other server by the host name in its remote's URL, for example `{ \"git.acme.corp\": \"gitlab\" }`."
+          }
+        }
+      }
+    ],
+    "submenus": [
+      {
+        "id": "spelunk.export",
+        "label": "Export Results"
       }
     ]
   },

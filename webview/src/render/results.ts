@@ -26,7 +26,7 @@ import type {
   SearchDoneMessage,
   SinceRevision,
 } from "../protocol.gen";
-import { repoName, type ViewState } from "../state";
+import { menuContext, repoName, type ViewState } from "../state";
 import { ChunkedList } from "./chunkedList";
 import { ResultIndex } from "./resultIndex";
 import { resultsSash } from "./sash";
@@ -442,7 +442,7 @@ export class ResultsView {
     }
   }
 
-  /** Attributes every result row shares: id, ARIA option role and the opaque ref. */
+  /** Attributes every result row shares: id, ARIA option role, the opaque ref, and what VS Code's menu reads. */
   private rowAttributes(item: ResultItem): Record<string, string> {
     return {
       id: rowId(item.ref),
@@ -451,6 +451,7 @@ export class ResultsView {
       "data-ref": item.ref,
       "data-kind": item.kind,
       "data-testid": "result",
+      "data-vscode-context": menuContext(this.state, item),
     };
   }
 
