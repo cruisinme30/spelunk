@@ -30,7 +30,8 @@
 //   --new-commit <r|a|s|p>  once indexed, commits a line added to file p in repo r of --workspace, by author a
 //                       ("Name <email>") with subject s, then waits for the watches to see it (repeatable). It
 //                       commits in --workspace, so point that at a copy whose repos have user.email set
-//   --workspace <dir>   a folder of repos, one root per subfolder (default: testdata/workspace)
+//   --workspace <dir>   a folder of repos, one root per subfolder (default: testdata/workspace); each root's
+//                       .vscode/settings.json files.exclude and search.exclude hide files, as in VS Code
 //   --theme <name>      a color theme of the VS Code scripts/e2e.mjs downloads, e.g. "Dark Modern" or "Light Modern":
 //                       the panel takes its colors, and code its syntax colors, by VS Code's own grammars
 //   --width, --height   the panel size in pixels (default: 1200 × 720)
@@ -102,7 +103,11 @@ async function main() {
   const daemon = new host.Daemon({
     binary: join(repoRoot, "daemon/bin/spelunk-daemon"),
     roots: () => workspaceRoots(host),
-    settings: () => ({ ...host.daemonSettings(configured, scratch), location: join(scratch, "index") }),
+    settings: () => ({
+      ...host.daemonSettings(configured, scratch),
+      location: join(scratch, "index"),
+      editorExcludes: host.editorExcludes(workspaceRoots(host), folderExcludes),
+    }),
     watches: () => host.watchedQueries(configured),
   });
   await daemon.start();
@@ -131,6 +136,12 @@ function workspaceRoots(host) {
     .map((name) => join(args.workspace, name))
     .filter((path) => statSync(path).isDirectory())
     .map((path) => host.makeRoot(path));
+}
+
+/** A folder's files.exclude or search.exclude, from its .vscode/settings.json, as VS Code reads it for the folder. */
+function folderExcludes(folder, section) {
+  const file = join(folder, ".vscode", "settings.json");
+  return existsSync(file) ? JSON.parse(readFileSync(file, "utf8"))[`${section}.exclude`] : undefined;
 }
 
 /** Plays a host message into the page, as the extension's panel would post it. */
@@ -344,6 +355,7 @@ async function loadHost() {
         'export { SearchController } from "./controller";',
         'export { Daemon } from "./daemon";',
         'export { makeRoot } from "./roots";',
+        'export { editorExcludes } from "./editorExcludes";',
         'export { daemonSettings, pinnedQueries, previewContextLines, uiSettings, watchedQueries } from "./settings";',
         'export { readColorTheme, themeFile } from "./colorTheme";',
         'export { GrammarCatalog, SyntaxColors } from "./syntaxColors";',

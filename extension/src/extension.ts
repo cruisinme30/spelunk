@@ -19,6 +19,7 @@ import {
   type Ui,
 } from "./controller";
 import { Daemon, type DaemonState } from "./daemon";
+import { followWorkspace, withEditorExcludes } from "./workspaceSettings";
 import { HelpPanel } from "./helpPanel";
 import { SearchPanel } from "./panel";
 import type {
@@ -90,7 +91,7 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi {
   const daemon = new Daemon({
     binary: daemonBinary(context.extensionPath, context.extensionMode),
     roots: workspaceRoots,
-    settings: () => daemonSettings(configuration(), homedir()),
+    settings: currentDaemonSettings,
     watches: () => watchedQueries(configuration()),
     log: (line) => {
       log.appendLine(line);
@@ -143,15 +144,13 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi {
       welcome.show();
     }),
     forwardFileChanges(daemon),
-    vscode.workspace.onDidChangeWorkspaceFolders(() => {
-      daemon.setRoots(workspaceRoots());
-    }),
+    followWorkspace(daemon, { roots: workspaceRoots, settings: currentDaemonSettings }, { panel, controller }),
     vscode.workspace.onDidChangeConfiguration((event) => {
       if (!event.affectsConfiguration("spelunk")) return;
       // A value saved under an old key (by hand, or synced from an older version) moves at once.
       if (touchesMovedSetting(event)) moveSettingsSoon(logError("settings"));
       if (event.affectsConfiguration("spelunk.index.location")) logIndexLocationProblem(log);
-      daemon.updateSettings(daemonSettings(configuration(), homedir()));
+      daemon.updateSettings(currentDaemonSettings());
       daemon.setWatches(watchedQueries(configuration()));
       if (panel.isOpen) controller.settingsChanged();
       welcome.refresh();
@@ -357,6 +356,11 @@ function daemonBinary(extensionPath: string, mode: vscode.ExtensionMode): string
 
 function configuration(): vscode.WorkspaceConfiguration {
   return vscode.workspace.getConfiguration("spelunk");
+}
+
+/** The settings the daemon needs: the spelunk.* ones, and each folder's files.exclude and search.exclude. */
+function currentDaemonSettings() {
+  return withEditorExcludes(daemonSettings(configuration(), homedir()), configuration(), workspaceRoots());
 }
 
 /** The workspace folders on disk, as protocol roots. */

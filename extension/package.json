@@ -583,6 +583,12 @@
             "scope": "window",
             "description": "Match whole words by default, so retry doesn't match retryCount. A word: operator in the query always wins."
           },
+          "spelunk.search.useExcludeSettings": {
+            "type": "boolean",
+            "default": true,
+            "scope": "window",
+            "markdownDescription": "Leave out the files `#files.exclude#` and `#search.exclude#` hide, as VS Code's own search does. A note under the results counts them, and its Show them adds `excludes:no` to the query. Off, every indexed file shows."
+          },
           "spelunk.search.seedFromSelection": {
             "type": "boolean",
             "default": true,

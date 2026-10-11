@@ -53,6 +53,7 @@ const DEFAULTS = {
   syntaxHighlighting: true,
   renderWhitespace: "editor",
   seedFromSelection: true,
+  useExcludeSettings: true,
 } as const;
 
 /** VS Code's defaults for the editor.* settings the panel's code follows. */
@@ -367,6 +368,14 @@ export function permalinkHosts(config: ConfigReader): Record<string, string> {
 /** Whether a watch's new commits pop up a notification (spelunk.watch.notify). */
 export function watchNotify(config: ConfigReader): boolean {
   return boolean(config.get<unknown>("watch.notify", DEFAULTS.watchNotify), DEFAULTS.watchNotify);
+}
+
+/** Whether searches leave out what files.exclude and search.exclude hide (spelunk.search.useExcludeSettings). */
+export function usesExcludeSettings(config: ConfigReader): boolean {
+  return boolean(
+    config.get<unknown>("search.useExcludeSettings", DEFAULTS.useExcludeSettings),
+    DEFAULTS.useExcludeSettings,
+  );
 }
 
 /** Whether the search key, pressed in the editor, searches its selection (spelunk.search.seedFromSelection). */
