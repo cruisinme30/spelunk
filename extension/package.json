@@ -34,6 +34,7 @@
   "main": "./dist/extension.js",
   "files": [
     "dist/extension.js",
+    "dist/onig.wasm",
     "dist/webview",
     "bin",
     "LICENSE"
@@ -437,6 +438,34 @@
             "scope": "window",
             "description": "Lines the file preview shows above and below the selected match."
           },
+          "spelunk.ui.syntaxHighlighting": {
+            "type": "boolean",
+            "default": true,
+            "scope": "application",
+            "description": "Color code in results and the preview with the color theme's syntax colors, using the language grammars VS Code colors the editor with."
+          },
+          "spelunk.ui.renderWhitespace": {
+            "type": "string",
+            "enum": [
+              "editor",
+              "none",
+              "boundary",
+              "selection",
+              "trailing",
+              "all"
+            ],
+            "enumDescriptions": [
+              "Follow `#editor.renderWhitespace#`.",
+              "Mark no whitespace.",
+              "Mark indentation, trailing whitespace and runs of spaces between words.",
+              "Mark the whitespace of the matched lines.",
+              "Mark trailing whitespace only.",
+              "Mark every space and tab."
+            ],
+            "default": "editor",
+            "scope": "application",
+            "markdownDescription": "Which whitespace the preview marks, as faint dots for spaces and arrows for tabs. `editor` follows `#editor.renderWhitespace#`."
+          },
           "spelunk.ui.pinnedQueries": {
             "type": "array",
             "default": [],
@@ -480,5 +509,9 @@
         }
       }
     ]
+  },
+  "dependencies": {
+    "vscode-oniguruma": "^2.0.1",
+    "vscode-textmate": "^9.3.2"
   }
 }

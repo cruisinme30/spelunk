@@ -803,6 +803,12 @@ export interface UiSettings {
   wholeWord: boolean;
   order: ResultOrder;
   contextLines: number;
+  /** Which whitespace the preview marks, as editor.renderWhitespace names it; spelunk.ui.renderWhitespace, or editor.renderWhitespace when that is "editor". */
+  renderWhitespace: "none" | "boundary" | "selection" | "trailing" | "all";
+  /** How many spaces wide a tab draws: editor.tabSize. */
+  tabSize: number;
+  /** The CSS font-feature-settings for code, from editor.fontLigatures. */
+  fontLigatures: string;
 }
 
 /** ReplacePlanMessage is the preview of a replace: the edits it would make, or why it can't. */
@@ -820,6 +826,21 @@ export interface ReplaceDoneMessage {
   skipped: string[];
   changed?: boolean;
   error?: string;
+}
+
+/** SyntaxLine is how the color theme colors one line of a file: tokens holds a pair of numbers per token, its start (a UTF-16 offset into text) and its style, which runs to the next token's start. A style is a color's index into the colors of its SyntaxLinesMessage, plus 512 times the token's font style (1 italic, 2 bold, 4 underline, 8 strikethrough); index 0 leaves the text its usual color. */
+export interface SyntaxLine {
+  path: string;
+  text: string;
+  tokens: number[];
+}
+
+/** SyntaxLinesMessage colors lines of code the panel shows, by their file and text. reset drops every coloring sent before, as when the color theme changes. */
+export interface SyntaxLinesMessage {
+  /** The theme's colors, as CSS colors, by index; index 0 is unused. */
+  colors: string[];
+  lines: SyntaxLine[];
+  reset?: boolean;
 }
 
 /** BannerMessage reports daemon health: restarting, stopped or cleared. */
@@ -890,6 +911,7 @@ export interface HostToWebview {
   "state.restore": StateRestoreMessage;
   "watch.state": WatchStateMessage;
   "banner": BannerMessage;
+  "syntax.lines": SyntaxLinesMessage;
   "focus": Empty;
   "welcome.state": WelcomeStateMessage;
   "replace.plan": ReplacePlanMessage;

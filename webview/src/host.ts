@@ -68,6 +68,13 @@ const HAS_REQUIRED_FIELDS: Record<keyof HostToWebview, (payload: Fields) => bool
     isObjectArray(unseen) &&
     unseen.every(({ query, count, shas }) => isString(query) && isNumber(count) && isStringArray(shas)),
   banner: ({ state }) => isString(state),
+  "syntax.lines": ({ colors, lines }) =>
+    isStringArray(colors) &&
+    isObjectArray(lines) &&
+    lines.every(
+      ({ path, text, tokens }) =>
+        isString(path) && isString(text) && Array.isArray(tokens) && tokens.every((value) => isNumber(value)),
+    ),
   focus: () => true,
   "welcome.state": ({ preset, historyDepth }) => isString(preset) && isString(historyDepth),
   "replace.plan": ({ seq, plan }) =>

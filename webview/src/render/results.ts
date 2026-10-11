@@ -93,6 +93,8 @@ interface ResultsHandlers {
   onContextLines(lines: number): void;
   /** What a replace would make of a code line's matches, while the Replace row previews one. */
   replacementsFor(item: ItemOf<"line">): string[] | undefined;
+  /** Colors the code a code result's `node` shows: its lines and the context lines around them. */
+  paintCode(node: ParentNode, item: ItemOf<"line">): void;
 }
 
 /** How many results of each kind are on screen, plus the files and repos they come from. */
@@ -250,6 +252,7 @@ export class ResultsView {
       let rendered: Rendered;
       try {
         rendered = this.renderItem(item);
+        if (item.kind === "line") this.handlers.paintCode(rendered.node, item);
       } catch {
         continue; // a malformed result is left out, not the rest of its batch
       }

@@ -13,6 +13,7 @@ import {
   pinnedQueries,
   previewContextLines,
   recentQueriesLimit,
+  syntaxHighlighting,
   uiSettings,
   watchedQueries,
   watchNotify,
@@ -229,6 +230,29 @@ test("settings of the wrong type or out of range fall back to defaults the daemo
   );
 });
 
+test("code is drawn as the editor draws it, unless the panel's own settings say otherwise", () => {
+  // @covers setting:ui.syntaxHighlighting setting:ui.renderWhitespace
+  const editor = configWith({ renderWhitespace: "all", tabSize: 2, fontLigatures: true });
+  const followed = uiSettings(configWith({}), editor);
+  assert.equal(syntaxHighlighting(configWith({})), true, "on by default");
+  assert.equal(followed.renderWhitespace, "all", "renderWhitespace: editor follows editor.renderWhitespace");
+  assert.equal(followed.tabSize, 2);
+  assert.equal(followed.fontLigatures, '"liga" on, "calt" on');
+
+  const own = uiSettings(configWith({ "ui.renderWhitespace": "trailing" }), editor);
+  assert.equal(syntaxHighlighting(configWith({ "ui.syntaxHighlighting": false })), false);
+  assert.equal(syntaxHighlighting(configWith({ "ui.syntaxHighlighting": "no" })), true, "a wrong type is the default");
+  assert.equal(own.renderWhitespace, "trailing", "the panel's own choice wins");
+
+  assert.equal(uiSettings(configWith({})).renderWhitespace, "selection", "VS Code's default, with no editor settings");
+  assert.equal(uiSettings(configWith({}), configWith({ tabSize: 400 })).tabSize, 16, "kept to a sane width");
+  assert.equal(uiSettings(configWith({}), configWith({ fontLigatures: "'ss01'" })).fontLigatures, "'ss01'");
+  assert.equal(
+    uiSettings(configWith({}), configWith({ fontLigatures: "false" })).fontLigatures,
+    '"liga" off, "calt" off',
+  );
+});
+
 test("panel settings of the wrong type fall back to their defaults", () => {
   // @covers setting:search.typingDelayMs setting:open.trigger setting:ui.recentQueries
   const wrong = configWith({
@@ -242,8 +266,10 @@ test("panel settings of the wrong type fall back to their defaults", () => {
     "open.closeOnOpen": "false",
     "results.order": 1,
     "results.contextLines": true,
+    "ui.renderWhitespace": "dots",
   });
-  assert.deepEqual(uiSettings(wrong), {
+  const wrongEditor = configWith({ renderWhitespace: 1, tabSize: "wide", fontLigatures: 3 });
+  assert.deepEqual(uiSettings(wrong, wrongEditor), {
     typingDelayMs: 120,
     openTrigger: "doubleClick",
     preview: true,
@@ -252,6 +278,9 @@ test("panel settings of the wrong type fall back to their defaults", () => {
     wholeWord: false,
     order: "best",
     contextLines: 0,
+    renderWhitespace: "selection",
+    tabSize: 4,
+    fontLigatures: '"liga" off, "calt" off',
   });
   assert.equal(recentQueriesLimit(wrong), 20, "not NaN, which would empty the recent list");
   assert.equal(closeOnOpen(wrong), true);

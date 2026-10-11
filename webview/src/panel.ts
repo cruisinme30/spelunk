@@ -55,6 +55,7 @@ import { ResultsView } from "./render/results";
 import { ReplaceBox } from "./replace";
 import { ResultSelection } from "./resultSelection";
 import { createViewState, hasErrors, type ViewState } from "./state";
+import { applyCodeSettings, SyntaxPainter } from "./syntax";
 
 /** Cheat-sheet snippets that put the cursor between a pair: "|", /|/, (|). */
 const PAIRED_SNIPPETS = new Set(['""', "//", "()", 'struct:""']);
@@ -69,6 +70,8 @@ export class SearchPanel {
   private readonly selection: ResultSelection;
   private readonly summary = element("span", { class: "summary", "data-testid": "summary" });
   private results: ResultsView | undefined;
+  /** The theme's syntax colors, which color the code of results and previews. */
+  private readonly painter = new SyntaxPainter();
   private debounceTimer: ReturnType<typeof setTimeout> | undefined;
   /** Set while the panel itself edits the box, so its input event isn't taken for typing. */
   private editingBox = false;
@@ -113,7 +116,8 @@ export class SearchPanel {
   start(): void {
     this.bindEvents();
     onHostMessage((message) => {
-      this.onHostMessage(message);
+      if (message.type === "syntax.lines") this.painter.receive(message.payload);
+      else this.onHostMessage(message);
     });
     renderIndexStatus(this.layout, this.state);
     this.state.recentWidth = loadRecentWidth();
@@ -411,7 +415,7 @@ export class SearchPanel {
 
   // ------------------------------------------------------------ host messages
 
-  private onHostMessage(message: HostMessage): void {
+  private onHostMessage(message: Exclude<HostMessage, { type: "syntax.lines" }>): void {
     const state = this.state;
     switch (message.type) {
       case "state.restore": {
@@ -501,6 +505,7 @@ export class SearchPanel {
   private onRestore({ text, recent, pinned, settings }: StateRestoreMessage): void {
     const { input } = this.layout;
     if (settings) this.state.ui = settings;
+    applyCodeSettings(this.state.ui);
     this.state.recent = recent;
     this.state.pinned = pinned;
     // Saving a pin changes the settings, which sends this again: a name being typed stays as it is.
@@ -591,6 +596,7 @@ export class SearchPanel {
       },
       replacementsFor: (item: { repoId: string; path: string; line: number }) =>
         this.replace.replacementsFor(item.repoId, item.path, item.line),
+      paintCode: this.painter.paintCode.bind(this.painter),
     };
     const errors = hasErrors(state);
     // Named once its results show: a query whose results never came isn't the one on screen.
@@ -690,6 +696,9 @@ export class SearchPanel {
         this.renderPreview();
       },
       replacementsFor: (path, line) => (item ? this.replace.replacementsFor(item.repoId, path, line) : undefined),
+      paint: (code, path, text) => {
+        this.painter.paint(code, path, text);
+      },
     });
   }
 

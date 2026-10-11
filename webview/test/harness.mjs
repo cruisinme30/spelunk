@@ -18,6 +18,9 @@ export const UI_SETTINGS = {
   wholeWord: false,
   order: "best",
   contextLines: 0,
+  renderWhitespace: "selection",
+  tabSize: 4,
+  fontLigatures: '"liga" off, "calt" off',
 };
 
 /** The query box. */

@@ -9,6 +9,12 @@ All notable changes to this project are documented here. The format follows
 
 - Double-click a word in a code preview to open the file beside the editor with that word selected, at the line and
   column you double-clicked; a double-click on a line number opens at the start of that line. The panel stays open.
+- Code in results and the preview is colored like the editor: the active color theme's syntax colors, by the language
+  grammars VS Code itself colors with (vscode-textmate), following theme switches and `editor.tokenColorCustomizations`.
+  The preview marks whitespace as `editor.renderWhitespace` says (a dot per space, an arrow per tab; by default on
+  the matched line), and code follows `editor.tabSize`, `editor.fontSize` and `editor.fontLigatures`. New settings:
+  `spelunk.ui.syntaxHighlighting` (on by default) and `spelunk.ui.renderWhitespace` (`editor` by default, to follow
+  the editor).
 
 ### Fixed
 

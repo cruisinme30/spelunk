@@ -4,9 +4,11 @@
 import { build } from "esbuild";
 import { cpSync, existsSync, mkdirSync, readdirSync, rmSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
+const require = createRequire(import.meta.url);
 const webview = join(here, "..", "webview");
 const tests = process.argv.includes("--tests");
 const endToEnd = process.argv.includes("--e2e");
@@ -26,6 +28,8 @@ await build({
   outfile: join(here, "dist/extension.js"),
   sourcemap: true,
 });
+// The grammars' regex engine, which syntaxSource.ts loads at run time.
+cpSync(join(dirname(require.resolve("vscode-oniguruma")), "onig.wasm"), join(here, "dist/onig.wasm"));
 
 if (existsSync(join(webview, "src/main.ts"))) {
   mkdirSync(join(here, "dist/webview"), { recursive: true });

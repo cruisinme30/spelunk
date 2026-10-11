@@ -1384,6 +1384,12 @@ type UiSettings struct {
 	WholeWord       bool        `json:"wholeWord"`
 	Order           ResultOrder `json:"order"`
 	ContextLines    int         `json:"contextLines"`
+	// RenderWhitespace is which whitespace the preview marks, as editor.renderWhitespace names it; spelunk.ui.renderWhitespace, or editor.renderWhitespace when that is "editor".
+	RenderWhitespace string `json:"renderWhitespace"`
+	// TabSize is how many spaces wide a tab draws: editor.tabSize.
+	TabSize int `json:"tabSize"`
+	// FontLigatures is the CSS font-feature-settings for code, from editor.fontLigatures.
+	FontLigatures string `json:"fontLigatures"`
 }
 
 // ReplacePlanMessage is the preview of a replace: the edits it would make, or why it can't.
@@ -1409,6 +1415,44 @@ func (v ReplaceDoneMessage) MarshalJSON() ([]byte, error) {
 	p := plain(v)
 	if p.Skipped == nil {
 		p.Skipped = []string{}
+	}
+	return json.Marshal(p)
+}
+
+// SyntaxLine is how the color theme colors one line of a file: tokens holds a pair of numbers per token, its start (a UTF-16 offset into text) and its style, which runs to the next token's start. A style is a color's index into the colors of its SyntaxLinesMessage, plus 512 times the token's font style (1 italic, 2 bold, 4 underline, 8 strikethrough); index 0 leaves the text its usual color.
+type SyntaxLine struct {
+	Path   string `json:"path"`
+	Text   string `json:"text"`
+	Tokens []int  `json:"tokens"`
+}
+
+// MarshalJSON emits [] rather than null for required arrays.
+func (v SyntaxLine) MarshalJSON() ([]byte, error) {
+	type plain SyntaxLine
+	p := plain(v)
+	if p.Tokens == nil {
+		p.Tokens = []int{}
+	}
+	return json.Marshal(p)
+}
+
+// SyntaxLinesMessage colors lines of code the panel shows, by their file and text. reset drops every coloring sent before, as when the color theme changes.
+type SyntaxLinesMessage struct {
+	// Colors is the theme's colors, as CSS colors, by index; index 0 is unused.
+	Colors []string     `json:"colors"`
+	Lines  []SyntaxLine `json:"lines"`
+	Reset  bool         `json:"reset,omitempty"`
+}
+
+// MarshalJSON emits [] rather than null for required arrays.
+func (v SyntaxLinesMessage) MarshalJSON() ([]byte, error) {
+	type plain SyntaxLinesMessage
+	p := plain(v)
+	if p.Colors == nil {
+		p.Colors = []string{}
+	}
+	if p.Lines == nil {
+		p.Lines = []SyntaxLine{}
 	}
 	return json.Marshal(p)
 }
@@ -1473,6 +1517,7 @@ const (
 	MsgStateRestore    = "state.restore"
 	MsgWatchState      = "watch.state"
 	MsgBanner          = "banner"
+	MsgSyntaxLines     = "syntax.lines"
 	MsgFocus           = "focus"
 	MsgWelcomeState    = "welcome.state"
 	MsgReplacePlan     = "replace.plan"

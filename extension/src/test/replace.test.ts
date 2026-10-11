@@ -23,6 +23,9 @@ const UI_SETTINGS: UiSettings = {
   wholeWord: false,
   order: "best",
   contextLines: 0,
+  renderWhitespace: "selection",
+  tabSize: 4,
+  fontLigatures: '"liga" off, "calt" off',
 };
 
 /** A document holding `text`. */

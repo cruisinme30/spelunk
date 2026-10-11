@@ -50,7 +50,12 @@ const DEFAULTS = {
   ],
   codeownersFiles: [".github/CODEOWNERS", "CODEOWNERS", "docs/CODEOWNERS"],
   commitCheckSeconds: 5,
+  syntaxHighlighting: true,
+  renderWhitespace: "editor",
 } as const;
+
+/** VS Code's defaults for the editor.* settings the panel's code follows. */
+const EDITOR_DEFAULTS = { renderWhitespace: "selection", tabSize: 4, fontLigatures: false } as const;
 
 /** The hard cap on results per page; the daemon enforces the same limit. */
 const MAX_DEFAULT_COUNT = 50_000;
@@ -72,6 +77,14 @@ export const HISTORY_DEPTHS: readonly Settings["historyDepth"][] = ["6m", "2y", 
 const OPEN_TRIGGERS: readonly UiSettings["openTrigger"][] = ["doubleClick", "singleClick"];
 const ORDERS: readonly UiSettings["order"][] = ["best", "path"];
 const CASE_SETTINGS: readonly CaseSetting[] = ["off", "on", "smart"];
+const RENDER_WHITESPACE: readonly UiSettings["renderWhitespace"][] = [
+  "none",
+  "boundary",
+  "selection",
+  "trailing",
+  "all",
+];
+const MAX_TAB_SIZE = 16;
 /** The shortcut.preset values. */
 export const SHORTCUT_PRESETS: readonly WelcomeState["preset"][] = ["quickOpen", "findInFiles", "none"];
 
@@ -212,8 +225,11 @@ function contextLines(config: ConfigReader): number {
   return clamp(value, 0, MAX_CONTEXT_LINES, DEFAULTS.contextLines);
 }
 
-/** The settings the webview needs. */
-export function uiSettings(config: ConfigReader): UiSettings {
+/** A ConfigReader with nothing set: every setting reads as its default. */
+const NOTHING_SET: ConfigReader = { get: (_key, defaultValue) => defaultValue };
+
+/** The settings the webview needs; `editor` reads the editor.* settings its code follows. */
+export function uiSettings(config: ConfigReader, editor: ConfigReader = NOTHING_SET): UiSettings {
   const read = (key: string, fallback: unknown) => config.get<unknown>(key, fallback);
   return {
     typingDelayMs: clamp(
@@ -229,7 +245,42 @@ export function uiSettings(config: ConfigReader): UiSettings {
     wholeWord: boolean(read("search.wholeWord", DEFAULTS.wholeWord), DEFAULTS.wholeWord),
     order: oneOf(read("results.order", DEFAULTS.order), ORDERS, DEFAULTS.order),
     contextLines: contextLines(config),
+    renderWhitespace: renderWhitespace(config, editor),
+    tabSize: clamp(editor.get<unknown>("tabSize", EDITOR_DEFAULTS.tabSize), 1, MAX_TAB_SIZE, EDITOR_DEFAULTS.tabSize),
+    fontLigatures: fontFeatures(editor.get<unknown>("fontLigatures", EDITOR_DEFAULTS.fontLigatures)),
   };
+}
+
+/** spelunk.ui.renderWhitespace, or editor.renderWhitespace when it is "editor" (its default). */
+function renderWhitespace(config: ConfigReader, editor: ConfigReader): UiSettings["renderWhitespace"] {
+  const own = config.get<unknown>("ui.renderWhitespace", DEFAULTS.renderWhitespace);
+  if (own !== DEFAULTS.renderWhitespace && RENDER_WHITESPACE.includes(own as UiSettings["renderWhitespace"])) {
+    return own as UiSettings["renderWhitespace"];
+  }
+  return oneOf(
+    editor.get<unknown>("renderWhitespace", EDITOR_DEFAULTS.renderWhitespace),
+    RENDER_WHITESPACE,
+    "selection",
+  );
+}
+
+/**
+ * editor.fontLigatures as CSS font-feature-settings, as VS Code reads it:
+ * true turns ligatures on, false off, and a string is the feature settings themselves.
+ */
+function fontFeatures(value: unknown): string {
+  if (typeof value === "string" && value.trim() !== "" && value !== "false") {
+    return value === "true" ? '"liga" on, "calt" on' : value;
+  }
+  return value === true ? '"liga" on, "calt" on' : '"liga" off, "calt" off';
+}
+
+/** Whether code is colored with the color theme's syntax colors (spelunk.ui.syntaxHighlighting). */
+export function syntaxHighlighting(config: ConfigReader): boolean {
+  return boolean(
+    config.get<unknown>("ui.syntaxHighlighting", DEFAULTS.syntaxHighlighting),
+    DEFAULTS.syntaxHighlighting,
+  );
 }
 
 /** Lines the file preview shows above and below its match (spelunk.ui.previewContextLines). */

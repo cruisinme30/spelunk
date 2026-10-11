@@ -982,7 +982,7 @@ body.vscode-high-contrast-light .completion.selected {
   white-space: pre;
   overflow: hidden;
   text-overflow: ellipsis;
-  font-size: 12.5px;
+  font-size: var(--vscode-editor-font-size, 12.5px);
 }
 
 /*
@@ -1432,7 +1432,7 @@ pre.body {
 .code {
   padding: 6px 0;
   font-family: var(--mono);
-  font-size: 12.5px;
+  font-size: var(--vscode-editor-font-size, 12.5px);
   line-height: 20px;
 }
 
@@ -2248,4 +2248,59 @@ pre.body {
   overflow: hidden;
   clip-path: inset(50%);
   white-space: nowrap;
+}
+
+/*
+ * Code as the editor draws it: its tab size and ligatures (editor.tabSize,
+ * editor.fontLigatures), the theme's syntax colors (syntax.ts adds a
+ * syn-N class per color), and whitespace marks (editor.renderWhitespace):
+ * a faint dot over each space and an arrow over each tab, drawn over the
+ * character so the text keeps its width and copies as it is.
+ */
+.code code,
+.row.line .text,
+.context-line .text {
+  tab-size: var(--code-tab-size, 4);
+  font-feature-settings: var(--code-font-features, normal);
+}
+
+.syn-italic {
+  font-style: italic;
+}
+
+.syn-bold {
+  font-weight: bold;
+}
+
+.syn-underline {
+  text-decoration: underline;
+}
+
+.syn-strike {
+  text-decoration: line-through;
+}
+
+/* Context lines stay dimmer than the match they surround. */
+.context-line .syn {
+  opacity: 0.75;
+}
+
+.ws {
+  position: relative;
+}
+
+.ws::before {
+  position: absolute;
+  inset: 0;
+  color: var(--vscode-editorWhitespace-foreground, rgb(128 128 128 / 45%));
+  pointer-events: none;
+}
+
+.ws-space::before {
+  content: "·";
+  text-align: center;
+}
+
+.ws-tab::before {
+  content: "→";
 }

@@ -3,6 +3,7 @@ import { button, element, fileStat, highlight, plural, scrollIntoContainer, shor
 import { textTerms } from "../parsedQuery";
 import type { OpenPosition, OpenWhere, Ownership, Preview, ResultItem, SinceRevision } from "../protocol.gen";
 import { repoName, type ViewState } from "../state";
+import { markWhitespace } from "../syntax";
 
 type FilePreview = Extract<Preview, { kind: "file" }>;
 type CommitPreview = Extract<Preview, { kind: "commit" }>;
@@ -18,6 +19,8 @@ interface PreviewHandlers {
   onShowHiddenFiles: () => void;
   /** What a replace would make of a line's matches, while the Replace row previews one. */
   replacementsFor: (path: string, line: number) => string[] | undefined;
+  /** Colors `code`, which shows `text` of `path`, in the theme's syntax colors. */
+  paint: (code: HTMLElement, path: string, text: string) => void;
 }
 
 /** The selected result a preview shows: its repo, and, for an at: search, its revision. */
@@ -69,7 +72,13 @@ export function renderPreview(
   });
   const header = { repo: of.repoId ? repoName(state, of.repoId) : "", actions, at: of.at?.label };
   if (preview.kind === "file") {
-    renderFilePreview(container, preview, header, handlers.replacementsFor);
+    renderFilePreview(container, preview, header, {
+      replacementsFor: handlers.replacementsFor,
+      decorate: (code, text, focus) => {
+        markWhitespace(code, text, state.ui.renderWhitespace, focus);
+        handlers.paint(code, preview.path, text);
+      },
+    });
     // A double-click on the code opens the file beside the panel, at the word it selected.
     container.querySelector(".code")?.addEventListener("dblclick", (event) => {
       const position = doubleClicked(event as MouseEvent);
@@ -80,6 +89,7 @@ export function renderPreview(
       showHiddenFiles: state.showHiddenFiles,
       onShowHiddenFiles: handlers.onShowHiddenFiles,
       hasTextTerms: textTerms(state.parsed).length > 0,
+      paint: handlers.paint,
     });
   }
 }
@@ -113,11 +123,17 @@ function compareButton(since: SinceRevision | undefined): HTMLElement {
   );
 }
 
+/** How a file preview draws its lines: as a replace would change them, then decorated (colored, whitespace marked). */
+interface FileLineDrawing {
+  replacementsFor: PreviewHandlers["replacementsFor"];
+  decorate: (code: HTMLElement, text: string, focus: boolean) => void;
+}
+
 function renderFilePreview(
   container: HTMLElement,
   preview: FilePreview,
   { repo, actions, at }: PreviewHeader,
-  replacementsFor: PreviewHandlers["replacementsFor"],
+  { replacementsFor, decorate }: FileLineDrawing,
 ): void {
   container.append(
     element(
@@ -143,20 +159,21 @@ function renderFilePreview(
   for (const [index, text] of preview.lines.entries()) {
     const lineNumber = preview.firstLine + index;
     const classes = ["code-line"];
-    if (lineNumber >= preview.focusLine && lineNumber <= (preview.focusEndLine ?? preview.focusLine)) {
-      classes.push("focus");
-    }
+    const focus = lineNumber >= preview.focusLine && lineNumber <= (preview.focusEndLine ?? preview.focusLine);
+    if (focus) classes.push("focus");
     if (dirtyLines.has(lineNumber)) classes.push("dirty");
+    const lineCode = element(
+      "code",
+      {},
+      highlight(text, hitsByLine.get(lineNumber) ?? [], replacementsFor(preview.path, lineNumber)),
+    );
+    decorate(lineCode, text, focus);
     code.append(
       element(
         "div",
         { class: classes.join(" "), "data-line": String(lineNumber) },
         element("span", { class: "line-number" }, String(lineNumber)),
-        element(
-          "code",
-          {},
-          highlight(text, hitsByLine.get(lineNumber) ?? [], replacementsFor(preview.path, lineNumber)),
-        ),
+        lineCode,
       ),
     );
   }
@@ -229,8 +246,12 @@ function ownershipLine({ owners, file, line }: Ownership): HTMLElement {
   );
 }
 
-/** Whether a commit preview lists the files its file filters hid, and how to ask for them. */
-interface HiddenFilesToggle {
+/**
+ * How a commit preview lists the files its file filters hid, and how to
+ * ask for them, and how it colors its diff's code.
+ */
+interface CommitPreviewOptions {
+  paint: PreviewHandlers["paint"];
   showHiddenFiles: boolean;
   onShowHiddenFiles: () => void;
   /** Whether the query has plain words, which match changed lines or the message. */
@@ -241,7 +262,7 @@ function renderCommitPreview(
   container: HTMLElement,
   preview: CommitPreview,
   { repo, actions }: PreviewHeader,
-  { showHiddenFiles, onShowHiddenFiles, hasTextTerms }: HiddenFilesToggle,
+  { showHiddenFiles, onShowHiddenFiles, hasTextTerms, paint }: CommitPreviewOptions,
 ): void {
   container.append(
     element(
@@ -300,13 +321,15 @@ function renderCommitPreview(
     code.append(element("div", { class: "hunk" }, element("span", { class: "muted" }, `${hunk.path}  ${hunk.header}`)));
     for (const line of hunk.lines) {
       const lineNumber = line.kind === "del" ? line.oldNo : line.newNo;
+      const lineCode = element("code", {}, highlight(line.text, line.hits));
+      paint(lineCode, hunk.path, line.text);
       code.append(
         element(
           "div",
           { class: `code-line ${line.kind}` },
           element("span", { class: "line-number" }, String(lineNumber ?? "")),
           element("span", { class: "sign" }, DIFF_SIGN[line.kind]),
-          element("code", {}, highlight(line.text, line.hits)),
+          lineCode,
         ),
       );
     }

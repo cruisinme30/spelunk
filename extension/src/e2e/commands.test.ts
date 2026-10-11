@@ -229,6 +229,25 @@ const TESTS: [name: string, run: () => Promise<void>][] = [
     },
   ],
   [
+    "Code in results is colored with the theme's colors, by the grammar VS Code colors the editor with",
+    async () => {
+      // @covers screen:syntax-colors
+      await searchFor("type:code retry_policy");
+      const { syntax } = await until(
+        "syntax colors for the Python results",
+        (state) => state.syntax?.lines.some((line) => line.path.endsWith(".py")) === true,
+      );
+      const python = syntax?.lines.find((line) => line.path.endsWith(".py") && line.text.includes("self."));
+      assert.ok(python, JSON.stringify(syntax?.lines.map((line) => line.path)));
+      const styles = python.tokens.filter((_, index) => index % 2 === 1);
+      assert.ok(new Set(styles).size > 1, `more than one color on ${python.text}: ${JSON.stringify(python.tokens)}`);
+      assert.ok(
+        styles.every((style) => /^#[\da-f]{6,8}$/i.test(syntax?.colors[style % 512] ?? "#000000")),
+        "every style a theme color",
+      );
+    },
+  ],
+  [
     "Restart Search restarts the daemon and search keeps working",
     async () => {
       // @covers command:restartDaemon

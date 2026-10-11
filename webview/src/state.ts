@@ -90,6 +90,9 @@ const DEFAULT_UI_SETTINGS: UiSettings = {
   wholeWord: false,
   order: "best",
   contextLines: 0,
+  renderWhitespace: "selection",
+  tabSize: 4,
+  fontLigatures: '"liga" off, "calt" off',
 };
 
 /** The state of a panel that has just opened: an empty box and no results. */

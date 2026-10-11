@@ -48,6 +48,9 @@ const TEST_UI_SETTINGS: UiSettings = {
   wholeWord: false,
   order: "best",
   contextLines: 0,
+  renderWhitespace: "selection",
+  tabSize: 4,
+  fontLigatures: '"liga" off, "calt" off',
 };
 
 /** What search/start answers in the scripted backends: no results. */

@@ -29,6 +29,7 @@ import type {
   PinnedQuery,
   ResultItem,
   Root,
+  SyntaxLinesMessage,
   WelcomeChooseMessage as WelcomeChoice,
   WelcomeStateMessage as WelcomeState,
 } from "./protocol.gen";
@@ -49,6 +50,8 @@ import {
   watchNotify,
   welcomeSettings,
 } from "./settings";
+import type { SyntaxPosts } from "./syntaxLines";
+import { codeColors } from "./syntaxSource";
 import { UnseenWatches } from "./watches";
 import { messageGuard, parseWebviewMessage, type WebviewMessage } from "./webviewMessages";
 import { WELCOMED_KEY, WelcomePanel } from "./welcomePanel";
@@ -99,7 +102,10 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi {
       if (open) openedStatus.hide();
     },
   );
-  const ui = createUi({ panel, daemon, documents, openedStatus, globalState: context.globalState, logError });
+  const syntax = codeColors(context.extensionPath, panel, () => {
+    if (panel.isOpen) controller.settingsChanged();
+  });
+  const ui = createUi({ panel, daemon, documents, openedStatus, globalState: context.globalState, logError, syntax });
   const unseen = new UnseenWatches(context.workspaceState.get<unknown>(UNSEEN_KEY), (list) => {
     context.workspaceState.update(UNSEEN_KEY, list.length > 0 ? list : undefined).then(undefined, logError("watches"));
   });
@@ -119,6 +125,7 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi {
 
   context.subscriptions.push(
     log,
+    syntax,
     panel,
     help,
     welcome,
@@ -126,7 +133,7 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi {
     vscode.workspace.registerTextDocumentContentProvider(CommitDocuments.scheme, documents.commits),
     vscode.workspace.registerTextDocumentContentProvider(RevisionDocuments.scheme, documents.revisions),
     createStatusBar(daemon),
-    ...registerCommands(daemon, controller, panel, help),
+    ...registerCommands({ daemon, controller, panel, help, syntax }),
     vscode.commands.registerCommand("spelunk.showWelcome", () => {
       welcome.show();
     }),
@@ -364,7 +371,7 @@ function controllerOptions(): ControllerOptions {
     pinnedQueries: () => pinnedQueries(configuration()),
     closeOnOpen: () => closeOnOpen(configuration()),
     previewContextLines: () => previewContextLines(configuration()),
-    uiSettings: () => uiSettings(configuration()),
+    uiSettings: () => uiSettings(configuration(), vscode.workspace.getConfiguration("editor")),
     openFiles: openEditorFiles,
     watchNotify: () => watchNotify(configuration()),
   };
@@ -392,13 +399,15 @@ interface UiParts {
   openedStatus: vscode.StatusBarItem;
   globalState: vscode.Memento;
   logError: (source: string) => (error: unknown) => void;
+  syntax: { posts: SyntaxPosts };
 }
 
 /** The controller's view of VS Code. */
-function createUi({ panel, daemon, documents, openedStatus, globalState, logError }: UiParts): Ui {
+function createUi({ panel, daemon, documents, openedStatus, globalState, logError, syntax }: UiParts): Ui {
   return {
     post: (type, payload) => {
       panel.post(type, payload);
+      syntax.posts.posted(type, payload);
     },
     openTarget: (target, where, preview, item) => openTarget({ target, where, preview, item }, documents),
     hidePanel: () => {
@@ -532,13 +541,17 @@ function forwardDaemonEventsToPanel(daemon: Daemon, panel: SearchPanel): void {
   });
 }
 
+/** What the commands act on. */
+interface CommandTargets {
+  daemon: Daemon;
+  controller: SearchController;
+  panel: SearchPanel;
+  help: HelpPanel;
+  syntax: { posts: SyntaxPosts };
+}
+
 /** One handler per command declared in package.json. */
-function registerCommands(
-  daemon: Daemon,
-  controller: SearchController,
-  panel: SearchPanel,
-  help: HelpPanel,
-): vscode.Disposable[] {
+function registerCommands({ daemon, controller, panel, help, syntax }: CommandTargets): vscode.Disposable[] {
   const commands: Record<string, (argument?: unknown) => unknown> = {
     "spelunk.open": (argument) => {
       panel.show();
@@ -554,7 +567,7 @@ function registerCommands(
   };
   // Test builds only: lets end-to-end tests read what the panel and editor show, and act as the panel.
   if (process.env["SPELUNK_TEST"]) {
-    commands["spelunk._testState"] = () => testState(daemon, controller, panel);
+    commands["spelunk._testState"] = () => ({ ...testState(daemon, controller, panel), syntax: syntax.posts.last });
     commands["spelunk._testPanelMessage"] = async (raw) => {
       const message = parseWebviewMessage(raw);
       if (!message) throw new Error(`not a panel message: ${JSON.stringify(raw)}`);
@@ -578,6 +591,8 @@ export interface TestState {
   /** The active editor's document (its URI's scheme and path) and selection, 1-based; undefined without an editor. */
   editor:
     { scheme: string; path: string; line: number; column: number; endLine: number; endColumn: number } | undefined;
+  /** The syntax colors posted to the panel last. */
+  syntax?: SyntaxLinesMessage | undefined;
 }
 
 function testState(daemon: Daemon, controller: SearchController, panel: SearchPanel): TestState {

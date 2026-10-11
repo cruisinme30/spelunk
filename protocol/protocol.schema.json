@@ -2058,6 +2058,18 @@
         },
         "contextLines": {
           "type": "integer"
+        },
+        "renderWhitespace": {
+          "description": "Which whitespace the preview marks, as editor.renderWhitespace names it; spelunk.ui.renderWhitespace, or editor.renderWhitespace when that is \"editor\".",
+          "enum": ["none", "boundary", "selection", "trailing", "all"]
+        },
+        "tabSize": {
+          "description": "How many spaces wide a tab draws: editor.tabSize.",
+          "type": "integer"
+        },
+        "fontLigatures": {
+          "description": "The CSS font-feature-settings for code, from editor.fontLigatures.",
+          "type": "string"
         }
       },
       "required": [
@@ -2068,7 +2080,10 @@
         "caseSensitive",
         "wholeWord",
         "order",
-        "contextLines"
+        "contextLines",
+        "renderWhitespace",
+        "tabSize",
+        "fontLigatures"
       ]
     },
     "ReplacePlanMessage": {
@@ -2114,6 +2129,48 @@
         }
       },
       "required": ["seq", "replaced", "files", "skipped"]
+    },
+    "SyntaxLine": {
+      "description": "SyntaxLine is how the color theme colors one line of a file: tokens holds a pair of numbers per token, its start (a UTF-16 offset into text) and its style, which runs to the next token's start. A style is a color's index into the colors of its SyntaxLinesMessage, plus 512 times the token's font style (1 italic, 2 bold, 4 underline, 8 strikethrough); index 0 leaves the text its usual color.",
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        },
+        "tokens": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          }
+        }
+      },
+      "required": ["path", "text", "tokens"]
+    },
+    "SyntaxLinesMessage": {
+      "description": "SyntaxLinesMessage colors lines of code the panel shows, by their file and text. reset drops every coloring sent before, as when the color theme changes.",
+      "type": "object",
+      "properties": {
+        "colors": {
+          "description": "The theme's colors, as CSS colors, by index; index 0 is unused.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "lines": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SyntaxLine"
+          }
+        },
+        "reset": {
+          "type": "boolean"
+        }
+      },
+      "required": ["colors", "lines"]
     },
     "BannerMessage": {
       "description": "BannerMessage reports daemon health: restarting, stopped or cleared.",
@@ -2336,6 +2393,10 @@
     "banner": {
       "direction": "host->webview",
       "payload": "BannerMessage"
+    },
+    "syntax.lines": {
+      "direction": "host->webview",
+      "payload": "SyntaxLinesMessage"
     },
     "focus": {
       "direction": "host->webview",

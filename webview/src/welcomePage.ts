@@ -292,28 +292,13 @@ function redrawRepoRows(): boolean {
   return rows !== undefined && rows !== null;
 }
 onHostMessage((message) => {
-  switch (message.type) {
-    case "welcome.state": {
-      state.settings = message.payload;
-      break;
-    }
-    case "index.status": {
-      state.repos = message.payload.repos;
-      if (redrawRepoRows()) return;
-      break;
-    }
-    case "banner":
-    case "focus":
-    case "parse.result":
-    case "preview.result":
-    case "replace.done":
-    case "replace.plan":
-    case "search.batch":
-    case "search.done":
-    case "state.restore":
-    case "watch.state": {
-      return; // the search panel's messages
-    }
+  if (message.type === "welcome.state") {
+    state.settings = message.payload;
+  } else if (message.type === "index.status") {
+    state.repos = message.payload.repos;
+    if (redrawRepoRows()) return;
+  } else {
+    return; // the search panel's messages
   }
   if (root) renderKeepingFocus(root);
 });

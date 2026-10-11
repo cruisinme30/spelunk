@@ -56,8 +56,10 @@ words:
   - katex
   - gosec
   - mailmap
+  - onig
   - nilerr
   - nolint
+  - oniguruma
   - oneline
   - quicktype
   - quotepath

@@ -50,3 +50,4 @@ covered.
 | 40 | `struct:` finds code by its shape: a template's holes take any code, over lines | `structural-search` | `Structural` | 1.2 |
 | 41 | `at:` searches the files as they were at a tag, branch, commit or time | `past-revision` | `PastRevision` | 1.2 |
 | 42 | `owner:` keeps the files a team owns in CODEOWNERS | `owner-filter` | `OwnerFilter` | 1.2 |
+| 43 | Syntax colors and whitespace: code in the theme's colors, by VS Code's grammars | `syntax-colors` | `SyntaxColors` | 2.1 |
