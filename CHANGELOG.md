@@ -89,6 +89,9 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- A word left out with `-` or `NOT` left out the code lines of a file that has it, but not the file's name:
+  `-inputGrace file:daemon/` still listed `daemon/main.go`, which mentions it. Files whose text has a left-out word are
+  now left out too.
 - `is:changed` found nothing for the first seconds after VS Code opened, until the history was next brought up to
   date. It now knows the uncommitted files as soon as the saved index loads.
 - C functions written after an attribute macro, as in Linux's `static __printf(2, 3) void dev_err(…)` or

@@ -233,6 +233,9 @@ type searcher struct {
 	excludedBy    map[string]bool
 	shownExcluded int
 	terms         termCache
+	// leftOut holds the text terms a NOT or - leaves out, found when file
+	// names first need them.
+	leftOut map[*query.Content]bool
 
 	// Best-match order (see rank.go): started is when the search began,
 	// rankTerms the text terms outside a NOT, literals each term's text by
@@ -436,12 +439,70 @@ func (s *searcher) forEachFileName(repos []Repo, countHidden bool, visit func(re
 func (s *searcher) fileNameMatches(repo *Repo, doc *Doc, countHidden bool) bool {
 	leaf := fileNameLeaf(repo, doc)
 	if query.Eval(s.plan.Pred, leaf) {
-		return true
+		if s.leftOut == nil {
+			s.leftOut = leftOutTerms(s.plan.Pred)
+		}
+		if len(s.leftOut) == 0 {
+			return true
+		}
+		// A word left out leaves out the files whose text has it, as it
+		// leaves out their code lines, not only those whose name has it.
+		leaf = s.withLeftOutText(doc, leaf)
+		if query.Eval(s.plan.Pred, leaf) {
+			return true
+		}
 	}
 	if countHidden {
 		s.countHidden(repo, doc, leaf, func([]*query.Content) int { return 1 })
 	}
 	return false
+}
+
+// withLeftOutText extends leaf, which judges a file by its name, so that a
+// term the query leaves out also holds when the file's text has it.
+func (s *searcher) withLeftOutText(doc *Doc, leaf func(query.Pred) bool) func(query.Pred) bool {
+	var matcher *lineMatcher
+	return func(p query.Pred) bool {
+		c, ok := p.(*query.Content)
+		if !ok || !s.leftOut[c] {
+			return leaf(p)
+		}
+		if leaf(p) {
+			return true
+		}
+		if matcher == nil {
+			matcher = newFileMatcher(doc, s.terms)
+			matcher.stop = s.stopped
+		}
+		return len(matcher.matches(c)) > 0
+	}
+}
+
+// leftOutTerms finds the text terms that a NOT or - leaves out: those under
+// an odd number of them.
+func leftOutTerms(p query.Pred) map[*query.Content]bool {
+	found := map[*query.Content]bool{}
+	var visit func(p query.Pred, negated bool)
+	visit = func(p query.Pred, negated bool) {
+		switch p := p.(type) {
+		case *query.And:
+			for _, kid := range p.Kids {
+				visit(kid, negated)
+			}
+		case *query.Or:
+			for _, kid := range p.Kids {
+				visit(kid, negated)
+			}
+		case *query.Not:
+			visit(p.Kid, !negated)
+		case *query.Content:
+			if negated {
+				found[p] = true
+			}
+		}
+	}
+	visit(p, false)
+	return found
 }
 
 // fileNameLeaf evaluates a leaf against a file's path: text terms match
