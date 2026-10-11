@@ -31,6 +31,7 @@ ignorePaths:
   - daemon/bin/**
   - daemon/internal/query/testdata/**
   - testdata/workspace/*/**
+  - testdata/notebooks/*/**
 words:
   # Names
   - cruisinme
@@ -42,6 +43,7 @@ words:
   - Gitea
   - SourceHut
   - cacheinfo
+  - cachetextconv
   - chromium
   - contentvisibilityautostatechange
   - codegen
@@ -58,8 +60,10 @@ words:
   - golangci
   - gpgsign
   - katex
+  - kernelspec
   - gosec
   - mailmap
+  - nbformat
   - onig
   - nilerr
   - nolint
@@ -70,6 +74,7 @@ words:
   - Rakefile
   - ripgrep
   - smol
+  - textconv
   - trimpath
   - typealias
   - Zoekt
