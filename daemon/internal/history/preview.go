@@ -31,13 +31,14 @@ func Preview(ctx context.Context, repo *Repo, ref Ref, plan *query.Plan, context
 	if err != nil {
 		return protocol.Preview{}, err
 	}
-	args := slices.Concat([]string{"show", "--format=", "--relative", "-m", "--first-parent"}, diffOptions,
+	args := slices.Concat(notebookDiffOptions(), []string{"show", "--format=", "--relative", "-m", "--first-parent"}, diffOptions,
 		[]string{"-U" + strconv.Itoa(max(contextLines, 0)), ref.SHA, "--"})
 	out, err := git(ctx, repo.Root, args...)
 	if err != nil {
 		return protocol.Preview{}, ErrStale
 	}
 	hunks, files := parseShow(out)
+	markNotebookCells(ctx, repo.Root, ref.SHA, hunks)
 	var terms []*query.Content
 	marked := map[string]bool{"add": true, "del": true} // the kinds of line whose terms are marked
 	if plan != nil {

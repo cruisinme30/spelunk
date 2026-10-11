@@ -179,7 +179,7 @@ func countCommits(ctx context.Context, root, revisions string, opts Options) int
 // "old..HEAD") newest first, limited to root's folder and to the window
 // opts sets, calling each for every commit read.
 func readLog(ctx context.Context, root, revisions string, opts Options, each func(Commit) error) error {
-	args := slices.Concat(gitOptions, []string{
+	args := slices.Concat(gitOptions, notebookDiffOptions(), []string{
 		"-C", root, "log", "--first-parent", "-m", "--relative", "-p", "-U0", "--use-mailmap", "--format=" + logFormat,
 	}, diffOptions)
 	if !opts.Since.IsZero() {

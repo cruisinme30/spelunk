@@ -6,6 +6,9 @@
 //
 //	spelunk-daemon            serve JSON-RPC on stdin/stdout
 //	spelunk-daemon --version  print the version and exit
+//	spelunk-daemon notebook-text <file>
+//	                          print a notebook's cells' source: Git's textconv
+//	                          filter for notebooks in history searches
 //
 // Environment, for tests and debugging:
 //
@@ -24,11 +27,15 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/cruisinme30/spelunk/daemon/internal/history"
 	"github.com/cruisinme30/spelunk/daemon/internal/rpc"
 	"github.com/cruisinme30/spelunk/daemon/internal/server"
 )
 
 func main() {
+	if history.ServeNotebookText(os.Args, os.Stdout) {
+		return // Git, diffing a notebook for a history search
+	}
 	if len(os.Args) > 1 && os.Args[1] == "--version" {
 		fmt.Println(server.DaemonVersion)
 		return
