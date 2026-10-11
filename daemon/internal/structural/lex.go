@@ -122,6 +122,9 @@ type lexer struct {
 	tokens []token
 	// gap means a space or a comment came after the last token.
 	gap bool
+	// places, when set, collects the comments and strings read instead of
+	// the tokens (see Places).
+	places *[]Place
 }
 
 // lex reads text into tokens. Comments and spaces become nothing; they
@@ -180,6 +183,10 @@ func (l *lexer) next() {
 }
 
 func (l *lexer) emit(k kind, start, end, line int) {
+	if l.places != nil { // only reading where comments and strings are
+		l.gap = false
+		return
+	}
 	l.tokens = append(l.tokens, token{kind: k, start: start, end: end, line: line, joined: !l.gap && len(l.tokens) > 0})
 	l.gap = false
 }
@@ -203,6 +210,7 @@ func (l *lexer) comment() bool {
 		} else {
 			end += len(pair[0]) + len(pair[1])
 		}
+		l.place(Comment, l.pos, l.pos+end)
 		l.skip(end)
 		return true
 	}
@@ -217,6 +225,7 @@ func (l *lexer) comment() bool {
 		if end < 0 {
 			end = len(rest)
 		}
+		l.place(Comment, l.pos, l.pos+end)
 		l.pos += end
 		return true
 	}
@@ -385,6 +394,7 @@ func cppRawEnd(text []byte, at int) int {
 
 // emitString emits a string token from start to end and moves past it.
 func (l *lexer) emitString(start, end int) {
+	l.place(String, start, end)
 	line := l.line
 	l.line += bytes.Count(l.text[l.pos:end], []byte("\n"))
 	l.pos = end
