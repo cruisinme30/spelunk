@@ -56,6 +56,9 @@ flowchart LR
 A keystroke travels webview → extension → RPC server → planner → one engine, and results stream back the same way in
 batches. The indexer is the only writer to the index directory.
 
+The same binary is also the `spelunk` command and the MCP server AI agents run (see "The spelunk command and agents").
+Neither builds or saves an index: they ask a window's daemon over its socket, or a read-only background reader.
+
 ### Who owns what
 
 | Component | Owns | Must never |
@@ -281,6 +284,11 @@ framing. There is no network port. The host spawns one daemon per VS Code window
 | `watch/matched` | notification, daemon → host | `{ query, repoId, repoName, total, commits: { sha, subject, author }[] }` | — |
 | `index/rebuild` | request | `{ repoId? }` | `{}` |
 | `shutdown` / `exit` | request / notification | `{}` | `{}` / — |
+| `share/hello` | request, guests only | `{}` | `{ daemonVersion, protocol, reader, location, repos: RepoStatus[] }` |
+| `share/open` | request, the reader only | `{ path }` | `RepoStatus` of the root that holds `path`, once loaded |
+
+`search/start` also takes `roots`, `timeLimitMs` and `count`, which the spelunk command and agents send to search one
+root under their own limits. `RepoStatus` also carries `root`, `savedAt`, `reread` and `writer`.
 
 `search/start` re-parses `text` itself rather than accepting an AST, so the daemon never trusts a parse it did not make.
 Results stream as `search/batch` notifications of up to 200 items; the request's response marks the end.
@@ -485,18 +493,50 @@ current file; results carry their file's owners, the facets count them, and a pr
 ### Storage layout
 
 ```text
-~/.spelunk/index/
-  manifest.json              schema version, known repos
-  <repoId>/
-    lock                     held by the daemon that writes this repo
-    state.json               lastIndexedSha, last full build, status
-    tree/*.zoekt             working-tree shards
-    history.sqlite           commits, changes, FTS tables, file_touch
+~/.spelunk/
+  index/                     spelunk.index.location
+    tree/<hash>.shard        a root's working-tree index, saved atomically (write, sync, rename)
+    history/<hash>.history   its history index, saved the same way
+    locks/<hash>.lock        held, with an OS file lock, by the daemon that writes the root
+  run/                       owner-only (0700): the sockets of the spelunk command and agents
+    w-<pid>.sock             a window that shares (spelunk.agent.shareWindow)
+    reader.sock, reader.log  the command's background reader
+  cli.json                   the window's index settings, for the reader
 ```
 
-Two VS Code windows on the same repo share one index. The first daemon to take `lock` writes; the others open the index
-read-only and reload when `state.json` changes. A `manifest.json` schema version mismatch triggers a rebuild rather than
-a migration.
+`<hash>` is the first 16 hex digits of the SHA-256 of the root's path. A saved index of another format version is
+rebuilt rather than migrated.
+
+Two VS Code windows on the same repo share one index. The first daemon to take a root's lock writes it: it builds,
+reads history and saves. The others follow it: they serve the saved indexes, load newer saves at each commit check,
+re-read files the editor saves into their own overlay, read new commits into memory without saving them, and take the
+lock when the writer's window closes (the operating system releases it, even after a crash). A lock that can't be made
+at all, as in an unwritable location, leaves the daemon writing, as before locks existed.
+
+## The spelunk command and agents
+
+The daemon binary is also the `spelunk` command (`internal/cli`), run as `spelunk` or with a subcommand: `search`,
+`status`, `help`, `mcp` and `mcp add claude`. It never builds or saves an index; it asks a daemon that has one.
+
+1. **A window that shares.** With `spelunk.agent.shareWindow` on, a window's daemon listens on `run/w-<pid>.sock`.
+   The command asks every such socket with `share/hello` and uses the window with the innermost root that holds the
+   folder. Results are live: they include what the editor saved a moment ago.
+2. **The background reader.** Otherwise it connects to `run/reader.sock`, starting `spelunk-daemon reader` detached
+   if nothing listens there, with the settings the extension recorded in `cli.json`. `share/open` loads the saved
+   index of the folder's root (the nearest folder with a saved index, else the nearest Git repo). The reader's indexer
+   is read-only: it never takes a lock. Before each search it re-reads files whose modification time differs from the
+   saved index's, at most every five seconds, and it exits after ten idle minutes.
+
+A guest connection gets `share/hello`, `share/open` (reader only), `index/status`, `query/parse`, `search/start` and
+`preview/get`; every other method is not found, so nothing a guest asks can build, save, replace or rebuild. A guest's
+search runs under `spelunk.agent.timeLimitMs` (30 s), since an agent can't tell a truncated answer to try again.
+
+`spelunk search` prints ripgrep's `path:line:text` (paths relative to the current folder), `--vimgrep` or JSON lines,
+a summary on standard error, and exits 0 when something matched, 1 when nothing did and 2 on an error. `spelunk mcp`
+serves the Model Context Protocol on standard input and output, through the official Go SDK, with four read-only tools:
+`spelunk_search`, `spelunk_syntax` (the query guide, generated from the operator table), `spelunk_preview` and
+`spelunk_status`. The extension lists that server for VS Code's agents through VS Code's MCP API when the editor has
+it (1.101 and later), and Spelunk: Add to Claude Code runs Claude Code's own `claude mcp add`.
 
 ## Contract 5: settings, commands and keybindings
 
@@ -504,7 +544,8 @@ Everything users configure is declared in `package.json`, so VS Code provides th
 sync and per-workspace overrides. The extension builds no settings screen of its own.
 
 **Settings** (`contributes.configuration`), in one section each, so the Settings UI lists them as Shortcut, Search,
-Results, Opening results, Indexing, Display and Watches. A key belongs to the section its name starts with.
+Results, Opening results, Indexing, Display, Watches, Links and Agents and terminal. A key belongs to the section its
+name starts with.
 
 | Section | Key | Type | Default | Scope |
 | --- | --- | --- | --- | --- |
@@ -534,6 +575,9 @@ Results, Opening results, Indexing, Display and Watches. A key belongs to the se
 | Display | `spelunk.ui.previewContextLines` | integer, 0–100 | `7` | resource |
 | Display | `spelunk.ui.pinnedQueries` | `{ query, name?, watch? }[]` | `[]` | window |
 | Watches | `spelunk.watch.notify` | boolean | `true` | window |
+| Agents and terminal | `spelunk.agent.shareWindow` | boolean | `true` | machine |
+| Agents and terminal | `spelunk.agent.offerToCopilot` | boolean | `true` | machine |
+| Agents and terminal | `spelunk.agent.timeLimitMs` | integer, 1000–600000 | `30000` | machine |
 
 `resource` settings can differ per repo through `.vscode/settings.json`. `machine` settings never sync, because index
 paths differ between computers.
@@ -552,6 +596,8 @@ or when the value appears (a value already under the new key wins).
 | `spelunk.showWelcome` | Spelunk: Show Welcome | Mock 15; runs on first activation |
 | `spelunk.nextResult` / `prevResult` | Next / Previous Result | Steps through the last result list without reopening the panel |
 | `spelunk.rebuildIndex` | Spelunk: Rebuild Index | Asks which repo, or all |
+| `spelunk.installCommand` | Spelunk: Install 'spelunk' Command in PATH | Copies the daemon binary to `~/.local/bin/spelunk` (Windows: `%LOCALAPPDATA%\Programs\Spelunk`); refreshed after updates |
+| `spelunk.addToClaudeCode` | Spelunk: Add to Claude Code | Asks, installs the command, runs `claude mcp add`, offers a note in `CLAUDE.md`. Mock 56 |
 
 **Keybindings** (`contributes.keybindings`)
 

@@ -279,6 +279,7 @@ func callText(t *testing.T, session *mcp.ClientSession, name string, args map[st
 }
 
 func TestAgentsSearchThroughMCP(t *testing.T) {
+	// @covers screen:agent-access
 	f := newFixture(t, true)
 	session := f.mcpSession(t, f.root)
 	tools, err := session.ListTools(context.Background(), nil)

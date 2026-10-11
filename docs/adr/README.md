@@ -12,3 +12,4 @@ Start from [template.md](template.md) (a short form of [MADR](https://adr.github
 | [0004](0004-in-house-history-index.md) | The history index reuses the trigram package instead of SQLite FTS5 | Accepted |
 | [0005](0005-vscode-grammar-engine-for-syntax-colors.md) | Code is colored by VS Code's grammar engine, in the extension host | Accepted |
 | [0006](0006-search-notebooks-by-their-cells.md) | Jupyter notebooks are searched by their cells, and diffed through a textconv filter | Accepted |
+| [0007](0007-agents-search-through-the-daemon.md) | Agents and the terminal search through the daemon, over MCP with the official SDK | Accepted |
