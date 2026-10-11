@@ -190,8 +190,8 @@ func TestPreviewOfAMergeWithMergedBranchesShowsItsResolution(t *testing.T) {
 		t.Errorf("the merge's preview = files %+v, lines %q; want client.py resolved with %q", preview.Files, lines, want)
 	}
 	octopus, err := Preview(context.Background(), repo, Ref{RepoID: "r", SHA: r.git("rev-parse", "HEAD")}, nil, 0)
-	if err != nil || len(octopus.Files) != 0 {
-		t.Errorf("the octopus merge's preview = %+v, %v; want no files", octopus.Files, err)
+	if err != nil || len(octopus.Files) != 0 || octopus.Parents != 4 {
+		t.Errorf("the octopus merge's preview = %+v with %d parents, %v; want no files and 4 parents", octopus.Files, octopus.Parents, err)
 	}
 }
 

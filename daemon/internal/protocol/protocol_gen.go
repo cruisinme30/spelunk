@@ -793,6 +793,7 @@ type Preview struct {
 	Hunks        []Hunk          `json:"hunks,omitempty"`
 	SubjectHits  []Range         `json:"subjectHits,omitempty"`
 	BodyHits     []Range         `json:"bodyHits,omitempty"`
+	Parents      int             `json:"parents,omitempty"`
 }
 
 // Preview kinds: the values of Preview.Kind.
@@ -861,6 +862,9 @@ func (v Preview) MarshalJSON() ([]byte, error) {
 			fields["bodyHits"] = []Range{}
 		} else {
 			fields["bodyHits"] = v.BodyHits
+		}
+		if v.Parents != 0 {
+			fields["parents"] = v.Parents
 		}
 	}
 	return json.Marshal(fields)

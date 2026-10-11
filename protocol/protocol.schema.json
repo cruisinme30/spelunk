@@ -1197,6 +1197,10 @@
               "items": {
                 "$ref": "#/$defs/Range"
               }
+            },
+            "parents": {
+              "description": "How many parents the commit has: 2 or more for a merge; absent for 1.",
+              "type": "integer"
             }
           },
           "required": ["kind", "sha", "subject", "body", "author", "at", "files", "hunks", "subjectHits", "bodyHits"]

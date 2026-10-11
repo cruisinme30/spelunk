@@ -464,6 +464,8 @@ export type Preview =
       hunks: Hunk[];
       subjectHits: Range[];
       bodyHits: Range[];
+      /** How many parents the commit has: 2 or more for a merge; absent for 1. */
+      parents?: number;
     };
 
 /** Facet counts a search's results by one field, biggest bucket first, for the buttons that narrow the results. */
