@@ -326,3 +326,21 @@ func TestClaudeAddArgsUseClaudeCodesOwnCommand(t *testing.T) {
 		t.Errorf("claude %s", got)
 	}
 }
+
+func TestALineInsideADefinitionNamesIt(t *testing.T) {
+	item := protocol.ResultItem{Kind: protocol.ResultItemKindLine, Path: "u.py", Line: 8, Text: "p = Policy()",
+		Within: &protocol.Within{Name: "build", Kind: protocol.SymbolKindFunction, Line: 7}}
+	got, err := json.Marshal(toResult("r", &item))
+	if want := `"within":{"kind":"function","name":"build","line":7}`; err != nil || !strings.Contains(string(got), want) {
+		t.Errorf("result = %s (%v), want it to hold %s", got, err, want)
+	}
+}
+
+func TestAgentsSeeTheDefinitionALineIsIn(t *testing.T) {
+	session := &Session{Repo: protocol.RepoStatus{Name: "r", Root: "/r"}}
+	results := []Result{{Type: "line", Path: "u.py", Line: 8, Text: "p = Policy()", Ref: "x", Within: &Within{Kind: "function", Name: "build", Line: 7}}}
+	got := searchText(session, results, &Summary{Total: 1, Shown: 1}, time.Now())
+	if want := "u.py:8:p = Policy()  [in function build]  [ref x]\n"; !strings.Contains(got, want) {
+		t.Errorf("searchText = %q, want a line %q", got, want)
+	}
+}

@@ -26,20 +26,30 @@ const (
 // Result is a search result as the command and agents see it: a stable,
 // documented shape, with no internal references.
 type Result struct {
-	Type    string `json:"type"` // file, line, symbol or commit
-	Repo    string `json:"repo"`
-	Path    string `json:"path,omitempty"` // relative to the root
-	Line    int    `json:"line,omitempty"`
-	Column  int    `json:"column,omitempty"` // 1-based, in bytes
-	Text    string `json:"text,omitempty"`
-	Kind    string `json:"kind,omitempty"` // a symbol's kind
-	Name    string `json:"name,omitempty"` // a symbol's name
-	SHA     string `json:"sha,omitempty"`
-	Date    string `json:"date,omitempty"` // a commit's date, YYYY-MM-DD
-	Author  string `json:"author,omitempty"`
-	Subject string `json:"subject,omitempty"`
+	Type   string `json:"type"` // file, line, symbol or commit
+	Repo   string `json:"repo"`
+	Path   string `json:"path,omitempty"` // relative to the root
+	Line   int    `json:"line,omitempty"`
+	Column int    `json:"column,omitempty"` // 1-based, in bytes
+	Text   string `json:"text,omitempty"`
+	Kind   string `json:"kind,omitempty"` // a symbol's kind
+	Name   string `json:"name,omitempty"` // a symbol's name
+	// Within is, for a line found inside the definitions a query asked
+	// for (kind:function ref:Parse), the definition that holds it.
+	Within  *Within `json:"within,omitempty"`
+	SHA     string  `json:"sha,omitempty"`
+	Date    string  `json:"date,omitempty"` // a commit's date, YYYY-MM-DD
+	Author  string  `json:"author,omitempty"`
+	Subject string  `json:"subject,omitempty"`
 	// Ref names the result for a preview (the MCP preview tool).
 	Ref string `json:"ref,omitempty"`
+}
+
+// Within is the definition a line result sits in.
+type Within struct {
+	Kind string `json:"kind"`
+	Name string `json:"name"`
+	Line int    `json:"line"` // its first line
 }
 
 // Summary ends a search's output: totals and where the answer came from.
@@ -66,6 +76,9 @@ func toResult(repo string, item *protocol.ResultItem) Result {
 			result.Column = byteColumn(item.Text, item.Hits[0].Start)
 		}
 		result.Ref = item.Ref
+		if in := item.Within; in != nil {
+			result.Within = &Within{Kind: in.Kind, Name: in.Name, Line: in.Line}
+		}
 	case protocol.ResultItemKindSymbol:
 		result.Kind, result.Name, result.Ref = item.SymbolKind, item.Name, item.Ref
 	case protocol.ResultItemKindCommit:

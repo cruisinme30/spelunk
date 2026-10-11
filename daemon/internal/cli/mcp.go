@@ -158,14 +158,19 @@ func textResult(text string, isError bool) *mcp.CallToolResult {
 }
 
 // searchText is a search's answer for an agent: a summary line, then one
-// line per result with its ref, paths relative to the repo's root.
+// line per result with its ref, paths relative to the repo's root, and
+// for a line inside the definitions the query asked for, the one it is in.
 func searchText(session *Session, results []Result, summary *Summary, now time.Time) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "Repo %s (%s): %s\n", session.Repo.Name, session.Repo.Root, summaryLine(summary, now))
 	for i := range results {
 		var line strings.Builder
 		_ = printResults(&line, FormatText, results[i:i+1], session.Repo.Root, session.Repo.Root)
-		fmt.Fprintf(&b, "%s  [ref %s]\n", strings.TrimRight(line.String(), "\n"), results[i].Ref)
+		text := strings.TrimRight(line.String(), "\n")
+		if in := results[i].Within; in != nil {
+			text += fmt.Sprintf("  [in %s %s]", in.Kind, in.Name)
+		}
+		fmt.Fprintf(&b, "%s  [ref %s]\n", text, results[i].Ref)
 	}
 	if summary.Total == 0 {
 		b.WriteString("No results. Check the query with spelunk_syntax, or widen it.\n")
