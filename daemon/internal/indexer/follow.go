@@ -42,7 +42,7 @@ func (ix *Indexer) follow(ctx context.Context) {
 			continue
 		}
 		// Decoding a large index takes a while: no lock held meanwhile.
-		saved := loadSaved(location, codeownersFiles, job.root, newTree, newHistory)
+		saved := loadSaved(ctx, location, codeownersFiles, job.root, newTree, newHistory)
 		ix.applyFollowed(job, saved, newTree, newHistory)
 	}
 }

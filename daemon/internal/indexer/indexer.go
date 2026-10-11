@@ -292,15 +292,15 @@ func (ix *Indexer) savedIndexes(roots []protocol.Root) map[string]savedIndex {
 	ix.mu.Unlock()
 	saved := map[string]savedIndex{}
 	for _, root := range fresh {
-		saved[root.ID] = loadSaved(location, codeownersFiles, root, true, true)
+		saved[root.ID] = loadSaved(ix.life, location, codeownersFiles, root, true, true)
 	}
 	return saved
 }
 
 // loadSaved reads the saved working-tree index (when wantTree is set) and
 // the saved history (when wantHistory is set) of root, with when each was
-// saved.
-func loadSaved(location string, codeownersFiles []string, root protocol.Root, wantTree, wantHistory bool) savedIndex {
+// saved. ctx bounds asking Git for the uncommitted files.
+func loadSaved(ctx context.Context, location string, codeownersFiles []string, root protocol.Root, wantTree, wantHistory bool) savedIndex {
 	var index savedIndex
 	if wantTree {
 		path := shardPath(location, root)
@@ -317,7 +317,10 @@ func loadSaved(location string, codeownersFiles []string, root protocol.Root, wa
 		path := historyPath(location, root)
 		index.historyTime = modTime(path)
 		if store, err := history.Load(path); err == nil {
-			index.history = store
+			// A saved store holds no uncommitted files; ask Git now, so
+			// is:changed is right from the first search, not only after
+			// the history is next brought up to date.
+			index.history = store.WithDirty(history.UncommittedPaths(ctx, root.Path))
 		}
 	}
 	return index

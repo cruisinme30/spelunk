@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cruisinme30/spelunk/daemon/internal/history"
 	"github.com/cruisinme30/spelunk/daemon/internal/protocol"
 	"github.com/cruisinme30/spelunk/daemon/internal/testutil"
 )
@@ -292,5 +293,27 @@ func eventually(t *testing.T, what string, done func() bool) {
 			t.Fatalf("never: %s", what)
 		}
 		time.Sleep(20 * time.Millisecond)
+	}
+}
+
+func TestASavedHistoryKnowsTheUncommittedFilesAtOnce(t *testing.T) {
+	root := testutil.WriteTree(t, map[string]string{"main.go": "package main\n"})
+	gitInit(t, root)
+	location := t.TempDir()
+	rootInfo := protocol.Root{ID: "r1", Path: root, Name: "r"}
+	store, err := history.Ingest(context.Background(), root, history.Options{}, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Dir(historyPath(location, rootInfo)), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Save(historyPath(location, rootInfo)); err != nil {
+		t.Fatal(err)
+	}
+	testutil.WriteFiles(t, root, map[string]string{"main.go": "package main // edited\n"})
+	saved := loadSaved(context.Background(), location, nil, rootInfo, false, true)
+	if saved.history == nil || !saved.history.Dirty("main.go") {
+		t.Fatalf("a loaded history says main.go has no uncommitted change; is:changed would find nothing until the next update")
 	}
 }

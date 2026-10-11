@@ -89,6 +89,8 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- `is:changed` found nothing for the first seconds after VS Code opened, until the history was next brought up to
+  date. It now knows the uncommitted files as soon as the saved index loads.
 - C functions written after an attribute macro, as in Linux's `static __printf(2, 3) void dev_err(…)` or
   `__alloc_size(1) void *kmalloc(…)`, were found under the macro's name. They are now found under their own:
   in the Linux kernel, 836 more functions answer to their names. Saved indexes are rebuilt once.
