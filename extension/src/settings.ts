@@ -17,6 +17,7 @@ export interface ConfigReader {
 const DEFAULTS = {
   caseSensitive: "off",
   wholeWord: false,
+  match: "exact",
   defaultCount: 500,
   typingDelayMs: 120,
   openTrigger: "doubleClick",
@@ -78,6 +79,8 @@ export const MAX_CONTEXT_LINES = 3;
 /** The index.historyDepth values. */
 export const HISTORY_DEPTHS: readonly Settings["historyDepth"][] = ["6m", "2y", "all"];
 const OPEN_TRIGGERS: readonly UiSettings["openTrigger"][] = ["doubleClick", "singleClick"];
+/** The search.match values. */
+const MATCH_SETTINGS: readonly NonNullable<Settings["match"]>[] = ["exact", "fuzzy"];
 /** The results.order values; file and recent run their usual way (A to Z, newest first) without a direction. */
 export const ORDERS: readonly UiSettings["order"][] = [
   "best",
@@ -199,6 +202,7 @@ export function daemonSettings(config: ConfigReader, home: string): Settings {
   return {
     caseSensitive: caseSetting(read("search.caseSensitive", DEFAULTS.caseSensitive)),
     wholeWord: boolean(read("search.wholeWord", DEFAULTS.wholeWord), DEFAULTS.wholeWord),
+    match: oneOf(read("search.match", DEFAULTS.match), MATCH_SETTINGS, DEFAULTS.match),
     defaultCount: clamp(read("results.count", DEFAULTS.defaultCount), 1, MAX_DEFAULT_COUNT, DEFAULTS.defaultCount),
     historyDepth: oneOf(read("index.historyDepth", DEFAULTS.historyDepth), HISTORY_DEPTHS, DEFAULTS.historyDepth),
     symbols: boolean(read("index.symbols", DEFAULTS.symbols), DEFAULTS.symbols),

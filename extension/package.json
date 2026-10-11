@@ -583,6 +583,20 @@
             "scope": "window",
             "description": "Match whole words by default, so retry doesn't match retryCount. A word: operator in the query always wins."
           },
+          "spelunk.search.match": {
+            "type": "string",
+            "enum": [
+              "exact",
+              "fuzzy"
+            ],
+            "enumDescriptions": [
+              "A word matches its exact text only.",
+              "A word also finds file names that have its letters in order, as Quick Open does: rtrypol finds retry_policy.py."
+            ],
+            "default": "exact",
+            "scope": "window",
+            "description": "How a word matches file names by default. A match: in the query always wins. Lines of code always match exactly."
+          },
           "spelunk.search.useExcludeSettings": {
             "type": "boolean",
             "default": true,

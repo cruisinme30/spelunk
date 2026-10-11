@@ -143,6 +143,16 @@ test("the index location expands ~ and ~/ (or ~ and a backslash), and a path not
   assert.match(problem("relative/idx") ?? "", /"relative\/idx" is not an absolute path or one starting with ~/);
 });
 
+/** The daemon's match setting for these spelunk.* settings. */
+const matchSetting = (settings: Record<string, unknown>) => daemonSettings(configWith(settings), "/home/u").match;
+
+test("search.match is exact or fuzzy, exact by default", () => {
+  // @covers setting:search.match
+  assert.equal(matchSetting({}), "exact");
+  assert.equal(matchSetting({ "search.match": "fuzzy" }), "fuzzy");
+  assert.equal(matchSetting({ "search.match": "loose" }), "exact", "an unknown value: the default");
+});
+
 test("search.caseSensitive is off, on or smart", () => {
   // @covers setting:search.caseSensitive
   for (const value of ["off", "on", "smart"]) {
@@ -186,6 +196,7 @@ test("settings of the wrong type or out of range fall back to defaults the daemo
   const wrong = configWith({
     "search.caseSensitive": "yes",
     "search.wholeWord": 1,
+    "search.match": true,
     "results.count": "lots",
     "index.symbols": 1,
     "index.exclude": "**/dist/**",
@@ -205,6 +216,7 @@ test("settings of the wrong type or out of range fall back to defaults the daemo
   assert.deepEqual(daemonSettings(wrong, "/home/u"), {
     caseSensitive: "off",
     wholeWord: false,
+    match: "exact",
     defaultCount: 500,
     historyDepth: "2y",
     symbols: true,
