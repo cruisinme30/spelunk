@@ -295,6 +295,8 @@ export type ResultItem =
       holes?: HoleValue[];
       /** For a result in a Jupyter notebook: the cell it is in, and its line there. line counts lines of the notebook's text, each cell's source in turn. */
       cell?: CellPlace;
+      /** For a use found inside a definition (kind:, symbol: or a word with ref:, content:, struct: or a regex across lines): the innermost definition the query kept that holds the line. */
+      within?: Within;
       /** The lines just above the match, top first, when the contextLines setting asks for them; fewer near the start of the file. */
       contextBefore?: string[];
       /** The lines just below the match (below endLine when it spans lines), when the contextLines setting asks for them; fewer near the end of the file. */
@@ -334,6 +336,14 @@ export type ResultItem =
       /** The first body line a text term matched, sent when the subject has no match. */
       bodyLine?: MessageLine;
     };
+
+/** Within is the definition a code result sits in: its name and kind. */
+export interface Within {
+  name: string;
+  kind: SymbolKind;
+  /** The definition's first line. */
+  line: number;
+}
 
 /** CellPlace is where a line of a Jupyter notebook's text is: the cell, 1-based, and the line in it, 1-based. An output line (index.notebookOutputs) names the cell that printed it. */
 export interface CellPlace {

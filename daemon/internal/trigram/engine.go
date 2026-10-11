@@ -169,6 +169,8 @@ func Search(ctx context.Context, plan *query.Plan, repos []Repo, planID int, emi
 	}
 	if len(plan.Terms) > 0 { // a code line needs a text term to match
 		switch {
+		case plan.InDefinitions:
+			s.addUses(repos)
 		case plan.Kinds[query.KindLine]:
 			s.addCodeLines(repos)
 		case onlyFiles && plan.TypeFilter != nil:
@@ -554,28 +556,41 @@ func (s *searcher) addCodeLines(repos []Repo) {
 			s.countHidden(c.repo, c.doc, leaf, func(terms []*query.Content) int { return len(matcher.lines(terms)) })
 			return
 		}
-		var starts []int // the file's line starts, found when a result first needs context
-		owners := c.repo.ownersOf(c.doc.Path)
+		lines := codeLines{searcher: s, c: c, owners: c.repo.ownersOf(c.doc.Path)}
 		for _, line := range matcher.lines(query.Contributing(s.plan.Pred, leaf)) {
-			item := s.lineResult(c.repo, c.doc, line)
-			item.RankReason, item.Owners = c.rank.reason, owners
-			// Only results on the page carry context; the rest are only counted.
-			if s.plan.ContextLines > 0 && s.plan.OnPage(s.counted) {
-				if starts == nil {
-					starts = lineStarts(c.doc.Content)
-				}
-				item.ContextBefore, item.ContextAfter = contextAround(c.doc.Content, starts, line.number, line.last(), s.plan.ContextLines)
-				if c.doc.Cells != nil {
-					item.ContextBefore, item.ContextAfter = trimToCell(c.doc.Cells, line.number, line.last(), item.ContextBefore, item.ContextAfter)
-				}
-			}
-			quality := 0
-			if s.holding {
-				quality = s.lineQuality(line)
-			}
-			s.add(c.repo, c.doc, item, c.rank.score, quality)
+			lines.add(line, nil)
 		}
 	})
+}
+
+// codeLines adds the code results of one file.
+type codeLines struct {
+	*searcher
+	c      rankedCandidate
+	owners []string
+	starts []int // the file's line starts, found when a result first needs context
+}
+
+// add adds line as a code result, within the definition that holds it, if any.
+func (l *codeLines) add(line matchedLine, within *protocol.Within) {
+	s, c := l.searcher, l.c
+	item := s.lineResult(c.repo, c.doc, line)
+	item.RankReason, item.Owners, item.Within = c.rank.reason, l.owners, within
+	// Only results on the page carry context; the rest are only counted.
+	if s.plan.ContextLines > 0 && s.plan.OnPage(s.counted) {
+		if l.starts == nil {
+			l.starts = lineStarts(c.doc.Content)
+		}
+		item.ContextBefore, item.ContextAfter = contextAround(c.doc.Content, l.starts, line.number, line.last(), s.plan.ContextLines)
+		if c.doc.Cells != nil {
+			item.ContextBefore, item.ContextAfter = trimToCell(c.doc.Cells, line.number, line.last(), item.ContextBefore, item.ContextAfter)
+		}
+	}
+	quality := 0
+	if s.holding {
+		quality = s.lineQuality(line)
+	}
+	s.add(c.repo, c.doc, item, c.rank.score, quality)
 }
 
 // addSymbols adds a result for each definition whose name sym: and the
@@ -583,24 +598,10 @@ func (s *searcher) addCodeLines(repos []Repo) {
 // the rest of the query (the "Definitions" section), and credits a
 // definition that only one filter removed to that filter.
 func (s *searcher) addSymbols(repos []Repo) {
-	s.forEachCandidate(repos, func(c rankedCandidate, _ *lineMatcher, leaf func(query.Pred) bool) {
+	s.forEachCandidate(repos, func(c rankedCandidate, matcher *lineMatcher, leaf func(query.Pred) bool) {
 		for j := range c.doc.Symbols {
 			symbol := &c.doc.Symbols[j]
-			symbolLeaf := func(p query.Pred) bool {
-				switch p := p.(type) {
-				case *query.Symbol:
-					return p.Re.MatchString(symbol.Name)
-				case *query.Kind:
-					return symbol.Kind == p.Name
-				case *query.Content:
-					if namesDefinitions(p) {
-						return p.MatchString(symbol.Name)
-					}
-					return leaf(p)
-				default:
-					return leaf(p)
-				}
-			}
+			symbolLeaf := definitionLeaf(symbol, matcher, leaf)
 			if query.Eval(s.plan.Pred, symbolLeaf) {
 				item := s.symbolResult(c.repo, c.doc, symbol)
 				item.RankReason = c.rank.reason
@@ -629,7 +630,7 @@ func (s *searcher) symbolResult(repo *Repo, doc *Doc, symbol *symbols.Symbol) pr
 			highlight(sym.Re.FindAllStringIndex(symbol.Name, -1))
 		})
 		query.VisitPositive(kid, func(term *query.Content) {
-			if namesDefinitions(term) {
+			if !term.MatchesBody() {
 				highlight(term.FindAllStringIndex(symbol.Name, -1))
 			}
 		})
@@ -647,12 +648,127 @@ func (s *searcher) symbolResult(repo *Repo, doc *Doc, symbol *symbols.Symbol) pr
 	}
 }
 
-// namesDefinitions reports whether term, in a query that returns
-// definitions, matches their names: a word or regex does, so
-// kind:function parse finds the functions named for parsing; content:,
-// ref:, struct: and a regex across lines match the file's text instead.
-func namesDefinitions(term *query.Content) bool {
-	return !term.ContentOnly && !term.Reference && term.Structural == nil && !term.Multiline
+// definitionLeaf evaluates a leaf for one of a file's definitions: sym:,
+// kind: and a word against its name, a term that matches text (see
+// query.Content.MatchesBody) against the lines of its body, and anything
+// else against the file, as leaf does.
+func definitionLeaf(symbol *symbols.Symbol, matcher *lineMatcher, leaf func(query.Pred) bool) func(query.Pred) bool {
+	return func(p query.Pred) bool {
+		switch p := p.(type) {
+		case *query.Symbol:
+			return p.Re.MatchString(symbol.Name)
+		case *query.Kind:
+			return symbol.Kind == p.Name
+		case *query.Content:
+			if p.MatchesBody() {
+				return len(inBody(matcher.matches(p), symbol)) > 0
+			}
+			return p.MatchString(symbol.Name)
+		default:
+			return leaf(p)
+		}
+	}
+}
+
+// inBody keeps the lines, in line order, whose match starts in symbol's
+// body: from its first line to its last.
+func inBody(lines []matchedLine, symbol *symbols.Symbol) []matchedLine {
+	var kept []matchedLine
+	for _, line := range lines {
+		if line.number >= symbol.Line && line.number <= symbol.End {
+			kept = append(kept, line)
+		}
+	}
+	return kept
+}
+
+// bodyTerms keeps the terms that match a definition's body.
+func bodyTerms(terms []*query.Content) []*query.Content {
+	var kept []*query.Content
+	for _, term := range terms {
+		if term.MatchesBody() {
+			kept = append(kept, term)
+		}
+	}
+	return kept
+}
+
+// addUses adds the results of a query whose definitions hold the matches
+// of a term on text (Plan.InDefinitions), as kind:function ref:Parse is:
+// each line that term matches inside a definition the query keeps, as a
+// code result naming the innermost such definition. The lines it matches
+// outside them, in a file the query's filters keep, are credited to kind:.
+func (s *searcher) addUses(repos []Repo) {
+	kindFilter := -1
+	for _, f := range s.plan.Filters {
+		if f.Reason == "kind" {
+			kindFilter = f.Index
+		}
+	}
+	s.forEachCandidate(repos, func(c rankedCandidate, matcher *lineMatcher, leaf func(query.Pred) bool) {
+		fileLeaf := fileLevelLeaf(leaf)
+		if !query.Eval(s.plan.Pred, fileLeaf) {
+			s.countHidden(c.repo, c.doc, fileLeaf, func(terms []*query.Content) int { return len(matcher.lines(bodyTerms(terms))) })
+			return
+		}
+		found, within := s.usesInDefinitions(c.doc, matcher, leaf)
+		lines := codeLines{searcher: s, c: c, owners: c.repo.ownersOf(c.doc.Path)}
+		for _, line := range found {
+			holder := within[line.number]
+			lines.add(line, &protocol.Within{Name: holder.Name, Kind: holder.Kind, Line: holder.Line})
+		}
+		if kindFilter >= 0 {
+			var terms []*query.Content
+			query.VisitPositive(s.plan.Pred, func(term *query.Content) {
+				if term.MatchesBody() {
+					terms = append(terms, term)
+				}
+			})
+			s.hidden[kindFilter] += max(len(matcher.lines(terms))-len(found), 0)
+		}
+	})
+}
+
+// usesInDefinitions finds, in line order, the lines of doc that the query's
+// terms on text match inside the definitions it keeps, and for each line
+// the innermost of those definitions that holds it.
+func (s *searcher) usesInDefinitions(doc *Doc, matcher *lineMatcher, leaf func(query.Pred) bool) ([]matchedLine, map[int]*symbols.Symbol) {
+	within := map[int]*symbols.Symbol{}
+	var found []matchedLine
+	for j := range doc.Symbols {
+		symbol := &doc.Symbols[j]
+		symbolLeaf := definitionLeaf(symbol, matcher, leaf)
+		if !query.Eval(s.plan.Pred, symbolLeaf) {
+			continue
+		}
+		for _, line := range inBody(matcher.lines(bodyTerms(query.Contributing(s.plan.Pred, symbolLeaf))), symbol) {
+			holder, seen := within[line.number]
+			if !seen {
+				found = append(found, line)
+			}
+			if !seen || symbol.End-symbol.Line < holder.End-holder.Line {
+				within[line.number] = symbol
+			}
+		}
+	}
+	slices.SortFunc(found, func(a, b matchedLine) int { return a.number - b.number })
+	return found, within
+}
+
+// fileLevelLeaf evaluates leaves for a whole file in a query on
+// definitions: what decides which definitions count (sym:, kind: and a
+// word on their names) holds, and everything else asks leaf.
+func fileLevelLeaf(leaf func(query.Pred) bool) func(query.Pred) bool {
+	return func(p query.Pred) bool {
+		switch p := p.(type) {
+		case *query.Symbol, *query.Kind:
+			return true
+		case *query.Content:
+			return !p.MatchesBody() || leaf(p)
+		default:
+			return leaf(p)
+		}
+	}
 }
 
 // lineOf returns line number (1-based) of content, without its line end.

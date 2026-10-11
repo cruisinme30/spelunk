@@ -464,6 +464,7 @@ type ResultItem struct {
 	EndLine       int           `json:"endLine,omitempty"`
 	Holes         []HoleValue   `json:"holes,omitempty"`
 	Cell          *CellPlace    `json:"cell,omitempty"`
+	Within        *Within       `json:"within,omitempty"`
 	ContextBefore []string      `json:"contextBefore,omitempty"`
 	ContextAfter  []string      `json:"contextAfter,omitempty"`
 	Name          string        `json:"name,omitempty"`
@@ -555,6 +556,9 @@ func (v ResultItem) MarshalJSON() ([]byte, error) {
 		if v.Cell != nil {
 			fields["cell"] = v.Cell
 		}
+		if v.Within != nil {
+			fields["within"] = v.Within
+		}
 		if len(v.ContextBefore) > 0 {
 			fields["contextBefore"] = v.ContextBefore
 		}
@@ -614,6 +618,14 @@ func (v ResultItem) MarshalJSON() ([]byte, error) {
 		}
 	}
 	return json.Marshal(fields)
+}
+
+// Within is the definition a code result sits in: its name and kind.
+type Within struct {
+	Name string     `json:"name"`
+	Kind SymbolKind `json:"kind"`
+	// Line is the definition's first line.
+	Line int `json:"line"`
 }
 
 // CellPlace is where a line of a Jupyter notebook's text is: the cell, 1-based, and the line in it, 1-based. An output line (index.notebookOutputs) names the cell that printed it.

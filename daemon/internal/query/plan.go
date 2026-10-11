@@ -47,6 +47,11 @@ const (
 type Plan struct {
 	Mode  protocol.Mode
 	Kinds map[ResultKind]bool
+	// InDefinitions is set when a query that names definitions (sym:,
+	// kind:) also has a term that matches text (see Content.MatchesBody):
+	// the results are then that term's code lines inside the definitions
+	// the rest of the query keeps, each with the definition it is in.
+	InDefinitions bool
 	// Pred is always an *And whose Kids are the top-level conjuncts
 	// (case:, word:, count:, type: and order: shape the plan and have no predicate).
 	Pred          *And
@@ -285,6 +290,34 @@ func joinPreds(kind string, kids []Pred) string {
 func (p *And) String() string { return joinPreds("and", p.Kids) }
 func (p *Or) String() string  { return joinPreds("or", p.Kids) }
 func (p *Not) String() string { return "not(" + p.Kid.String() + ")" }
+
+// MatchesBody reports whether the term, in a query that names definitions,
+// matches the lines of a definition's body rather than its name: content:,
+// ref:, struct: and a regex across lines do, so kind:function ref:Parse
+// finds the uses of Parse inside functions; a word or a one-line regex
+// matches the definition's name, so kind:function parse finds the
+// functions named for parsing.
+func (p *Content) MatchesBody() bool {
+	return p.ContentOnly || p.Reference || p.Structural != nil || p.Multiline
+}
+
+// lookInsideDefinitions makes a query on definitions with a term that
+// matches their bodies (kind:function ref:Parse) ask for that term's code
+// lines inside them (see InDefinitions).
+func (p *Plan) lookInsideDefinitions() {
+	if p.Kinds[KindSymbol] && hasBodyTerm(p.Pred) {
+		p.Kinds, p.InDefinitions = map[ResultKind]bool{KindLine: true}, true
+	}
+}
+
+// hasBodyTerm reports whether p has a term, outside NOT, that matches a
+// definition's body.
+func hasBodyTerm(p Pred) bool {
+	found := false
+	VisitPositive(p, func(term *Content) { found = found || term.MatchesBody() })
+	return found
+}
+
 func (p *Content) String() string {
 	if p.Structural != nil {
 		return fmt.Sprintf("struct#%d:%q", p.TermIndex, p.Structural)
@@ -379,6 +412,7 @@ func NewPlan(q protocol.ParsedQuery, settings protocol.Settings, now time.Time, 
 		plan.CaseFilter = &Filter{Reason: "case", Index: -1, Text: "case:smart", Undo: insertFix("Ignore case", 0, "case:no ")}
 	}
 	plan.SymbolFilter = symbolFilter(q.Root, src)
+	plan.lookInsideDefinitions()
 	plan.addExcludes(q, settings, src)
 	plan.addMatchFilter(q)
 	return plan, append(historyScanWarnings(plan), emptyWindowWarnings(q.Root, src, now)...), nil

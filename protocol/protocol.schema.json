@@ -728,6 +728,10 @@
               "description": "For a result in a Jupyter notebook: the cell it is in, and its line there. line counts lines of the notebook's text, each cell's source in turn.",
               "$ref": "#/$defs/CellPlace"
             },
+            "within": {
+              "description": "For a use found inside a definition (kind:, symbol: or a word with ref:, content:, struct: or a regex across lines): the innermost definition the query kept that holds the line.",
+              "$ref": "#/$defs/Within"
+            },
             "contextBefore": {
               "description": "The lines just above the match, top first, when the contextLines setting asks for them; fewer near the start of the file.",
               "type": "array",
@@ -863,6 +867,23 @@
           ]
         }
       ]
+    },
+    "Within": {
+      "description": "Within is the definition a code result sits in: its name and kind.",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/SymbolKind"
+        },
+        "line": {
+          "description": "The definition's first line.",
+          "type": "integer"
+        }
+      },
+      "required": ["name", "kind", "line"]
     },
     "CellPlace": {
       "description": "CellPlace is where a line of a Jupyter notebook's text is: the cell, 1-based, and the line in it, 1-based. An output line (index.notebookOutputs) names the cell that printed it.",
