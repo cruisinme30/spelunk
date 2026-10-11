@@ -247,7 +247,7 @@ Jason Kim and Marta Ruiz, and one uncommitted edit:
 | 22 | `timeout lang:` | [other-values.png](proof/other-values.png) |
 | 23 | `author:jane retry` | [words-in-messages.png](proof/words-in-messages.png) |
 | 24 | `retry` | [ranked-results.png](proof/ranked-results.png) |
-| 25 | `retry order:path` | [path-order.png](proof/path-order.png) |
+| 25 | `retry order:file` | [path-order.png](proof/path-order.png) |
 | 26 | `retry is:test` | [test-files.png](proof/test-files.png) |
 | 27 | `author:jane is:test retry` | [test-history.png](proof/test-history.png) |
 | 28 | `word:yes retry` | [whole-words.png](proof/whole-words.png) |
@@ -615,7 +615,7 @@ hides commits that only change excluded files; Replace leaves them alone and cou
 Mock 54 (`recent-order`): the order name in each results heading is a menu of best match, path order and recently
 changed (`webview/src/render/order.ts`), with an arrow beside it for the direction: newest or oldest first, A to Z or
 Z to A, and greyed out for best match, which runs one way. A pick saves `spelunk.results.order`, which takes `best`,
-`path`, `path:desc`, `recent` and `recent:asc` (and `path:asc`, `recent:desc`), or rewrites an `order:` typed in the
+`file`, `file:desc`, `recent` and `recent:asc` (and `file:asc`, `recent:desc`), or rewrites an `order:` typed in the
 query, whose suggestions list each direction on its own. Recently changed sorts files by when they last changed (the
 save time of a file with uncommitted edits or outside Git, otherwise its newest commit), with no extra Git work per
 search: best match already looks the commit up. Ties go to best match, a file with no commit in the history window
