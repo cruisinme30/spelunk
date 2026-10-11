@@ -64,3 +64,4 @@ covered.
 | 59 | History through renames: a file's commits under every name it had, renames marked, and the name each file has now | `history-renames` | `HistoryRenamesMerges` | 2.1 |
 | 60 | Jupyter notebooks: searched by their cells, each result under its cell, opened at that cell | `notebook-cells` | `NotebookCells` | 2.1 |
 | 61 | Hover labels: rest the mouse on an icon and its name shows in a third of a second | `hover-labels` | `HoverLabels` | 2.1 |
+| 62 | Ask in plain words: a question ending in `?`, or the Ask button, becomes a query shown under the box, which runs | `ask-in-words` | `AskInWords` | 2.1 |
