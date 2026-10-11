@@ -21,7 +21,7 @@ import { diffSide, operatorNodes, textNodes, textTerms } from "../parsedQuery";
 import type { Fix, HiddenNote, ResultItem, SearchDoneMessage } from "../protocol.gen";
 import { menuContext, repoName, type ViewState } from "../state";
 import { ChunkedList } from "./chunkedList";
-import { excludesNote } from "./excludesNote";
+import { excludesNote, hiddenByExcludes } from "./excludesNote";
 import { demoted, ownerBadge, rankBadge, sinceBadge } from "./fileBadges";
 import { cellHeading } from "./notebook";
 import { orderLabel } from "./order";
@@ -646,6 +646,27 @@ function pathScopeNote(scope: string[]): HTMLElement {
     ...patterns,
     " are searched.",
   );
+}
+
+/** "3 file names · 5 code matches" or "4 commits in 3 repos": what `view` shows, once its search is `done`. */
+export function summaryText(
+  view: ResultsView | undefined,
+  history: boolean,
+  done: SearchDoneMessage | undefined,
+): string {
+  const counts = view?.counts();
+  const parts: string[] = [];
+  if (counts && history) {
+    parts.push(`${plural(counts.commit, "commit")} in ${plural(counts.repos, "repo")}`);
+  } else if (counts) {
+    if (counts.file) parts.push(plural(counts.file, "file name"));
+    if (counts.symbol) parts.push(plural(counts.symbol, "definition"));
+    if (counts.line) parts.push(plural(counts.line, "code match", "code matches"));
+  }
+  if (done && !view?.items.length) parts.push("0 results");
+  parts.push(...hiddenByExcludes(done));
+  if (done?.truncated) parts.push("truncated");
+  return parts.join(" · ");
 }
 
 /** Why each repo an at: search left out has no such revision: "v9 isn't a tag, branch or commit in web-checkout". */

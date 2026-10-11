@@ -4,7 +4,7 @@
 // The panel is a pure view: it never parses. Fix-its, completions, the Aa / ab / .*
 // toggles, the repo menu and the facet row all edit the query text, then send an
 // ordinary query.changed.
-import { element, plural, wrapIndex } from "./format";
+import { element, wrapIndex } from "./format";
 import { setBoxText } from "./boxText";
 import { type HostMessage, loadDraft, loadOutlineOpen, loadRecentWidth, onHostMessage, saveDraft, send } from "./host";
 import { EmptyBox } from "./emptyBox";
@@ -49,12 +49,11 @@ import {
   type ResultsGlimpse,
 } from "./render/completions";
 import { renderEmptyState } from "./render/emptyState";
-import { hiddenByExcludes } from "./render/excludesNote";
 import { renderFacets } from "./render/facets";
 import { applyRemoteHosts } from "./render/menuContext";
 import { RepoMenu } from "./render/repoMenu";
 import { previewOf, renderPreview } from "./render/preview";
-import { ResultsView } from "./render/results";
+import { ResultsView, summaryText } from "./render/results";
 import { ReplaceBox } from "./replace";
 import { ResultSelection } from "./resultSelection";
 import { createViewState, hasErrors, type ViewState } from "./state";
@@ -719,19 +718,7 @@ export class SearchPanel {
 
   /** "3 file names · 5 code matches" or "4 commits in 3 repos", beside the chips. */
   private renderSummary(): void {
-    const counts = this.results?.counts();
-    const parts: string[] = [];
-    if (counts && this.state.parsed?.mode === "history") {
-      parts.push(`${plural(counts.commit, "commit")} in ${plural(counts.repos, "repo")}`);
-    } else if (counts) {
-      if (counts.file) parts.push(plural(counts.file, "file name"));
-      if (counts.symbol) parts.push(plural(counts.symbol, "definition"));
-      if (counts.line) parts.push(plural(counts.line, "code match", "code matches"));
-    }
-    if (this.state.done && !this.results?.items.length) parts.push("0 results");
-    parts.push(...hiddenByExcludes(this.state.done));
-    if (this.state.done?.truncated) parts.push("truncated");
-    this.summary.textContent = parts.join(" · ");
+    this.summary.textContent = summaryText(this.results, this.state.parsed?.mode === "history", this.state.done);
   }
 }
 
