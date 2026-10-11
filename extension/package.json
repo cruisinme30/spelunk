@@ -1094,6 +1094,21 @@
             "default": "claude-opus-5-5",
             "markdownDescription": "The provider's model that writes the query. `claude-opus-5-5` is the default; `claude-haiku-4-5` answers faster and costs less."
           },
+          "spelunk.ask.effort": {
+            "type": "string",
+            "enum": [
+              "low",
+              "medium",
+              "high"
+            ],
+            "enumDescriptions": [
+              "Answers fastest and costs least: enough for most questions.",
+              "Thinks a little longer about the question.",
+              "Reads the question most carefully; slowest and costs the most."
+            ],
+            "default": "low",
+            "markdownDescription": "How long the model thinks before writing the query. Raise it when a question keeps becoming the wrong query. Claude 4.5 and older models ignore it."
+          },
           "spelunk.ask.shareNames": {
             "type": "boolean",
             "default": true,

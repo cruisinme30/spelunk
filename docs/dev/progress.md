@@ -859,8 +859,9 @@ query, the daemon's parser checks it (one repair when it doesn't parse), and the
 that says what was asked and what it was searched as, with the provider's one-line explanation and assumptions. The
 provider is Anthropic's Claude through the official SDK (`extension/src/ask.ts`: the system prompt is the daemon's
 `query/guide` text, which the operator table writes, plus the Recipes examples and the shared repo and team names;
-structured JSON output; the system prompt cached); `spelunk.ask.provider`, `spelunk.ask.model` and
-`spelunk.ask.shareNames` set it up, and **Spelunk: Set Anthropic API Key** keeps the key in secret storage and turns
+structured JSON output; the system prompt cached); `spelunk.ask.provider`, `spelunk.ask.model`, `spelunk.ask.effort` (the
+request's `output_config.effort`, left out for Claude 4.5 and older, which reject it) and `spelunk.ask.shareNames` set
+it up, and **Spelunk: Set Anthropic API Key** keeps the key in secret storage and turns
 Ask on (`extension/src/askSetup.ts`). The panel's `ask` and `ask.setup` messages go through `AskRoute`
 (`extension/src/askRoute.ts`), which also fetches the CODEOWNERS teams from the `owner:` suggestions; the webview's
 `AskFlow` (`webview/src/askFlow.ts`) owns the question, the line (`render/asked.ts`) and Broaden. A test build takes a

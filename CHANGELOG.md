@@ -15,8 +15,8 @@ All notable changes to this project are documented here. The format follows
   query finds nothing, **Broaden** asks for one looser query. The provider is Anthropic's Claude (`spelunk.ask.provider`,
   off by default; **Spelunk: Set Anthropic API Key** keeps the key in VS Code's secret storage and turns Ask on); only
   the question, the repo names and the CODEOWNERS team names go to it (`spelunk.ask.shareNames` sends the question
-  alone), never your code. The daemon's parser checks every query it writes, and a query that doesn't parse goes back
-  once for a repair.
+  alone), never your code. `spelunk.ask.model` picks the model and `spelunk.ask.effort` how long it thinks. The
+  daemon's parser checks every query it writes, and a query that doesn't parse goes back once for a repair.
 - **History follows files through renames.** `file:retry_policy.py` finds a file's commits under every name it had,
   each saying what the file is called now, and marks the commits that renamed it. A commit that only moved a file no
   longer counts every line as added, so `type:added` finds the commit that wrote a line. A search at an old release

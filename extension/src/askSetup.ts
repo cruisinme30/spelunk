@@ -20,7 +20,7 @@ export async function askSetup(context: vscode.ExtensionContext): Promise<AskSet
   if (fake) return { kind: "ready", provider: fake };
   const apiKey = await context.secrets.get(ANTHROPIC_KEY_SECRET);
   if (!apiKey) return { kind: "noKey" };
-  return { kind: "ready", provider: anthropicProvider({ apiKey, model: settings.model }) };
+  return { kind: "ready", provider: anthropicProvider({ apiKey, model: settings.model, effort: settings.effort }) };
 }
 
 /**

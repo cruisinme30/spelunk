@@ -163,10 +163,14 @@ export function parseAnswer(text: string): AskAnswer {
 const PROVIDER_TIMEOUT_MS = 45_000;
 
 /** Anthropic's Claude as the provider, through the official SDK. */
-export function anthropicProvider(options: { apiKey: string; model: string }): AskProvider {
+export function anthropicProvider(options: {
+  apiKey: string;
+  model: string;
+  effort: "low" | "medium" | "high";
+}): AskProvider {
   const client = new Anthropic({ apiKey: options.apiKey, maxRetries: 1, timeout: PROVIDER_TIMEOUT_MS });
   // Effort steers how long the model thinks; Claude 4.5 and older models reject it.
-  const effort = /haiku-4-5|-4-5|-3-/.test(options.model) ? {} : { effort: "low" as const };
+  const effort = effortFor(options.model, options.effort);
   return {
     async translate(request, signal) {
       let response: Anthropic.Message;
@@ -189,6 +193,11 @@ export function anthropicProvider(options: { apiKey: string; model: string }): A
       return parseAnswer(text);
     },
   };
+}
+
+/** The effort to send for a model: none for Claude 4.5 and older, which reject the field. */
+export function effortFor(model: string, effort: "low" | "medium" | "high"): { effort?: "low" | "medium" | "high" } {
+  return /haiku-4-5|-4-5|-3-/.test(model) ? {} : { effort };
 }
 
 /** What went wrong with a call to Anthropic, in words the panel can show. */

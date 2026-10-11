@@ -65,6 +65,7 @@ const DEFAULTS = {
   includeGeneratedAndVendored: false,
   askProvider: "off",
   askModel: "claude-opus-5-5",
+  askEffort: "low",
   askShareNames: true,
 } as const;
 
@@ -299,11 +300,17 @@ export function uiSettings(config: ConfigReader, editor: ConfigReader = NOTHING_
 type AskProviderName = "off" | "anthropic";
 const ASK_PROVIDERS: readonly AskProviderName[] = ["off", "anthropic"];
 
+/** How hard the model thinks about a question (spelunk.ask.effort): the provider's effort levels. */
+export type AskEffort = "low" | "medium" | "high";
+const ASK_EFFORTS: readonly AskEffort[] = ["low", "medium", "high"];
+
 /** The spelunk.ask.* settings: asking in plain words. */
 export interface AskSettings {
   provider: AskProviderName;
   /** The provider's model, such as claude-opus-5-5. */
   model: string;
+  /** How long the model may think: low answers fastest, high reads the question most carefully. */
+  effort: AskEffort;
   /** Whether the question goes with the repo and owner team names, so the query can name them. */
   shareNames: boolean;
 }
@@ -314,6 +321,7 @@ export function askSettings(config: ConfigReader): AskSettings {
   return {
     provider: oneOf(config.get<unknown>("ask.provider", DEFAULTS.askProvider), ASK_PROVIDERS, DEFAULTS.askProvider),
     model: typeof model === "string" && model.trim() !== "" ? model.trim() : DEFAULTS.askModel,
+    effort: oneOf(config.get<unknown>("ask.effort", DEFAULTS.askEffort), ASK_EFFORTS, DEFAULTS.askEffort),
     shareNames: boolean(config.get<unknown>("ask.shareNames", DEFAULTS.askShareNames), DEFAULTS.askShareNames),
   };
 }

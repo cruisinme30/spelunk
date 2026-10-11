@@ -8,6 +8,7 @@ import {
   type AskProvider,
   type AskRequest,
   EXAMPLES,
+  effortFor,
   fakeProviderFromEnvironment,
   parseAnswer,
   systemPrompt,
@@ -179,6 +180,15 @@ test("a provider's answer is read out of whatever wraps it", () => {
   });
   assert.throws(() => parseAnswer("no json here"), /without a query/);
   assert.throws(() => parseAnswer('{"explanation":"e","assumptions":[]}'), /without a query/);
+});
+
+test("the effort setting goes to models that take it, and not to Claude 4.5 or older", () => {
+  // @covers setting:ask.effort
+  assert.deepEqual(effortFor("claude-opus-5-5", "high"), { effort: "high" });
+  assert.deepEqual(effortFor("claude-sonnet-5", "medium"), { effort: "medium" });
+  assert.deepEqual(effortFor("claude-haiku-4-5", "high"), {});
+  assert.deepEqual(effortFor("claude-sonnet-4-5-20250929", "low"), {});
+  assert.deepEqual(effortFor("claude-3-5-haiku-latest", "low"), {});
 });
 
 test("the fake provider of test builds answers from SPELUNK_ASK_FAKE, by question and by retry", async () => {

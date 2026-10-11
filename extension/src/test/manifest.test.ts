@@ -206,6 +206,7 @@ test("Ask has its own settings section, and Set Anthropic API Key is in the Comm
   assert.deepEqual(Object.keys(section?.properties ?? {}), [
     "spelunk.ask.provider",
     "spelunk.ask.model",
+    "spelunk.ask.effort",
     "spelunk.ask.shareNames",
   ]);
   const provider = section?.properties["spelunk.ask.provider"];

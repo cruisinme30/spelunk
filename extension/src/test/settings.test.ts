@@ -453,17 +453,24 @@ test("the editor navigation settings default to ⌘T on and Go to Definition off
   assert.deepEqual(navigationSettings(wrong), navigationSettings(configWith({})));
 });
 
-test("the ask settings: off by default, Anthropic with a model, and whether names go along", () => {
-  // @covers setting:ask.provider setting:ask.model setting:ask.shareNames
+test("the ask settings: off by default, Anthropic with a model and effort, and whether names go along", () => {
+  // @covers setting:ask.provider setting:ask.model setting:ask.effort setting:ask.shareNames
   const defaults = askSettings(configWith({}));
-  assert.deepEqual(defaults, { provider: "off", model: "claude-opus-5-5", shareNames: true });
+  assert.deepEqual(defaults, { provider: "off", model: "claude-opus-5-5", effort: "low", shareNames: true });
   assert.equal(uiSettings(configWith({})).askEnabled, false);
   const on = askSettings(
-    configWith({ "ask.provider": "anthropic", "ask.model": " claude-haiku-4-5 ", "ask.shareNames": false }),
+    configWith({
+      "ask.provider": "anthropic",
+      "ask.model": " claude-haiku-4-5 ",
+      "ask.effort": "high",
+      "ask.shareNames": false,
+    }),
   );
-  assert.deepEqual(on, { provider: "anthropic", model: "claude-haiku-4-5", shareNames: false });
+  assert.deepEqual(on, { provider: "anthropic", model: "claude-haiku-4-5", effort: "high", shareNames: false });
   assert.equal(uiSettings(configWith({ "ask.provider": "anthropic" })).askEnabled, true);
-  // A provider that isn't one, or a blank model, falls back to the default.
-  const wrong = askSettings(configWith({ "ask.provider": "openai", "ask.model": "", "ask.shareNames": "yes" }));
-  assert.deepEqual(wrong, { provider: "off", model: "claude-opus-5-5", shareNames: true });
+  // A provider or effort that isn't one, or a blank model, falls back to the default.
+  const wrong = askSettings(
+    configWith({ "ask.provider": "openai", "ask.model": "", "ask.effort": "max", "ask.shareNames": "yes" }),
+  );
+  assert.deepEqual(wrong, { provider: "off", model: "claude-opus-5-5", effort: "low", shareNames: true });
 });
