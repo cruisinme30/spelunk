@@ -7,6 +7,15 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- **History follows files through renames.** `file:retry_policy.py` finds a file's commits under every name it had,
+  each saying what the file is called now, and marks the commits that renamed it. A commit that only moved a file no
+  longer counts every line as added, so `type:added` finds the commit that wrote a line. A search at an old release
+  says a file was **renamed since**, with its name now, instead of deleted, and finds it by that name. A copy, or a file
+  rewritten by more than half, still starts its own history. Saved history is read again once.
+- **Search the commits on merged branches.** With `spelunk.index.mergedBranches` on (off by default), history also
+  reads the commits each merge brought in from another branch, under their own authors, marked with the merge and
+  dated by it for `since:` and `until:`, and shows a merge as only the lines it resolved a conflict with. Needs Git
+  2.36 or later; it takes longer to read and more memory on a repo with many merges.
 - **Uses inside definitions.** `kind:function ref:RetryPolicy` lists each line that uses `RetryPolicy` inside a
   function, each ending in the function it is in, instead of every function in a file that uses it; `content:`,
   `struct:` and a regex across lines work the same way, and `-ref:` leaves out the functions that use a name. The

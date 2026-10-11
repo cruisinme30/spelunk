@@ -146,7 +146,7 @@ bare     = 1*( any char except space, "(", ")", '"' ) ;
 | `type:` | `file`, `code`, `commit`, `added` or `removed` | Which result kinds are returned; `added` and `removed` search only that side of each commit's diff | Both |
 | `case:` | `yes`, `no` or `smart` (match case only when the query has a capital letter) | Case handling for every text match in the query | Both |
 | `count:` | Positive integer or `all` | Result limit | Both |
-| `at:` | A tag, branch or commit (`v1.0.0`, `main`, `3f9c2e1`, `HEAD~10`), or `until:`'s values for a time (the newest first-parent commit made by then); never `-`-led, `:`, `..` or a regex | Every repo's files as they were at that commit, read from `git ls-tree` and `git cat-file` into a shard kept for the next search (the two newest), with the index's exclude and size settings. Results carry the commit in their refs and say whether their file was `deleted` or `changed` since. A repo without the revision, or outside Git, is left out and says why | Working tree only |
+| `at:` | A tag, branch or commit (`v1.0.0`, `main`, `3f9c2e1`, `HEAD~10`), or `until:`'s values for a time (the newest first-parent commit made by then); never `-`-led, `:`, `..` or a regex | Every repo's files as they were at that commit, read from `git ls-tree` and `git cat-file` into a shard kept for the next search (the two newest), with the index's exclude and size settings, and which of them Git sees renamed since (`git diff --find-renames`). Results carry the commit in their refs and say whether their file was `deleted`, `changed` or `renamed` since, and `f:` matches a renamed file's name now too. A repo without the revision, or outside Git, is left out and says why | Working tree only |
 
 ### Rules the parser enforces
 
@@ -442,7 +442,9 @@ once at import and then updated incrementally, so searches never scan raw files.
    `index.symbols` is on. Run ctags as a separate process.
 3. **Record last-change times.** One pass over `git log --name-only` fills a `file_touch` table with each path's most
    recent commit time and SHA. This powers `since:` on current files.
-4. **Ingest history, newest first.** Stream `git log -p --first-parent` limited to `historyDepth`, writing in batches of
+4. **Ingest history, newest first.** Stream `git log -p --first-parent --find-renames` limited to `historyDepth` (with
+   `index.mergedBranches`, the commits that landed in that window in landed order, through `git log --no-walk=unsorted
+   --stdin --remerge-diff`), writing in batches of
    500 commits. Newest-first means recent history becomes searchable within seconds.
 5. **Publish.** Swap the new shard and database snapshot in atomically, then report `ready`.
 
@@ -463,7 +465,7 @@ CREATE INDEX commits_by_author ON commits(author_email);
 ```
 
 The trigram tokenizer narrows candidates; Go's RE2 then verifies each candidate line. Diffs for a single file over 1 MB,
-and merge commits other than their first-parent diff, are not stored.
+and merge commits other than their first-parent diff (or, with `index.mergedBranches`, their remerge diff), are not stored.
 
 ### Keeping it fresh
 
@@ -723,9 +725,13 @@ end of M1; any later change bumps the protocol version and updates the JSON Sche
 - **Daemon language.** Go is the default because Zoekt is a Go library and embeds directly. The history engine is the
   one piece that could be written in C++ instead, behind the `HistoryEngine` contract, at the cost of a second process
   and a second build toolchain.
-- **Renames in history.** v1 matches `f:` against each commit's path as it was then. Following renames (`git log
-  --follow`) works per file only, so it is left for later.
-- **Merge commits.** v1 indexes only first-parent diffs, so a change appears once, at the commit that introduced it on
-  the main line. Indexing every parent would triple the size of busy repos.
+- **Renames in history.** Decided (mock 59): history reads renames with `git log --find-renames`, a rename is one
+  change, and each changed file keeps its old path and its name now, carried forward as new commits rename it, so
+  `f:` matches any of the three. Copies aren't followed: Git finds a copy of an unchanged file only with
+  `--find-copies-harder`, 41 times slower on the Linux kernel's last 100 commits.
+- **Merge commits.** Decided (mock 59): first parents stay the default. `index.mergedBranches` also reads the commits
+  each merge brought in, right after it, dated by it, and each merge as its remerge diff (Git 2.36). Measured on the
+  Linux kernel's last 2 years, it isn't the size that grows (the merges' first-parent diffs already hold their
+  branches' lines once) but the commits: 30 times as many, read in 2.4 times the time with 3.4 times the memory.
 - **Mixed-mode OR.** v1 rejects queries like `author:jane OR f:x`. A later version could show commits and lines as two
   sections instead.
