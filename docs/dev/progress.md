@@ -686,3 +686,37 @@ these letters in order" with Show them, which adds `match:fuzzy` or turns `match
   `webview/test/webview.test.mjs`; the operator sheet and help list `match:`.
 - Built: `docs/dev/proof/fuzzy-file-names.png` (`match:fuzzy cfg`) and `docs/dev/proof/fuzzy-file-names-note.png`
   (`cfg`, exact, with the note), from `node scripts/screenshotPanel.mjs`.
+
+## Agents and the terminal (2.1)
+
+Mock 56 (`agent-access`): Claude Code, Copilot and a shell search with Spelunk. The daemon binary is also the
+`spelunk` command (`daemon/internal/cli`): `search` (ripgrep's lines, `--vimgrep` or JSON lines, exit 0/1/2),
+`status`, `help query` (the guide `query.Guide` writes from the operator table) and `mcp`, an MCP server with four
+read-only tools on the official MCP Go SDK ([ADR 0007](../adr/0007-agents-search-through-the-daemon.md)). It never
+writes an index: it asks a window that shares the folder (`spelunk.agent.shareWindow`) over its owner-only socket in
+`~/.spelunk/run`, where a guest gets only hello, status, parse, search and preview, or else a detached read-only
+reader that loads the saved index, re-reads files changed since it was saved, and exits after ten idle minutes. The
+per-repo lock the plan described is built: one daemon writes each repo, and another window on it follows its saves and
+takes over when it closes. The extension adds the Agents and terminal settings, Install 'spelunk' Command in PATH,
+Add to Claude Code with its `CLAUDE.md` note, Spelunk's MCP server for VS Code's agents (VS Code 1.101+), and
+`~/.spelunk/cli.json` for the reader.
+
+- Daemon: `daemon/internal/indexer/writelock_test.go` (a second indexer follows instead of writing and leaves the save
+  alone; loads newer saves; re-reads editor saves into its own overlay; takes over when the writer closes; a dropped
+  repo releases its lock; waits for a writer's first save; a read-only indexer writes nothing and leaves the lock to a
+  window; the sweep re-reads edited, added and deleted files and leaves out a binary the build left out),
+  `daemon/internal/server/share_test.go` (a guest searches the window's roots through its socket, in an owner-only
+  folder, without the editor seeing its batches; every changing method is not found; sharing off removes the socket;
+  the reader serves a saved index without writing and says when a folder has none; the agent time limit) and
+  `daemon/internal/cli/cli_test.go` (the window answers live; the reader starts, answers from the saved index and
+  re-reads an edit; exit codes; a folder with no index; `--json` and `--vimgrep`; status; help; options that leave
+  query words alone; the MCP tools listed read-only, search, preview, a query error and syntax), and
+  `daemon/internal/query/guide_test.go` (the guide's examples parse and plan; every operator is listed).
+- Host: `extension/src/test/commandInstall.test.ts` (where the command installs on each system and whether that is on
+  the PATH; install and the refresh after an update; Claude Code's own command; the `CLAUDE.md` note once; the
+  settings file, owner-only and not rewritten unchanged), and the agent settings in `settings.test.ts`.
+- Built: `docs/dev/proof/agent-access-terminal.png` (the command on the spelunk repo: code, definitions, commits, JSON,
+  a mistake and a folder with no index) and `docs/dev/proof/agent-access-claude.png` (the same question in headless
+  Claude Code with Sonnet: 63.3 s of `git log` without Spelunk, 8.7 s with it and the `CLAUDE.md` note, the same
+  commits, and Spelunk right that neither commit removed a line). Without the note, in three earlier tries, Claude
+  never called Spelunk.

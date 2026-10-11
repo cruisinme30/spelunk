@@ -99,6 +99,7 @@ words:
   - unpushed
   - webview
   - webviews
+  - writelock
 ignoreWords:
   # Deliberate misspellings: tests check the suggestions offered for them.
   - sinse
