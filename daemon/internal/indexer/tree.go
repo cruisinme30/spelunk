@@ -41,6 +41,9 @@ func (ix *Indexer) restart(id string) {
 	if r.cancelBuild != nil {
 		r.cancelBuild()
 	}
+	if r.lock == nil {
+		return // the writer rebuilds it, and this repo follows (see follow)
+	}
 	r.visible = true
 	r.state, r.message = protocol.IndexStateQueued, ""
 	ix.treeQueue.add(id)
@@ -50,7 +53,7 @@ func (ix *Indexer) restart(id string) {
 // how a large overlay is folded back into the shard. Callers hold mu.
 func (ix *Indexer) refresh(id string) {
 	r := ix.repos[id]
-	if r.cancelBuild == nil {
+	if r.lock != nil && r.cancelBuild == nil {
 		ix.treeQueue.add(id)
 	}
 }
@@ -74,6 +77,9 @@ func (ix *Indexer) nextBuild(ctx context.Context) (buildJob, bool) {
 	ix.mu.Lock()
 	defer ix.mu.Unlock()
 	id, r, ok := ix.popQueued(&ix.treeQueue)
+	for ok && r.lock == nil { // a follower: its writer builds it
+		id, r, ok = ix.popQueued(&ix.treeQueue)
+	}
 	if !ok {
 		return buildJob{}, false
 	}

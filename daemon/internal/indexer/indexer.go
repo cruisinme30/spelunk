@@ -45,6 +45,10 @@ type Indexer struct {
 	beforeBuild func(id string)
 	// onNewCommits hears of the commits each history update brings in.
 	onNewCommits func(repo history.Repo, commits []history.Commit)
+	// readOnly makes the indexer a reader of saved indexes: it never takes
+	// a repo's write lock, so it never builds a working-tree index, reads a
+	// whole history, or saves anything.
+	readOnly bool
 }
 
 // repo is one root's index state.
@@ -80,6 +84,15 @@ type repo struct {
 	// historyFull makes the next history job read everything again instead
 	// of only what changed.
 	historyFull bool
+
+	// lock makes this indexer the repo's only writer. It is nil when
+	// another daemon holds it, or the indexer is read-only: the repo then
+	// follows that daemon's saved indexes instead of building and saving
+	// its own (see follow).
+	lock *writeLock
+	// savedTree and savedHistory are when the saved indexes this repo last
+	// loaded were written, so a follower can load newer saves.
+	savedTree, savedHistory time.Time
 }
 
 // queue is a list of root IDs waiting for a worker, and a signal for it.
@@ -129,6 +142,17 @@ func New(settings protocol.Settings, notify func([]protocol.RepoStatus)) *Indexe
 	ix.workers.Add(2)
 	go ix.treeWork(ctx)
 	go ix.historyWork(ctx)
+	return ix
+}
+
+// NewReadOnly starts an indexer that only reads saved indexes, as the
+// spelunk command's background reader does: every repo follows the
+// daemon that writes it, and one that has never been indexed stays empty.
+func NewReadOnly(settings protocol.Settings, notify func([]protocol.RepoStatus)) *Indexer {
+	ix := New(settings, notify)
+	ix.mu.Lock()
+	ix.readOnly = true
+	ix.mu.Unlock()
 	return ix
 }
 
@@ -186,16 +210,52 @@ func (ix *Indexer) add(root protocol.Root, saved savedIndex) {
 	ix.repos[root.ID] = r
 	if saved.shard != nil {
 		r.shard, r.state, r.visible = saved.shard, protocol.IndexStateReady, false // refresh quietly
-		r.owners = saved.owners
+		r.owners, r.savedTree = saved.owners, saved.treeTime
 	}
 	if saved.history != nil {
 		// A history saved under another index.historyDepth or index.exclude
 		// serves searches until it is read again under these settings.
 		r.history, r.historyState = saved.history, protocol.IndexStateReady
 		r.historyFull = saved.history.Key != historyKey(ix.settings)
+		r.savedHistory = saved.historyTime
+	}
+	if !ix.readOnly {
+		r.lock, _ = tryLock(lockPath(ix.settings.Location, root)) // nil: another daemon writes it
+	}
+	if r.lock == nil {
+		ix.startFollowing(r)
+		return
 	}
 	ix.treeQueue.add(root.ID)
 	ix.historyQueue.add(root.ID)
+}
+
+// startFollowing sets up a repo another daemon writes, or that a
+// read-only indexer reads: it serves the saved indexes, and only waits
+// for them when there are none yet. Callers hold mu.
+func (ix *Indexer) startFollowing(r *repo) {
+	if r.shard == nil {
+		r.state, r.visible = protocol.IndexStateQueued, true
+		r.message = ix.followerWaiting()
+	}
+	switch {
+	case r.history == nil && !insideGit(r.root.Path):
+		r.historyState = protocol.IndexStateOff
+		r.historyMessage = notGitMessage
+	case r.history == nil:
+		r.historyState = protocol.IndexStateQueued
+	default:
+		// New commits are read into memory, never saved (see readHistory).
+		ix.historyQueue.add(r.root.ID)
+	}
+}
+
+// followerWaiting says why a follower has no index yet. Callers hold mu.
+func (ix *Indexer) followerWaiting() string {
+	if ix.readOnly {
+		return "Not indexed yet. Open this folder in VS Code with Spelunk to index it."
+	}
+	return "Another VS Code window is indexing this folder. Its results appear here when it saves them."
 }
 
 // savedIndex is what a previous session saved for a root.
@@ -203,6 +263,8 @@ type savedIndex struct {
 	shard   *trigram.Shard
 	owners  *codeowners.File // read from the repo itself, to go with shard
 	history *history.Store
+	// treeTime and historyTime are when shard and history were saved.
+	treeTime, historyTime time.Time
 	// problem says why a saved index couldn't be used, when it exists but
 	// is unreadable: it is rebuilt.
 	problem string
@@ -223,20 +285,44 @@ func (ix *Indexer) savedIndexes(roots []protocol.Root) map[string]savedIndex {
 	ix.mu.Unlock()
 	saved := map[string]savedIndex{}
 	for _, root := range fresh {
-		var index savedIndex
-		shard, err := trigram.Load(shardPath(location, root))
+		saved[root.ID] = loadSaved(location, codeownersFiles, root, true, true)
+	}
+	return saved
+}
+
+// loadSaved reads the saved working-tree index (when wantTree is set) and
+// the saved history (when wantHistory is set) of root, with when each was
+// saved.
+func loadSaved(location string, codeownersFiles []string, root protocol.Root, wantTree, wantHistory bool) savedIndex {
+	var index savedIndex
+	if wantTree {
+		path := shardPath(location, root)
+		index.treeTime = modTime(path)
+		shard, err := trigram.Load(path)
 		switch {
 		case err == nil:
 			index.shard, index.owners = shard, codeowners.Load(root.Path, codeownersFiles)
 		case !errors.Is(err, os.ErrNotExist) && !errors.Is(err, trigram.ErrStaleFormat):
 			index.problem = "The saved index couldn't be read, so it is being rebuilt."
 		}
-		if store, err := history.Load(historyPath(location, root)); err == nil {
+	}
+	if wantHistory {
+		path := historyPath(location, root)
+		index.historyTime = modTime(path)
+		if store, err := history.Load(path); err == nil {
 			index.history = store
 		}
-		saved[root.ID] = index
 	}
-	return saved
+	return index
+}
+
+// modTime is when the file at path was last written; zero if it is missing.
+func modTime(path string) time.Time {
+	info, err := os.Stat(path)
+	if err != nil {
+		return time.Time{}
+	}
+	return info.ModTime()
 }
 
 // SetSettings applies new settings, rebuilding every repo's working-tree
@@ -246,13 +332,10 @@ func (ix *Indexer) SetSettings(settings protocol.Settings) {
 	ix.mu.Lock()
 	old := ix.settings
 	ix.settings = settings
-	treeChanged := !slices.Equal(old.Exclude, settings.Exclude) || old.IncludeIgnored != settings.IncludeIgnored ||
-		old.MaxFileSizeKB != settings.MaxFileSizeKB || old.Location != settings.Location || old.Symbols != settings.Symbols ||
-		old.NotebookOutputs != settings.NotebookOutputs
-	historyChanged := old.HistoryDepth != settings.HistoryDepth || old.Location != settings.Location ||
-		!slices.Equal(old.Exclude, settings.Exclude)
-	// A rebuild reads CODEOWNERS again; without one, only the owners change.
-	ownersChanged := !treeChanged && !slices.Equal(old.CodeownersFiles, settings.CodeownersFiles)
+	treeChanged, historyChanged, ownersChanged := settingsChanges(old, settings)
+	if old.Location != settings.Location {
+		ix.relock()
+	}
 	for _, id := range ix.order {
 		if treeChanged {
 			ix.restart(id)
@@ -268,6 +351,19 @@ func (ix *Indexer) SetSettings(settings protocol.Settings) {
 	if treeChanged || historyChanged {
 		ix.publishStatus()
 	}
+}
+
+// settingsChanges says what new settings change: what the working-tree
+// index holds, what the history holds, or only who owns what (a rebuild
+// reads CODEOWNERS again, so owners alone change only without one).
+func settingsChanges(old, settings protocol.Settings) (tree, commits, owners bool) {
+	tree = !slices.Equal(old.Exclude, settings.Exclude) || old.IncludeIgnored != settings.IncludeIgnored ||
+		old.MaxFileSizeKB != settings.MaxFileSizeKB || old.Location != settings.Location || old.Symbols != settings.Symbols ||
+		old.NotebookOutputs != settings.NotebookOutputs
+	commits = old.HistoryDepth != settings.HistoryDepth || old.Location != settings.Location ||
+		!slices.Equal(old.Exclude, settings.Exclude)
+	owners = !tree && !slices.Equal(old.CodeownersFiles, settings.CodeownersFiles)
+	return tree, commits, owners
 }
 
 // reloadOwners reads every repo's CODEOWNERS file again from locations.
@@ -295,6 +391,10 @@ func (ix *Indexer) Rebuild(repoID string) error {
 	if repoID != "" && ix.repos[repoID] == nil {
 		ix.mu.Unlock()
 		return fmt.Errorf("no open repo %q", repoID)
+	}
+	if repoID != "" && ix.repos[repoID].lock == nil {
+		ix.mu.Unlock()
+		return ErrNotWriter
 	}
 	for _, id := range ix.order {
 		if repoID == "" || id == repoID {
@@ -380,6 +480,30 @@ func (ix *Indexer) Close(timeout time.Duration) {
 	case <-done:
 	case <-time.After(timeout):
 	}
+	// A build abandoned past the timeout may still save once; the next
+	// writer's build replaces it, as after a crash.
+	ix.mu.Lock()
+	defer ix.mu.Unlock()
+	for _, r := range ix.repos {
+		r.lock.release()
+		r.lock = nil
+	}
+}
+
+// ErrNotWriter is Rebuild's error for a repo another daemon writes.
+var ErrNotWriter = errors.New("another VS Code window keeps this folder's index, so rebuild it there")
+
+// relock moves every repo's write lock to the index location the settings
+// now name. Callers hold mu.
+func (ix *Indexer) relock() {
+	for _, id := range ix.order {
+		r := ix.repos[id]
+		r.lock.release()
+		r.lock = nil
+		if !ix.readOnly {
+			r.lock, _ = tryLock(lockPath(ix.settings.Location, r.root))
+		}
+	}
 }
 
 // drop forgets a repo and abandons its work. Callers hold mu.
@@ -391,6 +515,7 @@ func (ix *Indexer) drop(id string) {
 		if r.cancelHistory != nil {
 			r.cancelHistory()
 		}
+		r.lock.release()
 		delete(ix.repos, id)
 	}
 	ix.treeQueue.remove(id)

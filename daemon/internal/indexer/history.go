@@ -23,6 +23,9 @@ const (
 	MaxCommitCheck     = time.Hour
 )
 
+// notGitMessage is the history status of a folder outside Git.
+const notGitMessage = "Not a Git repository: history search is off for this folder."
+
 // commitCheck is how long to wait before asking Git about HEAD again.
 func (ix *Indexer) commitCheck() time.Duration {
 	ix.mu.Lock()
@@ -47,6 +50,7 @@ func (ix *Indexer) historyWork(ctx context.Context) {
 			return
 		case <-ix.historyQueue.wake:
 		case <-poll.C:
+			ix.follow(ctx)
 			ix.queueMovedHeads(ctx)
 			poll.Reset(ix.commitCheck())
 		}
@@ -67,6 +71,9 @@ func (ix *Indexer) restartHistory(id string) {
 	r.historyGeneration++
 	if r.cancelHistory != nil {
 		r.cancelHistory()
+	}
+	if r.lock == nil {
+		return // the writer reads it again, and this repo follows
 	}
 	r.historyFull = true
 	if r.historyState != protocol.IndexStateOff {
@@ -159,6 +166,7 @@ type historyJob struct {
 	opts       history.Options
 	store      *history.Store // the store to update; nil for a full read
 	path       string
+	writer     bool // this daemon writes the repo, so it saves what it reads
 }
 
 // nextHistory takes the first queued repo and marks its history as being read.
@@ -166,6 +174,10 @@ func (ix *Indexer) nextHistory(ctx context.Context) (historyJob, bool) {
 	ix.mu.Lock()
 	defer ix.mu.Unlock()
 	id, r, ok := ix.popQueued(&ix.historyQueue)
+	// A follower only reads new commits into the history it loaded.
+	for ok && r.lock == nil && (r.historyFull || r.history == nil) {
+		id, r, ok = ix.popQueued(&ix.historyQueue)
+	}
 	if !ok {
 		return historyJob{}, false
 	}
@@ -174,7 +186,7 @@ func (ix *Indexer) nextHistory(ctx context.Context) (historyJob, bool) {
 	job := historyJob{
 		ctx: jobCtx, done: cancel, id: id, root: r.root, generation: r.historyGeneration,
 		full: r.historyFull || r.history == nil, opts: historyOptions(ix.settings, time.Now()),
-		store: r.history, path: historyPath(ix.settings.Location, r.root),
+		store: r.history, path: historyPath(ix.settings.Location, r.root), writer: r.lock != nil,
 	}
 	if job.full {
 		r.historyState, r.historyProgress, r.historyMessage = protocol.IndexStateIndexing, 0, ""
@@ -203,8 +215,8 @@ func (ix *Indexer) readHistory(job historyJob) {
 		return // superseded, dropped or shutting down
 	}
 	var saveErr error
-	if err == nil && (job.full || store.Head != job.store.Head) {
-		saveErr = store.Save(job.path)
+	if err == nil {
+		saveErr = job.save(store)
 	}
 	published := false
 	ix.updateHistory(job, func(r *repo) {
@@ -215,7 +227,7 @@ func (ix *Indexer) readHistory(job historyJob) {
 		switch {
 		case errors.Is(err, history.ErrNotGit):
 			r.history, r.historyState = nil, protocol.IndexStateOff
-			r.historyMessage = "Not a Git repository: history search is off for this folder."
+			r.historyMessage = notGitMessage
 		case err != nil:
 			r.historyState, r.historyMessage = protocol.IndexStateError, "History not read: "+err.Error()
 			if job.full {
@@ -236,6 +248,15 @@ func (ix *Indexer) readHistory(job historyJob) {
 	if published && !job.full {
 		ix.announceNewCommits(job, store)
 	}
+}
+
+// save saves the store a history job read, when this daemon writes the
+// repo and the read brought in something new.
+func (job historyJob) save(store *history.Store) error {
+	if !job.writer || (!job.full && store.Head == job.store.Head) {
+		return nil
+	}
+	return store.Save(job.path)
 }
 
 // announceNewCommits tells OnNewCommits's listener about the commits an
