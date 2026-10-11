@@ -1018,6 +1018,42 @@ export interface FolderExplanation {
   gitRepo?: string;
 }
 
+/** SymbolsFindParams ask for the definitions whose names match text, for VS Code's Go to Symbol in Workspace, Go to Definition and Find References. */
+export interface SymbolsFindParams {
+  /** What was typed. Its letters must appear in the name in order, ignoring case, unless exact is set. Spaces are ignored; empty text finds nothing. */
+  text: string;
+  /** Match the whole name, case and all, as Go to Definition does for the name at the cursor. */
+  exact?: boolean;
+  /** The most definitions to return, best first: 200 when absent, at most 1000. */
+  limit?: number;
+  /** Return definitions in generated and vendored files too, marked by rankReason; they are left out when absent. */
+  includeGeneratedAndVendored?: boolean;
+  /** An absolute file path: when some definitions found are in that file's language, return only those, and say the language in the result. */
+  languageOf?: string;
+}
+
+/** SymbolMatch is one definition symbols/find found: where its name is, what it is, and why it is marked, if it is. */
+export interface SymbolMatch {
+  repoId: string;
+  /** The file's absolute path. */
+  path: string;
+  /** The 1-based line the definition is on. */
+  line: number;
+  /** The 1-based column (UTF-16) where the name starts on its line; 1 when the line doesn't spell it out. */
+  column: number;
+  name: string;
+  symbolKind: SymbolKind;
+  /** generated or vendored when the file is one, which includeGeneratedAndVendored lets through; absent otherwise. */
+  rankReason?: "generated" | "vendored";
+}
+
+/** SymbolsFindResult lists the definitions found, best first. */
+export interface SymbolsFindResult {
+  symbols: SymbolMatch[];
+  /** The language of languageOf's file, as lang: names it, when the request gave one and Spelunk knows its language. */
+  language?: string;
+}
+
 /** RepoRemotesParams ask for a repo's Git remotes. */
 export interface RepoRemotesParams {
   repoId: string;
@@ -1093,6 +1129,7 @@ export interface RpcRequests {
   "repo/remotes": [RepoRemotesParams, RepoRemotes];
   "link/resolve": [LinkParams, Links];
   "folder/explain": [FolderExplainParams, FolderExplanation];
+  "symbols/find": [SymbolsFindParams, SymbolsFindResult];
   "share/hello": [Empty, ShareHelloResult];
   "share/open": [ShareOpenParams, RepoStatus];
 }

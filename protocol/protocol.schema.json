@@ -2534,6 +2534,82 @@
         }
       }
     },
+    "SymbolsFindParams": {
+      "description": "SymbolsFindParams ask for the definitions whose names match text, for VS Code's Go to Symbol in Workspace, Go to Definition and Find References.",
+      "type": "object",
+      "properties": {
+        "text": {
+          "description": "What was typed. Its letters must appear in the name in order, ignoring case, unless exact is set. Spaces are ignored; empty text finds nothing.",
+          "type": "string"
+        },
+        "exact": {
+          "description": "Match the whole name, case and all, as Go to Definition does for the name at the cursor.",
+          "type": "boolean"
+        },
+        "limit": {
+          "description": "The most definitions to return, best first: 200 when absent, at most 1000.",
+          "type": "integer"
+        },
+        "includeGeneratedAndVendored": {
+          "description": "Return definitions in generated and vendored files too, marked by rankReason; they are left out when absent.",
+          "type": "boolean"
+        },
+        "languageOf": {
+          "description": "An absolute file path: when some definitions found are in that file's language, return only those, and say the language in the result.",
+          "type": "string"
+        }
+      },
+      "required": ["text"]
+    },
+    "SymbolMatch": {
+      "description": "SymbolMatch is one definition symbols/find found: where its name is, what it is, and why it is marked, if it is.",
+      "type": "object",
+      "properties": {
+        "repoId": {
+          "type": "string"
+        },
+        "path": {
+          "description": "The file's absolute path.",
+          "type": "string"
+        },
+        "line": {
+          "description": "The 1-based line the definition is on.",
+          "type": "integer"
+        },
+        "column": {
+          "description": "The 1-based column (UTF-16) where the name starts on its line; 1 when the line doesn't spell it out.",
+          "type": "integer"
+        },
+        "name": {
+          "type": "string"
+        },
+        "symbolKind": {
+          "$ref": "#/$defs/SymbolKind"
+        },
+        "rankReason": {
+          "description": "generated or vendored when the file is one, which includeGeneratedAndVendored lets through; absent otherwise.",
+          "enum": ["generated", "vendored"]
+        }
+      },
+      "required": ["repoId", "path", "line", "column", "name", "symbolKind"]
+    },
+    "SymbolsFindResult": {
+      "description": "SymbolsFindResult lists the definitions found, best first.",
+      "type": "object",
+      "properties": {
+        "symbols": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SymbolMatch"
+          }
+        },
+        "language": {
+          "description": "The language of languageOf's file, as lang: names it, when the request gave one and Spelunk knows its language.",
+          "type": "string"
+        }
+      },
+      "required": ["symbols"]
+    },
     "RepoRemotesParams": {
       "description": "RepoRemotesParams ask for a repo's Git remotes.",
       "type": "object",
@@ -2755,6 +2831,7 @@
     "repo/remotes": { "kind": "request", "params": "RepoRemotesParams", "result": "RepoRemotes" },
     "link/resolve": { "kind": "request", "params": "LinkParams", "result": "Links" },
     "folder/explain": { "kind": "request", "params": "FolderExplainParams", "result": "FolderExplanation" },
+    "symbols/find": { "kind": "request", "params": "SymbolsFindParams", "result": "SymbolsFindResult" },
     "share/hello": { "kind": "request", "params": "Empty", "result": "ShareHelloResult" },
     "share/open": { "kind": "request", "params": "ShareOpenParams", "result": "RepoStatus" }
   },

@@ -1672,6 +1672,52 @@ type FolderExplanation struct {
 	GitRepo string `json:"gitRepo,omitempty"`
 }
 
+// SymbolsFindParams ask for the definitions whose names match text, for VS Code's Go to Symbol in Workspace, Go to Definition and Find References.
+type SymbolsFindParams struct {
+	// Text is what was typed. Its letters must appear in the name in order, ignoring case, unless exact is set. Spaces are ignored; empty text finds nothing.
+	Text string `json:"text"`
+	// Exact is match the whole name, case and all, as Go to Definition does for the name at the cursor.
+	Exact bool `json:"exact,omitempty"`
+	// Limit is the most definitions to return, best first: 200 when absent, at most 1000.
+	Limit int `json:"limit,omitempty"`
+	// IncludeGeneratedAndVendored is return definitions in generated and vendored files too, marked by rankReason; they are left out when absent.
+	IncludeGeneratedAndVendored bool `json:"includeGeneratedAndVendored,omitempty"`
+	// LanguageOf is an absolute file path: when some definitions found are in that file's language, return only those, and say the language in the result.
+	LanguageOf string `json:"languageOf,omitempty"`
+}
+
+// SymbolMatch is one definition symbols/find found: where its name is, what it is, and why it is marked, if it is.
+type SymbolMatch struct {
+	RepoID string `json:"repoId"`
+	// Path is the file's absolute path.
+	Path string `json:"path"`
+	// Line is the 1-based line the definition is on.
+	Line int `json:"line"`
+	// Column is the 1-based column (UTF-16) where the name starts on its line; 1 when the line doesn't spell it out.
+	Column     int        `json:"column"`
+	Name       string     `json:"name"`
+	SymbolKind SymbolKind `json:"symbolKind"`
+	// RankReason is generated or vendored when the file is one, which includeGeneratedAndVendored lets through; absent otherwise.
+	RankReason string `json:"rankReason,omitempty"`
+}
+
+// SymbolsFindResult lists the definitions found, best first.
+type SymbolsFindResult struct {
+	Symbols []SymbolMatch `json:"symbols"`
+	// Language is the language of languageOf's file, as lang: names it, when the request gave one and Spelunk knows its language.
+	Language string `json:"language,omitempty"`
+}
+
+// MarshalJSON emits [] rather than null for required arrays.
+func (v SymbolsFindResult) MarshalJSON() ([]byte, error) {
+	type plain SymbolsFindResult
+	p := plain(v)
+	if p.Symbols == nil {
+		p.Symbols = []SymbolMatch{}
+	}
+	return json.Marshal(p)
+}
+
 // RepoRemotesParams ask for a repo's Git remotes.
 type RepoRemotesParams struct {
 	RepoID string `json:"repoId"`
@@ -1818,6 +1864,7 @@ const (
 	MethodRepoRemotes             = "repo/remotes"
 	MethodLinkResolve             = "link/resolve"
 	MethodFolderExplain           = "folder/explain"
+	MethodSymbolsFind             = "symbols/find"
 	MethodShareHello              = "share/hello"
 	MethodShareOpen               = "share/open"
 )

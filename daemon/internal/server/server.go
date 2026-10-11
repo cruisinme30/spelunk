@@ -96,6 +96,7 @@ func New(conn *rpc.Conn, opts Options) *Server {
 	s.registerSearch()
 	s.registerLinks()
 	s.registerFolders()
+	s.registerSymbols()
 	s.registerIndex()
 	s.registerWatches()
 	return s
