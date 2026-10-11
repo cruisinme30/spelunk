@@ -5,6 +5,9 @@
 import type { Envelope, OpenPosition, WebviewToHost } from "./protocol.gen";
 import { HISTORY_DEPTHS, MAX_CONTEXT_LINES, ORDERS, SHORTCUT_PRESETS } from "./settings";
 
+/** A Spelunk setting a panel may open Settings at, as a note's fix does. */
+const SPELUNK_SETTING = /^spelunk\.[A-Za-z.]+$/;
+
 /** The `v` of every message between the extension host and a webview. */
 export const MESSAGE_VERSION: Envelope["v"] = 1;
 
@@ -95,7 +98,7 @@ const PAYLOAD_CHECKS: { [K in keyof WebviewToHost]: PayloadCheck<K> } = {
   },
   "panel.close": noPayload,
   "help.open": noPayload,
-  "settings.open": noPayload,
+  "settings.open": ({ setting }) => (isString(setting) && SPELUNK_SETTING.test(setting) ? { setting } : {}),
   "welcome.shortcut": noPayload,
   "welcome.start": noPayload,
   ready: noPayload,

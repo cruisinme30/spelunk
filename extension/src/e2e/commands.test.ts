@@ -317,6 +317,35 @@ const TESTS: [name: string, run: () => Promise<void>][] = [
     },
   ],
   [
+    "Search in Folder scopes the box to the folders picked in the Explorer, and a second pick joins the first",
+    async () => {
+      // @covers command:searchInFolder screen:search-in-folder
+      const folder = vscode.workspace.workspaceFolders?.[0]?.uri;
+      assert.ok(folder, "the fixture workspace is open");
+      await searchFor("retry");
+      const payments = vscode.Uri.joinPath(folder, "payments-api", "src");
+      await vscode.commands.executeCommand("spelunk.searchInFolder", payments, [payments]);
+      const scoped = await until(
+        "retry in payments-api/src",
+        (state) => state.searched === "f:^payments-api/src/ retry" && state.results.length > 0,
+      );
+      assert.ok(scoped.panelOpen);
+      const web = vscode.Uri.joinPath(folder, "web-checkout", "src");
+      await vscode.commands.executeCommand("spelunk.searchInFolder", web, [web]);
+      await until(
+        "retry in either folder",
+        (state) =>
+          state.searched === "(f:^payments-api/src/ OR f:^web-checkout/src/) retry" && state.results.length > 0,
+      );
+      const file = vscode.Uri.joinPath(folder, "README.md");
+      await vscode.commands.executeCommand("spelunk.searchInFolder", web, [web, file]);
+      await until(
+        "a file selected with a folder",
+        (state) => state.text === String.raw`(f:^payments-api/src/ OR f:^web-checkout/src/ OR f:^README\.md$) retry`,
+      );
+    },
+  ],
+  [
     "A notebook result opens in the notebook editor at its cell, and Replace edits the cell, quotes and all",
     async () => {
       // @covers screen:notebook-cells

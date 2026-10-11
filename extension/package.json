@@ -69,6 +69,10 @@
         "title": "Spelunk: Find Uses"
       },
       {
+        "command": "spelunk.searchInFolder",
+        "title": "Search in Folder with Spelunk"
+      },
+      {
         "command": "spelunk.openHelp",
         "title": "Spelunk: Open Help"
       },
@@ -329,6 +333,10 @@
         {
           "command": "spelunk.results.copySearchLink",
           "when": "false"
+        },
+        {
+          "command": "spelunk.searchInFolder",
+          "when": "false"
         }
       ],
       "webview/context": [
@@ -469,6 +477,13 @@
         {
           "command": "spelunk.findUses",
           "group": "navigation@1.6"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "spelunk.searchInFolder",
+          "when": "explorerResourceIsFolder && resourceScheme == file",
+          "group": "4_search@20"
         }
       ]
     },

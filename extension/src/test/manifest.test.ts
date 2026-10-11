@@ -15,12 +15,13 @@ interface Keybinding {
 
 interface Manifest {
   contributes: {
-    commands: { command: string }[];
+    commands: { command: string; title: string }[];
     menus: {
       commandPalette: { command: string; when?: string }[];
       "webview/context": { command?: string; submenu?: string; when: string }[];
       "spelunk.export": { command: string }[];
       "editor/context": { command: string; group: string; when?: string }[];
+      "explorer/context": { command: string; group: string; when: string }[];
     };
     keybindings: Keybinding[];
     configuration: {
@@ -164,4 +165,19 @@ test("Find Definitions and Find Uses are on the editor's right-click menu, at th
   );
   const listed = new Set(manifest.contributes.menus.commandPalette.map((item) => item.command));
   assert.ok(!listed.has("spelunk.findDefinitions") && !listed.has("spelunk.findUses"), "no when hides them");
+});
+
+test("Search in Folder is on the Explorer's right-click menu for local folders, under Find in Folder, and not in the Command Palette", () => {
+  // @covers command:searchInFolder screen:search-in-folder
+  const command = manifest.contributes.commands.find((entry) => entry.command === "spelunk.searchInFolder");
+  assert.equal(command?.title, "Search in Folder with Spelunk");
+  assert.deepEqual(manifest.contributes.menus["explorer/context"], [
+    {
+      command: "spelunk.searchInFolder",
+      when: "explorerResourceIsFolder && resourceScheme == file",
+      group: "4_search@20",
+    },
+  ]);
+  const palette = manifest.contributes.menus.commandPalette.find((item) => item.command === "spelunk.searchInFolder");
+  assert.equal(palette?.when, "false", "it needs a folder, which only the Explorer gives");
 });

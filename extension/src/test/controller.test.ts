@@ -1392,3 +1392,32 @@ test("Replace all applies nothing when the matches moved since the preview, thou
   assert.equal(host.payloads("replace.done").at(-1)?.changed, true);
   assert.equal(host.payloads("replace.plan").at(-1)?.plan?.files[0]?.path, "b.py", "the new preview");
 });
+
+test("a folder's scope keeps the query it replaces under Recent, and the panel types it in with the cursor after it", () => {
+  // @covers screen:search-in-folder command:searchInFolder
+  const host = recordingUi();
+  const controller = newController(parseOnlyBackend().backend, host.ui, {}, { text: "retry", recent: [] });
+  controller.restore("repo:^web$ f:^src/ retry", "keepTyping");
+  const restored = host.payloads("state.restore").at(-1);
+  assert.ok(restored);
+  assert.equal(restored.seeded, true);
+  assert.equal(restored.keepTyping, true, "the cursor goes to the end, to type the search after the scope");
+  assert.deepEqual(restored.recent, ["retry"], "the query it replaced stays under Recent");
+  controller.restore("RetryPolicy", true);
+  assert.equal(host.payloads("state.restore").at(-1)?.keepTyping, undefined, "a query from the editor is selected");
+});
+
+/** A settings.open message from the panel with `payload`, as the host reads it. */
+const openSettings = (payload: unknown) => parseWebviewMessage({ v: MESSAGE_VERSION, type: "settings.open", payload });
+
+test("a panel may open Settings at one of Spelunk's settings, and at nothing else", () => {
+  // @covers msg:settings.open
+  const open = openSettings;
+  assert.deepEqual(open({})?.payload, {});
+  assert.deepEqual(open({ setting: "spelunk.index.includeIgnored" })?.payload, {
+    setting: "spelunk.index.includeIgnored",
+  });
+  assert.deepEqual(open({ setting: "editor.fontSize" })?.payload, {}, "another extension's setting opens Spelunk's");
+  assert.deepEqual(open({ setting: "spelunk.x; rm" })?.payload, {});
+  assert.deepEqual(open({ setting: 5 })?.payload, {});
+});

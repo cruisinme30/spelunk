@@ -86,7 +86,8 @@ export interface Ui {
   openTarget(target: OpenTarget, where: OpenWhere, preview: boolean, item?: ResultItem): Promise<boolean>;
   hidePanel(): void;
   openHelp(): void;
-  openSettings(): void;
+  /** Opens Settings at Spelunk's settings, or at `setting`. */
+  openSettings(setting?: string): void;
   restartDaemon(): void;
   setContext(key: string, value: boolean): void;
   saveState(state: PersistedState): void;
@@ -245,15 +246,16 @@ export class SearchController {
   /**
    * Sends the box text, recent and pinned queries, settings and each repo's indexing to a
    * (re)opened panel. A given query replaces the text. A query seeded from the editor first
-   * keeps the one it replaces under Recent, and the panel types it in, so ⌘Z brings that back.
+   * keeps the one it replaces under Recent, and the panel types it in, so ⌘Z brings that back:
+   * selected, or with "keepTyping", as Search in Folder's scope, the cursor at its end.
    */
-  restore(query?: string, seeded = false): void {
+  restore(query?: string, seeded: boolean | "keepTyping" = false): void {
     const seeds = seeded && query !== undefined && query !== this.state.text;
     if (seeds) this.rememberQuery();
     if (query !== undefined) this.state.text = query;
     this.keepRecentLimit();
     this.ui.post("state.restore", {
-      ...(seeds ? { seeded: true } : {}),
+      ...(seeds ? { seeded: true, ...(seeded === "keepTyping" ? { keepTyping: true } : {}) } : {}),
       text: this.state.text,
       recent: this.state.recent,
       pinned: this.options.pinnedQueries(),
@@ -324,7 +326,7 @@ export class SearchController {
         return;
       }
       case "settings.open": {
-        this.ui.openSettings();
+        this.ui.openSettings(message.payload.setting);
         return;
       }
       case "daemon.restart": {

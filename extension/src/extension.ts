@@ -7,6 +7,8 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import * as vscode from "vscode";
 import { editorCommands } from "./editorSeed";
+import { FolderScopeNotes } from "./folderScope";
+import { folderSearchCommand } from "./folderSearch";
 import {
   type ControllerOptions,
   type PersistedState,
@@ -117,7 +119,9 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi {
   const syntax = codeColors(context.extensionPath, panel, () => {
     if (panel.isOpen) controller.settingsChanged();
   });
-  const ui = createUi({ panel, daemon, documents, openedStatus, globalState: context.globalState, logError, syntax });
+  const folders = { notes: new FolderScopeNotes(), searched: () => controller.finishedSearchText };
+  const { globalState } = context;
+  const ui = createUi({ panel, daemon, documents, openedStatus, globalState, logError, syntax, folders });
   const unseen = new UnseenWatches(context.workspaceState.get<unknown>(UNSEEN_KEY), (list) => {
     context.workspaceState.update(UNSEEN_KEY, list.length > 0 ? list : undefined).then(undefined, logError("watches"));
   });
@@ -125,7 +129,7 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi {
     daemon,
     ui,
     { ...controllerOptions(), unseen },
-    context.globalState.get<PersistedState>(STATE_KEY),
+    globalState.get<PersistedState>(STATE_KEY),
   );
   // The help page's Try runs its example in the search panel; its settings button opens Settings.
   const help = new HelpPanel(context.extensionUri, (message) => {
@@ -144,7 +148,7 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi {
     openedStatus,
     ...registerReadOnlyDocuments(documents),
     createStatusBar(daemon),
-    ...registerCommands({ daemon, controller, panel, help, syntax, log, extensionId: context.extension.id }),
+    ...registerCommands({ daemon, controller, panel, help, syntax, log, extensionId: context.extension.id, folders }),
     vscode.commands.registerCommand("spelunk.showWelcome", () => {
       welcome.show();
     }),
@@ -417,13 +421,15 @@ interface UiParts {
   globalState: vscode.Memento;
   logError: (source: string) => (error: unknown) => void;
   syntax: { posts: SyntaxPosts };
+  /** Search in Folder's notes, which go on the results of the searches that start with its scope. */
+  folders: { notes: FolderScopeNotes; searched: () => string | undefined };
 }
 
 /** The controller's view of VS Code. */
-function createUi({ panel, daemon, documents, openedStatus, globalState, logError, syntax }: UiParts): Ui {
+function createUi({ panel, daemon, documents, openedStatus, globalState, logError, syntax, folders }: UiParts): Ui {
   return {
     post: (type, payload) => {
-      panel.post(type, payload);
+      panel.post(type, folders.notes.added(type, payload, folders.searched()));
       syntax.posts.posted(type, payload);
       shownResults.posted(type, payload);
     },
@@ -432,7 +438,8 @@ function createUi({ panel, daemon, documents, openedStatus, globalState, logErro
       panel.close();
     },
     openHelp: () => void vscode.commands.executeCommand("spelunk.openHelp"),
-    openSettings: () => void vscode.commands.executeCommand("workbench.action.openSettings", "@ext:spelunk.spelunk"),
+    openSettings: (setting) =>
+      void vscode.commands.executeCommand("workbench.action.openSettings", setting ?? "@ext:spelunk.spelunk"),
     restartDaemon: () => void daemon.restart().catch(logError("daemon restart")),
     setContext,
     saveState: (state) => void globalState.update(STATE_KEY, state),
@@ -567,13 +574,15 @@ interface CommandTargets {
   syntax: { posts: SyntaxPosts };
   log: vscode.OutputChannel;
   extensionId: string;
+  folders: { notes: FolderScopeNotes };
 }
 
 /** One handler per command declared in package.json. */
 function registerCommands(targets: CommandTargets): vscode.Disposable[] {
-  const { daemon, controller, panel, help, syntax, log, extensionId } = targets;
-  const commands: Record<string, (argument?: unknown) => unknown> = {
+  const { daemon, controller, panel, help, syntax, log, extensionId, folders } = targets;
+  const commands: Record<string, (argument?: unknown, second?: unknown) => unknown> = {
     ...editorCommands(panel, controller),
+    "spelunk.searchInFolder": folderSearchCommand({ panel, controller, daemon, roots: workspaceRoots, ...folders }),
     "spelunk.openHelp": () => {
       help.show();
     },
