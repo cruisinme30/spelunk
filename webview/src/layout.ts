@@ -96,7 +96,7 @@ function createSettingsButton(): HTMLButtonElement {
 }
 
 function createSearchIcon(): HTMLElement {
-  return element("label", { for: "query", class: "query-icon" }, icon(SEARCH_ICON));
+  return element("label", { for: "query", class: "query-icon", title: "Search" }, icon(SEARCH_ICON));
 }
 
 /** The Aa, ab and .* buttons, which edit the query text. */

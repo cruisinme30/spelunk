@@ -40,6 +40,16 @@ test("moving from one icon straight to the next shows the next name at once", as
   assert.equal(await shownLabel(page), "Match whole word (word:yes)");
 });
 
+test("the two icons at the start of the boxes have names too", async (t) => {
+  const page = await openPanel(t);
+  await page.hover(".search-bar > .query-icon");
+  await page.waitForSelector(`${LABEL}:not([hidden])`);
+  assert.equal(await shownLabel(page), "Search");
+  await page.click('[data-testid="toggle-replace"]');
+  await page.hover(".replace-row .query-icon");
+  await page.waitForFunction((selector) => document.querySelector(selector)?.textContent === "Replace with", LABEL);
+});
+
 test("a click hides the label, and a name the click changed is the one kept", async (t) => {
   const page = await openPanel(t);
   await page.hover('[data-testid="toggle-replace"]');

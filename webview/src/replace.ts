@@ -44,7 +44,11 @@ export function createReplaceRow(): ReplaceRow {
     element("kbd", {}, "⌘↵"),
   );
   const note = element("div", { class: "replace-note", "data-testid": "replace-note" }, BEFORE_NOTE);
-  const iconLabel = element("label", { for: "replacement", class: "query-icon" }, icon(REPLACE_ICON));
+  const iconLabel = element(
+    "label",
+    { for: "replacement", class: "query-icon", title: "Replace with" },
+    icon(REPLACE_ICON),
+  );
   const root = element(
     "div",
     { class: "replace-row", "data-testid": "replace-row", hidden: true },
