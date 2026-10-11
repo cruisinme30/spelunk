@@ -25,7 +25,7 @@ import { hiddenWhat } from "./hiddenWhat";
 import { outsideDefinitions, withinLabel } from "./withinLabel";
 import { fuzzyNamesNote } from "./fuzzyNamesNote";
 import { excludesNote, hiddenByExcludes } from "./excludesNote";
-import { demoted, ownerBadge, rankBadge, sinceBadge } from "./fileBadges";
+import { demoted, mergeBadges, ownerBadge, rankBadge, sinceBadge } from "./fileBadges";
 import { folderHint, folderNotes } from "./folderNote";
 import { cellHeading } from "./notebook";
 import { changeNote, orderControl } from "./order";
@@ -601,6 +601,7 @@ export class ResultsView {
         element("span", {}, item.author.name),
         element("span", {}, timeAgo(item.at)),
         element("span", {}, repoName(this.state, item.repoId)),
+        mergeBadges(item),
         commitMatchPlace(item, diffSide(this.state.parsed)),
         ...tags,
       ),

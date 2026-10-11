@@ -397,6 +397,18 @@ export function fileStat(file: FileStat): HTMLElement {
           "renamed",
         )
       : null,
+    file.resolution ? " " : null,
+    file.resolution
+      ? element(
+          "span",
+          {
+            class: "badge resolution",
+            title: "The lines this merge resolved a conflict with",
+            "data-testid": "resolution",
+          },
+          "conflict resolved",
+        )
+      : null,
     file.currentPath ? " " : null,
     file.currentPath
       ? element(

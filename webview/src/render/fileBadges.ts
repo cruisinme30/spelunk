@@ -1,8 +1,9 @@
 // The badges a result's file shows beside its path: why best-match order put
 // it where it is (and the dimmer look of a file it moved down), how it
-// differs now when searched at a revision, and who owns it.
-import { element } from "../format";
-import type { RankReason, SinceRevision } from "../protocol.gen";
+// differs now when searched at a revision, and who owns it; and for a
+// commit, whether it is a merge or came in by one.
+import { element, shortSha, timeAgo } from "../format";
+import type { RankReason, ResultItem, SinceRevision } from "../protocol.gen";
 
 /** The badge a result's file shows for why best-match order put it where it is. */
 const RANK_BADGE: Record<RankReason, string> = {
@@ -71,4 +72,22 @@ export function ownerBadge(owners: string[] | undefined): HTMLElement | null {
     { class: "badge owner", title: `Owned by ${names.join(", ")}`, "data-testid": "owner" },
     label,
   );
+}
+
+/**
+ * "merge" on a merge, and "merged in 4c18e9b · 2 days ago" on a commit made on another branch (index.mergedBranches),
+ * the date since: goes by.
+ */
+export function mergeBadges(item: Extract<ResultItem, { kind: "commit" }>): HTMLElement | null {
+  if (item.mergedIn)
+    return element(
+      "span",
+      {
+        class: "badge merged-in",
+        title: "Made on another branch; this merge brought it in, and since: goes by when",
+        "data-testid": "merged-in",
+      },
+      `merged in ${shortSha(item.mergedIn)} · ${timeAgo(item.mergedAt ?? item.at)}`,
+    );
+  return (item.parents ?? 0) > 1 ? element("span", { class: "badge merge", "data-testid": "merge" }, "merge") : null;
 }

@@ -3,6 +3,7 @@ import { button, element, fileStat, highlight, plural, scrollIntoContainer, shor
 import { saveOutlineOpen } from "../host";
 import { textTerms } from "../parsedQuery";
 import type {
+  FileStat,
   Hunk,
   NotebookCell,
   OpenPosition,
@@ -447,22 +448,7 @@ function renderCommitPreview(
     );
   }
   container.append(files);
-  // A rename that changed no line has no hunk: say so, rather than show an empty diff.
-  const renamedOnly = shownFiles.filter(
-    (file) => file.oldPath && !preview.hunks.some((hunk) => hunk.path === file.path),
-  );
-  if (renamedOnly.length > 0) {
-    const [only] = renamedOnly;
-    container.append(
-      element(
-        "div",
-        { class: "message-note muted", "data-testid": "renamed-only" },
-        renamedOnly.length === 1 && only
-          ? `Renamed from ${only.oldPath ?? ""}; no lines changed.`
-          : `${plural(renamedOnly.length, "file")} renamed with no lines changed.`,
-      ),
-    );
-  }
+  container.append(...commitNotes(preview, shownFiles));
 
   const hiddenPaths = new Set(hiddenFiles.map((file) => file.path));
   container.append(diffCode(preview.hunks, (hunk) => hiddenPaths.has(hunk.path) && !showHiddenFiles, paint));
@@ -503,4 +489,34 @@ function diffCode(hunks: Hunk[], hidden: (hunk: Hunk) => boolean, paint: CommitP
     }
   }
   return code;
+}
+
+/** Notes for a commit that has no diff to show: a merge with no changes of its own, or a rename that changed no line. */
+function commitNotes(preview: Extract<Preview, { kind: "commit" }>, shownFiles: FileStat[]): HTMLElement[] {
+  const notes: HTMLElement[] = [];
+  // A merge whose result Git's own merge would have made changed nothing itself (index.mergedBranches).
+  if (preview.files.length === 0 && (preview.parents ?? 0) > 1)
+    notes.push(
+      element(
+        "div",
+        { class: "message-note muted", "data-testid": "merge-no-changes" },
+        "No changes of its own: the commits it merged are listed on their own.",
+      ),
+    );
+  // A rename that changed no line has no hunk: say so, rather than show an empty diff.
+  const renamedOnly = shownFiles.filter(
+    (file) => file.oldPath && !preview.hunks.some((hunk) => hunk.path === file.path),
+  );
+  const [only] = renamedOnly;
+  if (renamedOnly.length > 0)
+    notes.push(
+      element(
+        "div",
+        { class: "message-note muted", "data-testid": "renamed-only" },
+        renamedOnly.length === 1 && only
+          ? `Renamed from ${only.oldPath ?? ""}; no lines changed.`
+          : `${plural(renamedOnly.length, "file")} renamed with no lines changed.`,
+      ),
+    );
+  return notes;
 }

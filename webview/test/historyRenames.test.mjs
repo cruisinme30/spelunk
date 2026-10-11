@@ -120,3 +120,66 @@ test("history without f: keeps the plain mode chip", async (t) => {
   await typeAndParse(page, "retry", parsedQuery("retry", textNode("retry", 0), { mode: "history" }));
   assert.equal(await page.locator('[data-testid="mode"]').textContent(), "Commit history");
 });
+
+test("with merged branches, a branch's commit says which merge brought it in, and a merge says so", async (t) => {
+  // @covers screen:history-renames setting:index.mergedBranches
+  const page = await openPanel(t);
+  await restore(page);
+  await fromHost(page, "index.status", {
+    repos: [{ repoId: "r1", name: "payments-api", tree: "ready", history: "ready" }],
+  });
+  const seq = await typeAndParse(page, "retry", parsedQuery("retry", textNode("retry", 0), { mode: "history" }));
+  const merge = "cd1cc79a".repeat(5);
+  const now = Date.now();
+  await fromHost(page, "search.batch", {
+    seq,
+    searchId: "s1",
+    items: [
+      {
+        ...commit("c1", "Merge branch 'jitter'", [
+          { path: "src/payments/client.py", added: 1, removed: 0, resolution: true },
+        ]),
+        sha: merge,
+        parents: 2,
+      },
+      {
+        ...commit("c2", "Log the delay before each retry", [{ path: "src/payments/client.py", added: 1, removed: 1 }]),
+        author: { name: "Bob Lee", email: "bob@example.com" },
+        at: new Date(now - 21 * 86_400_000).toISOString(),
+        mergedIn: merge,
+        mergedAt: new Date(now - 2 * 86_400_000).toISOString(),
+      },
+    ],
+  });
+  await searchDone(page, seq, { total: 2, ms: 2 });
+  const rows = page.locator(".row.commit");
+  assert.equal(await rows.nth(0).locator('[data-testid="merge"]').textContent(), "merge");
+  assert.equal(
+    await rows.nth(0).locator(".commit-files").innerText(),
+    "src/payments/client.py +1 −0 conflict resolved",
+  );
+  assert.equal(await rows.nth(1).locator('[data-testid="merged-in"]').textContent(), "merged in cd1cc79 · 2 days ago");
+  assert.equal(await rows.nth(1).locator('[data-testid="merge"]').count(), 0);
+  // A merge with no changes of its own says why its preview has none.
+  await fromHost(page, "preview.result", {
+    ref: "c1",
+    preview: {
+      kind: "commit",
+      sha: merge,
+      subject: "Merge branches 'docs', 'owners' and 'scripts'",
+      body: "",
+      author: "Ana Ruiz <ana@example.com>",
+      at: new Date(now).toISOString(),
+      files: [],
+      hunks: [],
+      subjectHits: [],
+      bodyHits: [],
+      parents: 4,
+    },
+  });
+  assert.equal(
+    await page.locator('[data-testid="merge-no-changes"]').innerText(),
+    "No changes of its own: the commits it merged are listed on their own.",
+  );
+  assert.deepEqual(pageErrors(page), []);
+});
