@@ -10,3 +10,4 @@ Start from [template.md](template.md) (a short form of [MADR](https://adr.github
 | [0002](0002-json-schema-as-protocol-source.md) | JSON Schema is the single source for cross-process types | Accepted |
 | [0003](0003-in-house-trigram-index.md) | The working-tree index is an in-house trigram index, not Zoekt | Accepted |
 | [0004](0004-in-house-history-index.md) | The history index reuses the trigram package instead of SQLite FTS5 | Accepted |
+| [0005](0005-vscode-grammar-engine-for-syntax-colors.md) | Code is colored by VS Code's grammar engine, in the extension host | Accepted |
