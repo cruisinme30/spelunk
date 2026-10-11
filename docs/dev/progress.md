@@ -449,3 +449,22 @@ preview marks whitespace as `editor.renderWhitespace` says, and code follows `ed
   the first time code is colored, and each grammar the first time a file of its language shows.
 - Built: `docs/dev/proof/syntax-colors.png` and `docs/dev/proof/syntax-colors-light.png`, from
   `node scripts/screenshotPanel.mjs --query 'retry_policy' --select 3 --theme "Dark Modern"` (and `"Light Modern"`).
+
+## Outline in the preview (2.1)
+
+Mock 44 (`file-outline`): a file preview's **Outline** button opens a column beside the code with every definition in
+the file, nested as VS Code's Outline nests them, in place of the "In this file" line, which listed the first eight
+names. The daemon builds the tree (`symbols.Outline`): a definition indented under a class, interface or module until
+a line as far left ends it, a Go method under its receiver's type, a Rust method under the type its `impl` names; the
+preview sends each definition's kind and depth. The panel marks the definition the match is in, opens one beside the
+editor on a click, and keeps the Outline closed until opened, remembering the choice in the webview state.
+
+- Daemon: `daemon/internal/symbols/outline_test.go` (Go receivers wherever the type is, Python indentation, Java
+  nested classes, Rust `impl` blocks, a Ruby module, at most `MaxOutline` entries), the receiver checked in the
+  extractor's fuzz test, and the outline of a `sym:` result's preview in `daemon/internal/server/symbols_test.go`.
+- Panel: "the Outline lists the file's definitions, nested, closed until opened; a click opens one to the side" and
+  "a file with no definitions has no Outline, and a reload keeps an open Outline open" in
+  `webview/test/webview.test.mjs`.
+- Built: `docs/dev/proof/file-outline.png` and `docs/dev/proof/file-outline-light.png`, from
+  `node scripts/screenshotPanel.mjs --query 'retry_policy' --select 3 --theme "Dark Modern" --click-after
+  '[data-testid="outline-toggle"]'` (and `"Light Modern"`).
