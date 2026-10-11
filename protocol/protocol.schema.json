@@ -2564,7 +2564,11 @@
           "type": "string"
         },
         "query": {
-          "description": "The query, which the panel puts in the box and runs; absent with `error` or `setup`.",
+          "description": "The query, which the panel puts in the box and runs; absent with `clarify`, `error` or `setup`.",
+          "type": "string"
+        },
+        "clarify": {
+          "description": "A question back to the user, when the question is too vague to search without guessing (\"Other than which files?\"): no query is written, and the box keeps the question.",
           "type": "string"
         },
         "explanation": {

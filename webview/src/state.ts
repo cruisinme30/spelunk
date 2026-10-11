@@ -36,6 +36,8 @@ export interface AskedState {
   assumptions: string[];
   /** Why Ask can't answer yet: off in settings, or no API key. */
   setup?: "off" | "noKey";
+  /** A question back, when the question was too vague to search: the box keeps the question. */
+  clarify?: string;
   /** What went wrong: the provider, or a query that doesn't parse (then `query` is set too). */
   error?: string;
 }

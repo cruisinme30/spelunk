@@ -1691,8 +1691,10 @@ type AskSetupMessage struct {
 type AskResultMessage struct {
 	Seq      int    `json:"seq"`
 	Question string `json:"question"`
-	// Query is the query, which the panel puts in the box and runs; absent with `error` or `setup`.
+	// Query is the query, which the panel puts in the box and runs; absent with `clarify`, `error` or `setup`.
 	Query string `json:"query,omitempty"`
+	// Clarify is a question back to the user, when the question is too vague to search without guessing ("Other than which files?"): no query is written, and the box keeps the question.
+	Clarify string `json:"clarify,omitempty"`
 	// Explanation is one line on how the query answers the question.
 	Explanation string `json:"explanation,omitempty"`
 	// Assumptions is what the query had to assume, such as how long ago "last month" is.

@@ -13,8 +13,6 @@ export interface AskFlowDeps {
   state: ViewState;
   /** Puts text in the box and searches it at once. */
   setQuery: (text: string) => void;
-  /** Puts text in the box without searching it, as typing would. */
-  typeIntoBox: (text: string) => void;
 }
 
 /** The panel's side of Ask. */
@@ -71,6 +69,7 @@ export class AskFlow {
       ...(result.query === undefined ? {} : { query: result.query }),
       ...(result.explanation === undefined ? {} : { explanation: result.explanation }),
       ...(result.setup === undefined ? {} : { setup: result.setup }),
+      ...(result.clarify === undefined ? {} : { clarify: result.clarify }),
       ...(result.error === undefined ? {} : { error: result.error }),
     };
     this.render();
@@ -91,11 +90,11 @@ export class AskFlow {
   private render(): void {
     const { layout, state } = this.deps;
     renderAsked(layout, state, {
+      // The question goes back in the box as if typed, so the host, the chips and a reopened panel all hold it.
       onEditQuestion: () => {
         const question = state.asked?.question ?? "";
         this.clear();
-        layout.input.select();
-        this.deps.typeIntoBox(`${question}?`);
+        this.deps.setQuery(`${question}?`);
         layout.input.focus();
       },
       onAskAgain: () => {

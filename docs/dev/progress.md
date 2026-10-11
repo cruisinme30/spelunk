@@ -866,7 +866,9 @@ set it up, **Spelunk: Choose Ask Model** picks both from `models.list`, and **Sp
 the key in secret storage and turns Ask on (`extension/src/askSetup.ts`). The panel's `ask` and `ask.setup` messages go
 through `AskRoute` (`extension/src/askRoute.ts`), which also fetches the CODEOWNERS teams from the `owner:` suggestions;
 the webview's
-`AskFlow` (`webview/src/askFlow.ts`) owns the question, the line (`render/asked.ts`) and Broaden. A test build takes a
+`AskFlow` (`webview/src/askFlow.ts`) owns the question, the line (`render/asked.ts`) and Broaden. A question too vague
+to search without guessing comes back as `clarify` (the answer schema's question back; `AskResultMessage.clarify`), so
+no query is written and the box keeps the question. A test build takes a
 fake provider from `SPELUNK_ASK_FAKE`, which the screenshots use, so no screenshot or test calls a real provider. To
 keep `panel.ts` within its size, the box's keys moved to `webview/src/keys.ts` and the results view's handlers to
 `webview/src/resultHandlers.ts`.
@@ -879,8 +881,10 @@ keep `panel.ts` within its size, the box's keys moved to `webview/src/keys.ts` a
   without Ask set up), `settings.test.ts` (the ask settings and their fallbacks) and `manifest.test.ts` (the section
   and the command).
 - Panel: `webview/test/askInWords.test.mjs` (Enter on a question asks it and the answer's query runs under the line,
-  Edit question; the Ask button; a query that doesn't parse shown with its error; Broaden; no key, Set API key and
-  Search these words instead; Ask off).
-- Built: `docs/dev/proof/ask-in-words.png` (`which methods use RetryPolicy?`) and
-  `docs/dev/proof/ask-in-words-broaden.png` (`functions that call charge_card?`, no results, Broaden), from
+  Edit question, which reports the words to the host as typing would; a question back for a vague question, the box
+  kept as typed and nothing searched; the Ask button; a query that doesn't parse shown with its error; Broaden; no key,
+  Set API key and Search these words instead; Ask off).
+- Built: `docs/dev/proof/ask-in-words.png` (`which methods use RetryPolicy?`),
+  `docs/dev/proof/ask-in-words-broaden.png` (`functions that call charge_card?`, no results, Broaden) and
+  `docs/dev/proof/ask-in-words-clarify.png` (`where are other files?`, **Spelunk asks** "Other than which files?"), from
   `node scripts/screenshotPanel.mjs --ask … --setting ask.provider=anthropic` with `SPELUNK_ASK_FAKE`.

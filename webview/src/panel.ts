@@ -105,7 +105,6 @@ export class SearchPanel {
       layout,
       state,
       setQuery: this.setQuery.bind(this),
-      typeIntoBox: this.typeIntoBox.bind(this),
     });
     this.resultHandlerDeps = {
       state,

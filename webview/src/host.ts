@@ -51,8 +51,11 @@ const HAS_REQUIRED_FIELDS: Record<keyof HostToWebview, (payload: Fields) => bool
     (newCommits === undefined || isStringArray(newCommits)) &&
     (folderNotes === undefined || (isObjectArray(folderNotes) && folderNotes.every(({ folder }) => isString(folder)))),
   "preview.result": ({ ref, preview }) => isString(ref) && (preview === null || isObject(preview)),
-  "ask.result": ({ seq, question, assumptions }) =>
-    isNumber(seq) && isString(question) && (assumptions === undefined || isStringArray(assumptions)),
+  "ask.result": ({ seq, question, assumptions, clarify }) =>
+    isNumber(seq) &&
+    isString(question) &&
+    (assumptions === undefined || isStringArray(assumptions)) &&
+    (clarify === undefined || isString(clarify)),
   "index.status": ({ repos }) => isObjectArray(repos) && repos.every((repo) => isString(repo["name"])),
   "state.restore": ({ text, seeded, keepTyping, recent, pinned, settings }) =>
     (text === undefined || isString(text)) &&

@@ -23,11 +23,13 @@ export interface AskRequest {
   retry?: { query: string; problem: "parse" | "noResults"; detail: string };
 }
 
-/** A provider's answer. */
+/** A provider's answer: a query, or, when the question is too vague to search without guessing, a question back. */
 export interface AskAnswer {
   query: string;
   explanation: string;
   assumptions: string[];
+  /** What the user must say first, as a short question back; the query is then empty. */
+  clarify?: string;
 }
 
 /** Something that turns a question into a query: an LLM, or a fake in tests. */
@@ -97,6 +99,11 @@ export function systemPrompt(request: Pick<AskRequest, "guide" | "repos" | "team
     "  type:removed; everything else searches the current files.",
     '- Read spans of time plainly: "last month" is since:30d, "this week" since:7d, "yesterday" since:yesterday,',
     "  and say each such reading in assumptions.",
+    '- Never guess what the question leaves out. When it leans on something it doesn\'t name ("other files", "these',
+    '  functions", "that bug", "the new code") or asks what no search word can find, write no query: leave query empty',
+    '  and put in clarify one short question back that names what is missing ("Other than which files?"). Filler',
+    "  words such as other, files, code, stuff or things are never search terms. clarify is empty whenever you write",
+    "  a query.",
     "- explanation: one short sentence in plain words on what the query finds. assumptions: each reading you had",
     "  to choose; an empty list when none.",
     "",
@@ -136,11 +143,12 @@ export function userPrompt(request: Pick<AskRequest, "question" | "today" | "ret
 const ANSWER_SCHEMA = {
   type: "object",
   properties: {
-    query: { type: "string", description: "The Spelunk query" },
+    query: { type: "string", description: "The Spelunk query; empty when clarify asks a question back" },
     explanation: { type: "string", description: "One short sentence on what the query finds" },
     assumptions: { type: "array", items: { type: "string" }, description: "Each reading that had to be chosen" },
+    clarify: { type: "string", description: "A short question back when the question is too vague; else empty" },
   },
-  required: ["query", "explanation", "assumptions"],
+  required: ["query", "explanation", "assumptions", "clarify"],
   additionalProperties: false,
 } as const;
 
@@ -153,6 +161,8 @@ export function parseAnswer(text: string): AskAnswer {
   if (typeof raw !== "object" || raw === null) throw new Error("the provider's answer isn't an object");
   const answer = raw as Record<string, unknown>;
   const query = typeof answer["query"] === "string" ? answer["query"].trim() : "";
+  const clarify = typeof answer["clarify"] === "string" ? answer["clarify"].trim() : "";
+  if (query === "" && clarify !== "") return { query: "", explanation: "", assumptions: [], clarify };
   if (query === "") throw new Error("the provider answered without a query");
   const assumptions = Array.isArray(answer["assumptions"])
     ? answer["assumptions"].filter((item): item is string => typeof item === "string" && item.trim() !== "")
@@ -286,12 +296,14 @@ export class Asker {
       const retry =
         broadenFrom === undefined ? {} : { retry: { query: broadenFrom, problem: "noResults" as const, detail: "" } };
       let answer = await setup.provider.translate({ ...base, ...retry }, signal);
+      if (answer.clarify) return { clarify: answer.clarify };
       let problem = firstError(await this.deps.parse(answer.query));
       if (problem !== undefined) {
         answer = await setup.provider.translate(
           { ...base, retry: { query: answer.query, problem: "parse", detail: problem } },
           signal,
         );
+        if (answer.clarify) return { clarify: answer.clarify };
         problem = firstError(await this.deps.parse(answer.query));
       }
       return {

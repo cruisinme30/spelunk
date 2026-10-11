@@ -1,7 +1,7 @@
 // The line under the box after a question was asked in plain words: what
-// was asked and the query it became, or what Ask needs first (a provider in
-// settings, an API key), or why it failed; and the Broaden note under no
-// results.
+// was asked and the query it became, a question back when it was too vague
+// to search, what Ask needs first (a provider in settings, an API key), or
+// why it failed; and the Broaden note under no results.
 import { button, element } from "../format";
 import type { Layout } from "../layout";
 import type { AskedState, ViewState } from "../state";
@@ -77,6 +77,14 @@ function lineParts(asked: AskedState, handlers: AskedHandlers): [string, ...(Nod
       "warn",
       element("span", {}, "Ask needs an Anthropic API key to turn your question into a search."),
       actions(setKey, searchWords()),
+    ];
+  }
+  if (asked.clarify !== undefined) {
+    return [
+      "warn",
+      element("span", { class: "label" }, "Spelunk asks"),
+      element("span", { class: "question", "data-testid": "asked-clarify" }, asked.clarify),
+      actions(link("Edit question", handlers.onEditQuestion, "ask-edit"), searchWords()),
     ];
   }
   if (asked.query === undefined) {

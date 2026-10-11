@@ -67,11 +67,10 @@ test("Enter on a question asks it, and the answer's query lands in the box and r
     'Methods that use RetryPolicy · took "methods" as kind:method',
   );
   assert.match(await line.innerText(), /You asked\s+which methods use RetryPolicy\?/i);
-  // Edit question brings the words back without searching them.
-  const sentBefore = (await sentMessages(page, "query.changed")).length;
+  // Edit question brings the words back as if typed: the host hears them too, so a reopened panel keeps them.
   await page.click('[data-testid="ask-edit"]');
   assert.equal(await page.inputValue(QUERY), `${QUESTION}?`);
-  assert.equal((await sentMessages(page, "query.changed")).length, sentBefore);
+  assert.equal((await lastSent(page, "query.changed")).text, `${QUESTION}?`);
   assert.equal(await line.count(), 0);
   assert.deepEqual(pageErrors(page), []);
 });
@@ -81,6 +80,29 @@ test("the Ask button asks the box's words, with or without a ?", async (t) => {
   await page.fill(QUERY, "functions that call charge");
   await page.click('[data-testid="ask"]');
   assert.deepEqual(await lastSent(page, "ask"), { question: "functions that call charge", seq: 1 });
+});
+
+test("a question too vague to search gets a question back, and the box keeps the question", async (t) => {
+  const page = await askPanel(t);
+  await page.fill(QUERY, "where are other files?");
+  await page.press(QUERY, "Enter");
+  const { seq } = await lastSent(page, "ask");
+  await fromHost(page, "ask.result", {
+    seq,
+    question: "where are other files",
+    assumptions: [],
+    clarify: "Other than which files?",
+  });
+  const line = page.locator('[data-testid="asked-line"]');
+  assert.match(await line.innerText(), /Spelunk asks\s+Other than which files\?/i);
+  assert.equal(await page.inputValue(QUERY), "where are other files?", "nothing replaced the question");
+  const searched = (await sentMessages(page, "query.changed")).map((message) => message.payload.text);
+  assert.ok(
+    searched.every((text) => text === "where are other files?"),
+    `nothing but the typed words was searched: ${searched.join(" | ")}`,
+  );
+  assert.equal(await page.locator('[data-testid="ask-search-words"]').count(), 1);
+  assert.deepEqual(pageErrors(page), []);
 });
 
 test("a query that doesn't parse is shown with its error, so it can be fixed by hand", async (t) => {

@@ -89,6 +89,18 @@ test("a question becomes the provider's query, checked by the parser", async () 
   assert.equal(request.retry, undefined);
 });
 
+test("a question too vague to search gets a question back, and nothing is searched", async () => {
+  const { provider } = scriptedProvider([
+    { query: "", explanation: "", assumptions: [], clarify: "Other than which files?" },
+  ]);
+  const { instance, parsedTexts } = asker(provider);
+  assert.deepEqual(await instance.ask("Where are other files"), { clarify: "Other than which files?" });
+  assert.deepEqual(parsedTexts, [], "no query, so nothing to check");
+  const system = systemPrompt({ guide: "g", repos: [], teams: [] });
+  assert.match(system, /Never guess what the question leaves out/);
+  assert.match(system, /never search terms/);
+});
+
 test("a query that doesn't parse is sent back once for a repair", async () => {
   // cspell:ignore symbl simbol
   const { provider, requests } = scriptedProvider(["symbl:Retry", "symbol:Retry"]);
@@ -181,6 +193,14 @@ test("a provider's answer is read out of whatever wraps it", () => {
     explanation: "",
     assumptions: [],
   });
+  assert.deepEqual(parseAnswer('{"query":"","explanation":"","assumptions":[],"clarify":" Which bug? "}'), {
+    query: "",
+    explanation: "",
+    assumptions: [],
+    clarify: "Which bug?",
+  });
+  // A query wins over a stray question back.
+  assert.equal(parseAnswer('{"query":"ref:X","explanation":"","assumptions":[],"clarify":"?"}').clarify, undefined);
   assert.throws(() => parseAnswer("no json here"), /without a query/);
   assert.throws(() => parseAnswer('{"explanation":"e","assumptions":[]}'), /without a query/);
 });

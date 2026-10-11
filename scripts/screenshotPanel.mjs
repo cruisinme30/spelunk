@@ -269,7 +269,11 @@ async function drivePanel(page, posted) {
     await page.keyboard.press("Enter");
     await until("the question's answer", () => posted.includes("ask.result"));
     posted.length = 0;
-    await until("the answer's results", () => posted.includes("search.done") || posted.includes("parse.result"));
+    // A question back (Spelunk asks …) writes no query, so there are no results to wait for.
+    const askedBack = (await page.locator('[data-testid="asked-clarify"]').count()) > 0;
+    if (!askedBack) {
+      await until("the answer's results", () => posted.includes("search.done") || posted.includes("parse.result"));
+    }
     await page.waitForTimeout(150);
   }
   if (args.replace !== undefined) {

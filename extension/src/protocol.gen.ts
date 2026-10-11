@@ -1023,8 +1023,10 @@ export interface AskSetupMessage {
 export interface AskResultMessage {
   seq: number;
   question: string;
-  /** The query, which the panel puts in the box and runs; absent with `error` or `setup`. */
+  /** The query, which the panel puts in the box and runs; absent with `clarify`, `error` or `setup`. */
   query?: string;
+  /** A question back to the user, when the question is too vague to search without guessing ("Other than which files?"): no query is written, and the box keeps the question. */
+  clarify?: string;
   /** One line on how the query answers the question. */
   explanation?: string;
   /** What the query had to assume, such as how long ago "last month" is. */
