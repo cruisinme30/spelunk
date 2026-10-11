@@ -81,10 +81,11 @@ func FuzzSqueezeSpaceKeepsMatches(f *testing.F) {
 		}
 		squeezed := squeezeSpace(nil, []byte(line))
 		for _, lang := range languages() {
-			want, wantOK := match(byLanguage[lang], []byte(line))
-			got, gotOK := match(byLanguage[lang], squeezed)
-			if got != want || gotOK != wantOK {
-				t.Fatalf("%s: match(%q) = %v %v, squeezed %q = %v %v", lang, line, want, wantOK, squeezed, got, gotOK)
+			want, wantParent, wantOK := match(byLanguage[lang], []byte(line))
+			got, gotParent, gotOK := match(byLanguage[lang], squeezed)
+			if got != want || gotParent != wantParent || gotOK != wantOK {
+				t.Fatalf("%s: match(%q) = %v %q %v, squeezed %q = %v %q %v",
+					lang, line, want, wantParent, wantOK, squeezed, got, gotParent, gotOK)
 			}
 		}
 	})

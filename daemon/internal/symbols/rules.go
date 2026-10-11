@@ -33,7 +33,7 @@ var byLanguage = map[string][]rule{
 		defineFunction(`^(?P<indent>\s*)(?:async\s+)?def\s+` + ident),
 	},
 	"go": {
-		define(method, `^func\s+\([^)]*\)\s*`+ident),
+		define(method, `^func\s*\(\s*(?:\w+\s+)?\*?\s*(?P<parent>[A-Za-z_]\w*)(?:\[[^\]]*\])?\s*\)\s*`+ident),
 		define(function, `^func\s+`+ident),
 		define(iface, `^(?:type\s+|\s+)`+ident+`(?:\[[^\]]*\])?\s+interface\b`),
 		define(typeKind, `^type\s+`+ident),

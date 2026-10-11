@@ -303,10 +303,13 @@ export interface LineHits {
   ranges: Hit[];
 }
 
-/** OutlineSymbol is a definition shown in a file preview's outline. */
+/** OutlineSymbol is a definition in a file preview's outline. The outline lists the file's definitions top to bottom, each class, type or interface followed by its members. */
 export interface OutlineSymbol {
   name: string;
   line: number;
+  kind: SymbolKind;
+  /** how many classes, types or interfaces it is inside: 0 at the top */
+  depth: number;
 }
 
 /** DiffLine is one line of a diff hunk. */

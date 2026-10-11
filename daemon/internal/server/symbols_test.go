@@ -1,6 +1,7 @@
 package server
 
 import (
+	"fmt"
 	"path/filepath"
 	"reflect"
 	"slices"
@@ -72,12 +73,14 @@ func TestSymbolSearchFindsDefinitionsAndOffersTheTextSearch(t *testing.T) {
 	if err := client.call(protocol.MethodPreviewGet, protocol.PreviewParams{Ref: items[1].Ref, ContextLines: 3}, &preview); err != nil {
 		t.Fatal(err)
 	}
-	var members []string
+	// @covers screen:file-outline
+	var outline []string
 	for _, symbol := range preview.Symbols {
-		members = append(members, symbol.Name)
+		outline = append(outline, fmt.Sprintf("%d %s %s:%d", symbol.Depth, symbol.Kind, symbol.Name, symbol.Line))
 	}
-	if preview.FocusLine != 3 || !reflect.DeepEqual(members, []string{"__init__", "next_delay"}) {
-		t.Errorf("preview = focus %d, members %q; want line 3 with __init__ and next_delay", preview.FocusLine, members)
+	wantOutline := []string{"0 class RetryPolicy:3", "1 method __init__:6", "1 method next_delay:9"}
+	if preview.FocusLine != 3 || !reflect.DeepEqual(outline, wantOutline) {
+		t.Errorf("preview = focus %d, outline %q; want line 3 with %q", preview.FocusLine, outline, wantOutline)
 	}
 
 	if len(result.Hidden) != 1 || result.Hidden[0].Reason != "symbol" || result.Hidden[0].Undo.Title != "Search RetryPolicy as text" {

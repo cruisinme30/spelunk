@@ -88,7 +88,7 @@ func PreviewText(repo *Repo, ref Ref, plan *query.Plan, contextLines int, conten
 	}
 	preview := protocol.Preview{
 		Kind: protocol.PreviewKindFile, Path: ref.Path, FirstLine: first, Lines: shown,
-		FocusLine: focus, Hits: hits, DirtyLines: []int{}, Symbols: outline(symbols.Extract(language, content), focus),
+		FocusLine: focus, Hits: hits, DirtyLines: []int{}, Symbols: outline(symbols.Outline(language, content)),
 		Ownership: ownership(repo, ref.Path),
 	}
 	if ref.Spans() && len(lines) > focus {
@@ -108,23 +108,12 @@ func ownership(repo *Repo, path string) *protocol.Ownership {
 	return &protocol.Ownership{Owners: rule.Owners, File: repo.Owners.Path, Line: rule.Line}
 }
 
-// outline lists the definitions a preview names under the code: the
-// members of the class or interface defined on the focus line, or else
-// every definition in the file.
-func outline(found []symbols.Symbol, focus int) []protocol.OutlineSymbol {
-	start, end := 0, len(found)
-	for i, symbol := range found {
-		if symbol.Line != focus || (symbol.Kind != protocol.SymbolKindClass && symbol.Kind != protocol.SymbolKindInterface) {
-			continue
-		}
-		start, end = i+1, i+1
-		for end < len(found) && found[end].Kind == protocol.SymbolKindMethod {
-			end++
-		}
-	}
-	names := make([]protocol.OutlineSymbol, 0, end-start)
-	for _, symbol := range found[start:end] {
-		names = append(names, protocol.OutlineSymbol{Name: symbol.Name, Line: symbol.Line})
+// outline lists the file's definitions for the preview's Outline, each
+// class, type or interface followed by its members.
+func outline(entries []symbols.Entry) []protocol.OutlineSymbol {
+	names := make([]protocol.OutlineSymbol, 0, len(entries))
+	for _, entry := range entries {
+		names = append(names, protocol.OutlineSymbol{Name: entry.Name, Line: entry.Line, Kind: entry.Kind, Depth: entry.Depth})
 	}
 	return names
 }

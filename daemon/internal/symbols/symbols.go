@@ -28,6 +28,19 @@ func Extract(lang string, content []byte) []Symbol {
 	}
 	var found []Symbol
 	var squeezed []byte
+	eachLine(content, func(number int, line []byte) {
+		squeezed = squeezeSpace(squeezed[:0], line)
+		if symbol, _, ok := match(rules, squeezed); ok {
+			symbol.Line = number
+			found = append(found, symbol)
+		}
+	})
+	return found
+}
+
+// eachLine calls f with each line of content and its 1-based number,
+// skipping lines over maxLineBytes.
+func eachLine(content []byte, f func(number int, line []byte)) {
 	number := 0
 	for rest := content; len(rest) > 0; {
 		number++
@@ -37,16 +50,10 @@ func Extract(lang string, content []byte) []Symbol {
 		} else {
 			rest = nil
 		}
-		if len(line) > maxLineBytes {
-			continue
-		}
-		squeezed = squeezeSpace(squeezed[:0], line)
-		if symbol, ok := match(rules, squeezed); ok {
-			symbol.Line = number
-			found = append(found, symbol)
+		if len(line) <= maxLineBytes {
+			f(number, line)
 		}
 	}
-	return found
 }
 
 // squeezeSpace appends line to buf with each run of whitespace (what \s
@@ -70,8 +77,9 @@ func squeezeSpace(buf, line []byte) []byte {
 	return buf
 }
 
-// match applies the first rule that matches line.
-func match(rules []rule, line []byte) (Symbol, bool) {
+// match applies the first rule that matches line. parent is the type a
+// Go method's receiver names, if the rule has a group for it.
+func match(rules []rule, line []byte) (symbol Symbol, parent string, ok bool) {
 	for _, r := range rules {
 		m := r.re.FindSubmatchIndex(line)
 		if m == nil {
@@ -85,9 +93,12 @@ func match(rules []rule, line []byte) (Symbol, bool) {
 		if r.indent > 0 && m[2*r.indent+1] > m[2*r.indent] {
 			kind = r.indentedKind
 		}
-		return Symbol{Name: name, Kind: kind}, true
+		if r.parent > 0 && m[2*r.parent] >= 0 {
+			parent = string(line[m[2*r.parent]:m[2*r.parent+1]])
+		}
+		return Symbol{Name: name, Kind: kind}, parent, true
 	}
-	return Symbol{}, false
+	return Symbol{}, "", false
 }
 
 // rule is one way a language defines something: a regex with a group
@@ -100,12 +111,15 @@ type rule struct {
 	// something the kind is indentedKind: a def inside a class is a method.
 	indent       int
 	indentedKind protocol.SymbolKind
+	// parent is the index of a group named "parent", or 0: the type a Go
+	// method's receiver names.
+	parent int
 }
 
 // define makes a rule finding kind with pattern.
 func define(kind protocol.SymbolKind, pattern string) rule {
 	re := regexp.MustCompile(pattern)
-	return rule{re: re, kind: kind, name: re.SubexpIndex("name")}
+	return rule{re: re, kind: kind, name: re.SubexpIndex("name"), parent: max(0, re.SubexpIndex("parent"))}
 }
 
 // defineFunction makes a rule finding functions at the left margin and
