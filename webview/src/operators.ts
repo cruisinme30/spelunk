@@ -173,7 +173,7 @@ export const OPERATOR_GROUPS: OperatorGroup[] = [
         insert: "kind:",
         summary: "Only definitions of one kind, such as class.",
         description:
-          "Only definitions of one kind: function, method, class, interface, type or other. Use it with symbol: or a word to narrow the name (kind:function parse), or alone with file: to list them: kind:class file:models/. Current files only.",
+          "Only definitions of one kind: function, method, class, interface, type or other. Use it with symbol: or a word to narrow the name (kind:function parse), with ref: or content: to find the lines inside them (kind:function ref:Parse), or alone with file: to list them: kind:class file:models/. Current files only.",
         example: "kind:class symbol:Retry",
       },
       {

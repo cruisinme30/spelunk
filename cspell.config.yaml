@@ -39,6 +39,7 @@ words:
   - Gourav
   - Mittal
   # Tools, libraries and formats
+  - isinstance
   - Codeberg
   - Forgejo
   - Gitea

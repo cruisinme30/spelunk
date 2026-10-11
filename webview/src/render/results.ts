@@ -17,10 +17,12 @@ import {
   termClass,
   timeAgo,
 } from "../format";
-import { diffSide, operatorNodes, textNodes, textTerms } from "../parsedQuery";
+import { diffSide, operatorNodes, textNodes } from "../parsedQuery";
 import type { Fix, HiddenNote, ResultItem, SearchDoneMessage } from "../protocol.gen";
 import { menuContext, repoName, type ViewState } from "../state";
 import { ChunkedList } from "./chunkedList";
+import { hiddenWhat } from "./hiddenWhat";
+import { outsideDefinitions, withinLabel } from "./withinLabel";
 import { fuzzyNamesNote } from "./fuzzyNamesNote";
 import { excludesNote, hiddenByExcludes } from "./excludesNote";
 import { demoted, ownerBadge, rankBadge, sinceBadge } from "./fileBadges";
@@ -35,13 +37,6 @@ type ItemOf<K extends ResultKind> = Extract<ResultItem, { kind: K }>;
 
 /** Changed files listed under a commit before "+N more". */
 const COMMIT_FILES_SHOWN = 2;
-
-const SINGULAR_UNIT: Record<HiddenNote["unit"], string> = {
-  matches: "match",
-  files: "file",
-  commits: "commit",
-  definitions: "definition",
-};
 
 /** The choices of the Context buttons: how many lines to show around each code match. */
 const CONTEXT_CHOICES = [0, 1, 2, 3] as const;
@@ -366,14 +361,15 @@ export class ResultsView {
     if (note.reason === "symbol") return this.renderTextSearchNote(note);
     if (note.reason === "match") return fuzzyNamesNote(note, this.showHiddenButton(note, note.undo.title));
     if (note.reason === "excludes")
-      return excludesNote(note, this.hiddenWhat(note), this.showHiddenButton(note, note.undo.title));
+      return excludesNote(note, hiddenWhat(note, this.state.parsed), this.showHiddenButton(note, note.undo.title));
     // type:added and type:removed hide commits; their undo says what it searches instead.
-    const label = note.reason === "type" && note.unit === "commits" ? note.undo.title : UNDO_LABEL[note.reason];
+    const typeTitle = note.reason === "type" && note.unit === "commits" ? note.undo.title : undefined;
+    const label = typeTitle ?? (outsideDefinitions(note) ? "Show every match" : UNDO_LABEL[note.reason]);
     const showThem = this.showHiddenButton(note, label ?? "Show them");
     return element(
       "div",
       { class: "note", "data-reason": note.reason },
-      element("span", {}, `${this.hiddenWhat(note)} hidden by `, element("code", {}, note.filter)),
+      element("span", {}, `${hiddenWhat(note, this.state.parsed)} hidden by `, element("code", {}, note.filter)),
       showThem,
     );
   }
@@ -398,18 +394,6 @@ export class ResultsView {
       },
       label,
     );
-  }
-
-  /** "3 commits", or for type:file "38 code matches for retry": what the filter hid. */
-  private hiddenWhat(note: HiddenNote): string {
-    const one = SINGULAR_UNIT[note.unit];
-    if (note.reason !== "type") return plural(note.count, one, note.unit);
-    const terms = textTerms(this.state.parsed);
-    const what =
-      note.unit === "commits"
-        ? plural(note.count, one, note.unit)
-        : plural(note.count, `code ${one}`, `code ${note.unit}`);
-    return what + (terms.length > 0 ? ` for ${terms.join(" and ")}` : "");
   }
 
   private updateSectionCounts(): void {
@@ -512,8 +496,13 @@ export class ResultsView {
       delete this.openCodeFile.block; // one cell's lines never run into another's
       group.append(cellHeading(item.cell));
     }
-    if (this.withContext) return { node: group, row: this.appendWithContext(group, item, this.openCodeFile) };
+    if (this.withContext) {
+      const row = this.appendWithContext(group, item, this.openCodeFile);
+      row.append(...withinLabel(item));
+      return { node: group, row };
+    }
     const row = codeLineRow(item, this.codeRowAttributes(item, this.openCodeFile), this.handlers.replacementsFor(item));
+    row.append(...withinLabel(item));
     group.append(row);
     return { node: group, row };
   }

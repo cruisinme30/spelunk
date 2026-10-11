@@ -993,6 +993,26 @@ body.vscode-high-contrast-light .completion.selected {
   font-size: var(--vscode-editor-font-size, 12.5px);
 }
 
+/* "in function build": the definition a code line was found in, at the row's end. */
+.row.line .within {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 40%;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.row.line .within .name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--fg);
+}
+
 /*
  * A match that spans lines: one row holding each of its lines, with a bar
  * beside them that reads as one bracket around the match.

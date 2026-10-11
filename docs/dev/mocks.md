@@ -52,6 +52,7 @@ covered.
 | 42 | `owner:` keeps the files a team owns in CODEOWNERS | `owner-filter` | `OwnerFilter` | 1.2 |
 | 43 | Syntax colors and whitespace: code in the theme's colors, by VS Code's grammars | `syntax-colors` | `SyntaxColors` | 2.1 |
 | 44 | Outline: the previewed file's definitions, members under their type, closed until opened | `file-outline` | `FileOutline` | 2.1 |
+| 45 | Uses inside definitions: `kind:` with `ref:`, `content:` or `struct:` lists each line inside the definitions it keeps, naming the one it is in | `uses-in-definitions` | `UsesInDefinitions` | 2.1 |
 | 50 | Search from your code: the editor's selection, or the name at the cursor, starts the search | `seed-from-editor` | `SeedFromEditor` | 2.1 |
 | 51 | Search in Folder: right-click a folder in the Explorer to search only inside it | `search-in-folder` | `SearchInFolder` | 2.1 |
 | 52 | VS Code's `files.exclude` and `search.exclude` hide results too; a note counts them, and Show them adds `excludes:no` | `editor-excludes` | `EditorExcludes` | 2.1 |

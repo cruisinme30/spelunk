@@ -51,6 +51,11 @@ func Guide() string {
 		op(protocol.OpNameType) + TypeAdded + " and " + op(protocol.OpNameType) + TypeRemoved +
 		" search only the lines commits added or removed. " + op(protocol.OpNameAuthor) + ", " +
 		op(protocol.OpNameMsg) + ", " + op(protocol.OpNameSince) + " and " + op(protocol.OpNameUntil) + " narrow them.\n")
+	kinds := op(protocol.OpNameKind) + "function"
+	b.WriteString("\nInside definitions: " + op(protocol.OpNameKind) + " or " + op(protocol.OpNameSym) + " with " +
+		op(protocol.OpNameRef) + ", " + op(protocol.OpNameContent) + " or " + op(protocol.OpNameStruct) +
+		" finds those lines inside the definitions it keeps, each naming the one it is in: " + kinds + " " +
+		op(protocol.OpNameRef) + "ParseQuery lists the uses of ParseQuery inside functions.\n")
 	b.WriteString("\nExamples:\n")
 	for _, example := range []string{
 		"retry " + op(protocol.OpNameLang) + "go -" + op(protocol.OpNameF) + "_test",
