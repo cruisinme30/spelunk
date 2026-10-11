@@ -17,7 +17,7 @@ import (
 
 // shardFormatVersion changes whenever the saved layout does; an index
 // written by another version is rebuilt rather than migrated.
-const shardFormatVersion = 4
+const shardFormatVersion = 5
 
 // maxDocs bounds a shard's files, so doc ids fit in a uint32.
 const maxDocs int64 = math.MaxUint32

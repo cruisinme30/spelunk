@@ -215,3 +215,35 @@ export function retry(fn: () => void) {
 		}
 	}
 }
+
+func TestCFunctionsAreNamedPastAttributeMacros(t *testing.T) {
+	// cspell:ignore noprof viio debugfs dentry noinline idmap ttbr
+	source := `static __always_inline __alloc_size(1) void *_kmalloc_noprof(size_t size, gfp_t flags)
+{
+	return NULL;
+}
+__printf(2, 3) __cold void dev_err(const struct device *dev, const char *fmt, ...)
+{
+}
+int lock_page(struct page *page) __acquires(page)
+{
+}
+static __printf(3, 0)
+struct iio_trigger *viio_trigger_alloc(struct device *parent,
+int __printf(2, 3) debugfs_change_name(struct dentry *dentry, const char *fmt, ...)
+{
+}
+int __attribute__((weak)) kvm_vm_ioctl_enable_cap(struct kvm *kvm,
+static inline __attribute__((format(printf, 1, 2)))
+void ___scx_bpf_bstr_format_checker(const char *fmt, ...) {}
+static void noinline __section(".idmap.text") set_ttbr0_for_lpa2(phys_addr_t ttbr)
+{
+}
+`
+	want := []string{"1 function _kmalloc_noprof", "5 function dev_err", "8 function lock_page",
+		"12 function viio_trigger_alloc", "13 function debugfs_change_name", "16 function kvm_vm_ioctl_enable_cap",
+		"18 function ___scx_bpf_bstr_format_checker", "19 function set_ttbr0_for_lpa2"}
+	if got := found("c", source); !reflect.DeepEqual(got, want) {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}

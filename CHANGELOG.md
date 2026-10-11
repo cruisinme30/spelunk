@@ -89,6 +89,9 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- C functions written after an attribute macro, as in Linux's `static __printf(2, 3) void dev_err(…)` or
+  `__alloc_size(1) void *kmalloc(…)`, were found under the macro's name. They are now found under their own:
+  in the Linux kernel, 836 more functions answer to their names. Saved indexes are rebuilt once.
 - A left-out `-symbol:Parse` no longer offers to "Search Parse as text".
 - Show them, under a note for a left-out group such as `NOT (parse OR lex)`, left its closing parenthesis behind
   and broke the query. It now removes the whole group.

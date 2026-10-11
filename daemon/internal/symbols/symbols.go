@@ -156,6 +156,13 @@ func match(rules []rule, line []byte) (symbol Symbol, parent string, ok bool) {
 			continue
 		}
 		name := string(line[m[2*r.name]:m[2*r.name+1]])
+		if r.pastAttributes {
+			end, isName := pastAttributes(line, m[2*r.name+1])
+			if !isName {
+				continue
+			}
+			name = string(line[end-nameLength(line, end) : end])
+		}
 		if reserved[name] {
 			continue
 		}
@@ -184,6 +191,61 @@ type rule struct {
 	// parent is the index of a group named "parent", or 0: the type a Go
 	// method's receiver names.
 	parent int
+	// pastAttributes is set for C and C++ functions, whose name may follow
+	// attribute macros with arguments (see pastAttributes).
+	pastAttributes bool
+}
+
+// cspell:ignore noprof declspec
+
+// laterName finds, right after a name, its parenthesized arguments and a
+// later name with its own "(": in "__alloc_size(1) void *kmalloc_noprof(",
+// what follows __alloc_size. typed says whether a word such as a return
+// type came between them.
+var laterName = regexp.MustCompile(`^\s*\(([^()]*(?:\([^()]*\)[^()]*)*)\)[\s\*&]*(?P<typed>[A-Za-z_]\w*[\w\s\*&]*?[\s\*&])?(?P<name>[A-Za-z_][\w:~]*)\s*\(`)
+
+// attributeArgs finds arguments only an attribute macro takes: numbers
+// (__printf(2, 3)), parentheses of their own (__attribute__((pure))) or a
+// string (__section(".text")). A function's parameters are never these.
+var attributeArgs = regexp.MustCompile(`^\s*\(\s*(?:\d+(?:\s*,\s*\d+)*|\(.*\)|"[^"]*")\s*\)`)
+
+// isAttribute says whether the name ending at end in line, with the
+// arguments after it, is an attribute macro rather than a function.
+func isAttribute(line []byte, end int) bool {
+	name := string(line[end-nameLength(line, end) : end])
+	return name == "__attribute__" || name == "__declspec" || attributeArgs.Match(line[end:])
+}
+
+// pastAttributes moves from a name ending at end past attribute macros
+// with arguments, such as Linux's __printf(2, 3) or __alloc_size(1), to
+// the name of the function they qualify, and returns where that ends. A
+// later name counts when a word such as a return type comes before it, or
+// when the first name is plainly an attribute (see isAttribute); so the
+// attribute after the parameters in "int f(void) __acquires(lock)" doesn't.
+// isName is false when the line ends in such an attribute, as "static
+// __printf(3, 0)" does before the function on the next line.
+func pastAttributes(line []byte, end int) (nameEnd int, isName bool) {
+	for {
+		attribute := isAttribute(line, end)
+		m := laterName.FindSubmatchIndex(line[end:])
+		if len(m) == 0 || (!attribute && m[4] < 0) {
+			return end, !attribute
+		}
+		end += m[7]
+	}
+}
+
+// nameLength is the length of the identifier ending at end in line.
+func nameLength(line []byte, end int) int {
+	start := end
+	for start > 0 {
+		c := line[start-1]
+		if c != '_' && c != ':' && c != '~' && (c < '0' || c > '9') && (c < 'a' || c > 'z') && (c < 'A' || c > 'Z') {
+			break
+		}
+		start--
+	}
+	return end - start
 }
 
 // define makes a rule finding kind with pattern.

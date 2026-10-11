@@ -23,8 +23,17 @@ const (
 
 // cFunction is a C or C++ function definition at the left margin: a return
 // type, the name and the opening parenthesis, without a ";" after it (that
-// would be a declaration).
-const cFunction = `^[A-Za-z_][\w\s\*&:<>,]*?[\s\*&]` + `(?P<name>[A-Za-z_][\w:~]*)\s*\([^;]*$`
+// would be a declaration). An attribute macro with arguments may come
+// first, as Linux's __printf(2, 3) does.
+const cFunction = `^(?:[A-Za-z_]\w*\([^()]*\)\s+)?[A-Za-z_][\w\s\*&:<>,]*?[\s\*&]` + `(?P<name>[A-Za-z_][\w:~]*)\s*\([^;]*$`
+
+// cFunctionRule finds C and C++ functions by their name past any attribute
+// macros before it.
+func cFunctionRule() rule {
+	r := define(function, cFunction)
+	r.pastAttributes = true
+	return r
+}
 
 // byLanguage holds each language's rules, tried in order on every line.
 var byLanguage = map[string][]rule{
@@ -79,13 +88,13 @@ var byLanguage = map[string][]rule{
 	"c": {
 		define(typeKind, `^\s*(?:typedef\s+)?(?:struct|enum|union)\s+`+ident+`\s*\{`),
 		define(typeKind, `^\s*}\s*`+ident+`\s*;`),
-		define(function, cFunction),
+		cFunctionRule(),
 	},
 	"c++": {
 		define(class, `^\s*(?:template\s*<[^>]*>\s*)?(?:class|struct)\s+(?:\w+\s+)?`+ident+`\s*(?:final\s*)?(?::[^;]*)?\{?\s*$`),
 		define(typeKind, `^\s*(?:enum(?:\s+class)?|union)\s+`+ident+`\b[^;]*$`),
 		define(typeKind, `^\s*using\s+`+ident+`\s*=`),
-		define(function, cFunction),
+		cFunctionRule(),
 	},
 }
 
