@@ -18,11 +18,11 @@ import {
   timeAgo,
 } from "../format";
 import { diffSide, operatorNodes, textNodes, textTerms } from "../parsedQuery";
-import type { Fix, HiddenNote, ResultItem, SearchDoneMessage, SinceRevision } from "../protocol.gen";
+import type { Fix, HiddenNote, ResultItem, SearchDoneMessage } from "../protocol.gen";
 import { menuContext, repoName, type ViewState } from "../state";
 import { ChunkedList } from "./chunkedList";
 import { excludesNote } from "./excludesNote";
-import { demoted, rankBadge } from "./rankBadge";
+import { demoted, ownerBadge, rankBadge, sinceBadge } from "./fileBadges";
 import { cellHeading } from "./notebook";
 import { orderLabel } from "./order";
 import { ResultIndex } from "./resultIndex";
@@ -651,41 +651,6 @@ function pathScopeNote(scope: string[]): HTMLElement {
 /** Why each repo an at: search left out has no such revision: "v9 isn't a tag, branch or commit in web-checkout". */
 function revisionProblems(done: SearchDoneMessage | undefined): string[] {
   return (done?.revisions ?? []).flatMap((revision) => (revision.problem ? [revision.problem] : []));
-}
-
-/** How a file found at a revision (at:) differs now: "deleted since" or "changed since"; nothing when it's the same. */
-const SINCE_BADGE: Record<SinceRevision, { label: string; title: string }> = {
-  deleted: { label: "deleted since", title: "This file isn't in the current files" },
-  changed: { label: "changed since", title: "This file is different in the current files" },
-};
-
-/** The badge for how a file at a revision differs now; none for a value this webview doesn't know. */
-function sinceBadge(since: SinceRevision | undefined): HTMLElement | null {
-  if (since === undefined || !Object.hasOwn(SINCE_BADGE, since)) return null;
-  const { label, title } = SINCE_BADGE[since];
-  return element("span", { class: `badge since-${since}`, title, "data-testid": "since-revision" }, label);
-}
-
-/**
- * The badge naming who owns a result's file by its repo's CODEOWNERS file:
- * the first owner, a team by its name alone (payments-core for the team
- * `@acme/payments-core`), then "+1" for each other one, all of them in
- * full in its tooltip.
- */
-function ownerBadge(owners: string[] | undefined): HTMLElement | null {
-  // Only names count: anything else in a broken message is left out.
-  const names = Array.isArray(owners)
-    ? (owners as unknown[]).filter((owner): owner is string => typeof owner === "string")
-    : [];
-  const [first, ...others] = names;
-  if (first === undefined) return null;
-  const name = first.startsWith("@") && first.includes("/") ? first.slice(first.indexOf("/") + 1) : first;
-  const label = others.length > 0 ? `${name} +${others.length}` : name;
-  return element(
-    "span",
-    { class: "badge owner", title: `Owned by ${names.join(", ")}`, "data-testid": "owner" },
-    label,
-  );
 }
 
 /** The indentation a code result's lines and the context around them share; blank lines don't count. */
