@@ -7,6 +7,14 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- **Spelunk for agents and the terminal.** Claude Code, Copilot and a shell search with Spelunk's query language and
+  index. **Spelunk: Install 'spelunk' Command in PATH** adds the `spelunk` command (`spelunk search`, `status` and
+  `help query`; ripgrep-style lines, `--vimgrep` or `--json`, exit 0, 1 or 2). **Spelunk: Add to Claude Code** runs
+  `claude mcp add` and offers a two-line note for `CLAUDE.md`, and VS Code 1.101 or later lists Spelunk's MCP tools
+  for Copilot by itself. Answers come live from the VS Code window that has the folder open, or else from the saved
+  index through a background reader that re-reads changed files and exits when idle; nothing outside VS Code writes an
+  index. New settings: `spelunk.agent.shareWindow`, `spelunk.agent.offerToCopilot` and `spelunk.agent.timeLimitMs`.
+
 - **Search in Folder with Spelunk**, on the Explorer's right-click menu under Find in Folder…, searches only inside the
   folders right-clicked: the box starts with each folder from its repo's root (and its repo, with several open), the
   cursor after it, and what was typed stays. Several folders, or a second pick, search any of them; a file selected
@@ -73,6 +81,8 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
+- Two VS Code windows on the same repo build and save its index once: the first writes it, and the other uses its
+  saves and takes over when it closes. Building the daemon now needs Go 1.25.
 - A word now matches its exact text: `RetryPolicy` no longer lists `retry_policy.py`, nor `retry` `registry.go`.
   `match:fuzzy` brings back file names that have a word's letters in order, as Quick Open finds files
   (`match:fuzzy usrsvc` finds `UserService.ts`), and without it a note under the results counts them, "3 file names
