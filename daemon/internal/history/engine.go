@@ -314,7 +314,7 @@ func leafFor(repo *Repo, c *Commit, view *fileView) func(query.Pred) bool {
 		case *query.Content:
 			return len(view.diffLines(p)) > 0 || len(view.messageLines(p)) > 0
 		case *query.Path:
-			return p.Re.MatchString(view.file.Path)
+			return followsPath(p, view.file)
 		case *query.Visible:
 			// A commit that changes no file has only its message to match.
 			return view.file.Path == "" || p.Excludes.Hiding(repo.ID, repo.Root, view.file.Path) == ""
@@ -329,6 +329,16 @@ func leafFor(repo *Repo, c *Commit, view *fileView) func(query.Pred) bool {
 			return matched
 		}
 	}
+}
+
+// followsPath reports whether f: matches a changed file under any name it
+// is known by here: its path then, its path before this commit renamed it,
+// or its path now. So f: follows a file back through its renames, and -f:
+// leaves out its changes under every one of those names.
+func followsPath(p *query.Path, file *FileChange) bool {
+	return p.Re.MatchString(file.Path) ||
+		file.OldPath != "" && p.Re.MatchString(file.OldPath) ||
+		file.Now != "" && p.Re.MatchString(file.Now)
 }
 
 // inCommitState reports whether a commit's file is in the state an is:
@@ -407,7 +417,10 @@ func (s *searcher) result(repo *Repo, c *Commit, views []*fileView) protocol.Res
 			continue
 		}
 		if view.file.Path != "" {
-			files = append(files, protocol.FileStat{Path: view.file.Path, Added: view.file.Added, Removed: view.file.Removed})
+			files = append(files, protocol.FileStat{
+				Path: view.file.Path, Added: view.file.Added, Removed: view.file.Removed,
+				OldPath: view.file.OldPath, CurrentPath: view.file.Now,
+			})
 		}
 		matched := map[int]bool{}
 		for _, term := range query.Contributing(s.plan.Pred, leaf) {

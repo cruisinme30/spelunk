@@ -101,6 +101,23 @@ func (s *Store) LastCommit(path string) (Touch, bool) {
 	return touch, ok
 }
 
+// find returns the commit with sha as the store holds it, or nil, for a
+// nil store too. It looks through every commit, which takes a millisecond
+// or so for the largest windows; it serves one preview at a time.
+func (s *Store) find(sha string) *Commit {
+	if s == nil {
+		return nil
+	}
+	for _, seg := range s.segments {
+		for i := range seg.commits {
+			if seg.commits[i].SHA == sha {
+				return &seg.commits[i]
+			}
+		}
+	}
+	return nil
+}
+
 // Dirty reports whether path has uncommitted changes.
 func (s *Store) Dirty(path string) bool { return s.dirty[path] }
 
@@ -118,11 +135,14 @@ func (s *Store) WithDirty(dirty map[string]bool) *Store {
 type builder struct {
 	store   *Store
 	pending []Commit
+	// names follows renames from newer commits to older ones (see names).
+	names names
 }
 
 // add appends a commit, closing the segment when it is full. It reports
 // whether a segment was closed, which is when the store is worth publishing.
 func (b *builder) add(c Commit) bool {
+	b.names.name(&c)
 	b.pending = append(b.pending, c)
 	for _, file := range c.Files {
 		// Commits arrive newest first, so the first touch of a path is its newest.
@@ -213,7 +233,9 @@ func Update(ctx context.Context, root string, store *Store, opts Options) (*Stor
 		return Ingest(ctx, root, opts, nil, nil)
 	}
 	var newer []Commit
+	var renames names
 	if err := readLog(ctx, root, store.Head+".."+head, opts, func(c Commit) error {
+		renames.name(&c)
 		newer = append(newer, c)
 		return ctx.Err()
 	}); err != nil {
@@ -225,7 +247,7 @@ func Update(ctx context.Context, root string, store *Store, opts Options) (*Stor
 			next.touches[file.Path] = touchOf(&newer[i])
 		}
 	}
-	next.segments = mergeNewest(append([]*segment{newSegment(newer)}, store.segments...))
+	next.segments = mergeNewest(append([]*segment{newSegment(newer)}, renames.renameOlder(store.segments)...))
 	return next.since(opts.Since).WithDirty(UncommittedPaths(ctx, root)), nil
 }
 
@@ -360,3 +382,77 @@ func Load(path string) (*Store, error) {
 	b.flush()
 	return b.snapshot().WithDirty(map[string]bool{}), nil
 }
+
+// ------------------------------------------------------------ renames
+
+// names follows files through renames, newest commit first: it maps a path
+// as it was at the commit being read to the path the same file has at the
+// newest commit, for each file a newer commit renamed.
+type names map[string]string
+
+// name sets Now on each file c changed, clearing a stale one, then notes
+// what c did to paths, for the commits older than c: a file it created
+// was another file's, if any, before (so a path that a newer commit took
+// over after its file moved away keeps its own history), and a file it
+// renamed is known by its newer name under its old path.
+func (n *names) name(c *Commit) {
+	for i := range c.Files {
+		c.Files[i].Now = ""
+		if now, ok := (*n)[c.Files[i].Path]; ok && now != c.Files[i].Path {
+			c.Files[i].Now = now
+		}
+	}
+	for i := range c.Files {
+		if c.Files[i].Created {
+			delete(*n, c.Files[i].Path)
+		}
+	}
+	for i := range c.Files {
+		file := &c.Files[i]
+		if file.OldPath == "" {
+			continue
+		}
+		if *n == nil {
+			*n = names{}
+		}
+		now := file.Path
+		if file.Now != "" {
+			now = file.Now
+		}
+		delete(*n, file.Path)
+		(*n)[file.OldPath] = now
+	}
+}
+
+// renameOlder returns segments, the commits older than the ones n has
+// read, with each file's Now named again for the renames n holds, reading
+// on through their own renames. A segment whose names change is copied,
+// keeping its indexes, which don't depend on names; the others are shared.
+// With no renames, segments is returned as it is.
+func (n *names) renameOlder(segments []*segment) []*segment {
+	if len(*n) == 0 {
+		return segments
+	}
+	out := make([]*segment, len(segments))
+	for i, seg := range segments {
+		var commits []Commit // a copy, made at the first change
+		for j := range seg.commits {
+			c := seg.commits[j]
+			c.Files = slices.Clone(c.Files)
+			n.name(&c)
+			if commits == nil && !slices.EqualFunc(c.Files, seg.commits[j].Files, sameNow) {
+				commits = slices.Clone(seg.commits)
+			}
+			if commits != nil {
+				commits[j] = c
+			}
+		}
+		out[i] = seg
+		if commits != nil {
+			out[i] = &segment{commits: commits, diffs: seg.diffs, messages: seg.messages}
+		}
+	}
+	return out
+}
+
+func sameNow(a, b FileChange) bool { return a.Now == b.Now }

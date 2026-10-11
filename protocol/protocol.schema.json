@@ -598,6 +598,14 @@
         },
         "hiddenByFilter": {
           "type": "boolean"
+        },
+        "oldPath": {
+          "description": "The file's path before this commit renamed it to path; absent when the commit didn't rename it.",
+          "type": "string"
+        },
+        "currentPath": {
+          "description": "The file's path now, after renames made by later commits, when it differs from path.",
+          "type": "string"
         }
       },
       "required": ["path", "added", "removed"]

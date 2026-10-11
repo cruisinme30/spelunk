@@ -38,6 +38,7 @@ func Preview(ctx context.Context, repo *Repo, ref Ref, plan *query.Plan, context
 		return protocol.Preview{}, ErrStale
 	}
 	hunks, files := parseShow(out)
+	nameNow(repo.Store.find(ref.SHA), files)
 	markNotebookCells(ctx, repo.Root, ref.SHA, hunks)
 	var terms []*query.Content
 	marked := map[string]bool{"add": true, "del": true} // the kinds of line whose terms are marked
@@ -52,7 +53,9 @@ func Preview(ctx context.Context, repo *Repo, ref Ref, plan *query.Plan, context
 		finder := trigram.NewLineFinder()
 		message := newMessageView(&commit, finder)
 		for i := range files {
-			view := newFileView(changedLinesOf(files[i].Path, hunks), finder, message, plan.DiffSide)
+			change := changedLinesOf(files[i].Path, hunks)
+			change.OldPath, change.Now = files[i].OldPath, files[i].CurrentPath
+			view := newFileView(change, finder, message, plan.DiffSide)
 			files[i].HiddenByFilter = !query.Eval(plan.Pred, leafFor(repo, &commit, view))
 		}
 	}
@@ -151,6 +154,8 @@ func (p *showParser) line(line string) {
 		p.files = append(p.files, protocol.FileStat{Path: diffGitPath(line)})
 		p.inHunk = false
 	case len(p.files) == 0:
+	case !p.inHunk && strings.HasPrefix(line, "rename from "):
+		p.files[len(p.files)-1].OldPath = unquote(strings.TrimPrefix(line, "rename from "))
 	case !p.inHunk && strings.HasPrefix(line, "--- "):
 		p.setPath(line[4:], "a/")
 	case !p.inHunk && strings.HasPrefix(line, "+++ "):
@@ -213,4 +218,19 @@ func rangeStart(field string) int {
 	}
 	n, _ := strconv.Atoi(field)
 	return n
+}
+
+// nameNow gives each of a commit's files its path now, from the commit as
+// the store holds it; nothing when the store doesn't hold it.
+func nameNow(stored *Commit, files []protocol.FileStat) {
+	if stored == nil {
+		return
+	}
+	for i := range files {
+		for _, file := range stored.Files {
+			if file.Path == files[i].Path {
+				files[i].CurrentPath = file.Now
+			}
+		}
+	}
 }

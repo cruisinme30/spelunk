@@ -430,6 +430,10 @@ type FileStat struct {
 	Added          int    `json:"added"`
 	Removed        int    `json:"removed"`
 	HiddenByFilter bool   `json:"hiddenByFilter,omitempty"`
+	// OldPath is the file's path before this commit renamed it to path; absent when the commit didn't rename it.
+	OldPath string `json:"oldPath,omitempty"`
+	// CurrentPath is the file's path now, after renames made by later commits, when it differs from path.
+	CurrentPath string `json:"currentPath,omitempty"`
 }
 
 // SymbolKind is what a symbol definition is.

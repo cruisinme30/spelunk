@@ -187,8 +187,14 @@ func insideRoot(root, rel string) error {
 	return nil
 }
 
-// historyRepoFor finds the open root a commit ref points into.
+// historyRepoFor finds the open root a commit ref points into, with its
+// history index when it has one, which knows each file's name now.
 func (s *Server) historyRepoFor(ref history.Ref) (*history.Repo, error) {
+	for _, repo := range s.index.HistoryRepos() {
+		if repo.ID == ref.RepoID {
+			return &repo, nil
+		}
+	}
 	for _, root := range s.Roots() {
 		if root.ID == ref.RepoID {
 			return &history.Repo{ID: root.ID, Name: root.Name, Root: root.Path}, nil

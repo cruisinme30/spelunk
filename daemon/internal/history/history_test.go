@@ -70,7 +70,7 @@ func TestIngestReadsCommitsNewestFirstWithTheirChangedLines(t *testing.T) {
 	}
 	want := []FileChange{
 		{Path: "src/retry.py", Added: 1, Text: []byte("    timeout = 30\n"), Signs: []byte("+")},
-		{Path: "vendor/lib/retry.js", Added: 1, Text: []byte("var timeout = 1;\n"), Signs: []byte("+")},
+		{Path: "vendor/lib/retry.js", Created: true, Added: 1, Text: []byte("var timeout = 1;\n"), Signs: []byte("+")},
 	}
 	if !reflect.DeepEqual(raise.Files, want) {
 		t.Errorf("files = %+v, want %+v", raise.Files, want)
@@ -98,7 +98,7 @@ func TestSkippedFilesAreListedWithoutTheirLines(t *testing.T) {
 	raise, _ := commitBySHA(store, shas["raise"])
 	want := []FileChange{
 		{Path: "src/retry.py", Added: 1, Text: []byte("    timeout = 30\n"), Signs: []byte("+")},
-		{Path: "vendor/lib/retry.js", Added: 1},
+		{Path: "vendor/lib/retry.js", Created: true, Added: 1},
 	}
 	if !reflect.DeepEqual(raise.Files, want) {
 		t.Errorf("files = %+v, want %+v: the vendored file counted but its lines left out", raise.Files, want)

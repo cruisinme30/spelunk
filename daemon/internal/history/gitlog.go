@@ -35,7 +35,17 @@ func (c *Commit) message() string { return c.Subject + "\n" + c.Body }
 
 // FileChange is what one commit changed in one file.
 type FileChange struct {
-	Path    string // slash-separated, relative to the repo root
+	Path string // slash-separated, relative to the repo root
+	// OldPath is the file's path before this commit renamed it to Path; ""
+	// when the commit didn't rename it. A rename is one change: only the
+	// lines it edited count as added and removed.
+	OldPath string
+	// Now is the file's path at the newest commit the store holds, after
+	// the renames newer commits made, when that differs from Path; "" when
+	// it is Path (or the file was deleted under that name).
+	Now string
+	// Created is set when the commit added the file (not by renaming it).
+	Created bool
 	Added   int
 	Removed int
 	// Text is the added and removed lines in diff order, each ending in a
@@ -104,9 +114,10 @@ var gitOptions = []string{
 // diffOptions fix how patches look, whatever the user's diff.* settings
 // say: "a/" and "b/" before paths (diff.noPrefix, diff.mnemonicPrefix and
 // diff.srcPrefix change them), no color, no external diff tool, renames
-// as a deletion and an addition, and a submodule as one line.
+// found (Git's default 50% similarity, not copies, which cost a comparison
+// with every file in the tree), and a submodule as one line.
 var diffOptions = []string{
-	"--src-prefix=a/", "--dst-prefix=b/", "--no-color", "--no-ext-diff", "--no-renames", "--submodule=short",
+	"--src-prefix=a/", "--dst-prefix=b/", "--no-color", "--no-ext-diff", "--find-renames", "--submodule=short",
 }
 
 // git runs git in root and returns its standard output.
@@ -329,6 +340,10 @@ func (p *logParser) patchLine(line string) {
 		p.startFile(diffGitPath(line))
 	case p.file == nil:
 		// The blank line between header and patch.
+	case !p.inHunk && strings.HasPrefix(line, "new file mode "):
+		p.file.Created = true // a binary or empty file has no --- line
+	case !p.inHunk && strings.HasPrefix(line, "rename from "):
+		p.file.OldPath = unquote(strings.TrimPrefix(line, "rename from "))
 	case !p.inHunk && p.fileHeader(line):
 		// The path is read.
 	case strings.HasPrefix(line, "@@ "):
@@ -350,6 +365,7 @@ func (p *logParser) fileHeader(line string) bool {
 		if path, ok := patchPath(line[4:], "a/"); ok {
 			p.file.Path = path
 		}
+		p.file.Created = strings.TrimRight(line[4:], "\t") == "/dev/null"
 	case strings.HasPrefix(line, "+++ "):
 		if path, ok := patchPath(line[4:], "b/"); ok {
 			p.file.Path = path // the new path wins; a deleted file keeps the old one

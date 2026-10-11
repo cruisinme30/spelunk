@@ -247,6 +247,10 @@ export interface FileStat {
   added: number;
   removed: number;
   hiddenByFilter?: boolean;
+  /** The file's path before this commit renamed it to path; absent when the commit didn't rename it. */
+  oldPath?: string;
+  /** The file's path now, after renames made by later commits, when it differs from path. */
+  currentPath?: string;
 }
 
 /** SymbolKind is what a symbol definition is. */
