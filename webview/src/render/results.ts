@@ -18,12 +18,13 @@ import {
   timeAgo,
 } from "../format";
 import { diffSide, operatorNodes, textNodes, textTerms } from "../parsedQuery";
-import type { Fix, HiddenNote, ResultItem, ResultOrder, SearchDoneMessage, SinceRevision } from "../protocol.gen";
+import type { Fix, HiddenNote, ResultItem, SearchDoneMessage, SinceRevision } from "../protocol.gen";
 import { menuContext, repoName, type ViewState } from "../state";
 import { ChunkedList } from "./chunkedList";
 import { excludesNote } from "./excludesNote";
 import { demoted, rankBadge } from "./rankBadge";
 import { cellHeading } from "./notebook";
+import { orderLabel } from "./order";
 import { ResultIndex } from "./resultIndex";
 import { resultsSash } from "./sash";
 
@@ -42,9 +43,6 @@ const SINGULAR_UNIT: Record<HiddenNote["unit"], string> = {
 
 /** The choices of the Context buttons: how many lines to show around each code match. */
 const CONTEXT_CHOICES = [0, 1, 2, 3] as const;
-
-/** How a section title says the order of current files. */
-const ORDER_LABEL: Record<ResultOrder, string> = { best: "best match first", path: "path order" };
 
 /** What undoing a filter does, where "Show them" would mislead. */
 const UNDO_LABEL: Partial<Record<HiddenNote["reason"], string>> = {
@@ -169,7 +167,7 @@ export class ResultsView {
     private readonly handlers: ResultsHandlers,
     scope: string[] = [],
   ) {
-    const order = ORDER_LABEL[state.parsed?.globals.order ?? state.ui.order];
+    const order = orderLabel(state.parsed?.globals.order ?? state.ui.order);
     this.sections = {
       file: makeSection(`File names · ${order}`, "section-files"),
       symbol: makeSection(`Definitions · ${order}`, "section-symbols"),

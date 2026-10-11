@@ -2,6 +2,8 @@ package trigram
 
 // Best-match order (order:best): files that define a searched name, are
 // named after it or are open in the editor come first, and tests, vendored and generated files last.
+// Recently-changed order (order:recent) sorts by when each file last
+// changed instead, with best match breaking ties (see compareChanged).
 // Ranking moves whole files: a file's lines stay together, in line order.
 //
 // It works in two steps so results still stream and pages never overlap:
@@ -69,17 +71,46 @@ type docRank struct {
 	score  int
 	fuzzy  int
 	reason protocol.RankReason
+	// changed is when the file last changed, for order:recent (see
+	// changeOf); the zero time when that isn't known.
+	changed time.Time
 }
 
-// ranking reports whether this search sorts by best match. A count-only
-// search (Limit 0) emits nothing, so it never sorts.
+// ranking reports whether this search sorts by best match or by when files
+// changed. A count-only search (Limit 0) emits nothing, so it never sorts.
 func (s *searcher) ranking() bool {
 	return s.plan.Order != protocol.ResultOrderPath && s.plan.Limit > 0
 }
 
-// rankDoc scores a file by what is known before reading its lines.
+// byChange reports whether this search sorts by when files last changed.
+func (s *searcher) byChange() bool {
+	return s.plan.Order == protocol.ResultOrderRecent
+}
+
+// changeOf is when a file last changed, for order:recent: when it was
+// saved if it has uncommitted changes or is outside Git, otherwise its
+// newest commit; the zero time when it has no commit in the history window.
+func changeOf(repo *Repo, doc *Doc) time.Time {
+	if at, uncommitted := repo.LastChanged(doc); !uncommitted {
+		return at
+	}
+	return doc.ModTime
+}
+
+// rankDoc scores a file by what is known before reading its lines. In
+// order:recent it also notes when the file changed, and neither demotes
+// tests, vendored and generated files nor gives a reason: the newest file
+// comes first whatever it is.
 func (s *searcher) rankDoc(repo *Repo, doc *Doc) docRank {
 	var r docRank
+	if s.byChange() {
+		r.changed = changeOf(repo, doc)
+		r.score = s.nameScore(doc.Path)
+		if s.defines(doc) {
+			r.score += scoreDefinition
+		}
+		return r
+	}
 	if s.defines(doc) {
 		r.score += scoreDefinition
 		r.reason = protocol.RankReasonDefinition
@@ -208,10 +239,38 @@ type rankedCandidate struct {
 	rank docRank
 }
 
-// sortByRank puts candidates best first. The sort is stable, so files that
+// compareChanged orders two files for order:recent: newest first when
+// descending, oldest first otherwise. A file with no known change goes last
+// either way, its date being unknown rather than old.
+func compareChanged(a, b time.Time, descending bool) int {
+	switch {
+	case a.IsZero() || b.IsZero():
+		return boolOrder(a.IsZero()) - boolOrder(b.IsZero())
+	case descending:
+		return b.Compare(a)
+	default:
+		return a.Compare(b)
+	}
+}
+
+func boolOrder(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
+}
+
+// sortByRank puts candidates best first, or in order:recent by when they
+// changed with best match breaking ties. The sort is stable, so files that
 // rank the same keep path order and every page sees the same order.
-func sortByRank(candidates []rankedCandidate) {
+func (s *searcher) sortByRank(candidates []rankedCandidate) {
+	byChange := s.byChange()
 	slices.SortStableFunc(candidates, func(a, b rankedCandidate) int {
+		if byChange {
+			if c := compareChanged(a.rank.changed, b.rank.changed, s.plan.Descending); c != 0 {
+				return c
+			}
+		}
 		if a.rank.score != b.rank.score {
 			return b.rank.score - a.rank.score
 		}
@@ -255,12 +314,18 @@ func (s *searcher) hold(item protocol.ResultItem, score, quality int) {
 }
 
 // sendHeld sends the held page, best first within each section, and stops
-// holding: the rest of the search emits as it goes.
+// holding: the rest of the search emits as it goes. In order:recent the
+// files keep the order they were found in, by when they changed: how well
+// their lines match never moves one past a newer file.
 func (s *searcher) sendHeld() {
 	s.holding = false
+	byChange := s.byChange()
 	slices.SortStableFunc(s.held, func(a, b *pageGroup) int {
 		if a.section != b.section {
 			return a.section - b.section
+		}
+		if byChange {
+			return 0
 		}
 		return b.score + min(b.quality, maxLineQuality) - a.score - min(a.quality, maxLineQuality)
 	})

@@ -133,9 +133,9 @@
       "enum": ["off", "on", "smart"]
     },
     "ResultOrder": {
-      "description": "ResultOrder is how current files are sorted: best match first, or by repo, path and line.",
+      "description": "ResultOrder is how current files are sorted: best match first, by repo, path and line (path or path:asc A to Z, path:desc Z to A), or by when each file last changed (recent or recent:desc newest first, recent:asc oldest first).",
       "type": "string",
-      "enum": ["best", "path"]
+      "enum": ["best", "path", "path:asc", "path:desc", "recent", "recent:asc", "recent:desc"]
     },
     "RankReason": {
       "description": "RankReason is why best-match order put a file where it is: it defines a searched name or is open in the editor, or it was moved down as a test, vendored or generated file, or as one VS Code's excludes hide (shown by excludes:no). Absent when nothing stands out or the order is path.",
@@ -361,7 +361,7 @@
           "enum": ["yes", "no"]
         },
         "order": {
-          "description": "the query's order: value, best or path; absent when the query doesn't say.",
+          "description": "the query's order: value, such as best, path:desc or recent:asc; absent when the query doesn't say.",
           "$ref": "#/$defs/ResultOrder"
         },
         "at": {
@@ -619,6 +619,10 @@
             "dirty": {
               "type": "boolean"
             },
+            "modifiedAt": {
+              "description": "In a search sorted by when files last changed, when the file was last saved: for a file outside Git, or one with uncommitted changes. Absent otherwise.",
+              "type": "string"
+            },
             "owners": {
               "description": "Who the repo's CODEOWNERS file says owns the file, as it writes them; absent when nobody does or the repo has no CODEOWNERS file.",
               "type": "array",
@@ -672,6 +676,18 @@
             },
             "rankReason": {
               "$ref": "#/$defs/RankReason"
+            },
+            "lastCommit": {
+              "description": "In a search sorted by when files last changed, the newest commit that touched the file, unless it has uncommitted changes. Absent otherwise.",
+              "$ref": "#/$defs/LastCommit"
+            },
+            "dirty": {
+              "description": "In a search sorted by when files last changed, whether the file has uncommitted changes. Absent otherwise.",
+              "type": "boolean"
+            },
+            "modifiedAt": {
+              "description": "In a search sorted by when files last changed, when the file was last saved: for a file outside Git, or one with uncommitted changes. Absent otherwise.",
+              "type": "string"
             },
             "spanLines": {
               "description": "When the match spans lines (a regex with \\n, or a struct: template), the lines after line that it runs onto, in order: at most 10, so a longer match ends at endLine past the last of them. Absent for a match within one line.",

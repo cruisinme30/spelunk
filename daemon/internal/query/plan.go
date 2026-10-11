@@ -58,7 +58,13 @@ type Plan struct {
 	// messages out; "" searches both sides of diffs and the messages.
 	DiffSide string
 	// Order is how current files are sorted: order:, or the order setting.
+	// It is best, path or recent; Descending says which way path and
+	// recent run.
 	Order protocol.ResultOrder
+	// Descending runs Order from its far end: paths Z to A, or files
+	// changed most recently first. Plain recent is descending, plain path
+	// ascending.
+	Descending bool
 	// Limit is how many results one page returns (count:, or the default).
 	Limit int
 	// Offset is where this page starts (from the Load more cursor).
@@ -335,9 +341,9 @@ func NewPlan(q protocol.ParsedQuery, settings protocol.Settings, now time.Time, 
 	if q.Globals.Word != "" {
 		plan.WholeWord = q.Globals.Word == "yes"
 	}
-	plan.Order = resultOrder(q.Globals.Order, settings.Order)
 	src := newSource(q.Raw)
 	plan.At, plan.AtTime = revisionOf(q.Globals.At, atQuoted(q.Root, src), now)
+	plan.Order, plan.Descending = resultOrder(q.Globals.Order, settings.Order, plan.At != "")
 
 	l := lowering{caseSensitive: plan.CaseSensitive, wholeWord: plan.WholeWord, now: now, plan: plan, nextRefIndex: textTermCount(q.Root)}
 	for _, node := range topLevel(q.Root) {
@@ -470,15 +476,22 @@ func pageSize(count any, defaultCount int) int {
 }
 
 // resultOrder is order: if given, otherwise the order setting, and best
-// match first when neither says.
-func resultOrder(order, setting protocol.ResultOrder) protocol.ResultOrder {
+// match first when neither says, split into the order and its direction
+// (see Plan.Descending). A past revision's files (atRevision) have no last
+// change to sort by, so the setting's recent falls back to best there; a
+// typed order:recent with at: is an error (reportOperatorsOfNow).
+func resultOrder(order, setting protocol.ResultOrder, atRevision bool) (protocol.ResultOrder, bool) {
+	if order == "" {
+		order = setting
+	}
+	base, direction, _ := strings.Cut(order, ":")
 	switch {
-	case order != "":
-		return order
-	case setting == protocol.ResultOrderPath:
-		return setting
+	case base == protocol.ResultOrderPath:
+		return base, direction == "desc"
+	case base == protocol.ResultOrderRecent && !atRevision:
+		return base, direction != "asc"
 	default:
-		return protocol.ResultOrderBest
+		return protocol.ResultOrderBest, false
 	}
 }
 

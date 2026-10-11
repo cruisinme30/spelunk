@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"slices"
 	"strings"
 	"time"
 
@@ -291,6 +292,9 @@ func (s *searcher) add(repo *Repo, doc *Doc, item protocol.ResultItem, score, qu
 		}
 	}
 	if s.plan.OnPage(s.counted) {
+		if s.byChange() && item.Kind != query.KindSymbol {
+			describeChange(repo, doc, &item)
+		}
 		if s.holding {
 			s.hold(item, score, quality)
 		} else {
@@ -357,8 +361,19 @@ func docLeaf(p query.Pred, repo *Repo, doc *Doc) bool {
 // fuzzily ranks after one whose path has the term, other things equal, and
 // better fuzzy matches first.
 func (s *searcher) addFileNames(repos []Repo, countHidden bool) {
-	if !s.ranking() {
+	if !s.ranking() && !s.plan.Descending {
 		s.forEachFileName(repos, countHidden, func(repo *Repo, doc *Doc) { s.addFileName(repo, doc, docRank{}) })
+		return
+	}
+	if !s.ranking() { // path order, Z to A
+		var matched []rankedCandidate
+		s.forEachFileName(repos, countHidden, func(repo *Repo, doc *Doc) {
+			matched = append(matched, rankedCandidate{repo: repo, doc: doc})
+		})
+		reversePaths(matched)
+		for _, c := range matched {
+			s.addFileName(c.repo, c.doc, docRank{})
+		}
 		return
 	}
 	var matched []rankedCandidate
@@ -370,7 +385,7 @@ func (s *searcher) addFileNames(repos []Repo, countHidden bool) {
 		}
 		matched = append(matched, rankedCandidate{repo: repo, doc: doc, rank: rank})
 	})
-	sortByRank(matched)
+	s.sortByRank(matched)
 	for _, c := range matched {
 		s.addFileName(c.repo, c.doc, c.rank)
 	}
@@ -696,7 +711,9 @@ func (s *searcher) candidates(repos []Repo) []rankedCandidate {
 		for i := range candidates {
 			candidates[i].rank = s.rankDoc(candidates[i].repo, candidates[i].doc)
 		}
-		sortByRank(candidates)
+		s.sortByRank(candidates)
+	} else if s.plan.Descending {
+		reversePaths(candidates)
 	}
 	return candidates
 }
@@ -773,3 +790,36 @@ func (s *searcher) lineResult(repo *Repo, doc *Doc, line matchedLine) protocol.R
 }
 
 // byteHit is a match in a line, in byte offsets.
+
+// describeChange tells the panel when a result's file last changed, for
+// order:recent: its uncommitted changes and when it was saved, its newest
+// commit, or outside Git when it was saved. A file with no commit in the
+// history window says nothing.
+func describeChange(repo *Repo, doc *Doc, item *protocol.ResultItem) {
+	item.LastCommit = nil
+	switch {
+	case repo.History == nil:
+		item.ModifiedAt = doc.ModTime.UTC().Format(time.RFC3339)
+	case repo.History.Dirty(doc.Path):
+		item.Dirty = true
+		item.ModifiedAt = doc.ModTime.UTC().Format(time.RFC3339)
+	default:
+		if commit, _, ok := repo.History.LastCommit(doc.Path); ok {
+			item.LastCommit = &commit
+		}
+	}
+}
+
+// reversePaths sorts each repo's run of candidates by path from Z to A,
+// for order:path:desc. Repos keep their workspace order.
+func reversePaths(candidates []rankedCandidate) {
+	for start := 0; start < len(candidates); {
+		end := start + 1
+		for end < len(candidates) && candidates[end].repo == candidates[start].repo {
+			end++
+		}
+		run := candidates[start:end]
+		slices.SortStableFunc(run, func(a, b rankedCandidate) int { return strings.Compare(b.doc.Path, a.doc.Path) })
+		start = end
+	}
+}

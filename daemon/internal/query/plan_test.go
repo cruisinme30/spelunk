@@ -303,21 +303,40 @@ func TestWholeWordComesFromWordOrTheSetting(t *testing.T) {
 }
 
 func TestOrderComesFromOrderOrTheSetting(t *testing.T) {
-	byPath := defaultSettings
-	byPath.Order = protocol.ResultOrderPath
+	// @covers op:order setting:results.order
+	setting := func(order protocol.ResultOrder) protocol.Settings {
+		settings := defaultSettings
+		settings.Order = order
+		return settings
+	}
 	tests := []struct {
-		query    string
-		settings protocol.Settings
-		want     protocol.ResultOrder
+		query      string
+		settings   protocol.Settings
+		want       protocol.ResultOrder
+		descending bool
 	}{
-		{"x", defaultSettings, protocol.ResultOrderBest},
-		{"x", byPath, protocol.ResultOrderPath},
-		{"order:path x", defaultSettings, protocol.ResultOrderPath},
-		{"order:best x", byPath, protocol.ResultOrderBest},
+		{"x", defaultSettings, protocol.ResultOrderBest, false},
+		{"x", setting(protocol.ResultOrderPath), protocol.ResultOrderPath, false},
+		{"order:path x", defaultSettings, protocol.ResultOrderPath, false},
+		{"order:best x", setting(protocol.ResultOrderPath), protocol.ResultOrderBest, false},
+		{"order:path:asc x", defaultSettings, protocol.ResultOrderPath, false},
+		{"order:path:desc x", defaultSettings, protocol.ResultOrderPath, true},
+		{"order:recent x", defaultSettings, protocol.ResultOrderRecent, true},
+		{"order:recent:desc x", defaultSettings, protocol.ResultOrderRecent, true},
+		{"order:recent:asc x", setting(protocol.ResultOrderPath), protocol.ResultOrderRecent, false},
+		{"x", setting(protocol.ResultOrderRecent), protocol.ResultOrderRecent, true},
+		{"x", setting("recent:asc"), protocol.ResultOrderRecent, false},
+		{"x", setting("path:desc"), protocol.ResultOrderPath, true},
+		{"order:best x", setting("recent:asc"), protocol.ResultOrderBest, false},
+		// A past revision's files have no last change: the setting's recent falls back to best.
+		{"at:v1.0.0 x", setting(protocol.ResultOrderRecent), protocol.ResultOrderBest, false},
+		{"at:v1.0.0 x", setting("path:desc"), protocol.ResultOrderPath, true},
 	}
 	for _, tt := range tests {
-		if got := mustPlan(t, tt.query, tt.settings).Order; got != tt.want {
-			t.Errorf("plan(%q, setting %q).Order = %q, want %q", tt.query, tt.settings.Order, got, tt.want)
+		plan := mustPlan(t, tt.query, tt.settings)
+		if plan.Order != tt.want || plan.Descending != tt.descending {
+			t.Errorf("plan(%q, setting %q) = %q, descending %v; want %q, %v",
+				tt.query, tt.settings.Order, plan.Order, plan.Descending, tt.want, tt.descending)
 		}
 	}
 }

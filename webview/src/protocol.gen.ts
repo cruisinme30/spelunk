@@ -66,8 +66,8 @@ export type OpName = "f" | "repo" | "lang" | "type" | "sym" | "kind" | "ref" | "
 /** CaseSetting is how capital letters match when the query has no case: ignored (off), matched (on), or matched only when the query has a capital letter (smart). */
 export type CaseSetting = "off" | "on" | "smart";
 
-/** ResultOrder is how current files are sorted: best match first, or by repo, path and line. */
-export type ResultOrder = "best" | "path";
+/** ResultOrder is how current files are sorted: best match first, by repo, path and line (path or path:asc A to Z, path:desc Z to A), or by when each file last changed (recent or recent:desc newest first, recent:asc oldest first). */
+export type ResultOrder = "best" | "path" | "path:asc" | "path:desc" | "recent" | "recent:asc" | "recent:desc";
 
 /** RankReason is why best-match order put a file where it is: it defines a searched name or is open in the editor, or it was moved down as a test, vendored or generated file, or as one VS Code's excludes hide (shown by excludes:no). Absent when nothing stands out or the order is path. */
 export type RankReason = "definition" | "open" | "test" | "vendored" | "generated" | "excluded";
@@ -150,7 +150,7 @@ export interface Globals {
   word?: "yes" | "no";
   /** the query's excludes: value: yes leaves out the files VS Code's files.exclude and search.exclude hide, no keeps them; absent when the query doesn't say, which means yes unless spelunk.search.useExcludeSettings is off. */
   excludes?: "yes" | "no";
-  /** the query's order: value, best or path; absent when the query doesn't say. */
+  /** the query's order: value, such as best, path:desc or recent:asc; absent when the query doesn't say. */
   order?: ResultOrder;
   /** the query's at: value as written: the tag, branch, commit or time whose files it searches; absent when the query doesn't say. */
   at?: string;
@@ -254,6 +254,8 @@ export type ResultItem =
       nameHits: Range[];
       lastCommit?: LastCommit;
       dirty: boolean;
+      /** In a search sorted by when files last changed, when the file was last saved: for a file outside Git, or one with uncommitted changes. Absent otherwise. */
+      modifiedAt?: string;
       /** Who the repo's CODEOWNERS file says owns the file, as it writes them; absent when nobody does or the repo has no CODEOWNERS file. */
       owners?: string[];
       rankReason?: RankReason;
@@ -271,6 +273,12 @@ export type ResultItem =
       /** Who the repo's CODEOWNERS file says owns the file, as it writes them; absent when nobody does or the repo has no CODEOWNERS file. */
       owners?: string[];
       rankReason?: RankReason;
+      /** In a search sorted by when files last changed, the newest commit that touched the file, unless it has uncommitted changes. Absent otherwise. */
+      lastCommit?: LastCommit;
+      /** In a search sorted by when files last changed, whether the file has uncommitted changes. Absent otherwise. */
+      dirty?: boolean;
+      /** In a search sorted by when files last changed, when the file was last saved: for a file outside Git, or one with uncommitted changes. Absent otherwise. */
+      modifiedAt?: string;
       /** When the match spans lines (a regex with \n, or a struct: template), the lines after line that it runs onto, in order: at most 10, so a longer match ends at endLine past the last of them. Absent for a match within one line. */
       spanLines?: SpanLine[];
       /** The last line a match that spans lines ends on; present with spanLines. */

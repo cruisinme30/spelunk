@@ -122,13 +122,18 @@ const (
 	CaseSettingSmart CaseSetting = "smart"
 )
 
-// ResultOrder is how current files are sorted: best match first, or by repo, path and line.
+// ResultOrder is how current files are sorted: best match first, by repo, path and line (path or path:asc A to Z, path:desc Z to A), or by when each file last changed (recent or recent:desc newest first, recent:asc oldest first).
 type ResultOrder = string
 
 // ResultOrder values.
 const (
-	ResultOrderBest ResultOrder = "best"
-	ResultOrderPath ResultOrder = "path"
+	ResultOrderBest       ResultOrder = "best"
+	ResultOrderPath       ResultOrder = "path"
+	ResultOrderPathAsc    ResultOrder = "path:asc"
+	ResultOrderPathDesc   ResultOrder = "path:desc"
+	ResultOrderRecent     ResultOrder = "recent"
+	ResultOrderRecentAsc  ResultOrder = "recent:asc"
+	ResultOrderRecentDesc ResultOrder = "recent:desc"
 )
 
 // RankReason is why best-match order put a file where it is: it defines a searched name or is open in the editor, or it was moved down as a test, vendored or generated file, or as one VS Code's excludes hide (shown by excludes:no). Absent when nothing stands out or the order is path.
@@ -296,7 +301,7 @@ type Globals struct {
 	Word string `json:"word,omitempty"`
 	// Excludes is the query's excludes: value: yes leaves out the files VS Code's files.exclude and search.exclude hide, no keeps them; absent when the query doesn't say, which means yes unless spelunk.search.useExcludeSettings is off.
 	Excludes string `json:"excludes,omitempty"`
-	// Order is the query's order: value, best or path; absent when the query doesn't say.
+	// Order is the query's order: value, such as best, path:desc or recent:asc; absent when the query doesn't say.
 	Order ResultOrder `json:"order,omitempty"`
 	// At is the query's at: value as written: the tag, branch, commit or time whose files it searches; absent when the query doesn't say.
 	At string `json:"at,omitempty"`
@@ -439,6 +444,7 @@ type ResultItem struct {
 	NameHits      []Range       `json:"nameHits,omitempty"`
 	LastCommit    *LastCommit   `json:"lastCommit,omitempty"`
 	Dirty         bool          `json:"dirty,omitempty"`
+	ModifiedAt    string        `json:"modifiedAt,omitempty"`
 	Owners        []string      `json:"owners,omitempty"`
 	RankReason    RankReason    `json:"rankReason,omitempty"`
 	SinceRevision SinceRevision `json:"sinceRevision,omitempty"`
@@ -490,6 +496,9 @@ func (v ResultItem) MarshalJSON() ([]byte, error) {
 			fields["lastCommit"] = v.LastCommit
 		}
 		fields["dirty"] = v.Dirty
+		if v.ModifiedAt != "" {
+			fields["modifiedAt"] = v.ModifiedAt
+		}
 		if len(v.Owners) > 0 {
 			fields["owners"] = v.Owners
 		}
@@ -515,6 +524,15 @@ func (v ResultItem) MarshalJSON() ([]byte, error) {
 		}
 		if v.RankReason != "" {
 			fields["rankReason"] = v.RankReason
+		}
+		if v.LastCommit != nil {
+			fields["lastCommit"] = v.LastCommit
+		}
+		if v.Dirty {
+			fields["dirty"] = v.Dirty
+		}
+		if v.ModifiedAt != "" {
+			fields["modifiedAt"] = v.ModifiedAt
 		}
 		if len(v.SpanLines) > 0 {
 			fields["spanLines"] = v.SpanLines

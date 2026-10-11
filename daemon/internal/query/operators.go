@@ -67,7 +67,7 @@ var operators = []operator{
 	{name: protocol.OpNameWord, full: "word", global: true, summary: "Word boundaries", examples: fixedValueNames(protocol.OpNameWord), interpret: oneOf(fixedValueNames(protocol.OpNameWord)...)},
 	{name: protocol.OpNameExcludes, full: "excludes", global: true, summary: "VS Code's excludes", examples: fixedValueNames(protocol.OpNameExcludes), interpret: oneOf(fixedValueNames(protocol.OpNameExcludes)...)},
 	{name: protocol.OpNameCount, full: "count", global: true, summary: "Page size", examples: []string{"50", "200", "all"}, interpret: asCount},
-	{name: protocol.OpNameOrder, full: "order", global: true, scope: scopeWorkingTreeOnly, summary: "Result order", examples: fixedValueNames(protocol.OpNameOrder), interpret: oneOf(fixedValueNames(protocol.OpNameOrder)...)},
+	{name: protocol.OpNameOrder, full: "order", global: true, scope: scopeWorkingTreeOnly, summary: "Result order", examples: fixedValueNames(protocol.OpNameOrder), interpret: oneOf(orderValues()...)},
 	{name: protocol.OpNameAt, full: "at", global: true, scope: scopeWorkingTreeOnly, summary: "Past revision", examples: []string{"v1.0.0", "main", "HEAD~10", "6m", "2026-01-31"}, interpret: asRevision},
 }
 
@@ -438,4 +438,10 @@ func oneOf(values ...string) func(string, valueForm) (protocol.Match, string) {
 		}
 		return protocol.MatchLiteral, "Use one of: " + strings.Join(values, ", ")
 	}
+}
+
+// orderValues are the values order: takes: the suggested ones, which name a
+// direction, and plain path and recent, which run their usual way.
+func orderValues() []string {
+	return append(fixedValueNames(protocol.OpNameOrder), protocol.ResultOrderPath, protocol.ResultOrderRecent)
 }

@@ -247,8 +247,8 @@ func reportWorkingTreeOperators(src *source, root *protocol.Node, problems *diag
 
 // reportOperatorsOfNow reports, in a query with at:, the operators that
 // describe files as they are now or when they last changed, which a past
-// revision's files can't answer: is:open, is:changed, since:, until: and
-// owner: (today's CODEOWNERS file).
+// revision's files can't answer: is:open, is:changed, since:, until:,
+// owner: (today's CODEOWNERS file) and order:recent.
 func reportOperatorsOfNow(src *source, root *protocol.Node, at string, problems *diagnostics) {
 	walk(root, func(node *protocol.Node) {
 		if node.Kind != protocol.NodeKindOp {
@@ -262,6 +262,8 @@ func reportOperatorsOfNow(src *source, root *protocol.Node, at string, problems 
 			does = "picks files by when they last changed"
 		case node.Op == protocol.OpNameOwner:
 			does = "reads today's CODEOWNERS file"
+		case node.Op == protocol.OpNameOrder && strings.HasPrefix(node.Value, protocol.ResultOrderRecent):
+			does = "sorts files by when they last changed"
 		default:
 			return
 		}

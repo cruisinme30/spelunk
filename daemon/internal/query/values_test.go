@@ -1,6 +1,7 @@
 package query
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
@@ -235,6 +236,14 @@ func TestFixedValuesExplainThemselves(t *testing.T) {
 	completions = Complete("order:", len("order:"), testResolver, fixedNow)
 	if got, want := shown(completions[:1]), "best | Best match first | Definitions and file-name matches first; tests, vendored and generated files last | "; got != want {
 		t.Errorf("order:best = %q, want %q", got, want)
+	}
+	// Each direction is a choice of its own; plain path and recent are accepted but not offered.
+	var orders []string
+	for _, c := range completions {
+		orders = append(orders, c.Label)
+	}
+	if want := []string{"best", "path:asc", "path:desc", "recent:desc", "recent:asc"}; !slices.Equal(orders, want) {
+		t.Errorf("order: offers %q, want %q", orders, want)
 	}
 }
 
