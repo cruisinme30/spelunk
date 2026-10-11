@@ -18,10 +18,12 @@ const CASE_TOGGLE = /^(?:case|c):(?:yes|no|smart)$/;
 const WORD_TOGGLE = /^(?:word|w):(?:yes|no)$/;
 
 /**
- * The query for a selection. A line is searched as a word when it is one, else
- * as a "phrase", so quotes, colons, dashes and OR are text, not syntax. With
- * .* pressed in the last query, it is an escaped /regex/; several lines become
- * one regex across them, indentation ignored. Aa and ab carry over.
+ * The query for a selection. A line is searched as a "phrase", even a single
+ * word: a phrase matches only that exact text, in file names too, where a bare
+ * word would also find names with its letters in order; and quotes, colons,
+ * dashes and OR are text, not syntax. With .* pressed in the last query, it is
+ * an escaped /regex/; several lines become one regex across them, indentation
+ * ignored. Aa and ab carry over.
  */
 export function seedFromSelection(selection: string, lastQuery: string): Seed {
   const lines = selection.split(/\r?\n/);
@@ -32,7 +34,7 @@ export function seedFromSelection(selection: string, lastQuery: string): Seed {
   const { toggles, regex } = lastToggles(lastQuery);
   let term: string;
   if (kept.length > 1) term = `/${kept.map((line) => escapeRegex(line)).join(String.raw`\n\s*`)}/`;
-  else term = regex ? `/${escapeRegex(first)}/` : textTerm(first);
+  else term = regex ? `/${escapeRegex(first)}/` : phrase(first);
   return { query: [...toggles, term].join(" ") };
 }
 
@@ -46,9 +48,13 @@ export function usesQuery(name: string): string {
   return `ref:${textTerm(name)}`;
 }
 
-/** A word bare, anything else as a "phrase" with its quotes and backslashes escaped. */
+/** A word bare, anything else as a "phrase". */
 export function textTerm(text: string): string {
-  if (PLAIN_WORD.test(text) && !KEYWORDS.has(text)) return text;
+  return PLAIN_WORD.test(text) && !KEYWORDS.has(text) ? text : phrase(text);
+}
+
+/** The text as a "phrase", its quotes and backslashes escaped. */
+function phrase(text: string): string {
   return `"${text.replaceAll("\\", "\\\\").replaceAll('"', String.raw`\"`)}"`;
 }
 

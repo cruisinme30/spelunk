@@ -286,16 +286,16 @@ const TESTS: [name: string, run: () => Promise<void>][] = [
       const editor = await openClientAt(new vscode.Selection(41, 28, 41, 39)); // RetryPolicy on line 42
       assert.equal(editor.document.getText(editor.selection), "RetryPolicy");
       await vscode.commands.executeCommand("spelunk.open", { fromEditor: true });
-      await until("RetryPolicy searched", (state) => state.searched === "RetryPolicy" && state.results.length > 0);
+      await until("RetryPolicy searched", (state) => state.searched === `"RetryPolicy"` && state.results.length > 0);
 
       await openClientAt(new vscode.Selection(41, 32, 41, 32));
       await vscode.commands.executeCommand("spelunk.open", { fromEditor: true });
       const kept = await until("the panel open again", (state) => state.panelOpen);
-      assert.equal(kept.text, "RetryPolicy", "no selection: the last query stays");
+      assert.equal(kept.text, `"RetryPolicy"`, "no selection: the last query stays");
 
       await openClientAt(new vscode.Selection(41, 28, 41, 39));
       await vscode.commands.executeCommand("spelunk.open");
-      assert.equal((await until("the panel open", (state) => state.panelOpen)).text, "RetryPolicy");
+      assert.equal((await until("the panel open", (state) => state.panelOpen)).text, `"RetryPolicy"`);
     },
   ],
   [

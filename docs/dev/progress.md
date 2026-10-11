@@ -510,21 +510,23 @@ address (`permalinks.ts`), and the panel learns each repo's host from `remotes.s
 
 ## Search from your code (2.1)
 
-Mock 50 (`seed-from-editor`): the search key, pressed in the editor with text selected, searches that text; with
-nothing selected it reopens the last query, as before. Its binding has an editor-only twin that passes
-`{ fromEditor: true }` to `spelunk.open`, so a selection left in a file is ignored from the Explorer, the terminal, the
-panel or the Command Palette. `seedQuery.ts` turns the selection into a query: a word bare, any other line a quoted
-phrase (so `content:"retry"`, `TransientError:`, `-v` and `OR` are text), an escaped `/regex/` when the last query's
-`.*` was pressed, several lines one regex across them; `case:` and `word:` carry over; more than 10 lines or 1,000
-characters keep the last query, with a status bar note. The replaced query goes under Recent, and the panel types the
-new one in (`state.restore`'s `seeded`), so ⌘Z brings the old one back. **Spelunk: Find Definitions** and **Find
-Uses**, on the editor's right-click menu, search `sym:/^Name$/` and `ref:Name` for the name at the cursor.
+Mock 50 (`seed-from-editor`): the search key, pressed in the editor with text selected, searches that text; with nothing
+selected it reopens the last query, as before. Its binding has an editor-only twin that passes `{ fromEditor: true }` to
+`spelunk.open`, so a selection left in a file is ignored from the Explorer, the terminal, the panel or the Command
+Palette. `seedQuery.ts` turns the selection into a query: a line is a quoted phrase, a single word too, so it matches
+only that text and never file names by their letters (`"RetryPolicy"` doesn't find `retry_policy.py`), and
+`content:"retry"`, `TransientError:`, `-v` and `OR` are text; an escaped `/regex/` when the last query's `.*` was
+pressed, several lines one regex across them; `case:` and `word:` carry over; more than 10 lines or 1,000 characters
+keep the last query, with a status bar note. The replaced query goes under Recent, and the panel types the new one in
+(`state.restore`'s `seeded`), so ⌘Z brings the old one back. **Spelunk: Find Definitions** and **Find Uses**, on the
+editor's right-click menu, search `sym:/^Name$/` and `ref:Name` for the name at the cursor.
 `spelunk.search.seedFromSelection` turns the selection search off.
 
-- Host: `extension/src/test/seedQuery.test.ts` (words, phrases, escaped quotes and backslashes, operator-like text,
+- Host: `extension/src/test/seedQuery.test.ts` (every line a phrase, escaped quotes and backslashes, operator-like text,
   `OR`/`NOT`, a leading slash or dash, regex escaping with `.*` on, toggles carried and filters not, lines across,
   blank and too-long selections, the find queries, and every one run against the real daemon: no diagnostics, and it
-  finds the selection; `sym:/^RetryPolicy$/` finds the class alone), the controller's seeded restore (Recent keeps the
+  finds the selection; `"RetryPolicy"` finds its 5 lines and no file names; `sym:/^RetryPolicy$/` finds the class
+  alone), the controller's seeded restore (Recent keeps the
   replaced query; the same query, a Try query and a plain reopen aren't seeded), the manifest (each preset's editor
   twin, the right-click menu) and `spelunk.search.seedFromSelection`'s default.
 - Panel: `webview/test/seedFromEditor.test.mjs` (a seeded query replaces the box's text selected, and ⌘Z brings the

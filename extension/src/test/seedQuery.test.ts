@@ -18,12 +18,11 @@ function seed(selection: string, last = "timeout"): string {
   return "query" in result ? result.query : `(${result.skipped})`;
 }
 
-test("a word is searched bare, anything else as a phrase", () => {
-  assert.equal(seed("RetryPolicy"), "RetryPolicy");
-  assert.equal(seed("retry_policy.next_delay"), "retry_policy.next_delay");
-  assert.equal(seed("  RetryPolicy  "), "RetryPolicy", "spaces around the selection are dropped");
+test("a line is searched as an exact phrase, even a single word", () => {
+  assert.equal(seed("RetryPolicy"), '"RetryPolicy"');
+  assert.equal(seed("retry_policy.next_delay"), '"retry_policy.next_delay"');
+  assert.equal(seed("  RetryPolicy  "), '"RetryPolicy"', "spaces around the selection are dropped");
   assert.equal(seed("charge failed after retries"), '"charge failed after retries"');
-  assert.equal(seed("Gr\u00F6\u00DFe"), "Gr\u00F6\u00DFe", "letters in any script are a word");
 });
 
 test("text that looks like query syntax is quoted, with its quotes and backslashes escaped", () => {
@@ -34,7 +33,7 @@ test("text that looks like query syntax is quoted, with its quotes and backslash
   assert.equal(seed("-v"), '"-v"');
   assert.equal(seed("OR"), '"OR"');
   assert.equal(seed("NOT"), '"NOT"');
-  assert.equal(seed("or"), "or", "lowercase or is a word to search for");
+  assert.equal(seed("or"), '"or"');
   assert.equal(seed("f(x)"), '"f(x)"');
   assert.equal(seed("a|b"), '"a|b"');
   assert.equal(seed("/charges"), '"/charges"', "a leading slash would open a regex");
@@ -49,16 +48,16 @@ test("with .* pressed in the last query, the selection is an escaped regex", () 
   );
   assert.equal(seed("a/b", "/x/"), String.raw`/a\/b/`, "a slash can't close the regex");
   assert.equal(seed("price $5 [x]", "/x/"), String.raw`/price \$5 \[x\]/`);
-  assert.equal(seed("RetryPolicy", 'lang:python "/not a regex/"'), "RetryPolicy", "a phrase with slashes isn't .*");
+  assert.equal(seed("RetryPolicy", 'lang:python "/not a regex/"'), '"RetryPolicy"', "a phrase with slashes isn't .*");
 });
 
 test("Aa and ab carry over from the last query; filters and other words don't", () => {
-  assert.equal(seed("RetryPolicy", "case:yes word:yes timeout"), "case:yes word:yes RetryPolicy");
-  assert.equal(seed("RetryPolicy", "c:smart w:no timeout"), "c:smart w:no RetryPolicy");
-  assert.equal(seed("RetryPolicy", "lang:python f:src/ timeout"), "RetryPolicy");
-  assert.equal(seed("RetryPolicy", 'case:yes "case:no inside a phrase"'), "case:yes RetryPolicy");
+  assert.equal(seed("RetryPolicy", "case:yes word:yes timeout"), 'case:yes word:yes "RetryPolicy"');
+  assert.equal(seed("RetryPolicy", "c:smart w:no timeout"), 'c:smart w:no "RetryPolicy"');
+  assert.equal(seed("RetryPolicy", "lang:python f:src/ timeout"), '"RetryPolicy"');
+  assert.equal(seed("RetryPolicy", 'case:yes "case:no inside a phrase"'), 'case:yes "RetryPolicy"');
   assert.equal(seed("a.b", "case:yes /x/"), String.raw`case:yes /a\.b/`);
-  assert.equal(seed("RetryPolicy", ""), "RetryPolicy");
+  assert.equal(seed("RetryPolicy", ""), '"RetryPolicy"');
 });
 
 test("several lines become one regex across them, indentation and blank lines ignored", () => {
@@ -69,7 +68,7 @@ test("several lines become one regex across them, indentation and blank lines ig
   );
   assert.equal(seed("a\r\n\r\n  b"), String.raw`/a\n\s*b/`, "Windows line endings, and a blank line");
   assert.equal(seed("a\nb", "case:yes timeout"), String.raw`case:yes /a\n\s*b/`);
-  assert.equal(seed("RetryPolicy\n"), "RetryPolicy", "a trailing newline leaves one line");
+  assert.equal(seed("RetryPolicy\n"), '"RetryPolicy"', "a trailing newline leaves one line");
 });
 
 test("an empty or too long selection keeps the last query", () => {
@@ -79,7 +78,7 @@ test("an empty or too long selection keeps the last query", () => {
     String.raw`/x\n\s*x\n\s*x\n\s*x\n\s*x\n\s*x\n\s*x\n\s*x\n\s*x\n\s*x/`,
   );
   assert.equal(seed(Array.from({ length: MAX_SEED_LINES + 1 }, () => "x").join("\n")), "(tooLong)");
-  assert.equal(seed("x".repeat(MAX_SEED_CHARS)), "x".repeat(MAX_SEED_CHARS));
+  assert.equal(seed("x".repeat(MAX_SEED_CHARS)), `"${"x".repeat(MAX_SEED_CHARS)}"`);
   assert.equal(seed("x".repeat(MAX_SEED_CHARS + 1)), "(tooLong)");
 });
 
@@ -115,6 +114,8 @@ test("the daemon reads every seeded query as the selected text, and finds it", {
       const result = await daemon.request("search/start", { searchId: `seed${index}`, text });
       assert.ok(result.total > 0, `${text} finds the selection`);
     }
+    const exact = await daemon.request("search/start", { searchId: "exact", text: seed("RetryPolicy") });
+    assert.equal(exact.total, 5, "only the 5 lines that say RetryPolicy: no file names, not retry_policy.py");
     const definitions = await daemon.request("search/start", {
       searchId: "defs",
       text: definitionsQuery("RetryPolicy"),
