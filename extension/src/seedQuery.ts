@@ -14,8 +14,8 @@ export type Seed = { query: string } | { skipped: "empty" | "tooLong" };
 const PLAIN_WORD = /^[\p{L}\p{N}_](?:[\p{L}\p{N}_.]*[\p{L}\p{N}_])?$/u;
 /** Words the query language reads as logic, not text, when bare. */
 const KEYWORDS = new Set(["OR", "AND", "NOT"]);
-const CASE_TOGGLE = /^(?:case|c):(?:yes|no|smart)$/;
-const WORD_TOGGLE = /^(?:word|w):(?:yes|no)$/;
+const CASE_TOGGLE = /^case:(?:yes|no|smart)$/;
+const WORD_TOGGLE = /^word:(?:yes|no)$/;
 
 /**
  * The query for a selection. A line is searched as a "phrase", even a single

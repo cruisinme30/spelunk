@@ -122,7 +122,7 @@ export const OPERATOR_GROUPS: OperatorGroup[] = [
         label: "file:",
         insert: "file:",
         summary: "Regex or glob (*.go) on the file path.",
-        description: String.raw`A regex on the full file path (\.go$), or a glob (*.go, src/**/*.ts). path: works too.`,
+        description: String.raw`A regex on the full file path (\.go$), or a glob (*.go, src/**/*.ts).`,
         example: String.raw`file:.*test\.py$ timeout`,
       },
       {
@@ -315,43 +315,38 @@ export const OPERATOR_TONE: Record<OpName, Tone> = {
 };
 
 /**
- * The two spellings of each operator: file: and f:, and any alias brought from other tools (path:). The daemon also
- * accepts the OpName itself (lang:, sym:, msg:).
+ * The spellings of each operator: its full name, and the short name of the ones people reach for most (f:, a:, sym:,
+ * lang:, msg:). The daemon also accepts the OpName itself.
  */
-const OPERATOR_NAMES: Record<OpName, { full: string; short: string; aliases?: string[] }> = {
-  f: { full: "file", short: "f", aliases: ["path"] },
-  repo: { full: "repo", short: "r" },
-  lang: { full: "language", short: "l" },
-  type: { full: "type", short: "t" },
-  sym: { full: "symbol", short: "s" },
-  kind: { full: "kind", short: "k" },
-  ref: { full: "ref", short: "x" },
-  is: { full: "is", short: "i" },
+const OPERATOR_NAMES: Record<OpName, { full: string; short: string }> = {
+  f: { full: "file", short: "f" },
+  repo: { full: "repo", short: "" },
+  lang: { full: "language", short: "lang" },
+  type: { full: "type", short: "" },
+  sym: { full: "symbol", short: "sym" },
+  kind: { full: "kind", short: "" },
+  ref: { full: "ref", short: "" },
+  is: { full: "is", short: "" },
   owner: { full: "owner", short: "" },
   content: { full: "content", short: "" },
   struct: { full: "struct", short: "" },
   author: { full: "author", short: "a" },
-  msg: { full: "message", short: "m" },
-  since: { full: "since", short: "d" },
-  until: { full: "until", short: "u" },
+  msg: { full: "message", short: "msg" },
+  since: { full: "since", short: "" },
+  until: { full: "until", short: "" },
   at: { full: "at", short: "" },
-  case: { full: "case", short: "c" },
-  word: { full: "word", short: "w" },
+  case: { full: "case", short: "" },
+  word: { full: "word", short: "" },
   excludes: { full: "excludes", short: "" },
-  count: { full: "count", short: "n" },
-  order: { full: "order", short: "o" },
+  count: { full: "count", short: "" },
+  order: { full: "order", short: "" },
 };
 
-/** The operator a typed name stands for, in any spelling: "f", "file", "path" → "f". */
+/** The operator a typed name stands for, in any spelling: "f", "file" → "f". */
 export function opNameFor(spelling: string): OpName | undefined {
   return (Object.keys(OPERATOR_NAMES) as OpName[]).find((op) => {
     const names = OPERATOR_NAMES[op];
-    return (
-      op === spelling ||
-      names.full === spelling ||
-      (names.short !== "" && names.short === spelling) ||
-      names.aliases?.includes(spelling)
-    );
+    return op === spelling || names.full === spelling || (names.short !== "" && names.short === spelling);
   });
 }
 
@@ -360,13 +355,13 @@ export function fullName(op: OpName): string {
   return OPERATOR_NAMES[op].full;
 }
 
-/** An entry's short name, "f:", shown beside its full name; absent for syntax and for owner:, content:, struct: and at:, which have none. */
+/** An entry's short name, "f:" or "sym:", shown beside its full name; absent for syntax and the operators typed in full. */
 export function shortName(entry: OperatorEntry): string | undefined {
   const short = entry.operator ? OPERATOR_NAMES[entry.operator].short : "";
   return short ? `${short}:` : undefined;
 }
 
-/** The reference entry for an operator name in any spelling, such as "since" or "d". */
+/** The reference entry for an operator name in any spelling, such as "symbol" or "sym". */
 export function operatorEntry(spelling: string): OperatorEntry | undefined {
   const operator = opNameFor(spelling);
   return OPERATOR_GROUPS.flatMap((group) => group.entries).find((entry) => entry.operator === operator);

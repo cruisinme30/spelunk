@@ -112,8 +112,8 @@ test("an empty box shows recent queries and all 27 operators", async (t) => {
   assert.equal(await page.locator('[data-testid="recent"]').count(), 2);
   assert.equal(await page.locator('[data-testid="sheet-op"]').count(), 27);
   // An operator's full and short names share one line.
-  const [full, short] = await page.locator('[data-testid="sheet-op"]').first().locator("code").all();
-  assert.equal(await short.textContent(), "c:");
+  const [full, short] = await page.locator('[data-testid="sheet-op"]', { hasText: "file:" }).locator("code").all();
+  assert.equal(await short.textContent(), "f:");
   assert.equal((await full.boundingBox()).y, (await short.boundingBox()).y);
 });
 
@@ -922,16 +922,16 @@ test("ab reflects word:yes and removes it from the text", async (t) => {
   await restore(page);
   const root = {
     kind: "and",
-    span: { start: 0, end: 11 },
+    span: { start: 0, end: 14 },
     children: [
-      { kind: "op", op: "word", value: "yes", match: "literal", span: { start: 0, end: 5 } },
-      { kind: "text", value: "retry", match: "literal", termIndex: 0, span: { start: 6, end: 11 } },
+      { kind: "op", op: "word", value: "yes", match: "literal", span: { start: 0, end: 8 } },
+      { kind: "text", value: "retry", match: "literal", termIndex: 0, span: { start: 9, end: 14 } },
     ],
   };
   await typeAndParse(
     page,
-    "w:yes retry",
-    parsedQuery("w:yes retry", root, { globals: { case: null, count: null, type: null, word: "yes" } }),
+    "word:yes retry",
+    parsedQuery("word:yes retry", root, { globals: { case: null, count: null, type: null, word: "yes" } }),
   );
   assert.equal(await page.getAttribute('[data-testid="toggle-word"]', "aria-pressed"), "true");
   assert.equal(await page.getAttribute('[data-testid="toggle-case"]', "aria-pressed"), "false");

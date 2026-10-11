@@ -335,23 +335,13 @@ test("the help page lists every operator with an example, and Try runs it", asyn
   assert.equal(await page.locator('[data-testid="operator-row"]').count(), 27);
   assert.equal(await page.locator('[data-testid="example"]').count(), 6);
   // Each operator reads by its full name, with its short name beside it.
+  // Only the operators people reach for most have one.
   assert.deepEqual(await page.locator('[data-testid="short-name"]').allTextContents(), [
-    "c:",
-    "w:",
     "f:",
-    "r:",
-    "l:",
-    "t:",
-    "s:",
-    "k:",
-    "x:",
-    "i:",
+    "lang:",
+    "sym:",
     "a:",
-    "m:",
-    "d:",
-    "u:",
-    "n:",
-    "o:",
+    "msg:",
   ]);
   await page.locator('[data-testid="operator-row"]').first().locator('[data-testid="try"]').click();
   assert.deepEqual(await lastSent(page, "help.try"), { query: "case:yes RetryPolicy" });

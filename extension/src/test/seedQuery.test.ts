@@ -53,7 +53,7 @@ test("with .* pressed in the last query, the selection is an escaped regex", () 
 
 test("Aa and ab carry over from the last query; filters and other words don't", () => {
   assert.equal(seed("RetryPolicy", "case:yes word:yes timeout"), 'case:yes word:yes "RetryPolicy"');
-  assert.equal(seed("RetryPolicy", "c:smart w:no timeout"), 'c:smart w:no "RetryPolicy"');
+  assert.equal(seed("RetryPolicy", "case:smart word:no timeout"), 'case:smart word:no "RetryPolicy"');
   assert.equal(seed("RetryPolicy", "lang:python f:src/ timeout"), '"RetryPolicy"');
   assert.equal(seed("RetryPolicy", 'case:yes "case:no inside a phrase"'), 'case:yes "RetryPolicy"');
   assert.equal(seed("a.b", "case:yes /x/"), String.raw`case:yes /a\.b/`);
