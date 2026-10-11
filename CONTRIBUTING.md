@@ -5,7 +5,7 @@ Start with the [wiki](https://github.com/cruisinme30/spelunk/wiki) for the map o
 
 ## Setup
 
-You need **Go 1.24+**, **Node 22+**, **Git** and [golangci-lint](https://golangci-lint.run/) v2.
+You need **Go 1.25+**, **Node 22+**, **Git** and [golangci-lint](https://golangci-lint.run/) v2.
 
 ```sh
 npm install                  # TypeScript, Prettier, Playwright and the Node linters

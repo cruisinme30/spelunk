@@ -27,6 +27,7 @@ ignorePaths:
   - "**/*_gen.go"
   - "**/*.png"
   - "**/go.sum"
+  - "**/go.mod"
   - package-lock.json
   - daemon/bin/**
   - daemon/internal/query/testdata/**
@@ -44,6 +45,7 @@ words:
   - SourceHut
   - cacheinfo
   - cachetextconv
+  - contextcheck
   - chromium
   - contentvisibilityautostatechange
   - codegen
@@ -61,6 +63,7 @@ words:
   - gpgsign
   - katex
   - kernelspec
+  - modelcontextprotocol
   - gosec
   - mailmap
   - nbformat
@@ -78,6 +81,7 @@ words:
   - trimpath
   - typealias
   - usetesting
+  - vimgrep
   - Zoekt
   # Words of this code base
   - autoretry

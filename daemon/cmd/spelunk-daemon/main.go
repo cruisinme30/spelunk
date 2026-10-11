@@ -9,6 +9,12 @@
 //	spelunk-daemon notebook-text <file>
 //	                          print a notebook's cells' source: Git's textconv
 //	                          filter for notebooks in history searches
+//	spelunk-daemon search|status|help|mcp ...
+//	                          the spelunk command (internal/cli). Installed as
+//	                          spelunk, the binary is that command with no
+//	                          subcommand too.
+//	spelunk-daemon reader --config <json>
+//	                          the spelunk command's background reader
 //
 // Environment, for tests and debugging:
 //
@@ -23,10 +29,13 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"path/filepath"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
 
+	"github.com/cruisinme30/spelunk/daemon/internal/cli"
 	"github.com/cruisinme30/spelunk/daemon/internal/history"
 	"github.com/cruisinme30/spelunk/daemon/internal/rpc"
 	"github.com/cruisinme30/spelunk/daemon/internal/server"
@@ -40,7 +49,32 @@ func main() {
 		fmt.Println(server.DaemonVersion)
 		return
 	}
+	if code, ok := runCommand(os.Args); ok {
+		os.Exit(code)
+	}
 	os.Exit(run())
+}
+
+// commands are the subcommands of the spelunk command.
+var commands = map[string]bool{"search": true, "status": true, "help": true, "-h": true, "--help": true, "mcp": true}
+
+// runCommand runs the spelunk command or its background reader when args
+// ask for one, and reports whether they did. With no arguments the binary
+// serves the extension, unless it was run as spelunk.
+func runCommand(args []string) (int, bool) {
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
+	defer stop()
+	switch {
+	case len(args) > 2 && args[1] == "reader" && args[2] == "--config":
+		return cli.RunReader(ctx, strings.Join(args[3:], " "), os.Stderr), true
+	case len(args) > 1 && commands[args[1]],
+		len(args) == 1 && strings.TrimSuffix(filepath.Base(args[0]), ".exe") == "spelunk":
+		return cli.Main(ctx, cli.Env{
+			Args: args[1:], Stdin: os.Stdin, Stdout: os.Stdout, Stderr: os.Stderr, Cwd: cli.Cwd(),
+			Options: cli.Options{Config: cli.LoadConfig(cli.ConfigPath())},
+		}), true
+	}
+	return 0, false
 }
 
 // run serves JSON-RPC on stdin and stdout until the host says exit,
