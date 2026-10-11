@@ -28,6 +28,33 @@ type Commit struct {
 	Subject   string
 	Body      string
 	Files     []FileChange
+	// Parents counts the commit's parents: two or more for a merge.
+	Parents int
+	// MergedIn is, with index.mergedBranches, the merge on the branch's
+	// first-parent line that brought this commit in from another branch,
+	// and MergedAt when that merge was committed; "" for a commit made on
+	// the line itself.
+	MergedIn string
+	MergedAt time.Time
+}
+
+// windowDate is the date the history window goes by: when the commit, or
+// for a commit merged in from another branch its merge, was committed.
+func (c *Commit) windowDate() time.Time {
+	if c.MergedIn != "" {
+		return c.MergedAt
+	}
+	return c.Committed
+}
+
+// landed is when the commit reached the checked-out branch: its merge's
+// date for a commit merged in from another branch, else its author date.
+// since:, until:, the order of results and the month they count in go by it.
+func (c *Commit) landed() time.Time {
+	if c.MergedIn != "" {
+		return c.MergedAt
+	}
+	return c.At
 }
 
 // message is the commit's whole message: its subject, a newline, its body.
@@ -46,8 +73,11 @@ type FileChange struct {
 	Now string
 	// Created is set when the commit added the file (not by renaming it).
 	Created bool
-	Added   int
-	Removed int
+	// Resolution is set on a merge's file whose changed lines are how the
+	// merge resolved a conflict (with index.mergedBranches).
+	Resolution bool
+	Added      int
+	Removed    int
 	// Text is the added and removed lines in diff order, each ending in a
 	// newline, and is never modified once read. It holds at most
 	// maxFileTextBytes, so a huge generated diff stays countable but is only
@@ -80,6 +110,11 @@ type Options struct {
 	// as index.exclude leaves files out of the working-tree index. Commits
 	// still list the file and count its lines, so f: finds them.
 	Skip func(path string) bool
+	// MergedBranches reads the commits that merges brought in from other
+	// branches too, each after the merge that brought it, and each merge as
+	// only what it changed itself (index.mergedBranches); otherwise only the
+	// branch's first-parent line is read, each merge as its whole branch.
+	MergedBranches bool
 	// Key names the settings these options came from. A store remembers
 	// it, so a saved store read under other settings can be read again.
 	Key string
@@ -90,16 +125,17 @@ var ErrNotGit = errors.New("not a Git repository")
 
 // logFormat starts each commit with a record separator (0x1e) and ends each
 // field with a NUL: sha, author name, author email, author date (ISO 8601,
-// and as a Unix time for dates ISO 8601 can't write), subject, body. Names
+// and as a Unix time for dates ISO 8601 can't write), committer date,
+// parents, subject, body. Names
 // and messages can hold any other control character, but Git can't store
 // a NUL in them. No line of a patch starts with 0x1e.
-const logFormat = "%x1e%H%x00%aN%x00%aE%x00%aI%x00%at%x00%ct%x00%s%x00%b%x00"
+const logFormat = "%x1e%H%x00%aN%x00%aE%x00%aI%x00%at%x00%ct%x00%P%x00%s%x00%b%x00"
 
 // fieldEnd ends each field of logFormat.
 const fieldEnd = 0x00
 
 // headerFields is how many fields logFormat writes.
-const headerFields = 8
+const headerFields = 9
 
 // gitOptions come before every git command: plain path names; no optional
 // locks, so the daemon never makes the user's own git commands wait or fail
@@ -196,8 +232,25 @@ func readLog(ctx context.Context, root, revisions string, opts Options, each fun
 	if !opts.Since.IsZero() {
 		args = append(args, "--since="+opts.Since.Format(time.RFC3339))
 	}
-	//nolint:gosec // G204: revisions are shas git itself reported, not user input
-	cmd := exec.CommandContext(ctx, "git", append(args, revisions, "--", ".")...)
+	return runLog(ctx, append(args, revisions, "--", "."), nil, opts, each)
+}
+
+// readCommits streams the commits shas names, in that order, each merge as
+// what it changed itself (a remerge diff: how its result differs from
+// Git's own merge of its parents), limited to root's folder.
+func readCommits(ctx context.Context, root string, shas []string, opts Options, each func(Commit) error) error {
+	args := slices.Concat(gitOptions, notebookDiffOptions(), []string{
+		"-C", root, "log", "--no-walk=unsorted", "--stdin", "--remerge-diff", "--relative", "-p", "-U0", "--use-mailmap",
+		"--format=" + logFormat,
+	}, diffOptions, []string{"--", "."})
+	return runLog(ctx, args, strings.NewReader(strings.Join(shas, "\n")+"\n"), opts, each)
+}
+
+// runLog runs git log with args, feeding it stdin, and parses what it
+// writes, calling each for every commit.
+func runLog(ctx context.Context, args []string, stdin io.Reader, opts Options, each func(Commit) error) error {
+	cmd := exec.CommandContext(ctx, "git", args...)
+	cmd.Stdin = stdin
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	out, err := cmd.StdoutPipe()
@@ -248,12 +301,13 @@ type logParser struct {
 	lines *bufio.Reader
 	skip  func(string) bool
 
-	commit *Commit       // the commit being read, nil before the first
-	header *bytes.Buffer // a commit's header while it spans lines
-	file   *FileChange   // the file whose patch is being read
-	text   bytes.Buffer  // the file's changed lines so far
-	signs  []byte        // the sign of each line of text
-	inHunk bool          // between "@@" and the next file header
+	commit   *Commit       // the commit being read, nil before the first
+	header   *bytes.Buffer // a commit's header while it spans lines
+	file     *FileChange   // the file whose patch is being read
+	text     bytes.Buffer  // the file's changed lines so far
+	signs    []byte        // the sign of each line of text
+	inHunk   bool          // between "@@" and the next file header
+	conflict conflictSides
 	// skipFile is set at the file's first hunk, once its path is known.
 	skipFile bool
 }
@@ -314,7 +368,8 @@ func (p *logParser) finishHeader() error {
 	fields := strings.SplitN(text, string(rune(fieldEnd)), headerFields+1)
 	p.commit = &Commit{
 		SHA: fields[0], AuthorName: fields[1], AuthorEmail: fields[2], At: commitDate(fields[3], fields[4]),
-		Committed: commitDate("", fields[5]), Subject: fields[6], Body: strings.TrimSpace(fields[7]),
+		Committed: commitDate("", fields[5]), Parents: len(strings.Fields(fields[6])),
+		Subject: fields[7], Body: strings.TrimSpace(fields[8]),
 	}
 	return nil
 }
@@ -340,10 +395,10 @@ func (p *logParser) patchLine(line string) {
 		p.startFile(diffGitPath(line))
 	case p.file == nil:
 		// The blank line between header and patch.
-	case !p.inHunk && strings.HasPrefix(line, "new file mode "):
-		p.file.Created = true // a binary or empty file has no --- line
-	case !p.inHunk && strings.HasPrefix(line, "rename from "):
-		p.file.OldPath = unquote(strings.TrimPrefix(line, "rename from "))
+	case !p.inHunk && p.extendedHeader(line):
+		// The file was created, renamed, or resolved in a merge.
+	case p.inHunk && p.conflict.skip(line, p.file.Resolution):
+		// One side of a conflict the merge resolved.
 	case !p.inHunk && p.fileHeader(line):
 		// The path is read.
 	case strings.HasPrefix(line, "@@ "):
@@ -355,6 +410,42 @@ func (p *logParser) patchLine(line string) {
 		p.file.Removed++
 		p.keep(line[1:], signRemoved)
 	}
+}
+
+// extendedHeader reads the lines of a file's header that say it was
+// created, renamed, or a merge's conflict, reporting whether line was one.
+func (p *logParser) extendedHeader(line string) bool {
+	switch {
+	case strings.HasPrefix(line, "new file mode "):
+		p.file.Created = true // a binary or empty file has no --- line
+	case strings.HasPrefix(line, "rename from "):
+		p.file.OldPath = unquote(strings.TrimPrefix(line, "rename from "))
+	case strings.HasPrefix(line, "remerge CONFLICT"):
+		p.file.Resolution = true
+	default:
+		return false
+	}
+	return true
+}
+
+// conflictSides follows a merge's remerge diff through a conflict it
+// resolved: Git shows the conflict as removed lines, its markers and both
+// sides, then the resolution as added lines. The sides were never lines of
+// the merge's result, so they don't count as removed.
+type conflictSides struct{ in bool }
+
+// skip reports whether line is a marker or side of a conflict, in a file
+// whose remerge diff resolved one.
+func (c *conflictSides) skip(line string, resolving bool) bool {
+	switch {
+	case !c.in && resolving && strings.HasPrefix(line, "-<<<<<<< "):
+		c.in = true
+	case c.in && strings.HasPrefix(line, "-"):
+		c.in = !strings.HasPrefix(line, "->>>>>>> ")
+	default:
+		return false
+	}
+	return true
 }
 
 // fileHeader reads a "--- a/path" or "+++ b/path" line, reporting whether
@@ -400,7 +491,7 @@ func (p *logParser) startFile(path string) {
 	p.endFile()
 	p.commit.Files = append(p.commit.Files, FileChange{Path: path})
 	p.file = &p.commit.Files[len(p.commit.Files)-1]
-	p.inHunk, p.skipFile = false, false
+	p.inHunk, p.skipFile, p.conflict = false, false, conflictSides{}
 }
 
 // endFile stores the changed lines of the file being read and their signs,

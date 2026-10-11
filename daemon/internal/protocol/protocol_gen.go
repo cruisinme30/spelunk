@@ -377,6 +377,8 @@ type Settings struct {
 	Exclude        []string `json:"exclude"`
 	IncludeIgnored bool     `json:"includeIgnored"`
 	MaxFileSizeKB  int      `json:"maxFileSizeKB"`
+	// MergedBranches is the spelunk.index.mergedBranches setting: history also reads the commits that merges brought in from other branches, each by its own author and dated by its merge, and shows a merge as only what it changed itself. Absent means false: the branch's own line only, each merge holding its whole branch.
+	MergedBranches bool `json:"mergedBranches,omitempty"`
 	// NotebookOutputs is the spelunk.index.notebookOutputs setting: also search the text that a Jupyter notebook's code cells printed or returned. Absent means false: only cells' source is searched.
 	NotebookOutputs bool   `json:"notebookOutputs,omitempty"`
 	Location        string `json:"location"`
@@ -435,6 +437,8 @@ type FileStat struct {
 	OldPath string `json:"oldPath,omitempty"`
 	// CurrentPath is the file's path now, after renames made by later commits, when it differs from path.
 	CurrentPath string `json:"currentPath,omitempty"`
+	// Resolution is with index.mergedBranches, whether these lines of a merge are how it resolved a conflict, rather than its own edit.
+	Resolution bool `json:"resolution,omitempty"`
 }
 
 // SymbolKind is what a symbol definition is.
@@ -486,6 +490,9 @@ type ResultItem struct {
 	SubjectHits   []Range       `json:"subjectHits,omitempty"`
 	InMessage     bool          `json:"inMessage,omitempty"`
 	BodyLine      *MessageLine  `json:"bodyLine,omitempty"`
+	Parents       int           `json:"parents,omitempty"`
+	MergedIn      string        `json:"mergedIn,omitempty"`
+	MergedAt      string        `json:"mergedAt,omitempty"`
 }
 
 // ResultItem kinds: the values of ResultItem.Kind.
@@ -631,6 +638,15 @@ func (v ResultItem) MarshalJSON() ([]byte, error) {
 		fields["inMessage"] = v.InMessage
 		if v.BodyLine != nil {
 			fields["bodyLine"] = v.BodyLine
+		}
+		if v.Parents != 0 {
+			fields["parents"] = v.Parents
+		}
+		if v.MergedIn != "" {
+			fields["mergedIn"] = v.MergedIn
+		}
+		if v.MergedAt != "" {
+			fields["mergedAt"] = v.MergedAt
 		}
 	}
 	return json.Marshal(fields)

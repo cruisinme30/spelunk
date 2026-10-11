@@ -817,6 +817,12 @@
             "scope": "window",
             "description": "Also search the text a Jupyter notebook's code cells printed or returned. Off, only cells' code and notes are searched; plots and other images never are."
           },
+          "spelunk.index.mergedBranches": {
+            "type": "boolean",
+            "default": false,
+            "scope": "window",
+            "description": "Also search the commits made on branches that were merged in, each under its own author and dated by when it was merged, and show a merge as only the lines it changed itself. Off, history follows the checked-out branch's own line, and a merge holds its whole branch. On a large repo with many merges, history takes longer to read and more memory."
+          },
           "spelunk.index.location": {
             "type": "string",
             "default": "~/.spelunk/index",

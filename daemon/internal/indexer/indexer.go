@@ -372,7 +372,7 @@ func settingsChanges(old, settings protocol.Settings) (tree, commits, owners boo
 		old.MaxFileSizeKB != settings.MaxFileSizeKB || old.Location != settings.Location || old.Symbols != settings.Symbols ||
 		old.NotebookOutputs != settings.NotebookOutputs
 	commits = old.HistoryDepth != settings.HistoryDepth || old.Location != settings.Location ||
-		!slices.Equal(old.Exclude, settings.Exclude)
+		!slices.Equal(old.Exclude, settings.Exclude) || old.MergedBranches != settings.MergedBranches
 	owners = !tree && !slices.Equal(old.CodeownersFiles, settings.CodeownersFiles)
 	return tree, commits, owners
 }

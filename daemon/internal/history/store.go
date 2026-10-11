@@ -33,6 +33,9 @@ type Store struct {
 	Since time.Time
 	// Key names the settings the store was read under (Options.Key).
 	Key string
+	// MergedBranches says the store holds the commits merged in from other
+	// branches too (Options.MergedBranches).
+	MergedBranches bool
 	// segments hold the commits, newest first.
 	segments []*segment
 	// touches maps each path to the newest commit that changed it.
@@ -53,7 +56,7 @@ type Touch struct {
 }
 
 // touchOf is the Touch of each file c changed.
-func touchOf(c *Commit) Touch { return Touch{SHA: c.SHA, Author: c.AuthorName, At: c.At} }
+func touchOf(c *Commit) Touch { return Touch{SHA: c.SHA, Author: c.AuthorName, At: c.landed()} }
 
 // segment is a run of consecutive commits with their trigram indexes.
 type segment struct {
@@ -183,11 +186,14 @@ func (b *builder) snapshot() *Store {
 // searchable while older history is still being read. progress receives
 // the fraction read. Ingest returns ErrNotGit for a folder outside Git.
 func Ingest(ctx context.Context, root string, opts Options, progress func(float64), publish func(*Store)) (*Store, error) {
+	opts.MergedBranches = opts.MergedBranches && canReadMergedBranches(ctx)
 	head, err := Head(ctx, root)
 	if err != nil {
 		return nil, err
 	}
-	b := &builder{store: &Store{Head: head, Since: opts.Since, Key: opts.Key, touches: map[string]Touch{}}}
+	b := &builder{store: &Store{
+		Head: head, Since: opts.Since, Key: opts.Key, MergedBranches: opts.MergedBranches, touches: map[string]Touch{},
+	}}
 	if head != "" {
 		if err := b.read(ctx, root, head, opts, progress, publish); err != nil {
 			return nil, err
@@ -200,9 +206,8 @@ func Ingest(ctx context.Context, root string, opts Options, progress func(float6
 
 // read adds the commits of revisions to the builder.
 func (b *builder) read(ctx context.Context, root, revisions string, opts Options, progress func(float64), publish func(*Store)) error {
-	total := countCommits(ctx, root, revisions, opts)
-	read := 0
-	return readLog(ctx, root, revisions, opts, func(c Commit) error {
+	read, total := 0, 0
+	add := func(c Commit) error {
 		read++
 		if progress != nil && total > 0 && read%100 == 0 {
 			progress(float64(read) / float64(total))
@@ -211,7 +216,17 @@ func (b *builder) read(ctx context.Context, root, revisions string, opts Options
 			publish(b.snapshot())
 		}
 		return ctx.Err()
-	})
+	}
+	if opts.MergedBranches {
+		order, err := landingOrder(ctx, root, "", revisions, opts.Since)
+		if err != nil {
+			return err
+		}
+		total = len(order.shas)
+		return readLanded(ctx, root, order, opts, add)
+	}
+	total = countCommits(ctx, root, revisions, opts)
+	return readLog(ctx, root, revisions, opts, add)
 }
 
 // Update brings store up to date with root's HEAD. When HEAD moved forward,
@@ -222,6 +237,7 @@ func (b *builder) read(ctx context.Context, root, revisions string, opts Options
 // the window opts sets, which moves on with time, are dropped. opts should
 // be the ones the store was read with.
 func Update(ctx context.Context, root string, store *Store, opts Options) (*Store, error) {
+	opts.MergedBranches = store.MergedBranches
 	head, err := Head(ctx, root)
 	if err != nil {
 		return nil, err
@@ -234,14 +250,26 @@ func Update(ctx context.Context, root string, store *Store, opts Options) (*Stor
 	}
 	var newer []Commit
 	var renames names
-	if err := readLog(ctx, root, store.Head+".."+head, opts, func(c Commit) error {
+	collect := func(c Commit) error {
 		renames.name(&c)
 		newer = append(newer, c)
 		return ctx.Err()
-	}); err != nil {
+	}
+	if opts.MergedBranches {
+		order, err := landingOrder(ctx, root, store.Head, head, time.Time{})
+		if err == nil {
+			err = readLanded(ctx, root, order, opts, collect)
+		}
+		if err != nil {
+			return nil, err
+		}
+	} else if err := readLog(ctx, root, store.Head+".."+head, opts, collect); err != nil {
 		return nil, err
 	}
-	next := &Store{Head: head, Since: store.Since, Key: store.Key, touches: maps.Clone(store.touches), from: store.Head, fresh: len(newer)}
+	next := &Store{
+		Head: head, Since: store.Since, Key: store.Key, MergedBranches: store.MergedBranches,
+		touches: maps.Clone(store.touches), from: store.Head, fresh: len(newer),
+	}
 	for i := len(newer) - 1; i >= 0; i-- { // oldest first, so the newest touch wins
 		for _, file := range newer[i].Files {
 			next.touches[file.Path] = touchOf(&newer[i])
@@ -281,7 +309,7 @@ func (s *Store) since(start time.Time) *Store {
 	next.Since = start
 	next.segments = nil
 	for _, seg := range s.segments {
-		kept := slices.DeleteFunc(slices.Clone(seg.commits), func(c Commit) bool { return c.Committed.Before(start) })
+		kept := slices.DeleteFunc(slices.Clone(seg.commits), func(c Commit) bool { return c.windowDate().Before(start) })
 		switch {
 		case len(kept) == len(seg.commits):
 			next.segments = append(next.segments, seg)
@@ -312,7 +340,7 @@ func (s *Store) since(start time.Time) *Store {
 func (s *Store) holdsCommitsBefore(start time.Time) bool {
 	for _, seg := range s.segments {
 		for i := range seg.commits {
-			if seg.commits[i].Committed.Before(start) {
+			if seg.commits[i].windowDate().Before(start) {
 				return true
 			}
 		}
@@ -346,16 +374,17 @@ func UncommittedPaths(ctx context.Context, root string) map[string]bool {
 // savedStore is the on-disk form of a Store: the commits, newest first.
 // The trigram indexes and touches are rebuilt on load.
 type savedStore struct {
-	Version int
-	Head    string
-	Since   time.Time
-	Key     string
-	Commits []Commit
+	Version        int
+	Head           string
+	Since          time.Time
+	Key            string
+	MergedBranches bool
+	Commits        []Commit
 }
 
 // Save writes the store to path atomically (see trigram.SaveGob).
 func (s *Store) Save(path string) error {
-	saved := savedStore{Version: storeFormatVersion, Head: s.Head, Since: s.Since, Key: s.Key}
+	saved := savedStore{Version: storeFormatVersion, Head: s.Head, Since: s.Since, Key: s.Key, MergedBranches: s.MergedBranches}
 	for _, seg := range s.segments {
 		saved.Commits = append(saved.Commits, seg.commits...)
 	}
@@ -375,7 +404,9 @@ func Load(path string) (*Store, error) {
 	if saved.Version != storeFormatVersion {
 		return nil, errStaleFormat
 	}
-	b := &builder{store: &Store{Head: saved.Head, Since: saved.Since, Key: saved.Key, touches: map[string]Touch{}}}
+	b := &builder{store: &Store{
+		Head: saved.Head, Since: saved.Since, Key: saved.Key, MergedBranches: saved.MergedBranches, touches: map[string]Touch{},
+	}}
 	for i := range saved.Commits {
 		b.add(saved.Commits[i])
 	}

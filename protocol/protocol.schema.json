@@ -490,6 +490,10 @@
         "maxFileSizeKB": {
           "type": "integer"
         },
+        "mergedBranches": {
+          "description": "the spelunk.index.mergedBranches setting: history also reads the commits that merges brought in from other branches, each by its own author and dated by its merge, and shows a merge as only what it changed itself. Absent means false: the branch's own line only, each merge holding its whole branch.",
+          "type": "boolean"
+        },
         "notebookOutputs": {
           "description": "the spelunk.index.notebookOutputs setting: also search the text that a Jupyter notebook's code cells printed or returned. Absent means false: only cells' source is searched.",
           "type": "boolean"
@@ -606,6 +610,10 @@
         "currentPath": {
           "description": "The file's path now, after renames made by later commits, when it differs from path.",
           "type": "string"
+        },
+        "resolution": {
+          "description": "With index.mergedBranches, whether these lines of a merge are how it resolved a conflict, rather than its own edit.",
+          "type": "boolean"
         }
       },
       "required": ["path", "added", "removed"]
@@ -870,6 +878,18 @@
             "bodyLine": {
               "description": "The first body line a text term matched, sent when the subject has no match.",
               "$ref": "#/$defs/MessageLine"
+            },
+            "parents": {
+              "description": "How many parents the commit has: 2 or more for a merge; absent for 1.",
+              "type": "integer"
+            },
+            "mergedIn": {
+              "description": "With index.mergedBranches, for a commit made on another branch: the sha of the merge that brought it in.",
+              "type": "string"
+            },
+            "mergedAt": {
+              "description": "When mergedIn was committed, which since: and until: go by for this commit.",
+              "type": "string"
             }
           },
           "required": [

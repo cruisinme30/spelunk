@@ -31,7 +31,13 @@ func Preview(ctx context.Context, repo *Repo, ref Ref, plan *query.Plan, context
 	if err != nil {
 		return protocol.Preview{}, err
 	}
-	args := slices.Concat(notebookDiffOptions(), []string{"show", "--format=", "--relative", "-m", "--first-parent"}, diffOptions,
+	// A merge is its whole branch on the first-parent line, or, when the
+	// store reads merged branches, what it changed itself.
+	walk := []string{"-m", "--first-parent"}
+	if repo.Store != nil && repo.Store.MergedBranches && commit.Parents > 1 {
+		walk = []string{"--remerge-diff"}
+	}
+	args := slices.Concat(notebookDiffOptions(), []string{"show", "--format=", "--relative"}, walk, diffOptions,
 		[]string{"-U" + strconv.Itoa(max(contextLines, 0)), ref.SHA, "--"})
 	out, err := git(ctx, repo.Root, args...)
 	if err != nil {
@@ -139,12 +145,13 @@ func parseShow(out []byte) ([]protocol.Hunk, []protocol.FileStat) {
 
 // showParser turns git show's patch into hunks, one line at a time.
 type showParser struct {
-	hunks  []protocol.Hunk
-	files  []protocol.FileStat
-	inHunk bool // between "@@" and the next file header
-	oldNo  int  // the next old line's number
-	newNo  int  // the next new line's number
-	kept   int  // diff lines kept, at most maxPreviewLines
+	hunks    []protocol.Hunk
+	files    []protocol.FileStat
+	inHunk   bool // between "@@" and the next file header
+	oldNo    int  // the next old line's number
+	newNo    int  // the next new line's number
+	kept     int  // diff lines kept, at most maxPreviewLines
+	conflict conflictSides
 }
 
 // line reads one line of the patch.
@@ -152,14 +159,12 @@ func (p *showParser) line(line string) {
 	switch {
 	case strings.HasPrefix(line, "diff --git "):
 		p.files = append(p.files, protocol.FileStat{Path: diffGitPath(line)})
-		p.inHunk = false
+		p.inHunk, p.conflict = false, conflictSides{}
 	case len(p.files) == 0:
-	case !p.inHunk && strings.HasPrefix(line, "rename from "):
-		p.files[len(p.files)-1].OldPath = unquote(strings.TrimPrefix(line, "rename from "))
-	case !p.inHunk && strings.HasPrefix(line, "--- "):
-		p.setPath(line[4:], "a/")
-	case !p.inHunk && strings.HasPrefix(line, "+++ "):
-		p.setPath(line[4:], "b/") // the new path wins; a deleted file keeps the old one
+	case !p.inHunk && p.header(line):
+		// A path, a rename or a merge's conflict.
+	case p.inHunk && p.conflict.skip(line, p.files[len(p.files)-1].Resolution):
+		// One side of a conflict the merge resolved.
 	case strings.HasPrefix(line, "@@ "):
 		p.inHunk = true
 		p.oldNo, p.newNo = hunkStarts(line)
@@ -167,6 +172,25 @@ func (p *showParser) line(line string) {
 	case p.inHunk && line != "" && line[0] != '\\':
 		p.diffLine(line)
 	}
+}
+
+// header reads a line of a file's header: its path, a rename, or a
+// merge's conflict. It reports whether line was one.
+func (p *showParser) header(line string) bool {
+	file := &p.files[len(p.files)-1]
+	switch {
+	case strings.HasPrefix(line, "rename from "):
+		file.OldPath = unquote(strings.TrimPrefix(line, "rename from "))
+	case strings.HasPrefix(line, "remerge CONFLICT"):
+		file.Resolution = true
+	case strings.HasPrefix(line, "--- "):
+		p.setPath(line[4:], "a/")
+	case strings.HasPrefix(line, "+++ "):
+		p.setPath(line[4:], "b/") // the new path wins; a deleted file keeps the old one
+	default:
+		return false
+	}
+	return true
 }
 
 // setPath takes the file's path from a --- or +++ line.

@@ -117,7 +117,7 @@ func (s *searcher) searchNewestFirst(repos []Repo) {
 		var next *cursor
 		var newest *Commit
 		for _, c := range cursors {
-			if commit := s.peek(c); commit != nil && (newest == nil || commit.At.After(newest.At)) {
+			if commit := s.peek(c); commit != nil && (newest == nil || commit.landed().After(newest.landed())) {
 				next, newest = c, commit
 			}
 		}
@@ -175,7 +175,7 @@ func (s *searcher) visit(repo *Repo, c *Commit) {
 		s.counted++
 		s.facets.CountRepo(repo.Name)
 		s.facets.CountAuthor(c.AuthorName)
-		s.facets.CountMonth(c.At, time.Local)
+		s.facets.CountMonth(c.landed(), time.Local)
 	default:
 		s.countHidden(repo, c, files)
 	}
@@ -366,7 +366,7 @@ func commitLeaf(repo *Repo, c *Commit, p query.Pred) (matched, ok bool) {
 	case *query.Message:
 		return p.Re.MatchString(c.message()), true
 	case *query.Since:
-		return !c.At.Before(p.After), true
+		return !c.landed().Before(p.After), true
 	case *query.Repo:
 		return p.Re.MatchString(repo.Name), true
 	default:
@@ -419,7 +419,7 @@ func (s *searcher) result(repo *Repo, c *Commit, views []*fileView) protocol.Res
 		if view.file.Path != "" {
 			files = append(files, protocol.FileStat{
 				Path: view.file.Path, Added: view.file.Added, Removed: view.file.Removed,
-				OldPath: view.file.OldPath, CurrentPath: view.file.Now,
+				OldPath: view.file.OldPath, CurrentPath: view.file.Now, Resolution: view.file.Resolution,
 			})
 		}
 		matched := map[int]bool{}
@@ -450,6 +450,7 @@ func (s *searcher) result(repo *Repo, c *Commit, views []*fileView) protocol.Res
 		SHA: c.SHA, Subject: c.Subject, Author: protocol.Person{Name: c.AuthorName, Email: c.AuthorEmail},
 		At: c.At.UTC().Format(time.RFC3339), Files: files, DiffHits: diffHits, MatchedTerms: matchedTerms,
 		SubjectHits: messageHits(s.plan, c.Subject), InMessage: inMessage, BodyLine: bodyLine,
+		Parents: parentsOf(c), MergedIn: c.MergedIn, MergedAt: mergedAt(c),
 	}
 }
 
@@ -592,4 +593,20 @@ func isHex(text string) bool {
 		}
 	}
 	return true
+}
+
+// parentsOf is a commit's parents for its result: 0 (left out) for one.
+func parentsOf(c *Commit) int {
+	if c.Parents > 1 {
+		return c.Parents
+	}
+	return 0
+}
+
+// mergedAt is when the merge that brought c in was committed, or "".
+func mergedAt(c *Commit) string {
+	if c.MergedIn == "" {
+		return ""
+	}
+	return c.MergedAt.UTC().Format(time.RFC3339)
 }

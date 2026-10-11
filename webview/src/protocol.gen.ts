@@ -203,6 +203,8 @@ export interface Settings {
   exclude: string[];
   includeIgnored: boolean;
   maxFileSizeKB: number;
+  /** the spelunk.index.mergedBranches setting: history also reads the commits that merges brought in from other branches, each by its own author and dated by its merge, and shows a merge as only what it changed itself. Absent means false: the branch's own line only, each merge holding its whole branch. */
+  mergedBranches?: boolean;
   /** the spelunk.index.notebookOutputs setting: also search the text that a Jupyter notebook's code cells printed or returned. Absent means false: only cells' source is searched. */
   notebookOutputs?: boolean;
   location: string;
@@ -251,6 +253,8 @@ export interface FileStat {
   oldPath?: string;
   /** The file's path now, after renames made by later commits, when it differs from path. */
   currentPath?: string;
+  /** With index.mergedBranches, whether these lines of a merge are how it resolved a conflict, rather than its own edit. */
+  resolution?: boolean;
 }
 
 /** SymbolKind is what a symbol definition is. */
@@ -345,6 +349,12 @@ export type ResultItem =
       inMessage: boolean;
       /** The first body line a text term matched, sent when the subject has no match. */
       bodyLine?: MessageLine;
+      /** How many parents the commit has: 2 or more for a merge; absent for 1. */
+      parents?: number;
+      /** With index.mergedBranches, for a commit made on another branch: the sha of the merge that brought it in. */
+      mergedIn?: string;
+      /** When mergedIn was committed, which since: and until: go by for this commit. */
+      mergedAt?: string;
     };
 
 /** Within is the definition a code result sits in: its name, kind and lines. */

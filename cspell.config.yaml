@@ -53,6 +53,7 @@ words:
   - codegen
   - conftest
   - creatordate
+  - remerge
   - diataxis
   - Diátaxis
   - docstring
