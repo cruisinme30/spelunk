@@ -59,6 +59,9 @@ const DEFAULTS = {
   shareWindow: true,
   offerToCopilot: true,
   agentTimeLimitMs: 30_000,
+  workspaceSymbols: true,
+  definitions: "off",
+  includeGeneratedAndVendored: false,
 } as const;
 
 /** VS Code's defaults for the editor.* settings the panel's code follows. */
@@ -401,6 +404,38 @@ export function permalinkHosts(config: ConfigReader): Record<string, string> {
 /** Whether a watch's new commits pop up a notification (spelunk.watch.notify). */
 export function watchNotify(config: ConfigReader): boolean {
   return boolean(config.get<unknown>("watch.notify", DEFAULTS.watchNotify), DEFAULTS.watchNotify);
+}
+
+/** How spelunk.editor.definitions lets Go to Definition and Find References use the index. */
+type DefinitionsMode = "off" | "fallback" | "always";
+const DEFINITIONS_MODES: readonly DefinitionsMode[] = ["off", "fallback", "always"];
+
+/** The spelunk.editor.* settings: what VS Code's own navigation asks of Spelunk. */
+export interface NavigationSettings {
+  /** Whether Go to Symbol in Workspace (⌘T) lists Spelunk's definitions. */
+  workspaceSymbols: boolean;
+  definitions: DefinitionsMode;
+  /** Whether definitions and uses in generated and vendored files count too. */
+  includeGeneratedAndVendored: boolean;
+}
+
+/** The spelunk.editor.* settings, each falling back to its default when it holds something else. */
+export function navigationSettings(config: ConfigReader): NavigationSettings {
+  return {
+    workspaceSymbols: boolean(
+      config.get<unknown>("editor.workspaceSymbols", DEFAULTS.workspaceSymbols),
+      DEFAULTS.workspaceSymbols,
+    ),
+    definitions: oneOf(
+      config.get<unknown>("editor.definitions", DEFAULTS.definitions),
+      DEFINITIONS_MODES,
+      DEFAULTS.definitions,
+    ),
+    includeGeneratedAndVendored: boolean(
+      config.get<unknown>("editor.includeGeneratedAndVendored", DEFAULTS.includeGeneratedAndVendored),
+      DEFAULTS.includeGeneratedAndVendored,
+    ),
+  };
 }
 
 /** Whether searches leave out what files.exclude and search.exclude hide (spelunk.search.useExcludeSettings). */

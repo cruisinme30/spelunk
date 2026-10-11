@@ -420,6 +420,54 @@ const TESTS: [name: string, run: () => Promise<void>][] = [
     },
   ],
   [
+    "Go to Symbol in Workspace lists Spelunk's definitions, and Go to Definition falls back to them when set to",
+    async () => {
+      // @covers screen:editor-navigation setting:editor.workspaceSymbols setting:editor.definitions
+      // cspell:ignore retpol
+      const symbols = await poll(
+        "⌘T to list RetryPolicy",
+        async () =>
+          await vscode.commands.executeCommand<vscode.SymbolInformation[]>(
+            "vscode.executeWorkspaceSymbolProvider",
+            "retpol",
+          ),
+        (found) => found.some((symbol) => symbol.name === "RetryPolicy"),
+      );
+      const policy = symbols.find((symbol) => symbol.name === "RetryPolicy");
+      assert.ok(policy, "RetryPolicy is listed");
+      assert.ok(policy.location.uri.path.endsWith("payments-api/src/payments/retry_policy.py"));
+      assert.deepEqual([policy.location.range.start.line, policy.location.range.start.character], [11, 6]);
+
+      // No Python language server here: off, nothing answers; fallback, Spelunk does.
+      const editor = await openClientAt(new vscode.Selection(41, 30, 41, 30));
+      const at = editor.selection.active;
+      const definitionsAt = async () =>
+        await vscode.commands.executeCommand<vscode.Location[]>(
+          "vscode.executeDefinitionProvider",
+          editor.document.uri,
+          at,
+        );
+      assert.deepEqual(await definitionsAt(), []);
+      const config = () => vscode.workspace.getConfiguration("spelunk");
+      await config().update("editor.definitions", "fallback", vscode.ConfigurationTarget.Global);
+      try {
+        const found = await poll(
+          "Go to Definition to find RetryPolicy",
+          definitionsAt,
+          (locations) => locations.length > 0,
+        );
+        assert.deepEqual(
+          found.map(
+            (location) => `${location.uri.path.split("/").at(-1) ?? ""}:${String(location.range.start.line + 1)}`,
+          ),
+          ["retry_policy.py:12"],
+        );
+      } finally {
+        await config().update("editor.definitions", undefined, vscode.ConfigurationTarget.Global);
+      }
+    },
+  ],
+  [
     "Restart Search restarts the daemon and search keeps working",
     async () => {
       // @covers command:restartDaemon

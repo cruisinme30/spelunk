@@ -10,6 +10,7 @@ import {
   indexLocationProblem,
   MOVED_SETTINGS,
   movedValue,
+  navigationSettings,
   offerToCopilot,
   permalinkHosts,
   pinnedQueries,
@@ -419,4 +420,25 @@ test("the agent settings reach the daemon, clamped, and Copilot's listing is on 
   assert.equal(set.agentTimeLimitMs, 1000);
   assert.equal(offerToCopilot(configWith({})), true);
   assert.equal(offerToCopilot(configWith({ "agent.offerToCopilot": false })), false);
+});
+
+test("the editor navigation settings default to ⌘T on and Go to Definition off, and ignore other values", () => {
+  // @covers setting:editor.workspaceSymbols setting:editor.definitions setting:editor.includeGeneratedAndVendored
+  assert.deepEqual(navigationSettings(configWith({})), {
+    workspaceSymbols: true,
+    definitions: "off",
+    includeGeneratedAndVendored: false,
+  });
+  const set = configWith({
+    "editor.workspaceSymbols": false,
+    "editor.definitions": "fallback",
+    "editor.includeGeneratedAndVendored": true,
+  });
+  assert.deepEqual(navigationSettings(set), {
+    workspaceSymbols: false,
+    definitions: "fallback",
+    includeGeneratedAndVendored: true,
+  });
+  const wrong = configWith({ "editor.workspaceSymbols": "yes", "editor.definitions": "sometimes" });
+  assert.deepEqual(navigationSettings(wrong), navigationSettings(configWith({})));
 });

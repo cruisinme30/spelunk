@@ -7,6 +7,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import * as vscode from "vscode";
 import { registerAgentAccess } from "./agentAccess";
+import { registerEditorNavigation } from "./editorNavigation";
 import { editorCommands } from "./editorSeed";
 import { FolderScopeNotes } from "./folderScope";
 import { folderSearchCommand } from "./folderSearch";
@@ -151,10 +152,9 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi {
     ...registerReadOnlyDocuments(documents),
     createStatusBar(daemon),
     ...registerCommands({ daemon, controller, panel, help, syntax, log, extensionId: context.extension.id, folders }),
-    vscode.commands.registerCommand("spelunk.showWelcome", () => {
-      welcome.show();
-    }),
+    vscode.commands.registerCommand("spelunk.showWelcome", welcome.show.bind(welcome)),
     ...agentAccess(context, log),
+    ...registerEditorNavigation(daemon),
     forwardFileChanges(daemon),
     followWorkspace(daemon, { roots: workspaceRoots, settings: currentDaemonSettings }, { panel, controller }),
     vscode.workspace.onDidChangeConfiguration((event) => {

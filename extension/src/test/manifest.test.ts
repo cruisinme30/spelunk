@@ -71,6 +71,7 @@ test("settings are grouped in sections, each key under the section its name star
       "Watches",
       "Links",
       "Agents and terminal",
+      "Editor navigation",
     ],
   );
   for (const section of sections) {

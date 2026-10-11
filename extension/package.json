@@ -1024,6 +1024,41 @@
             "markdownDescription": "How long one search from the `spelunk` command or an agent may run before it returns what it found, marked as stopped early. Longer than the panel's #spelunk.search.timeLimitMs#, since an agent can't tell an incomplete answer to try again."
           }
         }
+      },
+      {
+        "id": "spelunk.editor",
+        "title": "Editor navigation",
+        "order": 10,
+        "properties": {
+          "spelunk.editor.workspaceSymbols": {
+            "type": "boolean",
+            "default": true,
+            "scope": "window",
+            "markdownDescription": "List Spelunk's definitions in **Go to Symbol in Workspace** (⌘T, or `#` in Quick Open): the functions, classes and types in every indexed repo and language, found by typing a few of their letters in order. A definition a language server also lists shows once."
+          },
+          "spelunk.editor.definitions": {
+            "type": "string",
+            "enum": [
+              "off",
+              "fallback",
+              "always"
+            ],
+            "default": "off",
+            "scope": "window",
+            "enumDescriptions": [
+              "Go to Definition and Find References never use Spelunk.",
+              "Spelunk answers only when no language server does.",
+              "Spelunk's answers are added to the language servers' answers."
+            ],
+            "markdownDescription": "Whether **Go to Definition** (F12) and **Find References** (⇧F12) use Spelunk's index. Spelunk goes by the name's spelling, not its meaning, so another definition with the same name can come up too; it keeps to the file's language when that language has any."
+          },
+          "spelunk.editor.includeGeneratedAndVendored": {
+            "type": "boolean",
+            "default": false,
+            "scope": "window",
+            "markdownDescription": "Include definitions and uses in generated and vendored files (see #spelunk.index.generatedSuffixes# and #spelunk.index.vendoredFolders#) in Go to Symbol in Workspace, Go to Definition and Find References, marked `generated` or `vendored` and listed last."
+          }
+        }
       }
     ],
     "submenus": [
