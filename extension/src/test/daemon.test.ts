@@ -263,7 +263,7 @@ test("restart during the handshake replaces the starting daemon", async () => {
   await daemon.stop();
 });
 
-test("a daemon that stops answering while requests wait is restarted, and the requests fail", async () => {
+test("a daemon that stops answering while requests wait is restarted, and the requests fail", async (t) => {
   const counter = countingSpawn();
   const { daemon, log } = newFakeDaemon("hang", {
     watchdogQuietMs: 100,
@@ -271,16 +271,16 @@ test("a daemon that stops answering while requests wait is restarted, and the re
     shutdownGraceMs: 50,
     spawn: counter.spawn,
   });
+  t.after(() => daemon.stop());
   await daemon.start();
   const firstPid = runningPid(daemon);
-  await assert.rejects(daemon.request("index/status", {}), /exited|closed/);
+  await assert.rejects(daemon.request("index/status", {}), /stopped answering/);
   assert.ok(
     log.some((line) => line.includes("no answer for 200 ms")),
     "the log says why",
   );
   await waitFor("the daemon back up", () => daemon.state === "ok" && counter.spawns === 2);
   assert.notEqual(daemon.pid, firstPid);
-  await daemon.stop();
 });
 
 test("a long request from a daemon that still answers is waited for, not restarted", async () => {

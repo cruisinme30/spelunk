@@ -5,6 +5,11 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- When a daemon that stopped answering was restarted, the searches waiting on it could fail with "write EPIPE"
+  instead of saying why; they now fail with "the daemon stopped answering, so it was restarted".
+
 ## [2.0.0] - 2026-10-10
 
 ### Added

@@ -286,6 +286,10 @@ export class Daemon extends EventEmitter {
           probing = false;
           if (answered || this.child !== child) return;
           this.log(`[daemon] no answer for ${String(quietMs + probeMs)} ms with requests waiting; restarting it`);
+          // Fail the waiting requests with the reason now: once the process is killed, a later write to it would
+          // fail them with a broken pipe instead.
+          this.stopWatchdog();
+          connection.dispose(new Error("the daemon stopped answering, so it was restarted"));
           child.kill("SIGKILL");
         });
       },
