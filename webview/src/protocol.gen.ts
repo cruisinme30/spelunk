@@ -72,8 +72,8 @@ export type ResultOrder = "best" | "file" | "file:asc" | "file:desc" | "recent" 
 /** RankReason is why best-match order put a file where it is: it defines a searched name or is open in the editor, or it was moved down as a test, vendored or generated file, or as one VS Code's excludes hide (shown by excludes:no). Absent when nothing stands out or the order is path. */
 export type RankReason = "definition" | "open" | "test" | "vendored" | "generated" | "excluded";
 
-/** SinceRevision is how a file found at a revision differs in the current files: its content changed, or it was deleted. */
-export type SinceRevision = "changed" | "deleted";
+/** SinceRevision is how a file found at a revision differs in the current files: its content changed, it was deleted, or it was renamed (renamedTo says to what). */
+export type SinceRevision = "changed" | "deleted" | "renamed";
 
 /** Match says how a value was written: bare (literal), quoted (phrase), /regex/, a path glob such as *.go (f: and repo: only), or a struct: template of code with :[holes] (structural). */
 export type Match = "literal" | "phrase" | "regex" | "glob" | "structural";
@@ -273,6 +273,8 @@ export type ResultItem =
       rankReason?: RankReason;
       /** For a search at a revision (at:), how the file differs now: changed, or deleted since; absent when it is the same now, and in every other search. */
       sinceRevision?: SinceRevision;
+      /** For a search at a revision (at:), the file's path now when sinceRevision is renamed. */
+      renamedTo?: string;
     }
   | {
       kind: "line";
@@ -307,6 +309,8 @@ export type ResultItem =
       contextAfter?: string[];
       /** For a search at a revision (at:), how the file differs now: changed, or deleted since; absent when it is the same now, and in every other search. */
       sinceRevision?: SinceRevision;
+      /** For a search at a revision (at:), the file's path now when sinceRevision is renamed. */
+      renamedTo?: string;
     }
   | {
       kind: "symbol";
@@ -322,6 +326,8 @@ export type ResultItem =
       rankReason?: RankReason;
       /** For a search at a revision (at:), how the file differs now: changed, or deleted since; absent when it is the same now, and in every other search. */
       sinceRevision?: SinceRevision;
+      /** For a search at a revision (at:), the file's path now when sinceRevision is renamed. */
+      renamedTo?: string;
     }
   | {
       kind: "commit";

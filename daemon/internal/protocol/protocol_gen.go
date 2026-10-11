@@ -151,13 +151,14 @@ const (
 	RankReasonExcluded   RankReason = "excluded"
 )
 
-// SinceRevision is how a file found at a revision differs in the current files: its content changed, or it was deleted.
+// SinceRevision is how a file found at a revision differs in the current files: its content changed, it was deleted, or it was renamed (renamedTo says to what).
 type SinceRevision = string
 
 // SinceRevision values.
 const (
 	SinceRevisionChanged SinceRevision = "changed"
 	SinceRevisionDeleted SinceRevision = "deleted"
+	SinceRevisionRenamed SinceRevision = "renamed"
 )
 
 // Match says how a value was written: bare (literal), quoted (phrase), /regex/, a path glob such as *.go (f: and repo: only), or a struct: template of code with :[holes] (structural).
@@ -462,6 +463,7 @@ type ResultItem struct {
 	Owners        []string      `json:"owners,omitempty"`
 	RankReason    RankReason    `json:"rankReason,omitempty"`
 	SinceRevision SinceRevision `json:"sinceRevision,omitempty"`
+	RenamedTo     string        `json:"renamedTo,omitempty"`
 	Line          int           `json:"line,omitempty"`
 	Text          string        `json:"text,omitempty"`
 	Hits          []Hit         `json:"hits,omitempty"`
@@ -523,6 +525,9 @@ func (v ResultItem) MarshalJSON() ([]byte, error) {
 		if v.SinceRevision != "" {
 			fields["sinceRevision"] = v.SinceRevision
 		}
+		if v.RenamedTo != "" {
+			fields["renamedTo"] = v.RenamedTo
+		}
 	case "line":
 		fields["ref"] = v.Ref
 		fields["repoId"] = v.RepoID
@@ -573,6 +578,9 @@ func (v ResultItem) MarshalJSON() ([]byte, error) {
 		if v.SinceRevision != "" {
 			fields["sinceRevision"] = v.SinceRevision
 		}
+		if v.RenamedTo != "" {
+			fields["renamedTo"] = v.RenamedTo
+		}
 	case "symbol":
 		fields["ref"] = v.Ref
 		fields["repoId"] = v.RepoID
@@ -593,6 +601,9 @@ func (v ResultItem) MarshalJSON() ([]byte, error) {
 		}
 		if v.SinceRevision != "" {
 			fields["sinceRevision"] = v.SinceRevision
+		}
+		if v.RenamedTo != "" {
+			fields["renamedTo"] = v.RenamedTo
 		}
 	case "commit":
 		fields["ref"] = v.Ref

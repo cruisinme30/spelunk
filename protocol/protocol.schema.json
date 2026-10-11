@@ -145,9 +145,9 @@
       "enum": ["definition", "open", "test", "vendored", "generated", "excluded"]
     },
     "SinceRevision": {
-      "description": "SinceRevision is how a file found at a revision differs in the current files: its content changed, or it was deleted.",
+      "description": "SinceRevision is how a file found at a revision differs in the current files: its content changed, it was deleted, or it was renamed (renamedTo says to what).",
       "type": "string",
-      "enum": ["changed", "deleted"]
+      "enum": ["changed", "deleted", "renamed"]
     },
     "Match": {
       "description": "Match says how a value was written: bare (literal), quoted (phrase), /regex/, a path glob such as *.go (f: and repo: only), or a struct: template of code with :[holes] (structural).",
@@ -662,6 +662,10 @@
             "sinceRevision": {
               "description": "For a search at a revision (at:), how the file differs now: changed, or deleted since; absent when it is the same now, and in every other search.",
               "$ref": "#/$defs/SinceRevision"
+            },
+            "renamedTo": {
+              "description": "For a search at a revision (at:), the file's path now when sinceRevision is renamed.",
+              "type": "string"
             }
           },
           "required": ["kind", "ref", "repoId", "path", "nameHits", "dirty"]
@@ -758,6 +762,10 @@
             "sinceRevision": {
               "description": "For a search at a revision (at:), how the file differs now: changed, or deleted since; absent when it is the same now, and in every other search.",
               "$ref": "#/$defs/SinceRevision"
+            },
+            "renamedTo": {
+              "description": "For a search at a revision (at:), the file's path now when sinceRevision is renamed.",
+              "type": "string"
             }
           },
           "required": ["kind", "ref", "repoId", "path", "line", "text", "hits"]
@@ -802,6 +810,10 @@
             "sinceRevision": {
               "description": "For a search at a revision (at:), how the file differs now: changed, or deleted since; absent when it is the same now, and in every other search.",
               "$ref": "#/$defs/SinceRevision"
+            },
+            "renamedTo": {
+              "description": "For a search at a revision (at:), the file's path now when sinceRevision is renamed.",
+              "type": "string"
             }
           },
           "required": ["kind", "ref", "repoId", "path", "line", "name", "symbolKind", "hits"]

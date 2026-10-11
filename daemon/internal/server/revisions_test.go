@@ -468,3 +468,32 @@ func revisionRepoIDs(infos []protocol.RevisionInfo) []string {
 	}
 	return ids
 }
+
+// A file renamed since the revision is renamed, not deleted, with its name
+// now, and f: finds it at the revision by that name too.
+func TestAtSaysAFileWasRenamedSinceAndFFindsItsNameNow(t *testing.T) {
+	// @covers op:at op:f
+	root, git := revisionRepo(t)
+	git("checkout", "--quiet", "-b", "renamed", "v1.0.0")
+	git("mv", "src/client.py", "src/payments_client.py")
+	git("commit", "--quiet", "-m", "Rename the client")
+	client := newTestClient(t)
+	batches := collectBatches(client)
+	client.mustInitialize(t, protocol.Root{ID: "r1", Path: root, Name: "payments-api"})
+
+	_, items := searchAt(t, client, batches, "s1", "at:v1.0.0 f:payments_client parse_retry_after")
+	if len(items) != 1 || items[0].Path != "src/client.py" || items[0].SinceRevision != protocol.SinceRevisionRenamed ||
+		items[0].RenamedTo != "src/payments_client.py" {
+		t.Fatalf("at:v1.0.0 f:payments_client = %+v, want client.py renamed since to src/payments_client.py", items)
+	}
+	_, items = searchAt(t, client, batches, "s2", "at:v1.0.0 parse_retry_after")
+	var got []string
+	for _, item := range items {
+		got = append(got, item.Path+" "+item.SinceRevision+" "+item.RenamedTo)
+	}
+	// backoff.py is unchanged on this branch, so it has no badge.
+	want := []string{"src/backoff.py  ", "src/client.py renamed src/payments_client.py"}
+	if !slices.Equal(got, want) {
+		t.Errorf("at:v1.0.0 parse_retry_after = %q, want %q", got, want)
+	}
+}

@@ -83,7 +83,7 @@ func (s *Server) revisionRepo(ctx context.Context, plan *query.Plan, current tri
 		info.Problem = revisionProblem(err, plan, current.Name)
 		return nil, info
 	}
-	shard, err := s.revisions.shard(ctx, current.Root, revision, settings)
+	shard, renamed, err := s.revisions.shard(ctx, current.Root, revision, settings)
 	if err != nil {
 		info.Problem = fmt.Sprintf("Couldn't read %s at %s: %v", current.Name, short(revision.SHA), err)
 		return nil, info
@@ -93,7 +93,9 @@ func (s *Server) revisionRepo(ctx context.Context, plan *query.Plan, current tri
 		// No Owners: owner: reads today's CODEOWNERS file, which can't
 		// speak for the revision's files.
 		ID: current.ID, Name: current.Name, Root: current.Root, Shard: shard,
-		At: &trigram.AtRevision{SHA: revision.SHA, Current: current.CurrentFiles()},
+		At: &trigram.AtRevision{
+			SHA: revision.SHA, Current: current.CurrentFiles(), Renamed: renamed,
+		},
 	}, info
 }
 
@@ -149,13 +151,17 @@ type revisionEntry struct {
 	ready  chan struct{}      // closed once shard or err is set
 	cancel context.CancelFunc // stops the read
 	shard  *trigram.Shard
-	err    error
+	// renamed maps the revision's paths of the files renamed since to
+	// their paths at HEAD when the shard was read.
+	renamed map[string]string
+	err     error
 }
 
 // shard returns the shard of revision's files in the repo at root, as the
-// settings choose them: read now, or kept from an earlier search. It
-// waits for a read another search started; ctx only stops the wait.
-func (c *revisionCache) shard(ctx context.Context, root string, revision history.Revision, settings protocol.Settings) (*trigram.Shard, error) {
+// settings choose them, and which of them were renamed since: read now, or
+// kept from an earlier search. It waits for a read another search started;
+// ctx only stops the wait.
+func (c *revisionCache) shard(ctx context.Context, root string, revision history.Revision, settings protocol.Settings) (*trigram.Shard, map[string]string, error) {
 	key := revisionKey{
 		root: root, sha: revision.SHA, symbols: settings.Symbols,
 		exclude: strings.Join(settings.Exclude, "\x00"), maxBytes: int64(settings.MaxFileSizeKB) * 1024,
@@ -167,12 +173,15 @@ func (c *revisionCache) shard(ctx context.Context, root string, revision history
 	// The read outlives ctx, which the next keystroke's search cancels.
 	entry := c.entry(context.WithoutCancel(ctx), key, func(readCtx context.Context, entry *revisionEntry) {
 		entry.shard, entry.err = read(readCtx, root, revision, settings)
+		if entry.err == nil {
+			entry.renamed = history.RenamedSince(readCtx, root, revision.SHA)
+		}
 	})
 	select {
 	case <-entry.ready:
-		return entry.shard, entry.err
+		return entry.shard, entry.renamed, entry.err
 	case <-ctx.Done():
-		return nil, context.Cause(ctx)
+		return nil, nil, context.Cause(ctx)
 	}
 }
 

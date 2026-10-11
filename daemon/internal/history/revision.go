@@ -282,3 +282,27 @@ func Tags(ctx context.Context, root string, limit int) ([]Tag, error) {
 	}
 	return tags, nil
 }
+
+// RenamedSince maps the path at sha of each file renamed between sha and
+// HEAD to its path at HEAD, as Git finds renames; nil when Git can't say.
+func RenamedSince(ctx context.Context, root, sha string) map[string]string {
+	out, err := git(ctx, root, "diff", "--find-renames", "--name-status", "-z", "--relative", "--no-ext-diff", sha, "HEAD", "--")
+	if err != nil {
+		return nil
+	}
+	renamed := map[string]string{}
+	fields := strings.Split(string(out), "\x00")
+	for i := 0; i < len(fields)-1; {
+		status := fields[i]
+		switch {
+		case strings.HasPrefix(status, "R") && i+2 < len(fields):
+			renamed[fields[i+1]] = fields[i+2]
+			i += 3
+		case strings.HasPrefix(status, "C") && i+2 < len(fields):
+			i += 3
+		default:
+			i += 2
+		}
+	}
+	return renamed
+}

@@ -48,6 +48,10 @@ type AtRevision struct {
 	// a file it doesn't have was deleted since, and one in a file whose
 	// text differs was changed. nil leaves results without a SinceRevision.
 	Current map[string][]byte
+	// Renamed maps the path at the revision of each file renamed since to
+	// its path now, so such a file is renamed rather than deleted, and f:
+	// finds it by either name.
+	Renamed map[string]string
 }
 
 // revision is the full sha of the commit whose files the repo holds, or ""
@@ -83,6 +87,15 @@ func (r *Repo) current(shard *Shard, doc *Doc) bool {
 	return shard != r.Shard || !r.Masked[doc.Path]
 }
 
+// renamedTo is the path now of a file of the revision that was renamed
+// since, or "".
+func (r *Repo) renamedTo(doc *Doc) string {
+	if r.sinceRevision(doc) != protocol.SinceRevisionRenamed {
+		return ""
+	}
+	return r.At.Renamed[doc.Path]
+}
+
 // sinceRevision says how a file of a repo at a revision differs in the
 // current files: deleted, changed, or "" when it is the same (or the repo
 // isn't at a revision).
@@ -92,6 +105,8 @@ func (r *Repo) sinceRevision(doc *Doc) protocol.SinceRevision {
 	}
 	now, ok := r.At.Current[doc.Path]
 	switch {
+	case !ok && r.At.Renamed[doc.Path] != "":
+		return protocol.SinceRevisionRenamed
 	case !ok:
 		return protocol.SinceRevisionDeleted
 	case !bytes.Equal(now, doc.Content):
@@ -352,7 +367,7 @@ func (s *searcher) stats(unit string) engine.Stats {
 func docLeaf(p query.Pred, repo *Repo, doc *Doc) bool {
 	switch p := p.(type) {
 	case *query.Path:
-		return p.Re.MatchString(doc.Path)
+		return p.Re.MatchString(doc.Path) || repo.renamedTo(doc) != "" && p.Re.MatchString(repo.renamedTo(doc))
 	case *query.Repo:
 		return p.Re.MatchString(repo.Name)
 	case *query.Lang:
@@ -530,7 +545,7 @@ func (s *searcher) addFileName(repo *Repo, doc *Doc, rank docRank) {
 	item := protocol.ResultItem{
 		Kind: query.KindFile, Ref: Ref{PlanID: s.planID, RepoID: repo.ID, Path: doc.Path, Revision: repo.revision()}.String(),
 		RepoID: repo.ID, Path: doc.Path, NameHits: s.nameHits(doc.Path, query.Contributing(s.plan.Pred, leaf)),
-		RankReason: rank.reason, Owners: repo.ownersOf(doc.Path), SinceRevision: repo.sinceRevision(doc),
+		RankReason: rank.reason, Owners: repo.ownersOf(doc.Path), SinceRevision: repo.sinceRevision(doc), RenamedTo: repo.renamedTo(doc),
 	}
 	if repo.History != nil {
 		item.Dirty = repo.History.Dirty(doc.Path)
@@ -709,7 +724,7 @@ func (s *searcher) symbolResult(repo *Repo, doc *Doc, symbol *symbols.Symbol) pr
 	}
 	return protocol.ResultItem{
 		Kind: query.KindSymbol, Ref: ref.String(), RepoID: repo.ID, Path: doc.Path, Line: symbol.Line,
-		Name: symbol.Name, SymbolKind: symbol.Kind, Hits: hits, SinceRevision: repo.sinceRevision(doc),
+		Name: symbol.Name, SymbolKind: symbol.Kind, Hits: hits, SinceRevision: repo.sinceRevision(doc), RenamedTo: repo.renamedTo(doc),
 		Cell: cellPlace(doc.Cells, symbol.Line),
 	}
 }
@@ -967,7 +982,7 @@ func (s *searcher) lineResult(repo *Repo, doc *Doc, line matchedLine) protocol.R
 	}
 	item := protocol.ResultItem{
 		Kind: query.KindLine, Ref: ref.String(), RepoID: repo.ID, Path: doc.Path,
-		Line: line.number, Text: text, Hits: hits, SinceRevision: repo.sinceRevision(doc),
+		Line: line.number, Text: text, Hits: hits, SinceRevision: repo.sinceRevision(doc), RenamedTo: repo.renamedTo(doc),
 		Cell: cellPlace(doc.Cells, line.number),
 	}
 	if line.structure != nil {
