@@ -368,6 +368,29 @@ test("recent queries are deduplicated, newest first, and capped", () => {
   assert.deepEqual(host.payloads("state.restore").at(-1)?.recent, ["c", "a"]);
 });
 
+test("a query seeded from the editor keeps the one it replaces under Recent, and tells the panel to type it in", () => {
+  // @covers screen:seed-from-editor
+  const host = recordingUi();
+  const controller = newController(
+    parseOnlyBackend().backend,
+    host.ui,
+    { recentLimit: () => 20 },
+    { text: "timeout", recent: [] },
+  );
+  controller.restore("RetryPolicy", true);
+  const seeded = host.payloads("state.restore").at(-1);
+  assert.ok(seeded);
+  assert.equal(seeded.text, "RetryPolicy");
+  assert.equal(seeded.seeded, true);
+  assert.deepEqual(seeded.recent, ["timeout"], "the replaced query stays under Recent");
+  controller.restore("RetryPolicy", true);
+  assert.equal(host.payloads("state.restore").at(-1)?.seeded, undefined, "the same query again replaces nothing");
+  controller.restore("timeout");
+  assert.equal(host.payloads("state.restore").at(-1)?.seeded, undefined, "a query from Try or a link isn't seeded");
+  controller.restore();
+  assert.equal(host.payloads("state.restore").at(-1)?.text, "timeout", "reopening keeps the last query");
+});
+
 test("lowering the recent-query limit drops the queries past it, and 0 drops them all", () => {
   // @covers setting:ui.recentQueries
   const host = recordingUi();

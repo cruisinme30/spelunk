@@ -7,6 +7,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import * as vscode from "vscode";
 import { CommitDocuments } from "./commitDocuments";
+import { editorCommands } from "./editorSeed";
 import { RevisionDocuments } from "./revisionDocuments";
 import { revisionDiffTitle } from "./revisionPath";
 import {
@@ -561,10 +562,7 @@ interface CommandTargets {
 function registerCommands(targets: CommandTargets): vscode.Disposable[] {
   const { daemon, controller, panel, help, syntax, log, extensionId } = targets;
   const commands: Record<string, (argument?: unknown) => unknown> = {
-    "spelunk.open": (argument) => {
-      panel.show();
-      controller.restore(queryArgument(argument));
-    },
+    ...editorCommands(panel, controller),
     "spelunk.openHelp": () => {
       help.show();
     },
@@ -624,12 +622,6 @@ function testState(daemon: Daemon, controller: SearchController, panel: SearchPa
       endColumn: editor.selection.end.character + 1,
     },
   };
-}
-
-/** The query in spelunk.open's optional `{ query }` argument, which the help page's Try passes. */
-function queryArgument(argument: unknown): string | undefined {
-  if (typeof argument !== "object" || argument === null || !("query" in argument)) return undefined;
-  return typeof argument.query === "string" ? argument.query : undefined;
 }
 
 interface RepoPick extends vscode.QuickPickItem {

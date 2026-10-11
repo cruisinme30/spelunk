@@ -17,6 +17,7 @@ import {
   syntaxHighlighting,
   uiSettings,
   watchedQueries,
+  seedsFromSelection,
   watchNotify,
   welcomeSettings,
   type ConfigReader,
@@ -350,6 +351,17 @@ test("watch.notify pops up a watch's new commits unless it is off", () => {
   assert.equal(watchNotify(configWith({})), true, "on by default");
   assert.equal(watchNotify(configWith({ "watch.notify": false })), false);
   assert.equal(watchNotify(configWith({ "watch.notify": "no" })), true, "not a boolean: the default");
+});
+
+test("search.seedFromSelection searches the editor's selection unless it is off", () => {
+  // @covers setting:search.seedFromSelection
+  assert.equal(seedsFromSelection(configWith({})), true, "on by default");
+  assert.equal(seedsFromSelection(configWith({ "search.seedFromSelection": false })), false);
+  assert.equal(
+    seedsFromSelection(configWith({ "search.seedFromSelection": "off" })),
+    true,
+    "not a boolean: the default",
+  );
 });
 
 test("permalinks.hosts keeps the servers named as a kind of host Spelunk knows", () => {

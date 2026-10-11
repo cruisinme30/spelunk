@@ -255,12 +255,16 @@ export class SearchController {
 
   /**
    * Sends the box text, recent and pinned queries, settings and each repo's indexing to a
-   * (re)opened panel. A given query replaces the text.
+   * (re)opened panel. A given query replaces the text. A query seeded from the editor first
+   * keeps the one it replaces under Recent, and the panel types it in, so ⌘Z brings that back.
    */
-  restore(query?: string): void {
+  restore(query?: string, seeded = false): void {
+    const seeds = seeded && query !== undefined && query !== this.state.text;
+    if (seeds) this.rememberQuery();
     if (query !== undefined) this.state.text = query;
     this.keepRecentLimit();
     this.ui.post("state.restore", {
+      ...(seeds ? { seeded: true } : {}),
       text: this.state.text,
       recent: this.state.recent,
       pinned: this.options.pinnedQueries(),

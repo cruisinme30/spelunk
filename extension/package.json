@@ -61,6 +61,14 @@
         "title": "Spelunk: Open"
       },
       {
+        "command": "spelunk.findDefinitions",
+        "title": "Spelunk: Find Definitions"
+      },
+      {
+        "command": "spelunk.findUses",
+        "title": "Spelunk: Find Uses"
+      },
+      {
         "command": "spelunk.openHelp",
         "title": "Spelunk: Open Help"
       },
@@ -452,6 +460,16 @@
           "command": "spelunk.results.exportJson",
           "group": "1_formats@4"
         }
+      ],
+      "editor/context": [
+        {
+          "command": "spelunk.findDefinitions",
+          "group": "navigation@1.5"
+        },
+        {
+          "command": "spelunk.findUses",
+          "group": "navigation@1.6"
+        }
       ]
     },
     "keybindings": [
@@ -460,6 +478,15 @@
         "key": "ctrl+p",
         "mac": "cmd+p",
         "when": "config.spelunk.shortcut.preset == 'quickOpen'"
+      },
+      {
+        "command": "spelunk.open",
+        "key": "ctrl+p",
+        "mac": "cmd+p",
+        "when": "config.spelunk.shortcut.preset == 'quickOpen' && editorTextFocus",
+        "args": {
+          "fromEditor": true
+        }
       },
       {
         "command": "workbench.action.quickOpen",
@@ -472,6 +499,15 @@
         "key": "ctrl+shift+f",
         "mac": "cmd+shift+f",
         "when": "config.spelunk.shortcut.preset == 'findInFiles'"
+      },
+      {
+        "command": "spelunk.open",
+        "key": "ctrl+shift+f",
+        "mac": "cmd+shift+f",
+        "when": "config.spelunk.shortcut.preset == 'findInFiles' && editorTextFocus",
+        "args": {
+          "fromEditor": true
+        }
       },
       {
         "command": "spelunk.nextResult",
@@ -546,6 +582,12 @@
             "default": false,
             "scope": "window",
             "description": "Match whole words by default, so retry doesn't match retryCount. A word: operator in the query always wins."
+          },
+          "spelunk.search.seedFromSelection": {
+            "type": "boolean",
+            "default": true,
+            "scope": "window",
+            "description": "Search the editor's selection when the search key is pressed in the editor. Off, the panel reopens with the last query, as it does with nothing selected."
           },
           "spelunk.search.typingDelayMs": {
             "type": "integer",

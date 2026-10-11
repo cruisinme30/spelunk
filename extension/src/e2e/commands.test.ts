@@ -279,6 +279,42 @@ const TESTS: [name: string, run: () => Promise<void>][] = [
     },
   ],
   [
+    "The search key in the editor searches its selection; with nothing selected the last query stays",
+    async () => {
+      // @covers screen:seed-from-editor command:open
+      await searchFor("timeout");
+      const editor = await openClientAt(new vscode.Selection(41, 28, 41, 39)); // RetryPolicy on line 42
+      assert.equal(editor.document.getText(editor.selection), "RetryPolicy");
+      await vscode.commands.executeCommand("spelunk.open", { fromEditor: true });
+      await until("RetryPolicy searched", (state) => state.searched === "RetryPolicy" && state.results.length > 0);
+
+      await openClientAt(new vscode.Selection(41, 32, 41, 32));
+      await vscode.commands.executeCommand("spelunk.open", { fromEditor: true });
+      const kept = await until("the panel open again", (state) => state.panelOpen);
+      assert.equal(kept.text, "RetryPolicy", "no selection: the last query stays");
+
+      await openClientAt(new vscode.Selection(41, 28, 41, 39));
+      await vscode.commands.executeCommand("spelunk.open");
+      assert.equal((await until("the panel open", (state) => state.panelOpen)).text, "RetryPolicy");
+    },
+  ],
+  [
+    "Find Definitions and Find Uses search the name at the cursor",
+    async () => {
+      // @covers command:findDefinitions command:findUses screen:seed-from-editor
+      await openClientAt(new vscode.Selection(41, 32, 41, 32));
+      await vscode.commands.executeCommand("spelunk.findDefinitions");
+      const definitions = await until(
+        "the definitions",
+        (state) => state.searched === "sym:/^RetryPolicy$/" && state.results.length > 0,
+      );
+      assert.equal(definitions.results.length, 1, "class RetryPolicy, and nothing that only contains the name");
+      await openClientAt(new vscode.Selection(41, 32, 41, 32));
+      await vscode.commands.executeCommand("spelunk.findUses");
+      await until("the uses", (state) => state.searched === "ref:RetryPolicy" && state.results.length > 0);
+    },
+  ],
+  [
     "Restart Search restarts the daemon and search keeps working",
     async () => {
       // @covers command:restartDaemon
@@ -288,6 +324,16 @@ const TESTS: [name: string, run: () => Promise<void>][] = [
     },
   ],
 ];
+
+/** Opens payments-api's client.py with `selection` and the focus in the editor. */
+async function openClientAt(selection: vscode.Selection): Promise<vscode.TextEditor> {
+  const folder = vscode.workspace.workspaceFolders?.[0];
+  assert.ok(folder, "the fixture workspace is open");
+  const document = await vscode.workspace.openTextDocument(
+    vscode.Uri.joinPath(folder.uri, "payments-api/src/payments/client.py"),
+  );
+  return vscode.window.showTextDocument(document, { selection, preserveFocus: false });
+}
 
 function sameEditor(state: TestState, other: TestState): boolean {
   return JSON.stringify(state.editor) === JSON.stringify(other.editor);

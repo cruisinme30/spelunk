@@ -52,6 +52,7 @@ const DEFAULTS = {
   commitCheckSeconds: 5,
   syntaxHighlighting: true,
   renderWhitespace: "editor",
+  seedFromSelection: true,
 } as const;
 
 /** VS Code's defaults for the editor.* settings the panel's code follows. */
@@ -366,6 +367,14 @@ export function permalinkHosts(config: ConfigReader): Record<string, string> {
 /** Whether a watch's new commits pop up a notification (spelunk.watch.notify). */
 export function watchNotify(config: ConfigReader): boolean {
   return boolean(config.get<unknown>("watch.notify", DEFAULTS.watchNotify), DEFAULTS.watchNotify);
+}
+
+/** Whether the search key, pressed in the editor, searches its selection (spelunk.search.seedFromSelection). */
+export function seedsFromSelection(config: ConfigReader): boolean {
+  return boolean(
+    config.get<unknown>("search.seedFromSelection", DEFAULTS.seedFromSelection),
+    DEFAULTS.seedFromSelection,
+  );
 }
 
 /** Whether opening a result closes the search panel. */

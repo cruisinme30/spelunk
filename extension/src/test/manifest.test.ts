@@ -10,6 +10,7 @@ interface Keybinding {
   key: string;
   mac?: string;
   when?: string;
+  args?: unknown;
 }
 
 interface Manifest {
@@ -19,6 +20,7 @@ interface Manifest {
       commandPalette: { command: string; when?: string }[];
       "webview/context": { command?: string; submenu?: string; when: string }[];
       "spelunk.export": { command: string }[];
+      "editor/context": { command: string; group: string; when?: string }[];
     };
     keybindings: Keybinding[];
     configuration: {
@@ -129,4 +131,37 @@ test("the result menu's items are on results in the panel only, and kept out of 
       declared.has(`spelunk.result.copyPermalink.${host}`) && declared.has(`spelunk.result.openOnRemote.${host}`),
     );
   }
+});
+
+test("pressed in the editor, the search key tells Open to search the selection; elsewhere it doesn't", () => {
+  // @covers command:open screen:seed-from-editor
+  const opens = manifest.contributes.keybindings.filter((binding) => binding.command === "spelunk.open");
+  const plain = opens.filter((binding) => binding.args === undefined).map((binding) => binding.when);
+  const inEditor = opens.filter((binding) => binding.args !== undefined);
+  assert.deepEqual(
+    inEditor.map((binding) => [binding.when, binding.args]),
+    plain.map((when) => [`${when} && editorTextFocus`, { fromEditor: true }]),
+    "each preset's key has an editor-only twin, with the same key",
+  );
+  for (const binding of inEditor) {
+    const twin = opens.find((other) => other.when === binding.when?.replace(" && editorTextFocus", ""));
+    assert.equal(binding.key, twin?.key);
+    assert.equal(binding.mac, twin?.mac);
+    assert.ok(twin && opens.indexOf(binding) > opens.indexOf(twin), "listed after its twin, so it wins in the editor");
+  }
+});
+
+test("Find Definitions and Find Uses are on the editor's right-click menu, at the top, and in the Command Palette", () => {
+  // @covers command:findDefinitions command:findUses
+  const ids = new Set(manifest.contributes.commands.map((command) => command.command));
+  assert.ok(ids.has("spelunk.findDefinitions") && ids.has("spelunk.findUses"));
+  assert.deepEqual(
+    manifest.contributes.menus["editor/context"].map((item) => [item.command, item.group]),
+    [
+      ["spelunk.findDefinitions", "navigation@1.5"],
+      ["spelunk.findUses", "navigation@1.6"],
+    ],
+  );
+  const listed = new Set(manifest.contributes.menus.commandPalette.map((item) => item.command));
+  assert.ok(!listed.has("spelunk.findDefinitions") && !listed.has("spelunk.findUses"), "no when hides them");
 });
