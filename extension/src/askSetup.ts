@@ -73,7 +73,7 @@ function levelsOf(info: Anthropic.ModelInfo): AskEffort[] {
 }
 
 /** The models the key can use, newest first, with the levels each takes. Throws when Anthropic can't be asked. */
-export async function listModels(client: Pick<Anthropic, "models">, current: string): Promise<ModelPick[]> {
+async function listModels(client: Pick<Anthropic, "models">, current: string): Promise<ModelPick[]> {
   const picks: ModelPick[] = [];
   for await (const info of client.models.list({ limit: 100 })) {
     if (info.lifecycle === "retired") continue;
@@ -93,7 +93,7 @@ export async function listModels(client: Pick<Anthropic, "models">, current: str
  * sets spelunk.ask.model to the one picked, then offers that model's
  * effort levels for spelunk.ask.effort. Without a key, asks for it first.
  */
-export async function chooseAskModel(context: vscode.ExtensionContext): Promise<void> {
+async function chooseAskModel(context: vscode.ExtensionContext): Promise<void> {
   const apiKey = await context.secrets.get(ANTHROPIC_KEY_SECRET);
   if (!apiKey) {
     await setAnthropicApiKey(context);
