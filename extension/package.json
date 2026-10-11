@@ -1088,7 +1088,7 @@
               "anthropic"
             ],
             "enumDescriptions": [
-              "The Ask button and a question ending in ? do nothing.",
+              "The Generate query button and a question ending in ? do nothing.",
               "Anthropic's Claude turns the question into a Spelunk query (needs an API key: Spelunk: Set Anthropic API Key)."
             ],
             "default": "off",

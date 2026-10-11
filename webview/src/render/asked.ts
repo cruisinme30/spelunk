@@ -4,6 +4,7 @@
 // why it failed; and the Broaden note under no results.
 import { button, element } from "../format";
 import type { Layout } from "../layout";
+import { opNameFor } from "../operators";
 import type { AskedState, ViewState } from "../state";
 
 /** What the line's buttons do. */
@@ -129,10 +130,22 @@ export function broadenNote(onBroaden: () => void): HTMLElement {
   );
 }
 
-/** The question a box holds, without its final "?"; undefined when the box isn't a question. */
+/** Whether `text` uses a search word (type:, match:, -f: …): then it is a query, whatever it ends with. */
+function usesSearchWords(text: string): boolean {
+  return text.split(/\s+/).some((token) => {
+    const name = /^[-(]*([A-Za-z]+):/.exec(token)?.[1];
+    return name !== undefined && opNameFor(name) !== undefined;
+  });
+}
+
+/**
+ * The question a box holds, without its final "?"; undefined when the box
+ * isn't a question: it doesn't end in "?", or it uses search words, so a
+ * query such as `type:file other?` searches as typed.
+ */
 export function questionIn(text: string): string | undefined {
   const trimmed = text.trim();
-  if (!trimmed.endsWith("?") || trimmed.length < 2) return undefined;
+  if (!trimmed.endsWith("?") || trimmed.length < 2 || usesSearchWords(trimmed)) return undefined;
   const question = trimmed.slice(0, -1).trim();
   return question === "" ? undefined : question;
 }

@@ -145,7 +145,7 @@ function createReplaceToggle(): HTMLButtonElement {
   );
 }
 
-/** ✦ Ask: asks the box's question in plain words. */
+/** ✦ Generate query: turns the box's words, a question in plain words, into a query. */
 function createAskButton(): HTMLButtonElement {
   const sparkle =
     '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M19 17l.7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7z"/></svg>';
@@ -155,10 +155,11 @@ function createAskButton(): HTMLButtonElement {
       type: "button",
       class: "toggle ask",
       "data-testid": "ask",
-      "aria-label": "Ask in plain words",
-      title: "Ask in plain words: type a question, end it with ? or press this, and the query it becomes runs",
+      "aria-label": "Generate query",
+      title:
+        "Generate query: type what you want in plain words and press this (or end it with ?); the query it becomes runs",
     },
-    "Ask",
+    "Generate query",
   );
   button.insertAdjacentHTML("afterbegin", sparkle);
   return button;
@@ -224,11 +225,11 @@ export function createLayout(root: HTMLElement): Layout {
     element(
       "div",
       { class: "tools" },
+      askButton,
       caseButton,
       wordButton,
       regexButton,
       replaceButton,
-      askButton,
       element("span", { class: REPO_MENU_ANCHOR_CLASS }, reposButton, repoMenu),
       settingsButton,
     ),

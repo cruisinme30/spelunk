@@ -75,11 +75,26 @@ test("Enter on a question asks it, and the answer's query lands in the box and r
   assert.deepEqual(pageErrors(page), []);
 });
 
-test("the Ask button asks the box's words, with or without a ?", async (t) => {
+test("Generate query, left of the match toggles, asks the box's words, with or without a ?", async (t) => {
   const page = await askPanel(t);
+  const tools = await page
+    .locator(".search-bar .tools > *")
+    .evaluateAll((nodes) => nodes.map((node) => node.dataset.testid));
+  assert.deepEqual(tools.slice(0, 2), ["ask", "toggle-case"]);
+  assert.equal((await page.locator('[data-testid="ask"]').innerText()).trim(), "Generate query");
   await page.fill(QUERY, "functions that call charge");
   await page.click('[data-testid="ask"]');
   assert.deepEqual(await lastSent(page, "ask"), { question: "functions that call charge", seq: 1 });
+});
+
+test("a box with search words is a query even when it ends in ?, so Enter searches it as typed", async (t) => {
+  const page = await askPanel(t);
+  await page.fill(QUERY, "type:file match:fuzzy other?");
+  await page.press(QUERY, "Enter");
+  assert.equal(await lastSent(page, "ask"), undefined, "nothing went to the provider");
+  assert.equal(await page.inputValue(QUERY), "type:file match:fuzzy other?", "the ? stays");
+  assert.equal((await lastSent(page, "query.changed")).text, "type:file match:fuzzy other?");
+  assert.deepEqual(pageErrors(page), []);
 });
 
 test("a question too vague to search gets a question back, and the box keeps the question", async (t) => {
