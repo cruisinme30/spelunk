@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/cruisinme30/spelunk/daemon/internal/excludes"
 	"github.com/cruisinme30/spelunk/daemon/internal/lang"
 	"github.com/cruisinme30/spelunk/daemon/internal/protocol"
 	"github.com/cruisinme30/spelunk/daemon/internal/structural"
@@ -96,6 +97,16 @@ type Plan struct {
 	// FileKinds say which files are vendored and generated, for is: and
 	// ranking (spelunk.index.vendoredFolders and generatedSuffixes).
 	FileKinds *lang.FileKinds
+	// Excludes are VS Code's files.exclude and search.exclude. Unless the
+	// query says excludes:no, Pred ends in a Visible conjunct that leaves
+	// out the files they hide, a filter whose note names the patterns that
+	// hid something; with excludes:no, ShownFilter is set instead, and the
+	// engines mark those files' results excluded and count them. Nil when
+	// no folder has any.
+	Excludes *excludes.Set
+	// ShownFilter is set when the query says excludes:no and VS Code's
+	// excludes hide something: its undo takes excludes:no out.
+	ShownFilter *Filter
 }
 
 // Filter is part of a query that may hide results. Engines count what each
@@ -220,6 +231,9 @@ type (
 	}
 	// Since matches commits after a time, or files last changed after it.
 	Since struct{ After time.Time }
+	// Visible matches files that VS Code's files.exclude and search.exclude
+	// don't hide (see Plan.Excludes).
+	Visible struct{ Excludes *excludes.Set }
 	// Owner matches files that CODEOWNERS gives an owner named Name
 	// (owner:), or, when Name is OwnerNone, files it gives none. Files of a
 	// repo without a CODEOWNERS file match neither.
@@ -240,6 +254,7 @@ func (*Message) isPred() {}
 func (*Since) isPred()   {}
 func (*Is) isPred()      {}
 func (*Owner) isPred()   {}
+func (*Visible) isPred() {}
 
 func joinPreds(kind string, kids []Pred) string {
 	parts := make([]string, len(kids))
@@ -276,6 +291,7 @@ func (p *Kind) String() string    { return "kind:" + p.Name }
 func (p *Message) String() string { return "msg:/" + p.Re.String() + "/" }
 func (p *Is) String() string      { return "is:" + p.State }
 func (p *Owner) String() string   { return "owner:" + p.Name }
+func (*Visible) String() string   { return "visible" }
 func (p *Since) String() string   { return "since:" + p.After.UTC().Format(time.RFC3339) }
 func (p *Author) String() string {
 	if p.Exact {
@@ -344,6 +360,7 @@ func NewPlan(q protocol.ParsedQuery, settings protocol.Settings, now time.Time, 
 		plan.CaseFilter = &Filter{Reason: "case", Index: -1, Text: "case:smart", Undo: insertFix("Ignore case", 0, "case:no ")}
 	}
 	plan.SymbolFilter = symbolFilter(q.Root, src)
+	plan.addExcludes(q, settings, src)
 	return plan, append(historyScanWarnings(plan), emptyWindowWarnings(q.Root, src, now)...), nil
 }
 
@@ -503,6 +520,32 @@ func (p *Plan) addGlobalFilter(node *protocol.Node, src *source) {
 	case node.Op == protocol.OpNameWord && p.WholeWord:
 		p.WordFilter = &Filter{Reason: "word", Index: -1, Text: text, Undo: removeFix("Match parts of words", src, node.Span)}
 	}
+}
+
+// ExcludesText is how the hidden-results note names VS Code's excludes.
+const ExcludesText = "your VS Code excludes"
+
+// addExcludes applies VS Code's excludes, unless the query says
+// excludes:no: a last conjunct leaves out the files they hide, and a
+// filter counts them, undone by adding excludes:no. With excludes:no,
+// ShownFilter's undo takes it out again.
+func (p *Plan) addExcludes(q protocol.ParsedQuery, settings protocol.Settings, src *source) {
+	p.Excludes = excludes.New(settings.EditorExcludes)
+	if p.Excludes == nil {
+		return
+	}
+	if q.Globals.Excludes == "no" {
+		for _, node := range topLevel(q.Root) {
+			if node.Kind == protocol.NodeKindOp && node.Op == protocol.OpNameExcludes {
+				p.ShownFilter = &Filter{Reason: "excludes", Index: -1, Text: src.slice(node.Span.Start, node.Span.End),
+					Undo: removeFix("Hide them", src, node.Span)}
+			}
+		}
+		return
+	}
+	p.Filters = append(p.Filters, Filter{Reason: "excludes", Index: len(p.Pred.Kids), Text: ExcludesText,
+		Undo: insertFix("Show them", 0, "excludes:no ")})
+	p.Pred.Kids = append(p.Pred.Kids, &Visible{Excludes: p.Excludes})
 }
 
 // timeLimit is the spelunk.search.timeLimitMs setting as a duration, kept

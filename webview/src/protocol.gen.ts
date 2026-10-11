@@ -61,7 +61,7 @@ export interface HoleValue {
 }
 
 /** OpName is an operator's name, the part before the colon. */
-export type OpName = "f" | "repo" | "lang" | "type" | "sym" | "kind" | "ref" | "is" | "owner" | "content" | "struct" | "author" | "msg" | "since" | "until" | "at" | "case" | "word" | "count" | "order";
+export type OpName = "f" | "repo" | "lang" | "type" | "sym" | "kind" | "ref" | "is" | "owner" | "content" | "struct" | "author" | "msg" | "since" | "until" | "at" | "case" | "word" | "excludes" | "count" | "order";
 
 /** CaseSetting is how capital letters match when the query has no case: ignored (off), matched (on), or matched only when the query has a capital letter (smart). */
 export type CaseSetting = "off" | "on" | "smart";
@@ -69,8 +69,8 @@ export type CaseSetting = "off" | "on" | "smart";
 /** ResultOrder is how current files are sorted: best match first, or by repo, path and line. */
 export type ResultOrder = "best" | "path";
 
-/** RankReason is why best-match order put a file where it is: it defines a searched name or is open in the editor, or it was moved down as a test, vendored or generated file. Absent when nothing stands out or the order is path. */
-export type RankReason = "definition" | "open" | "test" | "vendored" | "generated";
+/** RankReason is why best-match order put a file where it is: it defines a searched name or is open in the editor, or it was moved down as a test, vendored or generated file, or as one VS Code's excludes hide (shown by excludes:no). Absent when nothing stands out or the order is path. */
+export type RankReason = "definition" | "open" | "test" | "vendored" | "generated" | "excluded";
 
 /** SinceRevision is how a file found at a revision differs in the current files: its content changed, or it was deleted. */
 export type SinceRevision = "changed" | "deleted";
@@ -148,6 +148,8 @@ export interface Globals {
   type: "file" | "code" | "commit" | "added" | "removed" | null;
   /** the query's word: value, yes or no; absent when the query doesn't say. */
   word?: "yes" | "no";
+  /** the query's excludes: value: yes leaves out the files VS Code's files.exclude and search.exclude hide, no keeps them; absent when the query doesn't say, which means yes unless spelunk.search.useExcludeSettings is off. */
+  excludes?: "yes" | "no";
   /** the query's order: value, best or path; absent when the query doesn't say. */
   order?: ResultOrder;
   /** the query's at: value as written: the tag, branch, commit or time whose files it searches; absent when the query doesn't say. */
@@ -171,6 +173,18 @@ export interface Root {
   id: string;
   path: string;
   name: string;
+}
+
+/** RootExcludes are the glob patterns VS Code hides in one workspace folder, as files.exclude and search.exclude write them: relative to the folder. */
+export interface RootExcludes {
+  rootId: string;
+  patterns: ExcludePattern[];
+}
+
+/** ExcludePattern is one enabled files.exclude or search.exclude entry: a VS Code glob, and its when clause if it has one, e.g. $(basename).ts to hide a file only beside a sibling of that name. */
+export interface ExcludePattern {
+  glob: string;
+  when?: string;
 }
 
 /** Settings are the spelunk.* settings the daemon needs. */
@@ -198,6 +212,8 @@ export interface Settings {
   generatedSuffixes?: string[];
   /** the spelunk.index.codeownersFiles setting: where to look for a repo's CODEOWNERS file, relative to its root, the first found winning. Absent means GitHub's .github/CODEOWNERS, CODEOWNERS and docs/CODEOWNERS. */
   codeownersFiles?: string[];
+  /** VS Code's files.exclude and search.exclude for each workspace folder, enabled patterns only, while spelunk.search.useExcludeSettings is on: searches leave out the files they hide unless the query says excludes:no. Absent or empty hides nothing. */
+  editorExcludes?: RootExcludes[];
   /** the spelunk.index.commitCheckSeconds setting: how often to ask Git whether HEAD moved, which brings new commits into history search and watches. Absent means 5. */
   commitCheckSeconds?: number;
 }
@@ -385,12 +401,16 @@ export interface FacetBucket {
 
 /** HiddenNote counts results a filter removed, with a fix that removes the filter. */
 export interface HiddenNote {
-  reason: "not" | "since" | "case" | "word" | "type" | "pathFilter" | "symbol" | "kind" | "owner";
+  reason: "not" | "since" | "case" | "word" | "type" | "pathFilter" | "symbol" | "kind" | "owner" | "excludes";
   /** The filter as typed, e.g. -f:vendor/ */
   filter: string;
   count: number;
   unit: "matches" | "files" | "commits" | "definitions";
   undo: Fix;
+  /** For VS Code's excludes, the patterns that hid (or, when shown, matched) the results, as written in the settings, e.g. build and dist. */
+  patterns?: string[];
+  /** Set when the query says excludes:no: count is how many results VS Code's excludes would hide, which show, and undo hides them again. */
+  shown?: boolean;
 }
 
 /** Completion is an autocomplete suggestion; accepting it applies its edit. */
@@ -624,6 +644,8 @@ export interface ReplacePlan {
   matches: number;
   files: ReplaceFile[];
   truncated: boolean;
+  /** How many matches are in files VS Code's excludes hide, which the plan leaves alone; absent when none. */
+  excluded?: number;
 }
 
 /** Empty is a message with no fields. */

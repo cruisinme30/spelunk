@@ -89,26 +89,27 @@ type OpName = string
 
 // OpName values.
 const (
-	OpNameF       OpName = "f"
-	OpNameRepo    OpName = "repo"
-	OpNameLang    OpName = "lang"
-	OpNameType    OpName = "type"
-	OpNameSym     OpName = "sym"
-	OpNameKind    OpName = "kind"
-	OpNameRef     OpName = "ref"
-	OpNameIs      OpName = "is"
-	OpNameOwner   OpName = "owner"
-	OpNameContent OpName = "content"
-	OpNameStruct  OpName = "struct"
-	OpNameAuthor  OpName = "author"
-	OpNameMsg     OpName = "msg"
-	OpNameSince   OpName = "since"
-	OpNameUntil   OpName = "until"
-	OpNameAt      OpName = "at"
-	OpNameCase    OpName = "case"
-	OpNameWord    OpName = "word"
-	OpNameCount   OpName = "count"
-	OpNameOrder   OpName = "order"
+	OpNameF        OpName = "f"
+	OpNameRepo     OpName = "repo"
+	OpNameLang     OpName = "lang"
+	OpNameType     OpName = "type"
+	OpNameSym      OpName = "sym"
+	OpNameKind     OpName = "kind"
+	OpNameRef      OpName = "ref"
+	OpNameIs       OpName = "is"
+	OpNameOwner    OpName = "owner"
+	OpNameContent  OpName = "content"
+	OpNameStruct   OpName = "struct"
+	OpNameAuthor   OpName = "author"
+	OpNameMsg      OpName = "msg"
+	OpNameSince    OpName = "since"
+	OpNameUntil    OpName = "until"
+	OpNameAt       OpName = "at"
+	OpNameCase     OpName = "case"
+	OpNameWord     OpName = "word"
+	OpNameExcludes OpName = "excludes"
+	OpNameCount    OpName = "count"
+	OpNameOrder    OpName = "order"
 )
 
 // CaseSetting is how capital letters match when the query has no case: ignored (off), matched (on), or matched only when the query has a capital letter (smart).
@@ -130,7 +131,7 @@ const (
 	ResultOrderPath ResultOrder = "path"
 )
 
-// RankReason is why best-match order put a file where it is: it defines a searched name or is open in the editor, or it was moved down as a test, vendored or generated file. Absent when nothing stands out or the order is path.
+// RankReason is why best-match order put a file where it is: it defines a searched name or is open in the editor, or it was moved down as a test, vendored or generated file, or as one VS Code's excludes hide (shown by excludes:no). Absent when nothing stands out or the order is path.
 type RankReason = string
 
 // RankReason values.
@@ -140,6 +141,7 @@ const (
 	RankReasonTest       RankReason = "test"
 	RankReasonVendored   RankReason = "vendored"
 	RankReasonGenerated  RankReason = "generated"
+	RankReasonExcluded   RankReason = "excluded"
 )
 
 // SinceRevision is how a file found at a revision differs in the current files: its content changed, or it was deleted.
@@ -292,6 +294,8 @@ type Globals struct {
 	Type  *string `json:"type"`
 	// Word is the query's word: value, yes or no; absent when the query doesn't say.
 	Word string `json:"word,omitempty"`
+	// Excludes is the query's excludes: value: yes leaves out the files VS Code's files.exclude and search.exclude hide, no keeps them; absent when the query doesn't say, which means yes unless spelunk.search.useExcludeSettings is off.
+	Excludes string `json:"excludes,omitempty"`
 	// Order is the query's order: value, best or path; absent when the query doesn't say.
 	Order ResultOrder `json:"order,omitempty"`
 	// At is the query's at: value as written: the tag, branch, commit or time whose files it searches; absent when the query doesn't say.
@@ -327,6 +331,28 @@ type Root struct {
 	Name string `json:"name"`
 }
 
+// RootExcludes are the glob patterns VS Code hides in one workspace folder, as files.exclude and search.exclude write them: relative to the folder.
+type RootExcludes struct {
+	RootID   string           `json:"rootId"`
+	Patterns []ExcludePattern `json:"patterns"`
+}
+
+// MarshalJSON emits [] rather than null for required arrays.
+func (v RootExcludes) MarshalJSON() ([]byte, error) {
+	type plain RootExcludes
+	p := plain(v)
+	if p.Patterns == nil {
+		p.Patterns = []ExcludePattern{}
+	}
+	return json.Marshal(p)
+}
+
+// ExcludePattern is one enabled files.exclude or search.exclude entry: a VS Code glob, and its when clause if it has one, e.g. $(basename).ts to hide a file only beside a sibling of that name.
+type ExcludePattern struct {
+	Glob string `json:"glob"`
+	When string `json:"when,omitempty"`
+}
+
 // Settings are the spelunk.* settings the daemon needs.
 type Settings struct {
 	// CaseSensitive is the spelunk.search.caseSensitive setting: how a query without case: treats capital letters.
@@ -352,6 +378,8 @@ type Settings struct {
 	GeneratedSuffixes []string `json:"generatedSuffixes,omitempty"`
 	// CodeownersFiles is the spelunk.index.codeownersFiles setting: where to look for a repo's CODEOWNERS file, relative to its root, the first found winning. Absent means GitHub's .github/CODEOWNERS, CODEOWNERS and docs/CODEOWNERS.
 	CodeownersFiles []string `json:"codeownersFiles,omitempty"`
+	// EditorExcludes is vS Code's files.exclude and search.exclude for each workspace folder, enabled patterns only, while spelunk.search.useExcludeSettings is on: searches leave out the files they hide unless the query says excludes:no. Absent or empty hides nothing.
+	EditorExcludes []RootExcludes `json:"editorExcludes,omitempty"`
 	// CommitCheckSeconds is the spelunk.index.commitCheckSeconds setting: how often to ask Git whether HEAD moved, which brings new commits into history search and watches. Absent means 5.
 	CommitCheckSeconds int `json:"commitCheckSeconds,omitempty"`
 }
@@ -759,6 +787,10 @@ type HiddenNote struct {
 	Count  int    `json:"count"`
 	Unit   string `json:"unit"`
 	Undo   Fix    `json:"undo"`
+	// Patterns is for VS Code's excludes, the patterns that hid (or, when shown, matched) the results, as written in the settings, e.g. build and dist.
+	Patterns []string `json:"patterns,omitempty"`
+	// Shown is set when the query says excludes:no: count is how many results VS Code's excludes would hide, which show, and undo hides them again.
+	Shown bool `json:"shown,omitempty"`
 }
 
 // Completion is an autocomplete suggestion; accepting it applies its edit.
@@ -1118,6 +1150,8 @@ type ReplacePlan struct {
 	Matches   int           `json:"matches"`
 	Files     []ReplaceFile `json:"files"`
 	Truncated bool          `json:"truncated"`
+	// Excluded is how many matches are in files VS Code's excludes hide, which the plan leaves alone; absent when none.
+	Excluded int `json:"excluded,omitempty"`
 }
 
 // MarshalJSON emits [] rather than null for required arrays.

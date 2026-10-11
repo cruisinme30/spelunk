@@ -49,6 +49,7 @@ import {
   type ResultsGlimpse,
 } from "./render/completions";
 import { renderEmptyState } from "./render/emptyState";
+import { hiddenByExcludes } from "./render/excludesNote";
 import { renderFacets } from "./render/facets";
 import { applyRemoteHosts } from "./render/menuContext";
 import { RepoMenu } from "./render/repoMenu";
@@ -728,6 +729,7 @@ export class SearchPanel {
       if (counts.line) parts.push(plural(counts.line, "code match", "code matches"));
     }
     if (this.state.done && !this.results?.items.length) parts.push("0 results");
+    parts.push(...hiddenByExcludes(this.state.done));
     if (this.state.done?.truncated) parts.push("truncated");
     this.summary.textContent = parts.join(" · ");
   }

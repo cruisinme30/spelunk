@@ -38,7 +38,7 @@ func Search(ctx context.Context, plan *query.Plan, repos []Repo, planID int, emi
 	}
 	ctx, cancel := context.WithTimeout(ctx, plan.TimeLimit)
 	defer cancel()
-	s := &searcher{ctx: ctx, plan: plan, planID: planID, emit: emit, lines: trigram.NewLineFinder(), hidden: map[int]int{},
+	s := &searcher{ctx: ctx, plan: plan, planID: planID, emit: emit, lines: trigram.NewLineFinder(), hidden: map[int]int{}, excludedBy: map[string]bool{},
 		facets: engine.NewFacets(engine.FacetRepo, engine.FacetAuthor, engine.FacetMonth),
 	}
 	s.searchNewestFirst(repos)
@@ -81,6 +81,8 @@ type searcher struct {
 	// hiddenBySide counts commits that match only on the other side of their
 	// diffs, or in their message, under type:added or type:removed.
 	hiddenBySide int
+	// excludedBy holds the patterns of VS Code's excludes that hid a commit.
+	excludedBy map[string]bool
 }
 
 // stats summarizes the search.
@@ -89,6 +91,7 @@ func (s *searcher) stats() engine.Stats {
 	stats.Facets = s.facets.List()
 	hidden := engine.Hidden{ByFilter: s.hidden, ByCase: s.hiddenByCase, ByWord: s.hiddenByWord, ByType: s.hiddenBySide}
 	stats.AddHidden(s.plan, hidden, "commits", "commits")
+	stats.AddExcludes(s.plan, s.excludedBy, 0, "commits")
 	return stats
 }
 
@@ -312,6 +315,9 @@ func leafFor(repo *Repo, c *Commit, view *fileView) func(query.Pred) bool {
 			return len(view.diffLines(p)) > 0 || len(view.messageLines(p)) > 0
 		case *query.Path:
 			return p.Re.MatchString(view.file.Path)
+		case *query.Visible:
+			// A commit that changes no file has only its message to match.
+			return view.file.Path == "" || p.Excludes.Hiding(repo.ID, repo.Root, view.file.Path) == ""
 		case *query.Lang:
 			return view.file.Path != "" && lang.Detect(view.file.Path, nil) == p.Name
 		case *query.Is:
@@ -506,10 +512,26 @@ func (s *searcher) creditFilter(repo *Repo, c *Commit, views []*fileView, index 
 	for _, view := range views {
 		if query.Eval(without, leafFor(repo, c, view)) {
 			s.hidden[index]++
+			s.recordExcludes(repo, views, index)
 			return true
 		}
 	}
 	return false
+}
+
+// recordExcludes notes which of VS Code's excludes patterns hid the files
+// of a commit that the conjunct at index, if it is the excludes one, hid.
+func (s *searcher) recordExcludes(repo *Repo, views []*fileView, index int) {
+	if s.plan.Excludes == nil || !slices.ContainsFunc(s.plan.Filters, func(f query.Filter) bool {
+		return f.Index == index && f.Reason == "excludes"
+	}) {
+		return
+	}
+	for _, view := range views {
+		if pattern := s.plan.Excludes.Hiding(repo.ID, repo.Root, view.file.Path); pattern != "" {
+			s.excludedBy[pattern] = true
+		}
+	}
 }
 
 // ------------------------------------------------------------ refs

@@ -20,12 +20,18 @@ var ErrIncomplete = errors.New("a struct: filter gave up on a file, so some matc
 // returns ctx's error instead, or ErrIncomplete when a struct: template
 // gave up on a file, and once the edits pass limit it returns
 // only their count, marked truncated, so a caller never mistakes part of a
-// replace for all of it.
+// replace for all of it. It leaves alone the files VS Code's excludes hide,
+// counting the matches there as Excluded.
 func Replacements(ctx context.Context, plan *query.Plan, repos []Repo, term *query.Content, replacement string, limit int) (protocol.ReplacePlan, error) {
 	s := newSearcher(ctx, plan, 0, func(protocol.ResultItem) {})
 	out := protocol.ReplacePlan{Files: []protocol.ReplaceFile{}}
+	visible := withoutExcludes(plan)
 	s.forEachCandidate(repos, func(c rankedCandidate, matcher *lineMatcher, leaf func(query.Pred) bool) {
-		if out.Truncated || !query.Eval(plan.Pred, leaf) {
+		if out.Truncated {
+			return
+		}
+		if !query.Eval(plan.Pred, leaf) {
+			out.Excluded += excludedEdits(visible, leaf, matcher, term, replacement)
 			return
 		}
 		file := protocol.ReplaceFile{
@@ -58,6 +64,31 @@ func Replacements(ctx context.Context, plan *query.Plan, repos []Repo, term *que
 		out.Files = []protocol.ReplaceFile{}
 	}
 	return out, nil
+}
+
+// withoutExcludes is plan's predicate without the conjunct that leaves out
+// what VS Code's excludes hide, or nil when it has none.
+func withoutExcludes(plan *query.Plan) *query.And {
+	for _, f := range plan.Filters {
+		if f.Reason == "excludes" {
+			kids := plan.Pred.Kids
+			return &query.And{Kids: append(append([]query.Pred{}, kids[:f.Index]...), kids[f.Index+1:]...)}
+		}
+	}
+	return nil
+}
+
+// excludedEdits counts the edits a replace would make in a file that only
+// VS Code's excludes hid: one that visible, the plan without them, keeps.
+func excludedEdits(visible *query.And, leaf func(query.Pred) bool, matcher *lineMatcher, term *query.Content, replacement string) int {
+	if visible == nil || !query.Eval(visible, leaf) {
+		return 0
+	}
+	count := 0
+	for _, line := range matcher.lines(query.Contributing(visible, leaf)) {
+		count += len(replaceEdits(term, line.text, replacement))
+	}
+	return count
 }
 
 // replaceEdits replaces every non-empty match of term in text, a line

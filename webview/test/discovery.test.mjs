@@ -294,10 +294,45 @@ test("a type:file note counts the code matches for the query's words and offers 
   assert.equal(await page.inputValue(QUERY), "retry");
 });
 
+test("a note names the VS Code excludes that hid results, and Show them adds excludes:no", async (t) => {
+  // @covers screen:editor-excludes op:excludes
+  const page = await openPanel(t);
+  await restore(page);
+  const seq = await typeAndParse(page, "retry", parsedQuery("retry", textNode("retry", 0)));
+  const undo = { title: "Show them", edits: [{ span: { start: 0, end: 0 }, newText: "excludes:no " }] };
+  const note = { reason: "excludes", filter: "your VS Code excludes", count: 8, unit: "matches", undo };
+  await searchDone(page, seq, { hidden: [{ ...note, patterns: ["build", "dist"] }] });
+  const shown = page.locator('[data-testid="excludes-note"]');
+  assert.equal(
+    await shown.locator("span").first().innerText(),
+    "8 matches hidden by your VS Code excludes: build, dist",
+  );
+  assert.match(await page.locator('[data-testid="summary"]').innerText(), /8 hidden by excludes/);
+  await shown.locator('[data-testid="show-hidden"]').click();
+  assert.equal(await page.inputValue(QUERY), "excludes:no retry");
+});
+
+test("with excludes:no, a note counts what the excludes would hide and Hide them takes it out", async (t) => {
+  // @covers screen:editor-excludes op:excludes
+  const page = await openPanel(t);
+  await restore(page);
+  const excludes = { kind: "op", op: "excludes", value: "no", match: "literal", span: { start: 0, end: 11 } };
+  const root = { kind: "and", children: [excludes, textNode("retry", 12)], span: { start: 0, end: 17 } };
+  const seq = await typeAndParse(page, "excludes:no retry", parsedQuery("excludes:no retry", root));
+  const undo = { title: "Hide them", edits: [{ span: { start: 0, end: 12 }, newText: "" }] };
+  const note = { reason: "excludes", filter: "excludes:no", count: 3, unit: "matches", undo, shown: true };
+  await searchDone(page, seq, { hidden: [{ ...note, patterns: ["build"] }] });
+  const shown = page.locator('[data-testid="excludes-note"]');
+  assert.equal(await shown.locator("span").first().innerText(), "Showing 3 matches your VS Code excludes hide: build");
+  assert.doesNotMatch(await page.locator('[data-testid="summary"]').innerText(), /hidden by excludes/);
+  await shown.locator('[data-testid="show-hidden"]').click();
+  assert.equal(await page.inputValue(QUERY), "retry");
+});
+
 test("the help page lists every operator with an example, and Try runs it", async (t) => {
   // @covers screen:help-page
   const page = await openHelp(t);
-  assert.equal(await page.locator('[data-testid="operator-row"]').count(), 26);
+  assert.equal(await page.locator('[data-testid="operator-row"]').count(), 27);
   assert.equal(await page.locator('[data-testid="example"]').count(), 6);
   // Each operator reads by its full name, with its short name beside it.
   assert.deepEqual(await page.locator('[data-testid="short-name"]').allTextContents(), [

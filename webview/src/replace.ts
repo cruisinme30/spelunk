@@ -220,7 +220,13 @@ export class ReplaceBox {
           this.changedLines.add(key);
         }
       }
-      this.show(`${plural(plan.matches, "match", "matches")} in ${plural(plan.files.length, "file")}`, true);
+      const leftAlone = plan.excluded
+        ? ` · ${plural(plan.excluded, "match", "matches")} in excluded files left alone`
+        : "";
+      this.show(
+        `${plural(plan.matches, "match", "matches")} in ${plural(plan.files.length, "file")}${leftAlone}`,
+        true,
+      );
     }
     this.previewChanged();
   }

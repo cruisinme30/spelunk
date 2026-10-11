@@ -15,7 +15,7 @@ test("each operator suggestion's title names the operator without repeating the 
   await daemon.start();
   try {
     const entries = OPERATOR_GROUPS.flatMap((group) => group.entries).filter((entry) => entry.operator);
-    assert.equal(entries.length, 20, "every operator");
+    assert.equal(entries.length, 21, "every operator");
     for (const entry of entries) {
       const name = fullName(entry.operator ?? "f");
       const { completions } = await daemon.request("query/parse", { text: name, cursor: name.length });

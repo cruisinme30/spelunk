@@ -17,17 +17,11 @@ import {
   timeAgo,
 } from "../format";
 import { diffSide, operatorNodes, textNodes, textTerms } from "../parsedQuery";
-import type {
-  Fix,
-  HiddenNote,
-  RankReason,
-  ResultItem,
-  ResultOrder,
-  SearchDoneMessage,
-  SinceRevision,
-} from "../protocol.gen";
+import type { Fix, HiddenNote, ResultItem, ResultOrder, SearchDoneMessage, SinceRevision } from "../protocol.gen";
 import { menuContext, repoName, type ViewState } from "../state";
 import { ChunkedList } from "./chunkedList";
+import { excludesNote } from "./excludesNote";
+import { demoted, rankBadge } from "./rankBadge";
 import { ResultIndex } from "./resultIndex";
 import { resultsSash } from "./sash";
 
@@ -49,15 +43,6 @@ const CONTEXT_CHOICES = [0, 1, 2, 3] as const;
 
 /** How a section title says the order of current files. */
 const ORDER_LABEL: Record<ResultOrder, string> = { best: "best match first", path: "path order" };
-
-/** The badge a result's file shows for why best-match order put it where it is. */
-const RANK_BADGE: Record<RankReason, string> = {
-  definition: "definition",
-  open: "open",
-  test: "test",
-  vendored: "vendored",
-  generated: "generated",
-};
 
 /** What undoing a filter does, where "Show them" would mislead. */
 const UNDO_LABEL: Partial<Record<HiddenNote["reason"], string>> = {
@@ -371,6 +356,8 @@ export class ResultsView {
    */
   private renderNote(note: HiddenNote): HTMLElement {
     if (note.reason === "symbol") return this.renderTextSearchNote(note);
+    if (note.reason === "excludes")
+      return excludesNote(note, this.hiddenWhat(note), this.showHiddenButton(note, note.undo.title));
     // type:added and type:removed hide commits; their undo says what it searches instead.
     const label = note.reason === "type" && note.unit === "commits" ? note.undo.title : UNDO_LABEL[note.reason];
     const showThem = this.showHiddenButton(note, label ?? "Show them");
@@ -665,13 +652,6 @@ function sinceBadge(since: SinceRevision | undefined): HTMLElement | null {
   return element("span", { class: `badge since-${since}`, title, "data-testid": "since-revision" }, label);
 }
 
-/** The badge for why best-match order put a result's file where it is, if it says. */
-function rankBadge(reason: RankReason | undefined): HTMLElement | null {
-  return reason
-    ? element("span", { class: `badge rank-${reason}`, "data-testid": "rank-reason" }, RANK_BADGE[reason])
-    : null;
-}
-
 /**
  * The badge naming who owns a result's file by its repo's CODEOWNERS file:
  * the first owner, a team by its name alone (payments-core for the team
@@ -772,11 +752,6 @@ function contextGap(): HTMLElement {
     { class: "context-gap", "aria-hidden": "true", "data-testid": "context-gap" },
     element("span", { class: "line-number" }, "⋯"),
   );
-}
-
-/** " demoted" for a test, vendored or generated file, which reads dimmer; "" otherwise. */
-function demoted(reason: RankReason | undefined): string {
-  return reason === "test" || reason === "vendored" || reason === "generated" ? " demoted" : "";
 }
 
 /** A section of the list; `controls` go in its title, before the count. */

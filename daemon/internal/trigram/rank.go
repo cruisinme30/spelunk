@@ -27,7 +27,8 @@ import (
 
 // What each signal adds to a file's score. A definition outranks a file
 // name, which outranks recency. Demotions are tiers: tests sink below every
-// other file, and vendored and generated files below tests, whatever else
+// other file, vendored and generated files below tests, and files VS
+// Code's excludes hide (shown by excludes:no) below those, whatever else
 // they have going for them.
 const (
 	scoreDefinition  = 100
@@ -41,6 +42,7 @@ const (
 	scoreTest        = -1000
 	scoreVendored    = -2000
 	scoreGenerated   = -2000
+	scoreExcluded    = -3000 // shown by excludes:no, below everything else
 
 	// Each matched line adds up to wholeWordLine + exactCaseLine, and a file
 	// at most maxLineQuality: enough to reorder files that are otherwise
@@ -97,6 +99,9 @@ func (s *searcher) rankDoc(repo *Repo, doc *Doc) docRank {
 		}
 	}
 	switch {
+	case s.plan.ShownFilter != nil && s.plan.Excludes.Hiding(repo.ID, repo.Root, doc.Path) != "":
+		r.score += scoreExcluded
+		r.reason = protocol.RankReasonExcluded
 	case s.plan.FileKinds.IsGenerated(doc.Path, doc.Content):
 		r.score += scoreGenerated
 		r.reason = protocol.RankReasonGenerated

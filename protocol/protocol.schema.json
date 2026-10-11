@@ -122,6 +122,7 @@
         "at",
         "case",
         "word",
+        "excludes",
         "count",
         "order"
       ]
@@ -137,9 +138,9 @@
       "enum": ["best", "path"]
     },
     "RankReason": {
-      "description": "RankReason is why best-match order put a file where it is: it defines a searched name or is open in the editor, or it was moved down as a test, vendored or generated file. Absent when nothing stands out or the order is path.",
+      "description": "RankReason is why best-match order put a file where it is: it defines a searched name or is open in the editor, or it was moved down as a test, vendored or generated file, or as one VS Code's excludes hide (shown by excludes:no). Absent when nothing stands out or the order is path.",
       "type": "string",
-      "enum": ["definition", "open", "test", "vendored", "generated"]
+      "enum": ["definition", "open", "test", "vendored", "generated", "excluded"]
     },
     "SinceRevision": {
       "description": "SinceRevision is how a file found at a revision differs in the current files: its content changed, or it was deleted.",
@@ -355,6 +356,10 @@
           "description": "the query's word: value, yes or no; absent when the query doesn't say.",
           "enum": ["yes", "no"]
         },
+        "excludes": {
+          "description": "the query's excludes: value: yes leaves out the files VS Code's files.exclude and search.exclude hide, no keeps them; absent when the query doesn't say, which means yes unless spelunk.search.useExcludeSettings is off.",
+          "enum": ["yes", "no"]
+        },
         "order": {
           "description": "the query's order: value, best or path; absent when the query doesn't say.",
           "$ref": "#/$defs/ResultOrder"
@@ -421,6 +426,27 @@
       },
       "required": ["id", "path", "name"]
     },
+    "RootExcludes": {
+      "description": "RootExcludes are the glob patterns VS Code hides in one workspace folder, as files.exclude and search.exclude write them: relative to the folder.",
+      "type": "object",
+      "properties": {
+        "rootId": { "type": "string" },
+        "patterns": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ExcludePattern" }
+        }
+      },
+      "required": ["rootId", "patterns"]
+    },
+    "ExcludePattern": {
+      "description": "ExcludePattern is one enabled files.exclude or search.exclude entry: a VS Code glob, and its when clause if it has one, e.g. $(basename).ts to hide a file only beside a sibling of that name.",
+      "type": "object",
+      "properties": {
+        "glob": { "type": "string" },
+        "when": { "type": "string" }
+      },
+      "required": ["glob"]
+    },
     "Settings": {
       "description": "Settings are the spelunk.* settings the daemon needs.",
       "type": "object",
@@ -483,6 +509,11 @@
           "description": "the spelunk.index.codeownersFiles setting: where to look for a repo's CODEOWNERS file, relative to its root, the first found winning. Absent means GitHub's .github/CODEOWNERS, CODEOWNERS and docs/CODEOWNERS.",
           "type": "array",
           "items": { "type": "string" }
+        },
+        "editorExcludes": {
+          "description": "VS Code's files.exclude and search.exclude for each workspace folder, enabled patterns only, while spelunk.search.useExcludeSettings is on: searches leave out the files they hide unless the query says excludes:no. Absent or empty hides nothing.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/RootExcludes" }
         },
         "commitCheckSeconds": {
           "description": "the spelunk.index.commitCheckSeconds setting: how often to ask Git whether HEAD moved, which brings new commits into history search and watches. Absent means 5.",
@@ -1035,7 +1066,7 @@
       "type": "object",
       "properties": {
         "reason": {
-          "enum": ["not", "since", "case", "word", "type", "pathFilter", "symbol", "kind", "owner"]
+          "enum": ["not", "since", "case", "word", "type", "pathFilter", "symbol", "kind", "owner", "excludes"]
         },
         "filter": {
           "type": "string",
@@ -1049,6 +1080,15 @@
         },
         "undo": {
           "$ref": "#/$defs/Fix"
+        },
+        "patterns": {
+          "description": "For VS Code's excludes, the patterns that hid (or, when shown, matched) the results, as written in the settings, e.g. build and dist.",
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "shown": {
+          "description": "Set when the query says excludes:no: count is how many results VS Code's excludes would hide, which show, and undo hides them again.",
+          "type": "boolean"
         }
       },
       "required": ["reason", "filter", "count", "unit", "undo"]
@@ -1612,6 +1652,10 @@
         },
         "truncated": {
           "type": "boolean"
+        },
+        "excluded": {
+          "description": "How many matches are in files VS Code's excludes hide, which the plan leaves alone; absent when none.",
+          "type": "integer"
         }
       },
       "required": ["matches", "files", "truncated"]

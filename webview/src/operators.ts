@@ -30,7 +30,7 @@ export interface OperatorGroup {
   entries: OperatorEntry[];
 }
 
-/** Every operator and piece of syntax: 26 entries in five groups. */
+/** Every operator and piece of syntax: 27 entries in five groups. */
 export const OPERATOR_GROUPS: OperatorGroup[] = [
   {
     name: "Matching",
@@ -195,6 +195,15 @@ export const OPERATOR_GROUPS: OperatorGroup[] = [
         example: "is:test retry",
       },
       {
+        operator: "excludes",
+        label: "excludes:yes|no",
+        insert: "excludes:no ",
+        summary: "Leave out what VS Code hides, or not. Left out by default.",
+        description:
+          "Files your VS Code files.exclude and search.exclude settings hide are left out, as in VS Code's own search, and a note under the results counts them. excludes:no shows them too, marked excluded and last. The Use Exclude Settings setting turns this off.",
+        example: "excludes:no retry_policy",
+      },
+      {
         operator: "owner",
         label: "owner:@team|@user|none",
         insert: "owner:",
@@ -284,6 +293,7 @@ export const OPERATOR_GROUPS: OperatorGroup[] = [
 export const OPERATOR_TONE: Record<OpName, Tone> = {
   case: "match",
   word: "match",
+  excludes: "scope",
   f: "scope",
   repo: "scope",
   lang: "scope",
@@ -327,6 +337,7 @@ const OPERATOR_NAMES: Record<OpName, { full: string; short: string; aliases?: st
   at: { full: "at", short: "" },
   case: { full: "case", short: "c" },
   word: { full: "word", short: "w" },
+  excludes: { full: "excludes", short: "" },
   count: { full: "count", short: "n" },
   order: { full: "order", short: "o" },
 };

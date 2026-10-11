@@ -68,6 +68,7 @@ var operators = []operator{
 	{name: protocol.OpNameType, full: "type", short: "t", global: true, summary: "Result kind", examples: fixedValueNames(protocol.OpNameType), interpret: oneOf(fixedValueNames(protocol.OpNameType)...)},
 	{name: protocol.OpNameCase, full: "case", short: "c", global: true, summary: "Case matching", examples: fixedValueNames(protocol.OpNameCase), interpret: oneOf(fixedValueNames(protocol.OpNameCase)...)},
 	{name: protocol.OpNameWord, full: "word", short: "w", global: true, summary: "Word boundaries", examples: fixedValueNames(protocol.OpNameWord), interpret: oneOf(fixedValueNames(protocol.OpNameWord)...)},
+	{name: protocol.OpNameExcludes, full: "excludes", global: true, summary: "VS Code's excludes", examples: fixedValueNames(protocol.OpNameExcludes), interpret: oneOf(fixedValueNames(protocol.OpNameExcludes)...)},
 	{name: protocol.OpNameCount, full: "count", short: "n", global: true, summary: "Page size", examples: []string{"50", "200", "all"}, interpret: asCount},
 	{name: protocol.OpNameOrder, full: "order", short: "o", global: true, scope: scopeWorkingTreeOnly, summary: "Result order", examples: fixedValueNames(protocol.OpNameOrder), interpret: oneOf(fixedValueNames(protocol.OpNameOrder)...)},
 	{name: protocol.OpNameAt, full: "at", global: true, scope: scopeWorkingTreeOnly, summary: "Past revision", examples: []string{"v1.0.0", "main", "HEAD~10", "6m", "2026-01-31"}, interpret: asRevision},

@@ -154,7 +154,7 @@ func walkWithParent(node, parent *protocol.Node, visit func(node, parent *protoc
 	}
 }
 
-// setGlobal records a top-level case:, word:, type:, count:, order: or at: in globals.
+// setGlobal records a top-level case:, word:, excludes:, type:, count:, order: or at: in globals.
 func setGlobal(globals *protocol.Globals, node *protocol.Node) {
 	value := node.Value
 	switch node.Op {
@@ -162,6 +162,8 @@ func setGlobal(globals *protocol.Globals, node *protocol.Node) {
 		globals.Case = &value
 	case protocol.OpNameWord:
 		globals.Word = value
+	case protocol.OpNameExcludes:
+		globals.Excludes = value
 	case protocol.OpNameType:
 		globals.Type = &value
 	case protocol.OpNameOrder:

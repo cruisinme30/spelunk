@@ -227,7 +227,12 @@ type searcher struct {
 	hiddenByCase int
 	// hiddenByWord counts results that are only parts of words under word:yes.
 	hiddenByWord int
-	terms        termCache
+	// excludedBy holds the patterns of VS Code's excludes that hid a result
+	// (or, with excludes:no, matched one), and shownExcluded counts the
+	// results those patterns match that excludes:no shows.
+	excludedBy    map[string]bool
+	shownExcluded int
+	terms         termCache
 
 	// Best-match order (see rank.go): started is when the search began,
 	// rankTerms the text terms outside a NOT, literals each term's text by
@@ -241,7 +246,7 @@ type searcher struct {
 
 func newSearcher(ctx context.Context, plan *query.Plan, planID int, emit func(protocol.ResultItem)) *searcher {
 	s := &searcher{
-		ctx: ctx, plan: plan, planID: planID, emit: emit, hidden: map[int]int{}, terms: termCache{},
+		ctx: ctx, plan: plan, planID: planID, emit: emit, hidden: map[int]int{}, terms: termCache{}, excludedBy: map[string]bool{},
 		facets:  engine.NewFacets(engine.FacetRepo, engine.FacetLang, engine.FacetOwner, engine.FacetFolder),
 		started: time.Now(), literals: map[int]string{},
 	}
@@ -278,6 +283,13 @@ func (s *searcher) add(repo *Repo, doc *Doc, item protocol.ResultItem, score, qu
 	if s.holding && time.Since(s.started) > rankWindow {
 		s.sendHeld()
 	}
+	if s.plan.ShownFilter != nil {
+		if pattern := s.plan.Excludes.Hiding(repo.ID, repo.Root, doc.Path); pattern != "" {
+			item.RankReason = protocol.RankReasonExcluded
+			s.excludedBy[pattern] = true
+			s.shownExcluded++
+		}
+	}
 	if s.plan.OnPage(s.counted) {
 		if s.holding {
 			s.hold(item, score, quality)
@@ -304,6 +316,7 @@ func (s *searcher) stats(unit string) engine.Stats {
 	stats.Facets = s.facets.List()
 	hidden := engine.Hidden{ByFilter: s.hidden, ByCase: s.hiddenByCase, ByWord: s.hiddenByWord, ByType: s.hiddenByType}
 	stats.AddHidden(s.plan, hidden, unit, "matches")
+	stats.AddExcludes(s.plan, s.excludedBy, s.shownExcluded, unit)
 	return stats
 }
 
@@ -324,6 +337,8 @@ func docLeaf(p query.Pred, repo *Repo, doc *Doc) bool {
 		return repo.inState(doc, p)
 	case *query.Owner:
 		return repo.ownedBy(doc.Path, p.Name)
+	case *query.Visible:
+		return p.Excludes.Hiding(repo.ID, repo.Root, doc.Path) == ""
 	default:
 		// sym: needs the symbol index; author: and msg: are history-only, and
 		// the parser keeps them out of working-tree plans.
@@ -390,7 +405,7 @@ func (s *searcher) fileNameMatches(repo *Repo, doc *Doc, countHidden bool) bool 
 		return true
 	}
 	if countHidden {
-		s.countHidden(leaf, func([]*query.Content) int { return 1 })
+		s.countHidden(repo, doc, leaf, func([]*query.Content) int { return 1 })
 	}
 	return false
 }
@@ -476,7 +491,7 @@ func pathFilterHit(filter *query.Path, path string) (protocol.Range, bool) {
 // countHidden credits a result that fails only one filter to that filter.
 // size says how many results the item would have produced given the terms
 // that would then contribute.
-func (s *searcher) countHidden(leaf func(query.Pred) bool, size func([]*query.Content) int) {
+func (s *searcher) countHidden(repo *Repo, doc *Doc, leaf func(query.Pred) bool, size func([]*query.Content) int) {
 	if len(s.plan.Filters) == 0 {
 		return
 	}
@@ -494,6 +509,9 @@ func (s *searcher) countHidden(leaf func(query.Pred) bool, size func([]*query.Co
 		if f.Index == failing {
 			without := &query.And{Kids: append(append([]query.Pred{}, kids[:failing]...), kids[failing+1:]...)}
 			s.hidden[failing] += size(query.Contributing(without, leaf))
+			if f.Reason == "excludes" {
+				s.excludedBy[s.plan.Excludes.Hiding(repo.ID, repo.Root, doc.Path)] = true
+			}
 			return
 		}
 	}
@@ -506,7 +524,7 @@ func (s *searcher) countHidden(leaf func(query.Pred) bool, size func([]*query.Co
 func (s *searcher) addCodeLines(repos []Repo) {
 	s.forEachCandidate(repos, func(c rankedCandidate, matcher *lineMatcher, leaf func(query.Pred) bool) {
 		if !query.Eval(s.plan.Pred, leaf) {
-			s.countHidden(leaf, func(terms []*query.Content) int { return len(matcher.lines(terms)) })
+			s.countHidden(c.repo, c.doc, leaf, func(terms []*query.Content) int { return len(matcher.lines(terms)) })
 			return
 		}
 		var starts []int // the file's line starts, found when a result first needs context
@@ -558,7 +576,7 @@ func (s *searcher) addSymbols(repos []Repo) {
 				item.RankReason = c.rank.reason
 				s.add(c.repo, c.doc, item, c.rank.score, 0)
 			} else {
-				s.countHidden(symbolLeaf, func([]*query.Content) int { return 1 })
+				s.countHidden(c.repo, c.doc, symbolLeaf, func([]*query.Content) int { return 1 })
 			}
 		}
 	})

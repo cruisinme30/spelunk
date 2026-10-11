@@ -2,6 +2,8 @@ package engine
 
 import (
 	"context"
+	"maps"
+	"slices"
 
 	"github.com/cruisinme30/spelunk/daemon/internal/protocol"
 	"github.com/cruisinme30/spelunk/daemon/internal/query"
@@ -53,6 +55,24 @@ func (s *Stats) AddHidden(plan *query.Plan, hidden Hidden, unit, typeUnit string
 		if by.filter != nil && by.count > 0 {
 			s.Hidden = append(s.Hidden, by.filter.Note(by.count, by.countedUnit))
 		}
+	}
+}
+
+// AddExcludes names the patterns of VS Code's excludes that hid results
+// (or, with excludes:no, matched results that show) on the excludes note,
+// and with excludes:no adds the note that counts the shown results, shown,
+// whose undo hides them again.
+func (s *Stats) AddExcludes(plan *query.Plan, patterns map[string]bool, shown int, unit string) {
+	names := slices.Sorted(maps.Keys(patterns))
+	for i := range s.Hidden {
+		if s.Hidden[i].Reason == "excludes" {
+			s.Hidden[i].Patterns = names
+		}
+	}
+	if plan.ShownFilter != nil && shown > 0 {
+		note := plan.ShownFilter.Note(shown, unit)
+		note.Shown, note.Patterns = true, names
+		s.Hidden = append(s.Hidden, note)
 	}
 }
 

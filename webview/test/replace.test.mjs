@@ -70,6 +70,13 @@ test("a double-click in a replace preview opens at the word's column in the file
   assert.deepEqual((await lastSent(page, "result.open")).position, { line: 42, column: 21, length: 11 });
 });
 
+test("the Replace row says how many matches in excluded files it leaves alone", async (t) => {
+  // @covers screen:editor-excludes
+  const { page, request } = await previewReplace(t, "backoff");
+  await fromHost(page, "replace.plan", { seq: request.seq, plan: { ...planFor("backoff"), excluded: 6 } });
+  assert.equal(await page.textContent(SUMMARY), "1 match in 1 file · 6 matches in excluded files left alone");
+});
+
 test("the Replace row previews a replace on the result rows and applies it on ⌘↵", async (t) => {
   // @covers screen:replace-in-files
   const { page, request } = await previewReplace(t, "backoff");
