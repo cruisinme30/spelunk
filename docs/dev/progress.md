@@ -581,3 +581,31 @@ History diffs notebooks by their cells through a Git textconv filter, the daemon
 - Built: `docs/dev/proof/notebook-cells.png` and `docs/dev/proof/notebook-cells-light.png`, from
   `node scripts/screenshotPanel.mjs --workspace "$PWD/testdata/notebooks" --query 'retry_policy' --select 3 --height 900
   --theme "Dark Modern"` (and `"Light Modern"`).
+
+## VS Code's excludes (2.1)
+
+Mock 52 (`editor-excludes`): searches leave out the files each workspace folder's `files.exclude` and
+`search.exclude` hide, as VS Code's own search does. The extension sends every folder's enabled patterns in the
+settings (`editorExcludes`; user, workspace and folder merged, `search.exclude` winning) and sends them again when
+they change or a folder comes or goes, and the open panel searches again; nothing is reindexed, because the daemon
+applies them when searching. `daemon/internal/excludes` reads VS Code's glob dialect (anchored at the folder,
+`{a,b}`, `[abc]`, a folder hiding its contents, `when` clauses checked on disk), and the plan ends in a `Visible`
+conjunct, so the engines count what it hid like any filter: the note names the patterns, and Show them adds
+`excludes:no`, which shows those files last with an `excluded` badge and a note whose Hide them takes it out. History
+hides commits that only change excluded files; Replace leaves them alone and counts their matches.
+`spelunk.search.useExcludeSettings` turns it off.
+
+- Daemon: `daemon/internal/excludes/excludes_test.go` (VS Code's anchoring, `**`, braces nested, classes, a folder's
+  contents, `when` beside a sibling and not without one) and `daemon/internal/server/excludes_test.go` (hidden lines,
+  totals, facets and the note with only the patterns that hid something; `excludes:no` badges and orders them last,
+  counts them and undoes to the plain query; no settings changes nothing; file names; history hides a dist-only
+  commit and drops an excluded file from a kept one; Replace's `excluded` count).
+- Host: `extension/src/test/editorExcludes.test.ts` (each folder's patterns, `when` kept, `false` off, search.exclude
+  turning off a files.exclude pattern, bad values ignored); the help example `excludes:no retry_policy` runs against
+  the real daemon.
+- Panel: `webview/test/discovery.test.mjs` (the note's text, the summary count, Show them and Hide them editing the
+  box) and `webview/test/replace.test.mjs` (matches left alone in the Replace row).
+- Built: `docs/dev/proof/editor-excludes.png`, `editor-excludes-shown.png`, `editor-excludes-history.png` and
+  `editor-excludes-replace.png`, from `node scripts/screenshotPanel.mjs --workspace <three repos, each with a
+  .vscode/settings.json> --query 'retry_policy' --height 900 --theme "Dark Modern"` (`excludes:no retry_policy`,
+  `type:commit retry_policy`, and `--replace retry_rules`).

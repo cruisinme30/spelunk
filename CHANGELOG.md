@@ -7,6 +7,11 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- Files you hide with VS Code's `files.exclude` and `search.exclude` are left out of searches, as in VS Code's own
+  search, read per folder and the way VS Code reads them (`when` clauses too). A note under the results counts them
+  and names the patterns; **Show them** adds the new `excludes:no`, which shows them last, marked excluded. History
+  leaves out commits that only change hidden files, and Replace leaves hidden files alone. New setting:
+  `spelunk.search.useExcludeSettings` (on by default).
 - Select text in the editor and press the search key to search it: the box holds the selection, selected so typing
   replaces it, and ⌘Z brings back the query it replaced (also kept under Recent). The selection is matched exactly,
   never file names by their letters; text that looks like query syntax is searched as text, several lines as one
