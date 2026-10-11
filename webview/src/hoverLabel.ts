@@ -5,7 +5,7 @@
 // can't show as well; it moves back when the mouse leaves.
 
 /** How long the mouse rests on a control before its label shows. */
-export const HOVER_DELAY_MS = 300;
+const HOVER_DELAY_MS = 300;
 
 /** The gap between a control and its label, and the label and the panel's edge. */
 const GAP_PX = 4;
