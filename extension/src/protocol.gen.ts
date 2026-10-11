@@ -337,12 +337,14 @@ export type ResultItem =
       bodyLine?: MessageLine;
     };
 
-/** Within is the definition a code result sits in: its name and kind. */
+/** Within is the definition a code result sits in: its name, kind and lines. */
 export interface Within {
   name: string;
   kind: SymbolKind;
   /** The definition's first line. */
   line: number;
+  /** The definition's last line. */
+  end: number;
 }
 
 /** CellPlace is where a line of a Jupyter notebook's text is: the cell, 1-based, and the line in it, 1-based. An output line (index.notebookOutputs) names the cell that printed it. */

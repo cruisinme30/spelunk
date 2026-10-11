@@ -869,7 +869,7 @@
       ]
     },
     "Within": {
-      "description": "Within is the definition a code result sits in: its name and kind.",
+      "description": "Within is the definition a code result sits in: its name, kind and lines.",
       "type": "object",
       "properties": {
         "name": {
@@ -881,9 +881,13 @@
         "line": {
           "description": "The definition's first line.",
           "type": "integer"
+        },
+        "end": {
+          "description": "The definition's last line.",
+          "type": "integer"
         }
       },
-      "required": ["name", "kind", "line"]
+      "required": ["name", "kind", "line", "end"]
     },
     "CellPlace": {
       "description": "CellPlace is where a line of a Jupyter notebook's text is: the cell, 1-based, and the line in it, 1-based. An output line (index.notebookOutputs) names the cell that printed it.",

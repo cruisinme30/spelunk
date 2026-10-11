@@ -329,7 +329,7 @@ func TestClaudeAddArgsUseClaudeCodesOwnCommand(t *testing.T) {
 
 func TestALineInsideADefinitionNamesIt(t *testing.T) {
 	item := protocol.ResultItem{Kind: protocol.ResultItemKindLine, Path: "u.py", Line: 8, Text: "p = Policy()",
-		Within: &protocol.Within{Name: "build", Kind: protocol.SymbolKindFunction, Line: 7}}
+		Within: &protocol.Within{Name: "build", Kind: protocol.SymbolKindFunction, Line: 7, End: 9}}
 	got, err := json.Marshal(toResult("r", &item))
 	if want := `"within":{"kind":"function","name":"build","line":7}`; err != nil || !strings.Contains(string(got), want) {
 		t.Errorf("result = %s (%v), want it to hold %s", got, err, want)

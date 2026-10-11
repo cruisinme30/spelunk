@@ -104,6 +104,13 @@ func TestATermOnTextNextToKindMatchesInsideTheDefinitions(t *testing.T) {
 	}
 }
 
+func TestAUseCarriesTheLinesOfItsDefinition(t *testing.T) {
+	items, _ := runItems(t, "kind:function ref:Policy", defaultSettings, "", usesRepo())
+	if len(items) != 1 || items[0].Within == nil || items[0].Within.Line != 7 || items[0].Within.End != 9 {
+		t.Fatalf("got %+v, want the use on line 8 within build, lines 7-9", items)
+	}
+}
+
 func TestATermOnTextLeftOutNextToKindLeavesOutTheDefinitionsWhoseBodyHasIt(t *testing.T) {
 	got, _ := run(t, "kind:function -ref:Policy", usesRepo())
 	if want := []string{"u.py:11 "}; !reflect.DeepEqual(got, want) {

@@ -620,12 +620,14 @@ func (v ResultItem) MarshalJSON() ([]byte, error) {
 	return json.Marshal(fields)
 }
 
-// Within is the definition a code result sits in: its name and kind.
+// Within is the definition a code result sits in: its name, kind and lines.
 type Within struct {
 	Name string     `json:"name"`
 	Kind SymbolKind `json:"kind"`
 	// Line is the definition's first line.
 	Line int `json:"line"`
+	// End is the definition's last line.
+	End int `json:"end"`
 }
 
 // CellPlace is where a line of a Jupyter notebook's text is: the cell, 1-based, and the line in it, 1-based. An output line (index.notebookOutputs) names the cell that printed it.

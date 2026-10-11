@@ -13,6 +13,7 @@ import type {
   ResultItem,
   SinceRevision,
   SymbolKind,
+  Within,
 } from "../protocol.gen";
 import { repoName, type ViewState } from "../state";
 import { markWhitespace } from "../syntax";
@@ -49,13 +50,20 @@ export interface PreviewOf {
   repoId: string | undefined;
   /** The at: value its file is at, and how the file differs now; undefined for a current file. */
   at?: { label: string; since: SinceRevision | undefined };
+  /** For a use found inside a definition (kind:function ref:Parse), that definition, whose lines are marked. */
+  within?: Within | undefined;
 }
 
 /** What the preview of `item` shows it as: in its repo, and at the revision of the search on screen, if any. */
 export function previewOf(state: ViewState, item: ResultItem | undefined): PreviewOf {
   const at = state.searchedAt;
-  if (at === undefined || !item) return { repoId: item?.repoId };
-  return { repoId: item.repoId, at: { label: at, since: "sinceRevision" in item ? item.sinceRevision : undefined } };
+  const within = item?.kind === "line" ? item.within : undefined;
+  if (at === undefined || !item) return { repoId: item?.repoId, within };
+  return {
+    repoId: item.repoId,
+    at: { label: at, since: "sinceRevision" in item ? item.sinceRevision : undefined },
+    within,
+  };
 }
 
 /** Fills `container` with the preview in `state.preview`, if any. */
@@ -91,7 +99,7 @@ export function renderPreview(
     ];
     if (where === "current" || where === "side" || where === "compare") handlers.onOpen(current.ref, where);
   });
-  const header = { repo: of.repoId ? repoName(state, of.repoId) : "", actions, at: of.at?.label };
+  const header = { repo: of.repoId ? repoName(state, of.repoId) : "", actions, at: of.at?.label, within: of.within };
   if (preview.kind === "file") {
     renderFilePreview(container, preview, header, {
       outlineOpen: state.outlineOpen,
@@ -130,6 +138,7 @@ interface PreviewHeader {
   repo: string;
   actions: HTMLElement;
   at?: string | undefined;
+  within?: Within | undefined;
 }
 
 /**
@@ -166,7 +175,7 @@ interface FileLineDrawing {
 function renderFilePreview(
   container: HTMLElement,
   preview: FilePreview,
-  { repo, actions, at }: PreviewHeader,
+  { repo, actions, at, within }: PreviewHeader,
   { outlineOpen, onToggleOutline, replacementsFor, decorate }: FileLineDrawing,
 ): void {
   const symbols = preview.symbols ?? [];
@@ -191,8 +200,9 @@ function renderFilePreview(
       actions,
     ),
   );
+  if (within) container.append(withinLine(within));
   if (preview.ownership) container.append(ownershipLine(preview.ownership));
-  const code = fileCode(preview, { replacementsFor, decorate });
+  const code = fileCode(preview, { replacementsFor, decorate }, within);
   container.append(element("div", { class: "preview-body" }, code, outline ?? null));
   const focus = code.querySelector<HTMLElement>(".focus");
   if (focus) scrollIntoContainer(container, focus, "center");
@@ -202,6 +212,7 @@ function renderFilePreview(
 function fileCode(
   preview: FilePreview,
   { replacementsFor, decorate }: Pick<FileLineDrawing, "replacementsFor" | "decorate">,
+  within?: Within,
 ): HTMLElement {
   const cells = preview.cells ?? [];
   const hitsByLine = new Map(preview.hits.map((hits) => [hits.line, hits.ranges]));
@@ -214,6 +225,7 @@ function fileCode(
     const focus = lineNumber >= preview.focusLine && lineNumber <= (preview.focusEndLine ?? preview.focusLine);
     if (focus) classes.push("focus");
     if (dirtyLines.has(lineNumber)) classes.push("dirty");
+    if (within && lineNumber >= within.line && lineNumber <= within.end) classes.push("in-definition");
     const lineCode = element(
       "code",
       {},
@@ -314,6 +326,17 @@ function columnOf(code: HTMLElement, node: Node, offset: number): number {
   const fragment = before.cloneContents();
   for (const inserted of fragment.querySelectorAll("ins")) inserted.remove();
   return fragment.textContent.length;
+}
+
+/** "In function build_client, lines 55–62", under the header of a use found inside a definition. */
+function withinLine(within: Within): HTMLElement {
+  const lines =
+    within.end > within.line ? `lines ${String(within.line)}–${String(within.end)}` : `line ${String(within.line)}`;
+  return element(
+    "div",
+    { class: "ownership muted", "data-testid": "preview-within" },
+    element("span", {}, `In ${within.kind} `, element("code", {}, within.name), `, ${lines}`),
+  );
 }
 
 /** "line 14", or "lines 29–30" for a match that spans lines; in a notebook, "cell 3, line 2". */

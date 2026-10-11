@@ -715,7 +715,7 @@ func (s *searcher) addUses(repos []Repo) {
 		lines := codeLines{searcher: s, c: c, owners: c.repo.ownersOf(c.doc.Path)}
 		for _, line := range found {
 			holder := within[line.number]
-			lines.add(line, &protocol.Within{Name: holder.Name, Kind: holder.Kind, Line: holder.Line})
+			lines.add(line, &protocol.Within{Name: holder.Name, Kind: holder.Kind, Line: holder.Line, End: holder.End})
 		}
 		if kindFilter >= 0 {
 			var terms []*query.Content

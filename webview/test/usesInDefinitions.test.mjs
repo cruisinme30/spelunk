@@ -14,6 +14,7 @@ import {
   searchDone,
   typeAndParse,
   useBrowser,
+  waitForSent,
 } from "./harness.mjs";
 
 useBrowser();
@@ -46,7 +47,7 @@ async function uses(t, done = {}) {
         line: 58,
         text: "    policy = RetryPolicy.from_config(cfg)",
         hits: [{ start: 13, end: 24, termIndex: 0 }],
-        within: { name: "build_client", kind: "function", line: 55 },
+        within: { name: "build_client", kind: "function", line: 55, end: 62 },
       },
       {
         ...CODE_LINE_RESULT,
@@ -54,7 +55,7 @@ async function uses(t, done = {}) {
         line: 71,
         text: "    if isinstance(policy, RetryPolicy):",
         hits: [{ start: 26, end: 37, termIndex: 0 }],
-        within: { name: "describe_policy", kind: "function", line: 69 },
+        within: { name: "describe_policy", kind: "function", line: 69, end: 73 },
       },
     ],
   });
@@ -90,4 +91,38 @@ test("the note counts the uses outside a function and shows every use", async (t
   assert.equal(await show.innerText(), "Show every match");
   await show.click();
   assert.equal(await page.inputValue(QUERY), "ref:RetryPolicy");
+});
+
+test("the preview marks the lines of the function the use is in", async (t) => {
+  // @covers screen:uses-in-definitions
+  const page = await uses(t);
+  await waitForSent(page, "result.select", { ref: "l1" });
+  const lines = Array.from({ length: 13 }, (_, index) => `line ${String(52 + index)}`);
+  await fromHost(page, "preview.result", {
+    ref: "l1",
+    preview: {
+      kind: "file",
+      path: "src/payments/client.py",
+      firstLine: 52,
+      lines,
+      focusLine: 58,
+      hits: [],
+      dirtyLines: [],
+    },
+  });
+  const marked = page.locator('[data-testid="preview"] .code-line.in-definition');
+  assert.deepEqual(await marked.evaluateAll((rows) => rows.map((row) => row.dataset.line)), [
+    "55",
+    "56",
+    "57",
+    "58",
+    "59",
+    "60",
+    "61",
+    "62",
+  ]);
+  assert.equal(
+    await page.locator('[data-testid="preview-within"]').innerText(),
+    "In function build_client, lines 55–62",
+  );
 });

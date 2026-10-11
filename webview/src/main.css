@@ -1486,6 +1486,11 @@ pre.body {
   box-shadow: inset -2px 0 0 var(--warn);
 }
 
+/* The lines of the definition a use was found in, with a bar beside them. */
+.code-line.in-definition {
+  box-shadow: inset 3px 0 0 var(--tone-scope);
+}
+
 .code-line.add {
   background: rgb(111 207 151 / 10%);
 }
