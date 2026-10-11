@@ -1,6 +1,7 @@
 // Host side of the search panel: turns panel messages into daemon calls and
 // streams results back. It has no vscode import: extension.ts supplies the
 // Ui, and tests drive the controller against the real daemon in plain Node.
+import { textWithoutCompletedWord } from "./completedWord";
 import type { DaemonState } from "./daemon";
 import { CancelSource, RpcError, errorMessage } from "./jsonRpc";
 import {
@@ -36,20 +37,6 @@ import { type GuardedBy, messageGuard, type WebviewMessage } from "./webviewMess
  * daemon refuses a query this long anyway (query_too_long).
  */
 const MAX_REMEMBERED_QUERY_LENGTH = 1000;
-
-/**
- * The box without the word the suggestions would replace, when the cursor
- * is in it; undefined when there are no suggestions or nothing else is left.
- * Offsets are UTF-16, like JavaScript strings.
- */
-export function textWithoutCompletedWord(text: string, cursor: number, completions: Completion[]): string | undefined {
-  const span = completions[0]?.insert.edits[0]?.span;
-  if (!span || cursor < span.start || cursor > span.end) return undefined;
-  const before = text.slice(0, span.start).trimEnd();
-  const after = text.slice(span.end).trimStart();
-  const rest = before && after ? `${before} ${after}` : before || after;
-  return rest || undefined;
-}
 
 /** "1 match" / "3 matches". */
 function plural(count: number, one: string, many: string): string {

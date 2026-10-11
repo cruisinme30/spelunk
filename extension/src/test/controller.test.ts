@@ -13,7 +13,6 @@ import {
   type PersistedState,
   SearchController,
   type STOP_WATCHING,
-  textWithoutCompletedWord,
   type Ui,
 } from "../controller";
 import type {
@@ -32,6 +31,7 @@ import type {
   UiSettings,
   WatchMatchedParams,
 } from "../protocol.gen";
+import { textWithoutCompletedWord } from "../completedWord";
 import { RpcError } from "../jsonRpc";
 import { ErrorCodes } from "../protocol.gen";
 import { makeRoot } from "../roots";
