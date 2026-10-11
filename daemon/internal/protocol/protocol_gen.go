@@ -1424,6 +1424,8 @@ type SearchDoneMessage struct {
 	Revisions []RevisionInfo `json:"revisions,omitempty"`
 	Ms        int            `json:"ms"`
 	Error     string         `json:"error,omitempty"`
+	// FolderNotes is for a scope Search in Folder wrote, what the folders it names can't give: no file searched (and why), or no commits, being Git repos of their own.
+	FolderNotes []FolderNote `json:"folderNotes,omitempty"`
 	// NewCommits is the shas of the commits a watch found for this query since it last ran, which the results mark New.
 	NewCommits []string `json:"newCommits,omitempty"`
 }
@@ -1465,10 +1467,12 @@ type StateRestoreMessage struct {
 	// Text is the query box's text; absent after a settings change, which leaves the box as it is.
 	Text string `json:"text,omitempty"`
 	// Seeded is whether text came from the editor (a selection, or Find Definitions or Find Uses): the box types it in, so ⌘Z brings back what it replaced, and selects it, so typing replaces it.
-	Seeded   bool          `json:"seeded,omitempty"`
-	Recent   []string      `json:"recent"`
-	Pinned   []PinnedQuery `json:"pinned"`
-	Settings *UiSettings   `json:"settings,omitempty"`
+	Seeded bool `json:"seeded,omitempty"`
+	// KeepTyping is with seeded, for Search in Folder's scope: the box types the text in, so ⌘Z brings back what it replaced, but leaves the cursor at its end, so typing adds to it.
+	KeepTyping bool          `json:"keepTyping,omitempty"`
+	Recent     []string      `json:"recent"`
+	Pinned     []PinnedQuery `json:"pinned"`
+	Settings   *UiSettings   `json:"settings,omitempty"`
 }
 
 // MarshalJSON emits [] rather than null for required arrays.
@@ -1577,6 +1581,36 @@ type BannerMessage struct {
 type Remote struct {
 	Name string `json:"name"`
 	URL  string `json:"url"`
+}
+
+// FolderNote says what a folder picked for Search in Folder can't give: its files aren't searched (skipped, from folder/explain), or, in a history search, its commits aren't (gitRepo).
+type FolderNote struct {
+	// Folder is the folder as the note names it: its path, with its repo's name first when several are open, e.g. web-checkout/dist/.
+	Folder  string `json:"folder"`
+	Skipped string `json:"skipped,omitempty"`
+	// GitRepo is the Git repo of its own that holds the folder, named the same way.
+	GitRepo string `json:"gitRepo,omitempty"`
+}
+
+// SettingsOpenMessage opens VS Code's Settings at Spelunk's settings, or at one of them.
+type SettingsOpenMessage struct {
+	// Setting is a spelunk.* setting to open Settings at; absent for all of Spelunk's.
+	Setting string `json:"setting,omitempty"`
+}
+
+// FolderExplainParams ask about one folder of an open repo: whether its files are searched, and whether it is a Git repo of its own.
+type FolderExplainParams struct {
+	RepoID string `json:"repoId"`
+	// Path is the folder, slash-separated and relative to the repo's root.
+	Path string `json:"path"`
+}
+
+// FolderExplanation says why no file in a folder is searched, if none is, and which Git repo inside the open one holds it, if any.
+type FolderExplanation struct {
+	// Skipped is why no file in the folder is indexed: Git ignores them (.gitignore), index.exclude leaves them out, the folder is reached through a symlink, or it has no files. Absent when some file in it is indexed.
+	Skipped string `json:"skipped,omitempty"`
+	// GitRepo is the Git repo inside the open one that holds the folder (a submodule or a repo cloned in it), relative to the root: its files are searched, its commits aren't. Absent when the folder is in the open repo's own Git, or outside Git.
+	GitRepo string `json:"gitRepo,omitempty"`
 }
 
 // RepoRemotesParams ask for a repo's Git remotes.
@@ -1724,6 +1758,7 @@ const (
 	MethodExit                    = "exit"
 	MethodRepoRemotes             = "repo/remotes"
 	MethodLinkResolve             = "link/resolve"
+	MethodFolderExplain           = "folder/explain"
 )
 
 // Search panel message types (webview <-> extension host).

@@ -53,6 +53,7 @@ covered.
 | 43 | Syntax colors and whitespace: code in the theme's colors, by VS Code's grammars | `syntax-colors` | `SyntaxColors` | 2.1 |
 | 44 | Outline: the previewed file's definitions, members under their type, closed until opened | `file-outline` | `FileOutline` | 2.1 |
 | 50 | Search from your code: the editor's selection, or the name at the cursor, starts the search | `seed-from-editor` | `SeedFromEditor` | 2.1 |
+| 51 | Search in Folder: right-click a folder in the Explorer to search only inside it | `search-in-folder` | `SearchInFolder` | 2.1 |
 | 52 | VS Code's `files.exclude` and `search.exclude` hide results too; a note counts them, and Show them adds `excludes:no` | `editor-excludes` | `EditorExcludes` | 2.1 |
 | 53 | Result menu: right-click a result to copy it, its path, its link on GitHub (or GitLab, Bitbucket, Gitea, Azure DevOps), every result, or a link to the search | `share-result` | `Permalinks` | 2.1 |
 | 54 | Recently changed first: the order name above the results is a menu, with an arrow for the direction; each code result says when its file changed | `recent-order` | `RecentOrder` | 2.1 |

@@ -76,6 +76,7 @@ func New(conn *rpc.Conn, opts Options) *Server {
 	s.handle(protocol.MethodQueryParse, s.parse)
 	s.registerSearch()
 	s.registerLinks()
+	s.registerFolders()
 	s.registerIndex()
 	s.registerWatches()
 	return s

@@ -689,7 +689,8 @@ function threeResultsBackend() {
       case "replace/plan":
       case "revision/text":
       case "repo/remotes":
-      case "link/resolve": {
+      case "link/resolve":
+      case "folder/explain": {
         throw new Error(`unexpected request ${method}`);
       }
     }

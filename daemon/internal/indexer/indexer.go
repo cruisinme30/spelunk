@@ -448,3 +448,20 @@ func (h fileHistory) LastCommit(path string) (protocol.LastCommit, time.Time, bo
 
 // Dirty reports whether path has uncommitted changes.
 func (h fileHistory) Dirty(path string) bool { return h.store.Dirty(path) }
+
+// FolderState is what folder/explain needs about the folder (slash-separated,
+// relative to root id's path): the root's path, the walk options its builds
+// use, and whether its index holds a file in the folder. indexed is also
+// true before the first build, when nothing can be said yet. ok is false
+// for a root that isn't open.
+func (ix *Indexer) FolderState(id, folder string) (root string, opts trigram.WalkOptions, indexed, ok bool) {
+	ix.mu.Lock()
+	defer ix.mu.Unlock()
+	r := ix.repos[id]
+	if r == nil {
+		return "", trigram.WalkOptions{}, false, false
+	}
+	indexed = r.shard == nil || len(r.shard.PathsUnder(folder)) > 0 ||
+		r.overlay.shard != nil && len(r.overlay.shard.PathsUnder(folder)) > 0
+	return r.root.Path, walkOptions(ix.settings, ix.nestedRoots(r.root.Path)), indexed, true
+}

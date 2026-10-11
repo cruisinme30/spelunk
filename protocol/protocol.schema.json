@@ -2130,6 +2130,13 @@
         "error": {
           "type": "string"
         },
+        "folderNotes": {
+          "description": "For a scope Search in Folder wrote, what the folders it names can't give: no file searched (and why), or no commits, being Git repos of their own.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/FolderNote"
+          }
+        },
         "newCommits": {
           "description": "The shas of the commits a watch found for this query since it last ran, which the results mark New.",
           "type": "array",
@@ -2186,6 +2193,10 @@
         },
         "seeded": {
           "description": "Whether text came from the editor (a selection, or Find Definitions or Find Uses): the box types it in, so ⌘Z brings back what it replaced, and selects it, so typing replaces it.",
+          "type": "boolean"
+        },
+        "keepTyping": {
+          "description": "With seeded, for Search in Folder's scope: the box types the text in, so ⌘Z brings back what it replaced, but leaves the cursor at its end, so typing adds to it.",
           "type": "boolean"
         },
         "recent": {
@@ -2372,6 +2383,62 @@
         }
       },
       "required": ["name", "url"]
+    },
+    "FolderNote": {
+      "description": "FolderNote says what a folder picked for Search in Folder can't give: its files aren't searched (skipped, from folder/explain), or, in a history search, its commits aren't (gitRepo).",
+      "type": "object",
+      "properties": {
+        "folder": {
+          "description": "The folder as the note names it: its path, with its repo's name first when several are open, e.g. web-checkout/dist/.",
+          "type": "string"
+        },
+        "skipped": {
+          "enum": ["ignored", "excluded", "link", "empty"]
+        },
+        "gitRepo": {
+          "description": "The Git repo of its own that holds the folder, named the same way.",
+          "type": "string"
+        }
+      },
+      "required": ["folder"]
+    },
+    "SettingsOpenMessage": {
+      "description": "SettingsOpenMessage opens VS Code's Settings at Spelunk's settings, or at one of them.",
+      "type": "object",
+      "properties": {
+        "setting": {
+          "description": "A spelunk.* setting to open Settings at; absent for all of Spelunk's.",
+          "type": "string"
+        }
+      }
+    },
+    "FolderExplainParams": {
+      "description": "FolderExplainParams ask about one folder of an open repo: whether its files are searched, and whether it is a Git repo of its own.",
+      "type": "object",
+      "properties": {
+        "repoId": {
+          "type": "string"
+        },
+        "path": {
+          "description": "The folder, slash-separated and relative to the repo's root.",
+          "type": "string"
+        }
+      },
+      "required": ["repoId", "path"]
+    },
+    "FolderExplanation": {
+      "description": "FolderExplanation says why no file in a folder is searched, if none is, and which Git repo inside the open one holds it, if any.",
+      "type": "object",
+      "properties": {
+        "skipped": {
+          "description": "Why no file in the folder is indexed: Git ignores them (.gitignore), index.exclude leaves them out, the folder is reached through a symlink, or it has no files. Absent when some file in it is indexed.",
+          "enum": ["ignored", "excluded", "link", "empty"]
+        },
+        "gitRepo": {
+          "description": "The Git repo inside the open one that holds the folder (a submodule or a repo cloned in it), relative to the root: its files are searched, its commits aren't. Absent when the folder is in the open repo's own Git, or outside Git.",
+          "type": "string"
+        }
+      }
     },
     "RepoRemotesParams": {
       "description": "RepoRemotesParams ask for a repo's Git remotes.",
@@ -2592,7 +2659,8 @@
       "params": "Empty"
     },
     "repo/remotes": { "kind": "request", "params": "RepoRemotesParams", "result": "RepoRemotes" },
-    "link/resolve": { "kind": "request", "params": "LinkParams", "result": "Links" }
+    "link/resolve": { "kind": "request", "params": "LinkParams", "result": "Links" },
+    "folder/explain": { "kind": "request", "params": "FolderExplainParams", "result": "FolderExplanation" }
   },
   "x-webview-messages": {
     "query.changed": {
@@ -2625,7 +2693,7 @@
     },
     "settings.open": {
       "direction": "webview->host",
-      "payload": "Empty"
+      "payload": "SettingsOpenMessage"
     },
     "welcome.choose": {
       "direction": "webview->host",
