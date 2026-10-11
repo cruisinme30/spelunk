@@ -775,3 +775,31 @@ them (`kind:function -ref:X`).
 - Built: `docs/dev/proof/uses-in-definitions.png` (`kind:method ref:RetryPolicy`) and
   `docs/dev/proof/uses-in-definitions-content.png` (`kind:method content:timeout`), from
   `node scripts/screenshotPanel.mjs`.
+
+## Comments, quoted text or code (2.1)
+
+Mock 57 (`comments-strings`): `in:comments`, `in:strings` and `in:code` keep the matches inside comments (Python
+docstrings too), inside string literals, or in code outside both; `-in:` leaves one place out. `structural.Places`
+reads a file with the lexer `struct:` uses and lists its comments and strings; the trigram engine judges each match
+by where it is (`trigram/places.go`), never the file, so a line keeps only the hits `in:` wants, and Replace's edits
+and the preview's marks go through the same check. A match that crosses places is in neither, so only `-in:` keeps
+it; a regex across lines counts when the whole match is inside. Plain text and Markdown, and a notebook's markdown
+cells, have nothing to tell apart, so every `in:` keeps their matches; a file in a language without comment rules is
+code. `in:` is a global the plan reads itself, the one that may take a minus; it drops file names, drops definitions
+when it leaves code out, warns when `struct:`, `symbol:`, `kind:` or `type:file` can find nothing under it, and
+counts what it hid by searching again without it. Current files only.
+
+- Daemon: `daemon/internal/structural/places_test.go` (each language's comments and strings, docstrings, prose and
+  unknown languages, lexing unchanged), `daemon/internal/query/in_test.go` (the places each form keeps, file names and
+  definitions, placement and its fixes keeping the minus, history and bad values, the warnings, value completions),
+  `daemon/internal/trigram/places_test.go` (each match on its own, docstrings, prose and unknown languages, a match
+  across places, a regex across lines, the note, `struct:`, Replace's edits, the preview's marks, a notebook cell by
+  cell, comments inside definitions) and `daemon/internal/server/in_test.go` (the four forms end to end, the note
+  and its undo).
+- Host: the help example `in:comments retry` runs against the real daemon.
+- Panel: `webview/test/commentsStrings.test.mjs` (the chip in plain words for each form, the note and Show them).
+- Built: `docs/dev/proof/comments-strings.png`, `comments-strings-code.png` and `comments-strings-replace.png`, from
+  `node scripts/screenshotPanel.mjs --workspace <three repos, web-checkout with src/api/retry.ts and docs/retry-notes.txt>
+  --theme "Dark Modern" --height 800 --query 'retry in:comments'` (`retry in:code f:src/api/retry.ts --select 1`, and
+  `retry in:comments f:src/api/retry.ts --replace retries`). The operator sheet and help page screenshots
+  (`empty-box-recent-and-operators.png`, `help-page.png`) are retaken with the new entry.

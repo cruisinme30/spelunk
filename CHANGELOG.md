@@ -12,6 +12,12 @@ All notable changes to this project are documented here. The format follows
   `struct:` and a regex across lines work the same way, and `-ref:` leaves out the functions that use a name. The
   preview marks the definition's lines, a note counts the matches outside one, and agents and `spelunk search --json`
   get the definition too. Saved indexes are rebuilt once.
+- **Search only in comments, in quoted text or in code.** `retry in:comments` finds what comments and Python
+  docstrings say about retrying, `"budget spent" in:strings` lands on the message itself, and `retry in:code` skips
+  every comment and string that only mentions it; `-in:comments` leaves comments out. Each match counts on its own, so
+  on a line with the word in its code and its comment only the part asked for is marked, and Replace changes only
+  that part. Plain text and Markdown always match. A note says how many matches it hid, with Show them to undo
+  it. Current files only, at any `at:` revision.
 - **Spelunk for agents and the terminal.** Claude Code, Copilot and a shell search with Spelunk's query language and
   index. **Spelunk: Install 'spelunk' Command in PATH** adds the `spelunk` command (`spelunk search`, `status` and
   `help query`; ripgrep-style lines, `--vimgrep` or `--json`, exit 0, 1 or 2). **Spelunk: Add to Claude Code** runs
