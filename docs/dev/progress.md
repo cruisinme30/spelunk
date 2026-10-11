@@ -609,3 +609,30 @@ hides commits that only change excluded files; Replace leaves them alone and cou
   `editor-excludes-replace.png`, from `node scripts/screenshotPanel.mjs --workspace <three repos, each with a
   .vscode/settings.json> --query 'retry_policy' --height 900 --theme "Dark Modern"` (`excludes:no retry_policy`,
   `type:commit retry_policy`, and `--replace retry_rules`).
+
+## Recently changed first (2.1)
+
+Mock 54 (`recent-order`): the order name in each results heading is a menu of best match, path order and recently
+changed (`webview/src/render/order.ts`), with an arrow beside it for the direction: newest or oldest first, A to Z or
+Z to A, and greyed out for best match, which runs one way. A pick saves `spelunk.results.order`, which takes `best`,
+`path`, `path:desc`, `recent` and `recent:asc` (and `path:asc`, `recent:desc`), or rewrites an `order:` typed in the
+query, whose suggestions list each direction on its own. Recently changed sorts files by when they last changed (the
+save time of a file with uncommitted edits or outside Git, otherwise its newest commit), with no extra Git work per
+search: best match already looks the commit up. Ties go to best match, a file with no commit in the history window
+goes last either way, and tests aren't moved down. Each code result then says when its file changed. At a past
+revision the choice is greyed out, a typed `order:recent` is an error, and the setting's falls back to best match.
+
+- Daemon: `daemon/internal/trigram/recent_test.go` (newest first with uncommitted edits by save time, oldest
+  first with undated files still last, the setting, one timeline across a Git repo and a folder outside Git, what each
+  result says about its change, ties by best match, pages, path from Z to A per repo with lines kept in order);
+  `daemon/internal/query` (the order and direction from `order:` or the setting, the setting's recent at a revision,
+  each direction suggested, `order:recent` with `at:` or in a commit search, a bad direction).
+- Host: `controller.test.ts` (`order.set` saves only a change; bad payloads dropped), `settings.test.ts` (every
+  value reaches the daemon and the panel).
+- Panel: `webview/test/resultOrder.test.mjs` (the menu and arrow in each heading, what each pick sends, a typed order
+  rewritten in the box, unavailable at a revision, ↑↓ and Esc, when each file changed).
+- Built: `docs/dev/proof/recent-order.png`, `recent-order-menu.png` and `recent-order-light.png`, from
+  `node scripts/screenshotPanel.mjs --query retry --setting results.order=recent --theme "Dark Modern"` (and
+  `"Light Modern"`; the menu with `--click '[data-testid="order-button"]'` and the default order), over a copy of
+  `testdata/workspace` whose payments-api has a few weeks of commits and an uncommitted edit, whose web-checkout was
+  committed 2 hours ago, and whose shared-libs isn't a Git repository.
