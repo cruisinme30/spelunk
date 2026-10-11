@@ -14,6 +14,7 @@ import type {
 } from "../protocol.gen";
 import { repoName, type ViewState } from "../state";
 import { markWhitespace } from "../syntax";
+import { outlineSash } from "./sash";
 
 type FilePreview = Extract<Preview, { kind: "file" }>;
 type CommitPreview = Extract<Preview, { kind: "commit" }>;
@@ -240,11 +241,9 @@ function outlinePane(symbols: OutlineSymbol[], focusLine: number, open: boolean)
       element("span", { class: "outline-line", "aria-hidden": "true" }, String(symbol.line)),
     ),
   );
-  return element(
-    "nav",
-    { class: "outline-pane", id: "preview-outline", "aria-label": "Outline", hidden: !open },
-    ...rows,
-  );
+  const pane = element("div", { class: "outline-pane", id: "preview-outline", hidden: !open });
+  pane.append(outlineSash(pane), element("nav", { class: "outline-list", "aria-label": "Outline" }, ...rows));
+  return pane;
 }
 
 /** The header button that opens and closes the Outline, with how many definitions it lists. */

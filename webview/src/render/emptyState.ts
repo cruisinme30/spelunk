@@ -3,6 +3,7 @@ import { button, element, icon } from "../format";
 import { OPERATOR_GROUPS, type OperatorGroup, shortName } from "../operators";
 import type { PinnedQuery } from "../protocol.gen";
 import { emptyBoxQueries, type ViewState } from "../state";
+import { sash } from "./sash";
 
 /** A small clock, marking a recent query. */
 const CLOCK_ICON =
@@ -48,8 +49,6 @@ export interface EmptyStateHandlers {
 /** The narrowest the recent queries and the cheat sheet can be dragged. */
 const MIN_RECENT_WIDTH = 200;
 const MIN_SHEET_WIDTH = 320;
-/** How far one ← or → moves the divider. */
-const KEY_STEP = 24;
 
 /** Fills `body` with the pinned and recent queries and the operator cheat sheet. */
 export function renderEmptyState(body: HTMLElement, state: ViewState, handlers: EmptyStateHandlers): void {
@@ -71,82 +70,23 @@ function setRecentWidth(empty: HTMLElement, width: number | undefined): void {
   }
 }
 
-/** The widest the recent queries can be while the cheat sheet keeps its minimum. */
-function maxRecentWidth(empty: HTMLElement, divider: HTMLElement): number {
-  return empty.clientWidth - divider.offsetWidth - MIN_SHEET_WIDTH;
-}
-
-/** Keeps a width between the minimums of both sides, given the room the two share. */
-function clampWidth(width: number, empty: HTMLElement, divider: HTMLElement): number {
-  return Math.round(Math.max(MIN_RECENT_WIDTH, Math.min(width, maxRecentWidth(empty, divider))));
-}
-
-/** Tells assistive technology where the divider is: the recent queries' width, and its range. */
-function announcePosition(divider: HTMLElement, empty: HTMLElement, recent: HTMLElement): void {
-  divider.setAttribute("aria-valuemin", String(MIN_RECENT_WIDTH));
-  divider.setAttribute("aria-valuemax", String(Math.max(MIN_RECENT_WIDTH, maxRecentWidth(empty, divider))));
-  divider.setAttribute("aria-valuenow", String(Math.round(recent.getBoundingClientRect().width)));
-}
-
 /**
  * The line between the recent queries and the cheat sheet: drag it, or
  * focus it and press ← →, to resize; double-click it to reset. It shows
  * only while the two sit side by side.
  */
 function renderDivider(empty: HTMLElement, recent: HTMLElement, onResize: (width?: number) => void): HTMLElement {
-  const divider = element(
-    "div",
-    {
-      class: "recent-divider",
-      role: "separator",
-      tabindex: 0,
-      "aria-orientation": "vertical",
-      "aria-label": "Resize recent queries",
-      title: "Drag to resize · double-click to reset",
-      "data-testid": "recent-divider",
+  const divider: HTMLElement = sash({
+    className: "recent-divider",
+    label: "Resize recent queries",
+    testId: "recent-divider",
+    pane: recent,
+    min: MIN_RECENT_WIDTH,
+    max: () => empty.clientWidth - divider.offsetWidth - MIN_SHEET_WIDTH,
+    apply: (width) => {
+      setRecentWidth(empty, width);
     },
-    element("span", { class: "grip", "aria-hidden": "true" }),
-  );
-  const resize = (width: number) => {
-    const clamped = clampWidth(width, empty, divider);
-    setRecentWidth(empty, clamped);
-    announcePosition(divider, empty, recent);
-    return clamped;
-  };
-  divider.addEventListener("focus", () => {
-    announcePosition(divider, empty, recent);
-  });
-  divider.addEventListener("pointerdown", (event) => {
-    event.preventDefault();
-    divider.setPointerCapture(event.pointerId);
-    divider.classList.add("active");
-    const startX = event.clientX;
-    const startWidth = recent.getBoundingClientRect().width;
-    let width = startWidth;
-    const move = (moved: PointerEvent) => {
-      width = resize(startWidth + moved.clientX - startX);
-    };
-    const end = () => {
-      divider.classList.remove("active");
-      divider.removeEventListener("pointermove", move);
-      divider.removeEventListener("pointerup", end);
-      divider.removeEventListener("pointercancel", end);
-      if (width !== startWidth) onResize(width);
-    };
-    divider.addEventListener("pointermove", move);
-    divider.addEventListener("pointerup", end);
-    divider.addEventListener("pointercancel", end);
-  });
-  divider.addEventListener("dblclick", () => {
-    setRecentWidth(empty, undefined);
-    onResize();
-  });
-  divider.addEventListener("keydown", (event) => {
-    const step = { ArrowLeft: -KEY_STEP, ArrowRight: KEY_STEP }[event.key];
-    if (step === undefined) return;
-    event.preventDefault();
-    event.stopPropagation();
-    onResize(resize(recent.getBoundingClientRect().width + step));
+    onSettle: onResize,
   });
   return divider;
 }

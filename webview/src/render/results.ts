@@ -29,6 +29,7 @@ import type {
 import { repoName, type ViewState } from "../state";
 import { ChunkedList } from "./chunkedList";
 import { ResultIndex } from "./resultIndex";
+import { resultsSash } from "./sash";
 
 type ResultKind = ResultItem["kind"];
 type ItemOf<K extends ResultKind> = Extract<ResultItem, { kind: K }>;
@@ -211,7 +212,7 @@ export class ResultsView {
     this.list.classList.toggle("with-context", this.withContext);
     // Not a live region: it would read the whole excerpt again on every ↑↓; the selected row is announced instead.
     this.preview = element("div", { id: "preview", "data-testid": "preview" });
-    body.replaceChildren(element("div", { class: "split" }, this.list, this.preview));
+    body.replaceChildren(element("div", { class: "split" }, this.list, resultsSash(this.list), this.preview));
   }
 
   /**

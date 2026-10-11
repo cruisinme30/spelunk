@@ -130,6 +130,20 @@ export function saveRecentWidth(width: number | undefined): void {
   vscode.setState({ ...savedState(), recentWidth: width });
 }
 
+/** The panes besides the recent queries whose dragged widths are kept across reloads. */
+type PaneWidth = "resultsWidth" | "outlineWidth";
+
+/** Keeps the width dragged for `pane` across reloads; undefined goes back to the default. */
+export function savePaneWidth(pane: PaneWidth, width: number | undefined): void {
+  vscode.setState({ ...savedState(), [pane]: width });
+}
+
+/** The width savePaneWidth kept for `pane`, if any. */
+export function loadPaneWidth(pane: PaneWidth): number | undefined {
+  const width = savedState()[pane];
+  return isNumber(width) && width > 0 ? width : undefined;
+}
+
 /** Keeps whether the preview's Outline is open across reloads. */
 export function saveOutlineOpen(open: boolean): void {
   vscode.setState({ ...savedState(), outlineOpen: open });

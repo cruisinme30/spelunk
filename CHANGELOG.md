@@ -20,6 +20,9 @@ All notable changes to this project are documented here. The format follows
   Rust method under its `impl`), a letter for each kind, line numbers, and the definition the match is in marked.
   A click opens that definition beside the editor. It's closed until you open it, and stays as you leave it. It
   replaces the "In this file" line, which showed only the first eight names.
+- The line between the results and the preview, and the Outline's left edge, can be dragged (or focused and moved
+  with ← →) to resize them; a double-click resets either, and both widths are remembered, as the empty box's divider
+  already was.
 
 ### Fixed
 

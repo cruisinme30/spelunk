@@ -480,6 +480,81 @@ test("a file with no definitions has no Outline, and a reload keeps an open Outl
   assert.deepEqual(pageErrors(page), []);
 });
 
+/** Drags the sash `testId` names `dx` pixels to the right (left when negative), as a person would. */
+async function dragSash(page, testId, dx) {
+  const box = await page.locator(`[data-testid="${testId}"]`).boundingBox();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2 + dx, box.y + box.height / 2, { steps: 5 });
+  await page.mouse.up();
+}
+
+test("dragging the line between the results and the preview resizes them, and the width survives a reload", async (t) => {
+  const page = await panelWithResults(t);
+  await page.setViewportSize({ width: 1200, height: 700 });
+  const resultsWidth = async (on = page) => (await on.locator("#results").boundingBox()).width;
+  const before = await resultsWidth();
+  await dragSash(page, "results-divider", 120);
+  assert.ok(Math.abs((await resultsWidth()) - (before + 120)) <= 2, "the results follow the pointer");
+  const dragged = await resultsWidth();
+  assert.equal(await page.evaluate(() => globalThis.__savedState.resultsWidth), dragged);
+
+  // ← moves it too, and neither side can be dragged shut.
+  await page.locator('[data-testid="results-divider"]').focus();
+  await page.keyboard.press("ArrowLeft");
+  assert.equal(Math.round(await resultsWidth()), Math.round(dragged) - 24);
+  await dragSash(page, "results-divider", -2000);
+  assert.equal(Math.round(await resultsWidth()), 240);
+  await dragSash(page, "results-divider", 2000);
+  assert.ok((await page.locator("#preview").boundingBox()).width >= 320, "the preview keeps 320px");
+
+  // A reloaded panel keeps the width; a double-click puts back the default split.
+  const kept = await resultsWidth();
+  const reloaded = await openPanelWithSavedState(t, await page.evaluate(() => globalThis.__savedState));
+  await reloaded.setViewportSize({ width: 1200, height: 700 });
+  await restore(reloaded);
+  const seq = await typeAndParse(reloaded, "retry_policy", parsedQuery("retry_policy", textNode("retry_policy", 0)));
+  await fromHost(reloaded, "search.batch", { seq, searchId: "s1", items: [FILE_NAME_RESULT, CODE_LINE_RESULT] });
+  await searchDone(reloaded, seq, { total: 2, ms: 3 });
+  assert.equal(Math.round(await resultsWidth(reloaded)), Math.round(kept));
+  await reloaded.locator('[data-testid="results-divider"]').dblclick();
+  assert.equal(Math.round(await resultsWidth(reloaded)), Math.round(before));
+  assert.equal(await reloaded.evaluate(() => globalThis.__savedState.resultsWidth), undefined);
+  assert.deepEqual(pageErrors(page), []);
+});
+
+test("dragging the Outline's left edge resizes it, and the width is kept for the next file", async (t) => {
+  const page = await panelWithResults(t);
+  await page.setViewportSize({ width: 1200, height: 700 });
+  await page.keyboard.press("ArrowDown");
+  await waitForSent(page, "result.select", { ref: "l1" });
+  await fromHost(page, "preview.result", { ref: "l1", preview: PREVIEW_WITH_OUTLINE });
+  await page.locator('[data-testid="outline-toggle"]').click();
+  const outlineWidth = async () => (await page.locator(".outline-pane").boundingBox()).width;
+  assert.equal(Math.round(await outlineWidth()), 210);
+  // Dragging left widens it, as the Outline sits on the right.
+  await dragSash(page, "outline-divider", -60);
+  assert.ok(Math.abs((await outlineWidth()) - 270) <= 2, "the Outline follows the pointer");
+  assert.equal(Math.round(await page.evaluate(() => globalThis.__savedState.outlineWidth)), 270);
+  await dragSash(page, "outline-divider", 2000);
+  assert.equal(Math.round(await outlineWidth()), 140);
+
+  await fromHost(page, "preview.result", { ref: "l1", preview: PREVIEW_WITH_OUTLINE });
+  assert.equal(Math.round(await outlineWidth()), 140);
+  await page.locator('[data-testid="outline-divider"]').dblclick();
+  assert.equal(Math.round(await outlineWidth()), 210);
+  assert.equal(await page.evaluate(() => globalThis.__savedState.outlineWidth), undefined);
+  assert.deepEqual(pageErrors(page), []);
+});
+
+test("the line between the results and the preview hides with the preview in a narrow panel", async (t) => {
+  const page = await panelWithResults(t);
+  await page.setViewportSize({ width: 641, height: 700 });
+  assert.equal(await page.locator('[data-testid="results-divider"]').isVisible(), true);
+  await page.setViewportSize({ width: 640, height: 700 });
+  assert.equal(await page.locator('[data-testid="results-divider"]').isVisible(), false);
+});
+
 test("↑↓ go through the sections top to bottom, in the order their batches came, and stop at either end", async (t) => {
   const page = await panelWithResults(t);
   const { seq } = await lastSent(page, "query.changed");
