@@ -937,7 +937,7 @@
                 "azure"
               ]
             },
-            "markdownDescription": "Which kind of Git host a server is, for **Copy Permalink** on the right-click menu of a result. Spelunk knows github.com, gitlab.com, bitbucket.org, codeberg.org and dev.azure.com, and guesses from a name with `github`, `gitlab`, `gitea` or `forgejo` in it; add any other server by the host name in its remote's URL, for example `{ \"git.acme.corp\": \"gitlab\" }`."
+            "markdownDescription": "Which kind of Git host a server is, for **Copy Permalink** on the right-click menu of a result, which asks the first time it meets a server it can't place and saves your answer here. Spelunk knows github.com, gitlab.com, bitbucket.org, codeberg.org and dev.azure.com, and guesses from a name with `github`, `gitlab`, `gitea` or `forgejo` in it; add any other server by the host name in its remote's URL, for example `{ \"git.acme.corp\": \"gitlab\" }`."
           }
         }
       }

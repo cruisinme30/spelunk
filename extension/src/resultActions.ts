@@ -4,7 +4,7 @@
 // pop-ups and save dialog, and tests drive it in plain Node.
 import type { Backend } from "./controller";
 import type { HostToWebview, Remote, ResultItem, Root } from "./protocol.gen";
-import { type HostSettings, permalink, problemMessage } from "./permalinks";
+import { type HostKind, type HostSettings, permalink, problemMessage } from "./permalinks";
 import {
   absolutePath,
   copyText,
@@ -24,8 +24,12 @@ export interface ActionsUi {
   copy(text: string, done: string): Promise<void>;
   /** Opens an address in the browser. */
   openExternal(url: string): Promise<void>;
-  /** Says why something can't be done; `settings` adds a button that opens spelunk.permalinks.hosts. */
-  inform(message: string, settings?: boolean): void;
+  /** Says why something can't be done. */
+  inform(message: string): void;
+  /** Asks which kind of Git host the server `host` is; undefined when the user cancels. */
+  pickHostKind(host: string): Promise<HostKind | undefined>;
+  /** Remembers in spelunk.permalinks.hosts that the server `host` is a `kind`. */
+  saveHostKind(host: string, kind: HostKind): Promise<void>;
   /** Asks which remote to link to; undefined when the user cancels. */
   pickRemote(remotes: Remote[]): Promise<string | undefined>;
   /** Asks where to save an export named `name`, then writes `text()` there; false when the user cancels. */
@@ -162,8 +166,9 @@ export class ResultActions {
 
   /**
    * The result's permalink. When the repo has several remotes and tracks
-   * none, the user picks one; when there's no link, a pop-up says why and
-   * this returns undefined.
+   * none, the user picks one; on a server Spelunk can't place, the user
+   * says which kind it is, once, and it's remembered. When there's no link,
+   * a pop-up says why and this returns undefined.
    */
   private async permalinkOf(item: ResultItem): Promise<{ url: string; host: string } | undefined> {
     const repo = this.source.root(item.repoId)?.name ?? "This repo";
@@ -181,9 +186,17 @@ export class ResultActions {
       link = await resolve(remote);
     }
     if (!link) return undefined;
-    const made = permalink(link, this.source.hosts());
+    const hosts = this.source.hosts();
+    let made = permalink(link, hosts);
+    if (!("url" in made) && made.problem === "unknownHost" && made.host !== undefined) {
+      const server = made.host;
+      const kind = await this.ui.pickHostKind(server);
+      if (kind === undefined) return undefined;
+      await this.ui.saveHostKind(server, kind);
+      made = permalink(link, { ...hosts, [server]: kind });
+    }
     if ("url" in made) return made;
-    this.ui.inform(problemMessage(made, repo, whereOf(item)), made.problem === "unknownHost");
+    this.ui.inform(problemMessage(made, repo, whereOf(item)));
     return undefined;
   }
 

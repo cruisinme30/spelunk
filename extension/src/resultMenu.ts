@@ -10,7 +10,7 @@ import { AllResults } from "./allResults";
 import type { SearchController } from "./controller";
 import type { Daemon } from "./daemon";
 import type { SearchPanel } from "./panel";
-import { remotesState } from "./permalinks";
+import { HOST_KINDS, HOST_LABEL, remotesState } from "./permalinks";
 import { type ActionsUi, queryOfSearchLink, ResultActions, searchLink, type ShownResults } from "./resultActions";
 import type { ExportFormat } from "./resultText";
 import { makeRoot } from "./roots";
@@ -86,16 +86,22 @@ function createActions({ daemon, controller, shown, log }: MenuParts, extensionI
     openExternal: async (url) => {
       await vscode.env.openExternal(vscode.Uri.parse(url, true));
     },
-    inform: (message, settings) => {
-      const button = settings ? ["Open Settings"] : [];
-      vscode.window.showInformationMessage(message, ...button).then(
-        (choice) => {
-          if (choice) void vscode.commands.executeCommand("workbench.action.openSettings", "spelunk.permalinks.hosts");
-        },
-        (error: unknown) => {
-          log.appendLine(`[result menu] ${String(error)}`);
-        },
-      );
+    inform: (message) => {
+      vscode.window.showInformationMessage(message).then(undefined, (error: unknown) => {
+        log.appendLine(`[result menu] ${String(error)}`);
+      });
+    },
+    pickHostKind: async (host) => {
+      const items = HOST_KINDS.map((kind) => ({ label: HOST_LABEL[kind], hostKind: kind }));
+      const placeHolder = `Which kind of Git server is ${host}? Spelunk remembers your answer.`;
+      const picked = await vscode.window.showQuickPick(items, { placeHolder, ignoreFocusOut: true });
+      return picked?.hostKind;
+    },
+    saveHostKind: async (host, kind) => {
+      // In user settings: a company's server is the same kind in every workspace.
+      const config = configuration();
+      const saved = config.inspect<Record<string, string>>("permalinks.hosts")?.globalValue ?? {};
+      await config.update("permalinks.hosts", { ...saved, [host]: kind }, vscode.ConfigurationTarget.Global);
     },
     pickRemote: async (remotes) => {
       const items = remotes.map((remote) => ({ label: remote.name, description: remote.url }));

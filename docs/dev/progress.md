@@ -502,6 +502,11 @@ address (`permalinks.ts`), and the panel learns each repo's host from `remotes.s
 - Built: `docs/dev/proof/share-result.png` and `docs/dev/proof/share-result-light.png`, VS Code's real menu (drawn
   with `window.menuStyle: custom`, so a screenshot shows it) over `retry_policy`, Copy GitHub Permalink chosen, under
   Dark Modern and Light Modern.
+- Follow-up: on a server Spelunk can't place, Copy Permalink now asks which kind it is, saves the answer in
+  `spelunk.permalinks.hosts` (user settings) and copies the link, instead of pointing at the setting.
+  "on a server Spelunk can't place, the user says which kind it is, once, and the link is copied" in
+  `resultActions.test.ts`; by hand in VS Code 1.141 on `git@git.acme.corp:payments/api.git`, GitLab picked, the
+  GitLab-style link copied.
 
 ## Search from your code (2.1)
 

@@ -6,12 +6,12 @@ import type { Backend } from "./controller";
 import type { Link, LinkProblem, Remote, RemoteHost, RemotesStateMessage, RepoRemotes, Root } from "./protocol.gen";
 
 /** The Git hosts whose link formats Spelunk knows. */
-const HOST_KINDS = ["github", "gitlab", "bitbucket", "gitea", "azure"] as const;
+export const HOST_KINDS = ["github", "gitlab", "bitbucket", "gitea", "azure"] as const;
 /** One of HOST_KINDS. */
-type HostKind = (typeof HOST_KINDS)[number];
+export type HostKind = (typeof HOST_KINDS)[number];
 
 /** How each host is named in the menu and messages. */
-const HOST_LABEL: Record<HostKind, string> = {
+export const HOST_LABEL: Record<HostKind, string> = {
   github: "GitHub",
   gitlab: "GitLab",
   bitbucket: "Bitbucket",

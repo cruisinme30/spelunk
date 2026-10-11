@@ -15,6 +15,7 @@ import {
   searchLink,
   ShownResults,
 } from "../resultActions";
+import type { HostKind } from "../permalinks";
 import type { ExportFormat } from "../resultText";
 import { newTestDaemon, SKIP_WITHOUT_DAEMON, untilIndexed } from "./realDaemon";
 
@@ -46,10 +47,12 @@ const COMMIT: ResultItem = {
 };
 
 /** A Ui that records what was copied, opened, said, picked and saved. */
-function recordingUi(pick?: string) {
+function recordingUi(pick?: string, hostKind?: HostKind) {
   const copied: { text: string; done: string }[] = [];
   const opened: string[] = [];
-  const said: { message: string; settings: boolean }[] = [];
+  const said: string[] = [];
+  const asked: string[] = [];
+  const remembered: [string, HostKind][] = [];
   const offered: Remote[][] = [];
   const saved: { name: string; format: ExportFormat; text: string }[] = [];
   const ui: ActionsUi = {
@@ -61,7 +64,15 @@ function recordingUi(pick?: string) {
       opened.push(url);
       return Promise.resolve();
     },
-    inform: (message, settings = false) => void said.push({ message, settings }),
+    inform: (message) => void said.push(message),
+    pickHostKind: (server) => {
+      asked.push(server);
+      return Promise.resolve(hostKind);
+    },
+    saveHostKind: (server, kind) => {
+      remembered.push([server, kind]);
+      return Promise.resolve();
+    },
     pickRemote: (remotes) => {
       offered.push(remotes);
       return Promise.resolve(pick);
@@ -71,7 +82,7 @@ function recordingUi(pick?: string) {
       return true;
     },
   };
-  return { ui, copied, opened, said, offered, saved };
+  return { ui, copied, opened, said, asked, remembered, offered, saved };
 }
 
 /** A source over `items`, whose link/resolve answers each ref with `answer`. */
@@ -147,24 +158,46 @@ test("each kind of host's items copy that host's link", async () => {
   }
 });
 
-test("a result without a permalink says why, and an unknown host offers its setting", async () => {
-  const cases: [Link, string, boolean][] = [
-    [{ remote: GITHUB, problem: "lineChanged" }, "Line 46 has changes GitHub doesn't have yet.", false],
-    [{ problem: "noRemote" }, "payments-api has no Git remote", false],
-    [
-      { remote: { name: "origin", url: "git@git.acme.corp:a/b.git" }, commit: SHA, path: LINE.path, line: 46 },
-      "git.acme.corp",
-      true,
-    ],
+test("a result without a permalink says why", async () => {
+  const cases: [Link, string][] = [
+    [{ remote: GITHUB, problem: "lineChanged" }, "Line 46 has changes GitHub doesn't have yet."],
+    [{ problem: "noRemote" }, "payments-api has no Git remote"],
   ];
-  for (const [link, says, settings] of cases) {
+  for (const [link, says] of cases) {
     const { source } = sourceOf([LINE], () => link);
     const host = recordingUi();
     await new ResultActions(source, host.ui).copyPermalink("l1");
     assert.deepEqual(host.copied, []);
-    assert.ok(host.said[0]?.message.includes(says), host.said[0]?.message);
-    assert.equal(host.said[0]?.settings, settings);
+    assert.ok(host.said[0]?.includes(says), host.said[0]);
   }
+});
+
+test("on a server Spelunk can't place, the user says which kind it is, once, and the link is copied", async () => {
+  // @covers setting:permalinks.hosts
+  const company: Link = {
+    remote: { name: "origin", url: "git@git.acme.corp:payments/api.git" },
+    commit: SHA,
+    path: LINE.path,
+    line: 46,
+  };
+  const answered = recordingUi(undefined, "gitlab");
+  await new ResultActions(sourceOf([LINE], () => company).source, answered.ui).copyPermalink("l1");
+  assert.deepEqual(answered.asked, ["git.acme.corp"]);
+  assert.deepEqual(answered.remembered, [["git.acme.corp", "gitlab"]]);
+  assert.deepEqual(
+    answered.copied.map((copy) => copy.text),
+    [`https://git.acme.corp/payments/api/-/blob/${SHA}/src/payments/client.py#L46`],
+  );
+  // Once it's in the setting, nobody is asked again.
+  const known = recordingUi();
+  const { source } = sourceOf([LINE], () => company, { hosts: () => ({ "git.acme.corp": "gitlab" }) });
+  await new ResultActions(source, known.ui).copyPermalink("l1");
+  assert.deepEqual(known.asked, []);
+  assert.equal(known.copied.length, 1);
+  // Cancelling copies and saves nothing, and says nothing.
+  const cancelled = recordingUi();
+  await new ResultActions(sourceOf([LINE], () => company).source, cancelled.ui).copyPermalink("l1");
+  assert.deepEqual([cancelled.copied, cancelled.remembered, cancelled.said], [[], [], []]);
 });
 
 test("with several remotes and none tracked, the user picks one; cancelling copies nothing", async () => {
