@@ -5,6 +5,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [3.0.0] - 2026-10-11
+
 ### Added
 
 - **Ask in plain words.** Type a question the way you'd say it and end it with `?`, or press the new **Ask** button,
@@ -512,6 +514,7 @@ All notable changes to this project are documented here. The format follows
 - `sym:` queries return no results instead of wrong ones until symbol search exists.
 
 [Unreleased]: https://github.com/cruisinme30/spelunk/compare/v2.0.0...HEAD
+[3.0.0]: https://github.com/cruisinme30/spelunk/compare/v2.0.0...v3.0.0
 [2.0.0]: https://github.com/cruisinme30/spelunk/compare/v1.1.0...v2.0.0
 [1.1.0]: https://github.com/cruisinme30/spelunk/compare/v1.0.1...v1.1.0
 [1.0.1]: https://github.com/cruisinme30/spelunk/compare/v1.0.0...v1.0.1
