@@ -111,7 +111,7 @@
     {
       "severity": "error",
       "code": "unknown_operator",
-      "message": "Unknown operator sinse:",
+      "message": "Unknown search word sinse:",
       "span": {
         "start": 41,
         "end": 47

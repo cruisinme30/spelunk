@@ -168,7 +168,7 @@ export const MISSPELT = parsedQuery("sinse:6m", null, {
     {
       severity: "error",
       code: "unknown_operator",
-      message: "Unknown operator sinse:",
+      message: "Unknown search word sinse:",
       span: { start: 0, end: 6 },
       fixes: [{ title: "Change to since:", edits: [{ span: { start: 0, end: 6 }, newText: "since:" }] }],
     },

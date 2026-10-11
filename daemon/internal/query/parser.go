@@ -501,9 +501,9 @@ func (p *parser) reportUnknownOperator(t token) {
 	nameSpan := protocol.Span{Start: t.start, End: t.valueStart}
 	word := p.src.slice(t.start, t.end)
 	// A retired short name (s:, path:) has one fix, the operator it meant.
-	names, message := nearest(strings.ToLower(t.name), operatorNames()), "Unknown operator "+t.name+":"
+	names, message := nearest(strings.ToLower(t.name), operatorNames()), "Unknown search word "+t.name+":"
 	if op, retired := retiredOperator(strings.ToLower(t.name)); retired {
-		names, message = []string{op.full}, fmt.Sprintf("Unknown operator %s: (now %s:)", t.name, op.full)
+		names, message = []string{op.full}, fmt.Sprintf("Unknown search word %s: (now %s:)", t.name, op.full)
 	}
 	var fixes []protocol.Fix
 	for _, name := range names {
