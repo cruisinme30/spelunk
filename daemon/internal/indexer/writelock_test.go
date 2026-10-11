@@ -214,7 +214,10 @@ func TestAReadOnlyIndexerLeavesTheLockToAWindow(t *testing.T) {
 }
 
 func TestAReaderSweepsInFilesChangedSinceTheSave(t *testing.T) {
-	root := testutil.WriteTree(t, map[string]string{"keep.txt": "same\n", "edit.txt": "old\n", "gone.txt": "bye\n"})
+	root := testutil.WriteTree(t, map[string]string{
+		"keep.txt": "same\n", "edit.txt": "old\n", "gone.txt": "bye\n",
+		"logo.png": "\x89PNG\x00\x00binary", // listed, but left out of the index as binary
+	})
 	settings := followSettings(t)
 	roots := []protocol.Root{{ID: "r1", Path: root, Name: "app"}}
 	window := New(settings, nil)
@@ -245,7 +248,7 @@ func TestAReaderSweepsInFilesChangedSinceTheSave(t *testing.T) {
 			hasPath(reader, "added.txt"), hasPath(reader, "gone.txt"), hasPath(reader, "keep.txt"))
 	}
 	if got := reader.Status()[0].Reread; got != 3 {
-		t.Errorf("re-read count = %d, want 3 (edited, added, deleted)", got)
+		t.Errorf("re-read count = %d, want 3 (edited, added, deleted; not the binary file the index left out)", got)
 	}
 	repo := reader.Repos()[0]
 	for _, doc := range repo.Overlay.Docs {

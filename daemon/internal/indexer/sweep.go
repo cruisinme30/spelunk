@@ -29,6 +29,24 @@ func (ix *Indexer) Sweep(ctx context.Context, root string) {
 	if err != nil {
 		return
 	}
+	changed := job.changedFiles(root, files)
+	if len(changed) > 0 && ctx.Err() == nil {
+		ix.reread(job.id, changed)
+	}
+}
+
+// sweepJob is what one sweep compares the files on disk with.
+type sweepJob struct {
+	id       string
+	shard    *trigram.Shard
+	overlay  overlay
+	settings protocol.Settings
+	nested   []string
+}
+
+// changedFiles compares files, as listed now, with the index: the paths
+// edited, created or deleted since it was built.
+func (job *sweepJob) changedFiles(root string, files []trigram.File) []string {
 	known := map[string]time.Time{}
 	for i := range job.shard.Docs {
 		if !job.overlay.masked[job.shard.Docs[i].Path] {
@@ -44,26 +62,22 @@ func (ix *Indexer) Sweep(ctx context.Context, root string) {
 		if err != nil {
 			continue
 		}
-		if at, ok := known[file.Path]; !ok || !at.Equal(info.ModTime()) {
+		at, ok := known[file.Path]
+		delete(known, file.Path)
+		switch {
+		case ok && at.Equal(info.ModTime()):
+			// Unchanged.
+		case !ok && info.ModTime().Before(job.shard.BuiltAt) && !job.overlay.masked[file.Path]:
+			// There when the index was built, but not in it: a binary or
+			// oversized file the build read and left out.
+		default:
 			changed = append(changed, file.Path)
 		}
-		delete(known, file.Path)
 	}
 	for path := range known { // indexed, and no longer there
 		changed = append(changed, path)
 	}
-	if len(changed) > 0 && ctx.Err() == nil {
-		ix.reread(job.id, changed)
-	}
-}
-
-// sweepJob is what one sweep compares the files on disk with.
-type sweepJob struct {
-	id       string
-	shard    *trigram.Shard
-	overlay  overlay
-	settings protocol.Settings
-	nested   []string
+	return changed
 }
 
 // sweepStart finds the repo at root and marks it swept, if it is due.
