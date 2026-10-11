@@ -508,7 +508,7 @@ export class SearchPanel {
    * The host's saved box text, recent and pinned queries, and settings: on
    * opening, and, without the text, after settings change.
    */
-  private onRestore({ text, seeded, recent, pinned, settings }: StateRestoreMessage): void {
+  private onRestore({ text, seeded, keepTyping, recent, pinned, settings }: StateRestoreMessage): void {
     const { input } = this.layout;
     if (settings) this.state.ui = settings;
     applyCodeSettings(this.state.ui);
@@ -522,7 +522,7 @@ export class SearchPanel {
     this.state.naming = undefined;
     // A shorter list mustn't leave ↵ pointing past its end.
     this.emptyBox.clampIndex();
-    if (text !== undefined && text !== input.value) setBoxText(input, text, seeded === true);
+    if (text !== undefined && text !== input.value) setBoxText(input, text, seeded === true, keepTyping === true);
     if (input.value) this.queryChanged(true);
     else this.showEmptyState();
     this.renderFooter();

@@ -44,16 +44,18 @@ const HAS_REQUIRED_FIELDS: Record<keyof HostToWebview, (payload: Fields) => bool
     isObject(query["globals"]) &&
     isObjectArray(completions),
   "search.batch": ({ seq, searchId, items }) => isNumber(seq) && isString(searchId) && isObjectArray(items),
-  "search.done": ({ seq, searchId, hidden, newCommits }) =>
+  "search.done": ({ seq, searchId, hidden, newCommits, folderNotes }) =>
     isNumber(seq) &&
     isString(searchId) &&
     isObjectArray(hidden) &&
-    (newCommits === undefined || isStringArray(newCommits)),
+    (newCommits === undefined || isStringArray(newCommits)) &&
+    (folderNotes === undefined || (isObjectArray(folderNotes) && folderNotes.every(({ folder }) => isString(folder)))),
   "preview.result": ({ ref, preview }) => isString(ref) && (preview === null || isObject(preview)),
   "index.status": ({ repos }) => isObjectArray(repos) && repos.every((repo) => isString(repo["name"])),
-  "state.restore": ({ text, seeded, recent, pinned, settings }) =>
+  "state.restore": ({ text, seeded, keepTyping, recent, pinned, settings }) =>
     (text === undefined || isString(text)) &&
     (seeded === undefined || typeof seeded === "boolean") &&
+    (keepTyping === undefined || typeof keepTyping === "boolean") &&
     Array.isArray(recent) &&
     recent.every((query) => isString(query)) &&
     isObjectArray(pinned) &&

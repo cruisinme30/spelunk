@@ -24,6 +24,7 @@ import { ChunkedList } from "./chunkedList";
 import { fuzzyNamesNote } from "./fuzzyNamesNote";
 import { excludesNote, hiddenByExcludes } from "./excludesNote";
 import { demoted, ownerBadge, rankBadge, sinceBadge } from "./fileBadges";
+import { folderHint, folderNotes } from "./folderNote";
 import { cellHeading } from "./notebook";
 import { changeNote, orderControl } from "./order";
 import { ResultIndex } from "./resultIndex";
@@ -304,6 +305,7 @@ export class ResultsView {
       ...revisionProblems(done).map((problem) =>
         element("div", { class: "note", "data-reason": "revision", "data-testid": "revision-problem" }, problem),
       ),
+      ...(done.folderNotes ?? []).flatMap((note) => folderNotes(note, this.state.parsed?.mode === "history")),
       ...done.hidden.filter((note) => note.count > 0).map((note) => this.renderNote(note)),
     );
     this.loadMore.replaceChildren();
@@ -350,7 +352,7 @@ export class ResultsView {
         "div",
         { class: "none", "data-testid": "no-results" },
         element("span", { class: "strong" }, title),
-        element("span", { class: "muted" }, hint),
+        element("span", { class: "muted" }, folderHint(this.state.done, this.state.parsed) ?? hint),
       ),
     );
   }
