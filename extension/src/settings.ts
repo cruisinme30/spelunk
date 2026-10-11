@@ -56,6 +56,9 @@ const DEFAULTS = {
   renderWhitespace: "editor",
   seedFromSelection: true,
   useExcludeSettings: true,
+  shareWindow: true,
+  offerToCopilot: true,
+  agentTimeLimitMs: 30_000,
 } as const;
 
 /** VS Code's defaults for the editor.* settings the panel's code follows. */
@@ -72,6 +75,9 @@ const MIN_TIME_LIMIT_MS = 100;
 const MAX_TIME_LIMIT_MS = 60_000;
 /** The most lines the file preview shows on each side of its match. */
 const MAX_PREVIEW_CONTEXT_LINES = 100;
+/** agent.timeLimitMs's bounds. */
+const MIN_AGENT_TIME_LIMIT_MS = 1000;
+const MAX_AGENT_TIME_LIMIT_MS = 600_000;
 /** index.commitCheckSeconds's bounds; the daemon keeps it within the same. */
 const MAX_COMMIT_CHECK_SECONDS = 3600;
 /** The most context lines a code result shows on each side of its match. */
@@ -233,7 +239,19 @@ export function daemonSettings(config: ConfigReader, home: string): Settings {
       MAX_COMMIT_CHECK_SECONDS,
       DEFAULTS.commitCheckSeconds,
     ),
+    shareWindow: boolean(read("agent.shareWindow", DEFAULTS.shareWindow), DEFAULTS.shareWindow),
+    agentTimeLimitMs: clamp(
+      read("agent.timeLimitMs", DEFAULTS.agentTimeLimitMs),
+      MIN_AGENT_TIME_LIMIT_MS,
+      MAX_AGENT_TIME_LIMIT_MS,
+      DEFAULTS.agentTimeLimitMs,
+    ),
   };
+}
+
+/** spelunk.agent.offerToCopilot: whether VS Code's agents see Spelunk's MCP server. */
+export function offerToCopilot(config: ConfigReader): boolean {
+  return boolean(config.get<unknown>("agent.offerToCopilot", DEFAULTS.offerToCopilot), DEFAULTS.offerToCopilot);
 }
 
 /** spelunk.results.contextLines, clamped to 0..3. */

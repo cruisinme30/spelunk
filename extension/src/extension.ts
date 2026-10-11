@@ -6,6 +6,7 @@ import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import * as vscode from "vscode";
+import { registerAgentAccess } from "./agentAccess";
 import { editorCommands } from "./editorSeed";
 import { FolderScopeNotes } from "./folderScope";
 import { folderSearchCommand } from "./folderSearch";
@@ -59,6 +60,7 @@ import {
   recentQueriesLimit,
   uiSettings,
   watchedQueries,
+  offerToCopilot,
   watchNotify,
   welcomeSettings,
 } from "./settings";
@@ -152,6 +154,7 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi {
     vscode.commands.registerCommand("spelunk.showWelcome", () => {
       welcome.show();
     }),
+    ...agentAccess(context, log),
     forwardFileChanges(daemon),
     followWorkspace(daemon, { roots: workspaceRoots, settings: currentDaemonSettings }, { panel, controller }),
     vscode.workspace.onDidChangeConfiguration((event) => {
@@ -343,6 +346,20 @@ async function saveSetting(key: "results.contextLines" | "results.order", value:
 /** Stops the daemon gracefully when VS Code shuts the extension down. */
 export async function deactivate(): Promise<void> {
   await activeDaemon?.stop();
+}
+
+/** The spelunk command and the MCP server for agents (agentAccess.ts). */
+function agentAccess(context: vscode.ExtensionContext, log: vscode.OutputChannel): vscode.Disposable[] {
+  const version = (context.extension.packageJSON as { version?: unknown }).version;
+  return registerAgentAccess({
+    binary: daemonBinary(context.extensionPath, context.extensionMode),
+    version: typeof version === "string" ? version : "",
+    settings: currentDaemonSettings,
+    offerToCopilot: () => offerToCopilot(configuration()),
+    log: (line) => {
+      log.appendLine(line);
+    },
+  });
 }
 
 /**

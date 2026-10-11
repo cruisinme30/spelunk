@@ -10,6 +10,7 @@ import {
   indexLocationProblem,
   MOVED_SETTINGS,
   movedValue,
+  offerToCopilot,
   permalinkHosts,
   pinnedQueries,
   previewContextLines,
@@ -242,6 +243,8 @@ test("settings of the wrong type or out of range fall back to defaults the daemo
     ],
     codeownersFiles: [".github/CODEOWNERS", "CODEOWNERS", "docs/CODEOWNERS"],
     commitCheckSeconds: 5,
+    shareWindow: true,
+    agentTimeLimitMs: 30_000,
   });
   const extremes = daemonSettings(
     configWith({
@@ -404,4 +407,16 @@ test("permalinks.hosts keeps the servers named as a kind of host Spelunk knows",
     { "git.acme.corp": "gitlab" },
   );
   assert.deepEqual(permalinkHosts(configWith({ "permalinks.hosts": ["gitlab"] })), {});
+});
+
+test("the agent settings reach the daemon, clamped, and Copilot's listing is on by default", () => {
+  // @covers setting:agent.shareWindow setting:agent.timeLimitMs setting:agent.offerToCopilot
+  const defaults = daemonSettings(configWith({}), "/home/u");
+  assert.equal(defaults.shareWindow, true);
+  assert.equal(defaults.agentTimeLimitMs, 30_000);
+  const set = daemonSettings(configWith({ "agent.shareWindow": false, "agent.timeLimitMs": 5 }), "/home/u");
+  assert.equal(set.shareWindow, false);
+  assert.equal(set.agentTimeLimitMs, 1000);
+  assert.equal(offerToCopilot(configWith({})), true);
+  assert.equal(offerToCopilot(configWith({ "agent.offerToCopilot": false })), false);
 });

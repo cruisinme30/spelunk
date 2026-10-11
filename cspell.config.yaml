@@ -63,6 +63,7 @@ words:
   - gpgsign
   - katex
   - kernelspec
+  - LOCALAPPDATA
   - modelcontextprotocol
   - gosec
   - mailmap

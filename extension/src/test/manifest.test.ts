@@ -61,7 +61,17 @@ test("settings are grouped in sections, each key under the section its name star
   const sections = manifest.contributes.configuration;
   assert.deepEqual(
     sections.map((section) => section.title),
-    ["Shortcut", "Search", "Results", "Opening results", "Indexing", "Display", "Watches", "Links"],
+    [
+      "Shortcut",
+      "Search",
+      "Results",
+      "Opening results",
+      "Indexing",
+      "Display",
+      "Watches",
+      "Links",
+      "Agents and terminal",
+    ],
   );
   for (const section of sections) {
     const current = Object.entries(section.properties).filter(([, property]) => !property.deprecationMessage);

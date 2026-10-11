@@ -222,6 +222,16 @@
         "command": "spelunk.results.copySearchLink",
         "title": "Copy Link to This Search",
         "category": "Spelunk"
+      },
+      {
+        "command": "spelunk.installCommand",
+        "title": "Install 'spelunk' Command in PATH",
+        "category": "Spelunk"
+      },
+      {
+        "command": "spelunk.addToClaudeCode",
+        "title": "Add to Claude Code",
+        "category": "Spelunk"
       }
     ],
     "menus": {
@@ -987,12 +997,45 @@
             "markdownDescription": "Which kind of Git host a server is, for **Copy Permalink** on the right-click menu of a result, which asks the first time it meets a server it can't place and saves your answer here. Spelunk knows github.com, gitlab.com, bitbucket.org, codeberg.org and dev.azure.com, and guesses from a name with `github`, `gitlab`, `gitea` or `forgejo` in it; add any other server by the host name in its remote's URL, for example `{ \"git.acme.corp\": \"gitlab\" }`."
           }
         }
+      },
+      {
+        "id": "spelunk.agent",
+        "title": "Agents and terminal",
+        "order": 9,
+        "properties": {
+          "spelunk.agent.shareWindow": {
+            "type": "boolean",
+            "default": true,
+            "scope": "machine",
+            "markdownDescription": "Let the `spelunk` command in a terminal, and AI agents such as Claude Code and Copilot, search the folders open in this window, with live results. They only read; nothing they ask can change a file or an index. Off, they search the saved index instead, through a background reader. Reachable only by your user account on this computer."
+          },
+          "spelunk.agent.offerToCopilot": {
+            "type": "boolean",
+            "default": true,
+            "scope": "machine",
+            "markdownDescription": "List Spelunk's read-only search tools for Copilot and other agents in VS Code (VS Code 1.101 or later). Off, VS Code's agents don't see Spelunk."
+          },
+          "spelunk.agent.timeLimitMs": {
+            "type": "integer",
+            "default": 30000,
+            "minimum": 1000,
+            "maximum": 600000,
+            "scope": "machine",
+            "markdownDescription": "How long one search from the `spelunk` command or an agent may run before it returns what it found, marked as stopped early. Longer than the panel's #spelunk.search.timeLimitMs#, since an agent can't tell an incomplete answer to try again."
+          }
+        }
       }
     ],
     "submenus": [
       {
         "id": "spelunk.export",
         "label": "Export Results"
+      }
+    ],
+    "mcpServerDefinitionProviders": [
+      {
+        "id": "spelunk",
+        "label": "Spelunk"
       }
     ]
   },
