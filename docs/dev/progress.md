@@ -568,6 +568,38 @@ Git repo's only in history), and the panel draws them with the setting to change
 - Built: `docs/dev/proof/search-in-folder.png` (web-checkout's `src/api`, right-clicked with `retry` typed) and
   `docs/dev/proof/search-in-folder-notes.png` (a gitignored `dist/`), in VS Code 1.141 under Dark Modern.
 
+## Go to Symbol and Go to Definition (2.1)
+
+<!-- cspell:ignore retpol -->
+
+Mock 55 (`editor-navigation`): VS Code's own navigation answers from the index. `symbols/find` scans only the names
+the index keeps (`trigram.FindSymbols`), never file text: the letters typed in order, ignoring case, ranked exact, then
+prefix, then substring, then the rest, generated and vendored files after the others, shorter names first, trimmed as
+it goes to keep memory bounded, with each name's UTF-16 column. Through `sym:` on the Linux clone (96,080 files) ⌘T
+took 3 s for `pci_enable_device` and timed out empty on `spin_lock`; a scan of its 942,916 definition names takes
+18–25 ms (measured once on this Mac with `symbols.Extract` over the clone's C files), so ⌘T doesn't go through the
+search. `exact` with `languageOf` serves Go to Definition, kept to the file's language when it has any. The host's
+`editorNavigation.ts` registers a workspace symbol provider (on by default, `spelunk.editor.workspaceSymbols`) and
+definition and reference providers, which `spelunk.editor.definitions` keeps `off` by default; `fallback` asks the
+language servers first, with its own providers standing aside while it does, and answers only when they find nothing.
+Find References runs `ref:"Name" case:yes` in the file's language, or every language when that finds none, and opens
+each at the name with `open/resolve`. VS Code itself shows a definition both a language server and Spelunk list once.
+
+- Daemon: `daemon/internal/server/definitions_test.go` (letters in order across three repos and languages, ranking
+  and the limit, blank and unmatched text, generated and vendored marked and last, exact names kept to the caller's
+  language or every language without one, VS Code's excludes, a deleted file, a saved new definition) and
+  `daemon/internal/trigram/definitions_test.go` (each rank, Unicode folding, UTF-16 columns, a name its line no
+  longer holds, the limit over 5,000 names, cancellation).
+- Host: `extension/src/test/navigation.test.ts` against the real daemon (⌘T, the setting off, blank text, generated
+  and vendored, Go to Definition in the file's language and exact, Find References in the language, with generated
+  files, every language as a fallback, names `ref:` can't take, and when each mode answers),
+  `extension/src/test/settings.test.ts` (defaults and wrong values) and the manifest's new section.
+- End to end in VS Code: "Go to Symbol in Workspace lists Spelunk's definitions, and Go to Definition falls back to
+  them when set to" in `extension/src/e2e/commands.test.ts`.
+- Built: `docs/dev/proof/editor-navigation.png` (⌘T `retpol` over Python, TypeScript and Go),
+  `docs/dev/proof/editor-navigation-definition.png` and `docs/dev/proof/editor-navigation-references.png` (Peek
+  Definition and Peek References on `RetryPolicy` in a Go file with `fallback`), in VS Code 1.141 under Dark Modern.
+
 ## Hover labels (2.1)
 
 Mock 61 (`hover-labels`): resting the mouse on any control with a name shows it in a label the panel draws

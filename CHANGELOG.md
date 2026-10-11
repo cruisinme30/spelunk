@@ -20,6 +20,13 @@ All notable changes to this project are documented here. The format follows
   index through a background reader that re-reads changed files and exits when idle; nothing outside VS Code writes an
   index. New settings: `spelunk.agent.shareWindow`, `spelunk.agent.offerToCopilot` and `spelunk.agent.timeLimitMs`.
 
+- **Go to Symbol in Workspace finds Spelunk's definitions.** ⌘T (or `#` in Quick Open) lists the functions, classes
+  and types in every indexed repo and language, by a few letters of their names in order, beside any language
+  server's; a definition both find shows once. Generated and vendored files are left out, and VS Code's excludes
+  apply. **Go to Definition** and **Find References** can answer from the index too, by name, in the file's language
+  when it has any: `spelunk.editor.definitions` is `off` by default, `fallback` answers only when no language server
+  does, and `always` adds to theirs. New settings: `spelunk.editor.workspaceSymbols`, `spelunk.editor.definitions`
+  and `spelunk.editor.includeGeneratedAndVendored`.
 - **Search in Folder with Spelunk**, on the Explorer's right-click menu under Find in Folder…, searches only inside the
   folders right-clicked: the box starts with each folder from its repo's root (and its repo, with several open), the
   cursor after it, and what was typed stays. Several folders, or a second pick, search any of them; a file selected
