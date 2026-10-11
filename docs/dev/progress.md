@@ -502,3 +502,20 @@ address (`permalinks.ts`), and the panel learns each repo's host from `remotes.s
 - Built: `docs/dev/proof/share-result.png` and `docs/dev/proof/share-result-light.png`, VS Code's real menu (drawn
   with `window.menuStyle: custom`, so a screenshot shows it) over `retry_policy`, Copy GitHub Permalink chosen, under
   Dark Modern and Light Modern.
+
+## Hover labels (2.1)
+
+Mock 61 (`hover-labels`): resting the mouse on any control with a name shows it in a label the panel draws
+(`webview/src/hoverLabel.ts`), in the theme's `editorHoverWidget` colors, since VS Code's webviews show no native
+title tooltips. It shows 300 ms after the mouse rests, at once when the mouse moves straight on to the next control,
+and goes away on a click, a key or a scroll. It stays inside the panel, below the control or above it when there's no
+room. While the mouse is on a control its `title` moves to `data-hover-title`, so no native tooltip doubles it. The
+search box's magnifying glass and the Replace row's icon got names ("Search", "Replace with"), as the only icons
+without one.
+
+- Panel: `webview/test/hoverLabel.test.mjs` (the name shows within half a second but not at once, leaving hides it and
+  gives the title back; moving to the next control shows it at once; the two new names; a click hides it and a title
+  changed meanwhile survives; inside a narrow panel).
+- Built: `docs/dev/proof/hover-labels.png` and `docs/dev/proof/hover-labels-light.png`, from
+  `node scripts/screenshotPanel.mjs --query 'retry_policy' --theme "Dark Modern" --hover
+  '[data-testid="toggle-replace"]'` (and `"Light Modern"`).
