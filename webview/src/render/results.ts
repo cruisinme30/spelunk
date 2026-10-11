@@ -24,7 +24,7 @@ import { ChunkedList } from "./chunkedList";
 import { excludesNote, hiddenByExcludes } from "./excludesNote";
 import { demoted, ownerBadge, rankBadge, sinceBadge } from "./fileBadges";
 import { cellHeading } from "./notebook";
-import { orderLabel } from "./order";
+import { changeNote, orderControl } from "./order";
 import { ResultIndex } from "./resultIndex";
 import { resultsSash } from "./sash";
 
@@ -77,6 +77,8 @@ interface ResultsHandlers {
   onLoadMore(searchId: string, cursor: string): void;
   /** A Context button was pressed: show `lines` lines around each code match from now on. */
   onContextLines(lines: number): void;
+  /** An order was picked from a section title's menu, or its arrow flipped. */
+  onOrder(base: "best" | "path" | "recent", descending: boolean): void;
   /** What a replace would make of a code line's matches, while the Replace row previews one. */
   replacementsFor(item: ItemOf<"line">): string[] | undefined;
   /** Colors the code a code result's `node` shows: its lines and the context lines around them. */
@@ -167,16 +169,17 @@ export class ResultsView {
     private readonly handlers: ResultsHandlers,
     scope: string[] = [],
   ) {
-    const order = orderLabel(state.parsed?.globals.order ?? state.ui.order);
+    const order = () => orderControl(state.parsed?.globals, state.ui.order, this.handlers.onOrder.bind(this.handlers));
     this.sections = {
-      file: makeSection(`File names · ${order}`, "section-files"),
-      symbol: makeSection(`Definitions · ${order}`, "section-symbols"),
+      file: makeSection("File names", "section-files", undefined, order()),
+      symbol: makeSection("Definitions", "section-symbols", undefined, order()),
       line: makeSection(
-        `${scope.length > 0 ? "Code in matching paths" : "Code"} · ${order}`,
+        scope.length > 0 ? "Code in matching paths" : "Code",
         "section-code",
         contextSwitch(state.ui.contextLines, (lines) => {
           this.handlers.onContextLines(lines);
         }),
+        order(),
       ),
       commit: makeSection("Commits · newest first", "section-commits"),
     };
@@ -469,6 +472,7 @@ export class ResultsView {
         item.lastCommit
           ? element("span", { class: "meta" }, `${item.lastCommit.author} · ${timeAgo(item.lastCommit.at)}`)
           : null,
+        ...changeNote(item, (ago) => `Modified ${ago}`),
         element("span", { class: "repo" }, repoName(this.state, item.repoId)),
       ),
     );
@@ -489,6 +493,7 @@ export class ResultsView {
           rankBadge(item.rankReason),
           sinceBadge(item.sinceRevision),
           ownerBadge(item.owners),
+          ...changeNote(item),
           element("span", { class: "repo" }, repoName(this.state, item.repoId)),
           countLabel,
         ),
@@ -761,7 +766,7 @@ export const RESULT_LISTS = ["section-files", "section-symbols", "section-code",
   .map((testId) => `${testId}-list`)
   .join(" ");
 
-function makeSection(title: string, testId: string, controls?: HTMLElement): Section {
+function makeSection(title: string, testId: string, controls?: HTMLElement, order?: HTMLElement): Section {
   const count = element("span", { class: "muted" });
   // A listbox of the section's rows alone: its title's buttons, and the notes and Load more below, stay outside it.
   const list = element("div", { class: "list", id: `${testId}-list`, role: "listbox", "aria-label": title });
@@ -771,7 +776,7 @@ function makeSection(title: string, testId: string, controls?: HTMLElement): Sec
     element(
       "div",
       { class: "section-title spread" },
-      element("span", {}, title),
+      element("span", { class: "title-start" }, title, order ? " · " : null, order),
       // Together, so a narrow panel wraps them onto a line of their own.
       controls ? element("span", { class: "title-end" }, controls, count) : count,
     ),

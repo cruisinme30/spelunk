@@ -1945,6 +1945,16 @@
       },
       "required": ["lines"]
     },
+    "OrderSetMessage": {
+      "description": "OrderSetMessage sets how results from current files are sorted (spelunk.results.order), from the order menu or the direction arrow in a section title.",
+      "type": "object",
+      "properties": {
+        "order": {
+          "$ref": "#/$defs/ResultOrder"
+        }
+      },
+      "required": ["order"]
+    },
     "RecentRemoveMessage": {
       "description": "RecentRemoveMessage removes a query from the recent list.",
       "type": "object",
@@ -2647,6 +2657,10 @@
     "context.set": {
       "direction": "webview->host",
       "payload": "ContextSetMessage"
+    },
+    "order.set": {
+      "direction": "webview->host",
+      "payload": "OrderSetMessage"
     },
     "replace.preview": {
       "direction": "webview->host",

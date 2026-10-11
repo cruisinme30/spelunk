@@ -651,15 +651,21 @@
             "type": "string",
             "enum": [
               "best",
-              "path"
+              "path",
+              "path:desc",
+              "recent",
+              "recent:asc"
             ],
             "enumDescriptions": [
               "Best match first: definitions and file-name matches first; tests, vendored and generated files last.",
-              "Repo by repo, then by path, then by line."
+              "Path order, A to Z: repo by repo, then by path, then by line.",
+              "Path order, Z to A: repo by repo, paths from Z to A; lines stay top to bottom.",
+              "Recently changed, newest first: by when each file last changed, its uncommitted edits or newest commit.",
+              "Recently changed, oldest first: the files changed longest ago first."
             ],
             "default": "best",
             "scope": "window",
-            "description": "How results from current files are sorted when the query has no order: operator. Commits are always newest first."
+            "description": "How results from current files are sorted when the query has no order: operator. The order menu and arrow in each results heading set it too. Commits are always newest first."
           },
           "spelunk.results.contextLines": {
             "type": "integer",

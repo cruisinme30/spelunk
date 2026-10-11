@@ -26,6 +26,7 @@ import type {
   PinnedQuery,
   ReplacePlan,
   ResultItem,
+  ResultOrder,
   RpcRequests,
   SearchResult,
   UiSettings,
@@ -87,6 +88,7 @@ function recordingUi() {
     saveState: () => {},
     savePinned: () => Promise.resolve(),
     saveContextLines: () => {},
+    saveOrder: () => {},
     showOpened: (position, total) => void shown.push(`${position} of ${total}`),
     readDocument: () => Promise.resolve(undefined as DocumentLines | undefined),
     applyEdits: () => Promise.resolve(true),
@@ -556,6 +558,34 @@ test("the Context buttons save spelunk.results.contextLines when it changes", as
   assert.deepEqual(saves, [2, 3, 0], "saved only when it changes");
 });
 
+test("the order menu and arrow save spelunk.results.order when it changes", async () => {
+  // @covers msg:order.set
+  let order: ResultOrder = "best";
+  const saves: ResultOrder[] = [];
+  const host = recordingUi();
+  const ui = {
+    ...host.ui,
+    saveOrder: (picked: ResultOrder) => {
+      saves.push(picked);
+      order = picked;
+    },
+  };
+  const controller = newController(parseOnlyBackend().backend, ui, {
+    uiSettings: () => ({ ...TEST_UI_SETTINGS, order }),
+  });
+  const set = (payload: unknown) => {
+    const message = parseWebviewMessage({ v: MESSAGE_VERSION, type: "order.set", payload });
+    assert.ok(message, `order.set ${JSON.stringify(payload)} is valid`);
+    return controller.handle(message);
+  };
+  await set({ order: "recent" });
+  await set({ order: "recent" });
+  await set({ order: "recent:asc" });
+  await set({ order: "path:desc" });
+  await set({ order: "best" });
+  assert.deepEqual(saves, ["recent", "recent:asc", "path:desc", "best"], "saved only when it changes");
+});
+
 test("a search typed while a repo was indexing runs again when the repo is ready", async () => {
   const host = recordingUi();
   const searches: string[] = [];
@@ -788,6 +818,10 @@ test("malformed panel messages are dropped at the boundary, and well-formed ones
     { v: MESSAGE_VERSION, type: "context.set", payload: { lines: -1 } },
     { v: MESSAGE_VERSION, type: "context.set", payload: { lines: 1.5 } },
     { v: MESSAGE_VERSION, type: "context.set", payload: { lines: "2" } },
+    { v: MESSAGE_VERSION, type: "order.set", payload: {} },
+    { v: MESSAGE_VERSION, type: "order.set", payload: { order: "newest" } },
+    { v: MESSAGE_VERSION, type: "order.set", payload: { order: "recent:up" } },
+    { v: MESSAGE_VERSION, type: "order.set", payload: { order: 1 } },
   ]) {
     assert.equal(parseWebviewMessage(raw), undefined, JSON.stringify(raw));
   }

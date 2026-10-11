@@ -324,15 +324,16 @@ async function savePinned(pinned: PinnedQuery[]): Promise<void> {
 }
 
 /**
- * Writes spelunk.results.contextLines where its value comes from: the
- * workspace's settings when they set it, otherwise the user's. The settings
- * change then sends it to the daemon and runs the query again.
+ * Writes a setting the panel changes (spelunk.results.contextLines or
+ * spelunk.results.order) where its value comes from: the workspace's
+ * settings when they set it, otherwise the user's. The settings change then
+ * sends it to the daemon and runs the query again.
  */
-async function saveContextLines(lines: number): Promise<void> {
+async function saveSetting(key: "results.contextLines" | "results.order", value: unknown): Promise<void> {
   const config = configuration();
-  const inWorkspace = config.inspect("results.contextLines")?.workspaceValue !== undefined;
+  const inWorkspace = config.inspect(key)?.workspaceValue !== undefined;
   const target = inWorkspace ? vscode.ConfigurationTarget.Workspace : vscode.ConfigurationTarget.Global;
-  await config.update("results.contextLines", lines, target);
+  await config.update(key, value, target);
 }
 
 /** Stops the daemon gracefully when VS Code shuts the extension down. */
@@ -436,7 +437,10 @@ function createUi({ panel, daemon, documents, openedStatus, globalState, logErro
     setContext,
     saveState: (state) => void globalState.update(STATE_KEY, state),
     saveContextLines: (lines) => {
-      saveContextLines(lines).catch(logError("settings"));
+      saveSetting("results.contextLines", lines).catch(logError("settings"));
+    },
+    saveOrder: (order) => {
+      saveSetting("results.order", order).catch(logError("settings"));
     },
     savePinned: (pinned) => savePinned(pinned).catch(logError("settings")),
     showOpened: (position, total) => {

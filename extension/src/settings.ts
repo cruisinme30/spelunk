@@ -78,7 +78,16 @@ export const MAX_CONTEXT_LINES = 3;
 /** The index.historyDepth values. */
 export const HISTORY_DEPTHS: readonly Settings["historyDepth"][] = ["6m", "2y", "all"];
 const OPEN_TRIGGERS: readonly UiSettings["openTrigger"][] = ["doubleClick", "singleClick"];
-const ORDERS: readonly UiSettings["order"][] = ["best", "path"];
+/** The results.order values; path and recent run their usual way (A to Z, newest first) without a direction. */
+export const ORDERS: readonly UiSettings["order"][] = [
+  "best",
+  "path",
+  "path:asc",
+  "path:desc",
+  "recent",
+  "recent:asc",
+  "recent:desc",
+];
 const CASE_SETTINGS: readonly CaseSetting[] = ["off", "on", "smart"];
 const RENDER_WHITESPACE: readonly UiSettings["renderWhitespace"][] = [
   "none",

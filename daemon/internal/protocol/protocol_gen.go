@@ -1329,6 +1329,11 @@ type ContextSetMessage struct {
 	Lines int `json:"lines"`
 }
 
+// OrderSetMessage sets how results from current files are sorted (spelunk.results.order), from the order menu or the direction arrow in a section title.
+type OrderSetMessage struct {
+	Order ResultOrder `json:"order"`
+}
+
 // RecentRemoveMessage removes a query from the recent list.
 type RecentRemoveMessage struct {
 	Query string `json:"query"`
@@ -1736,6 +1741,7 @@ const (
 	MsgPinnedRemove    = "pinned.remove"
 	MsgPinnedWatch     = "pinned.watch"
 	MsgContextSet      = "context.set"
+	MsgOrderSet        = "order.set"
 	MsgReplacePreview  = "replace.preview"
 	MsgReplaceApply    = "replace.apply"
 	MsgReplaceSave     = "replace.save"

@@ -135,6 +135,7 @@ function diskUi() {
     showOpened: () => {},
     savePinned: () => Promise.resolve(),
     saveContextLines: () => {},
+    saveOrder: () => {},
     readDocument: (file) => Promise.resolve(documentOf(readFileSync(file, "utf8"))),
     applyEdits: (edits, label) => {
       applied.push({ edits, label });

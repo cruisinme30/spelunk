@@ -183,6 +183,7 @@ async function connectPanel(page, host, daemon, theme) {
     saveState: () => {},
     savePinned: () => {},
     saveContextLines: () => {},
+    saveOrder: () => {},
     // A screenshot previews a replace but never applies one.
     readDocument: async () => {},
     applyEdits: async () => false,

@@ -774,6 +774,11 @@ export interface ContextSetMessage {
   lines: number;
 }
 
+/** OrderSetMessage sets how results from current files are sorted (spelunk.results.order), from the order menu or the direction arrow in a section title. */
+export interface OrderSetMessage {
+  order: ResultOrder;
+}
+
 /** RecentRemoveMessage removes a query from the recent list. */
 export interface RecentRemoveMessage {
   query: string;
@@ -1037,6 +1042,7 @@ export interface WebviewToHost {
   "pinned.remove": PinnedRemoveMessage;
   "pinned.watch": PinnedWatchMessage;
   "context.set": ContextSetMessage;
+  "order.set": OrderSetMessage;
   "replace.preview": ReplacePreviewMessage;
   "replace.apply": ReplaceApplyMessage;
   "replace.save": Empty;

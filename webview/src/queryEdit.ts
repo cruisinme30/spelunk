@@ -4,7 +4,7 @@
 // parsed query; nothing here scans the raw text.
 import { clamp } from "./format";
 import { operatorNodes, textNodes, topLevelConjuncts, topLevelOperators } from "./parsedQuery";
-import type { CaseSetting, ParsedQuery, Span, TextEdit } from "./protocol.gen";
+import type { CaseSetting, ParsedQuery, ResultOrder, Span, TextEdit } from "./protocol.gen";
 
 /** The query text and cursor after an edit. */
 export interface Edited {
@@ -211,6 +211,16 @@ export function scopeToRepo(text: string, query: ParsedQuery | undefined, repoNa
  */
 function regexValue(regex: string): string {
   return /[\s"()]/.test(regex) ? `/${regex.replaceAll("/", String.raw`\/`)}/` : regex;
+}
+
+/** Rewrites the query's order: to `order`, from the order menu or arrow of a results section. */
+export function setOrder(text: string, query: ParsedQuery | undefined, order: ResultOrder): Edited {
+  const [first, ...others] = topLevelOperators(query, "order");
+  if (!first) return { text, cursor: text.length };
+  return applyEdits(text, [
+    { span: first.span, newText: `order:${order}` },
+    ...others.map((node) => ({ span: node.span, newText: "" })),
+  ]);
 }
 
 /** Whether a facet bucket's filter is in the query: kept (repo:x), left out (-repo:x), or neither. */

@@ -9,7 +9,7 @@ import { setBoxText } from "./boxText";
 import { type HostMessage, loadDraft, loadOutlineOpen, loadRecentWidth, onHostMessage, saveDraft, send } from "./host";
 import { EmptyBox } from "./emptyBox";
 import { createLayout, type Layout } from "./layout";
-import { pathScope, scopedRepo } from "./parsedQuery";
+import { pathScope, scopedRepo, topLevelOperators } from "./parsedQuery";
 import type {
   Completion,
   Fix,
@@ -27,6 +27,7 @@ import {
   isRegexPressed,
   isWordPressed,
   scopeToRepo,
+  setOrder,
   toggleCase,
   toggleFacet,
   toggleRegex,
@@ -50,6 +51,7 @@ import {
 } from "./render/completions";
 import { renderEmptyState } from "./render/emptyState";
 import { renderFacets } from "./render/facets";
+import { joinOrder } from "./render/order";
 import { applyRemoteHosts } from "./render/menuContext";
 import { RepoMenu } from "./render/repoMenu";
 import { previewOf, renderPreview } from "./render/preview";
@@ -593,6 +595,13 @@ export class SearchPanel {
       // The host saves the setting, and the query runs again with it; the box keeps the keys meanwhile.
       onContextLines: (lines: number) => {
         send("context.set", { lines });
+        this.layout.input.focus();
+      },
+      // An order typed in the query is rewritten there; otherwise the host saves the setting and searches again.
+      onOrder: (base: "best" | "path" | "recent", descending: boolean) => {
+        if (topLevelOperators(state.parsed, "order").length === 0)
+          send("order.set", { order: joinOrder(base, descending) });
+        else this.editQuery((text) => setOrder(text, state.parsed, joinOrder(base, descending, true)), searchedText);
         this.layout.input.focus();
       },
       replacementsFor: (item: { repoId: string; path: string; line: number }) =>

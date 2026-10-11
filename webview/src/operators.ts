@@ -278,12 +278,12 @@ export const OPERATOR_GROUPS: OperatorGroup[] = [
       },
       {
         operator: "order",
-        label: "order:best|path",
+        label: "order:best|path:asc|recent:desc",
         insert: "order:",
-        summary: "Best match first, or by path. Best by default.",
+        summary: "Best match, path or recently changed; :asc or :desc picks the direction.",
         description:
-          "How results from current files are sorted. best puts definitions and file-name matches first and tests, vendored and generated files last; path sorts by repo, then path, then line. Without it, the Order setting applies (best unless you change it). Commits are always newest first.",
-        example: "order:path retry",
+          "How results from current files are sorted. best puts definitions and file-name matches first and tests, vendored and generated files last; path:asc sorts by repo, then path, then line, and path:desc runs the paths from Z to A; recent:desc puts the files changed most recently first, by their uncommitted edits or newest commit, and recent:asc the oldest. Plain path runs A to Z and plain recent newest first. Without it, the Order setting applies (best unless you change it, or pick another from the menu above the results). Commits are always newest first.",
+        example: "order:recent:desc retry",
       },
     ],
   },

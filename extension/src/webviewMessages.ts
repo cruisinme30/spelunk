@@ -3,7 +3,7 @@
 // shape doesn't match the protocol is dropped here instead of failing (or
 // doing something odd) deep inside a handler.
 import type { Envelope, OpenPosition, WebviewToHost } from "./protocol.gen";
-import { HISTORY_DEPTHS, MAX_CONTEXT_LINES, SHORTCUT_PRESETS } from "./settings";
+import { HISTORY_DEPTHS, MAX_CONTEXT_LINES, ORDERS, SHORTCUT_PRESETS } from "./settings";
 
 /** The `v` of every message between the extension host and a webview. */
 export const MESSAGE_VERSION: Envelope["v"] = 1;
@@ -76,6 +76,8 @@ const PAYLOAD_CHECKS: { [K in keyof WebviewToHost]: PayloadCheck<K> } = {
   "pinned.remove": ({ query }) => (isString(query) ? { query } : undefined),
   "pinned.watch": ({ query, watch }) => (isString(query) && typeof watch === "boolean" ? { query, watch } : undefined),
   "context.set": ({ lines }) => (isCount(lines) && lines <= MAX_CONTEXT_LINES ? { lines } : undefined),
+  "order.set": ({ order }) =>
+    ORDERS.includes(order as never) ? { order: order as (typeof ORDERS)[number] } : undefined,
   "replace.preview": ({ seq, text, replacement }) =>
     isCount(seq) && isString(text) && isString(replacement) ? { seq, text, replacement } : undefined,
   "replace.apply": ({ seq, text, replacement, matches }) =>

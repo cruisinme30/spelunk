@@ -94,6 +94,8 @@ export interface Ui {
   savePinned(pinned: PinnedQuery[]): Promise<void>;
   /** Saves spelunk.results.contextLines; the settings change then runs the query again. */
   saveContextLines(lines: number): void;
+  /** Saves spelunk.results.order; the settings change then runs the query again. */
+  saveOrder(order: UiSettings["order"]): void;
   /** Says which result is open, `position` of `total` (1-based), once one was opened from search or F4. */
   showOpened(position: number, total: number): void;
   /** Reads a file as the editor has it, unsaved changes included; undefined when it can't. */
@@ -331,6 +333,10 @@ export class SearchController {
       }
       case "context.set": {
         this.setContextLines(message.payload.lines);
+        return;
+      }
+      case "order.set": {
+        if (message.payload.order !== this.options.uiSettings().order) this.ui.saveOrder(message.payload.order);
         return;
       }
     }
