@@ -454,7 +454,7 @@ export class ResultsView {
         "span",
         { class: "details" },
         rankBadge(item.rankReason),
-        sinceBadge(item.sinceRevision),
+        sinceBadge(item.sinceRevision, item.renamedTo),
         ownerBadge(item.owners),
         item.dirty ? element("span", { class: "badge warn" }, "Uncommitted changes") : null,
         item.lastCommit
@@ -479,7 +479,7 @@ export class ResultsView {
           { class: `group${demoted(item.rankReason)}`, "data-testid": "code-group" },
           element("span", { class: "path", id: pathId }, item.path),
           rankBadge(item.rankReason),
-          sinceBadge(item.sinceRevision),
+          sinceBadge(item.sinceRevision, item.renamedTo),
           ownerBadge(item.owners),
           ...changeNote(item),
           element("span", { class: "repo" }, repoName(this.state, item.repoId)),
@@ -570,7 +570,7 @@ export class ResultsView {
           ? `${item.path} · cell ${String(item.cell.number)}, line ${String(item.cell.line)}`
           : `${item.path}:${item.line}`,
       ),
-      sinceBadge(item.sinceRevision),
+      sinceBadge(item.sinceRevision, item.renamedTo),
       element("span", { class: "repo" }, repoName(this.state, item.repoId)),
     );
   }

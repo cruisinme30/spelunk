@@ -99,6 +99,26 @@ test("a query without at: searches the working tree, with no revision anywhere",
   assert.equal(await page.locator('[data-testid="preview-revision"]').count(), 0);
 });
 
+test("a file renamed since the revision says so, with its name now", async (t) => {
+  // @covers screen:past-revision screen:history-renames op:at
+  const items = [
+    {
+      ...CODE_LINE_RESULT,
+      path: "src/payments/backoff.py",
+      sinceRevision: "renamed",
+      renamedTo: "src/payments/retry_policy.py",
+    },
+  ];
+  const { page } = await searchedAt(t, "v0.1.0", items);
+  const badge = page.locator('[data-testid="since-revision"]');
+  assert.equal(await badge.textContent(), "renamed since → retry_policy.py");
+  assert.equal(
+    await badge.getAttribute("title"),
+    "This file has another name in the current files: src/payments/retry_policy.py",
+  );
+  assert.deepEqual(pageErrors(page), []);
+});
+
 test("results say which files changed or were deleted since the revision", async (t) => {
   // @covers screen:past-revision op:at
   const items = [

@@ -1216,7 +1216,8 @@ mark.hole {
   border-color: var(--del);
 }
 
-/* A file a commit renamed, and the name a renamed file has now. */
+/* A file a commit renamed, a file renamed since a revision, and the name a renamed file has now. */
+.badge.since-renamed,
 .badge.renamed {
   color: var(--tone-revision);
   border-color: var(--tone-revision);
