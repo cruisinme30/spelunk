@@ -247,7 +247,8 @@ func (ix *Indexer) SetSettings(settings protocol.Settings) {
 	old := ix.settings
 	ix.settings = settings
 	treeChanged := !slices.Equal(old.Exclude, settings.Exclude) || old.IncludeIgnored != settings.IncludeIgnored ||
-		old.MaxFileSizeKB != settings.MaxFileSizeKB || old.Location != settings.Location || old.Symbols != settings.Symbols
+		old.MaxFileSizeKB != settings.MaxFileSizeKB || old.Location != settings.Location || old.Symbols != settings.Symbols ||
+		old.NotebookOutputs != settings.NotebookOutputs
 	historyChanged := old.HistoryDepth != settings.HistoryDepth || old.Location != settings.Location ||
 		!slices.Equal(old.Exclude, settings.Exclude)
 	// A rebuild reads CODEOWNERS again; without one, only the owners change.

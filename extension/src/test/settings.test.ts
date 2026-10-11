@@ -78,6 +78,12 @@ test("the context lines setting reaches both the daemon and the panel, clamped t
 });
 
 /** The settings the daemon gets for these configuration values, with /home/u as home. */
+test("index.notebookOutputs is off unless set, and goes to the daemon", () => {
+  // @covers setting:index.notebookOutputs
+  assert.equal(daemonSettings(configWith({}), "/home/u").notebookOutputs, false);
+  assert.equal(daemonSettings(configWith({ "index.notebookOutputs": true }), "/home/u").notebookOutputs, true);
+});
+
 const settings = (values: Record<string, unknown>) => daemonSettings(configWith(values), "/home/u");
 
 test("the search time limit and the index lists and interval reach the daemon, clamped", () => {
@@ -166,7 +172,7 @@ test("the welcome page shows the saved preset and index choices, and an unknown 
 });
 
 test("settings of the wrong type or out of range fall back to defaults the daemon accepts", () => {
-  // @covers setting:results.count setting:index.maxFileSizeKB setting:index.exclude setting:search.caseSensitive setting:search.wholeWord
+  // @covers setting:results.count setting:index.maxFileSizeKB setting:index.exclude setting:search.caseSensitive setting:search.wholeWord setting:index.notebookOutputs
   const wrong = configWith({
     "search.caseSensitive": "yes",
     "search.wholeWord": 1,
@@ -175,6 +181,7 @@ test("settings of the wrong type or out of range fall back to defaults the daemo
     "index.exclude": "**/dist/**",
     "index.includeIgnored": null,
     "index.maxFileSizeKB": 1.5,
+    "index.notebookOutputs": "yes",
     "index.location": 42,
     "index.historyDepth": ["all"],
     "results.order": "random",
@@ -194,6 +201,7 @@ test("settings of the wrong type or out of range fall back to defaults the daemo
     exclude: ["**/vendor/**", "**/node_modules/**", "**/*.min.js"],
     includeIgnored: false,
     maxFileSizeKB: 2,
+    notebookOutputs: false,
     location: "/home/u/.spelunk/index",
     order: "best",
     contextLines: 0,

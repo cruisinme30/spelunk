@@ -38,6 +38,9 @@ func Replacements(ctx context.Context, plan *query.Plan, repos []Repo, term *que
 			RepoID: c.repo.ID, Path: c.doc.Path, File: filepath.Join(c.repo.Root, filepath.FromSlash(c.doc.Path)),
 		}
 		for _, line := range matcher.lines(query.Contributing(plan.Pred, leaf)) {
+			if isOutputLine(c.doc.Cells, line.number) {
+				continue // what a notebook cell printed; running the cell writes it
+			}
 			text := line.text // decodeText already dropped any byte order mark
 			edits := replaceEdits(term, text, replacement)
 			if len(edits) == 0 {

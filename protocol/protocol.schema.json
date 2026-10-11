@@ -480,6 +480,10 @@
         "maxFileSizeKB": {
           "type": "integer"
         },
+        "notebookOutputs": {
+          "description": "the spelunk.index.notebookOutputs setting: also search the text that a Jupyter notebook's code cells printed or returned. Absent means false: only cells' source is searched.",
+          "type": "boolean"
+        },
         "location": {
           "type": "string"
         },
@@ -687,6 +691,10 @@
                 "$ref": "#/$defs/HoleValue"
               }
             },
+            "cell": {
+              "description": "For a result in a Jupyter notebook: the cell it is in, and its line there. line counts lines of the notebook's text, each cell's source in turn.",
+              "$ref": "#/$defs/CellPlace"
+            },
             "contextBefore": {
               "description": "The lines just above the match, top first, when the contextLines setting asks for them; fewer near the start of the file.",
               "type": "array",
@@ -725,6 +733,10 @@
             },
             "line": {
               "type": "integer"
+            },
+            "cell": {
+              "description": "For a result in a Jupyter notebook: the cell it is in, and its line there. line counts lines of the notebook's text, each cell's source in turn.",
+              "$ref": "#/$defs/CellPlace"
             },
             "name": {
               "type": "string"
@@ -819,6 +831,64 @@
         }
       ]
     },
+    "CellPlace": {
+      "description": "CellPlace is where a line of a Jupyter notebook's text is: the cell, 1-based, and the line in it, 1-based. An output line (index.notebookOutputs) names the cell that printed it.",
+      "type": "object",
+      "properties": {
+        "number": {
+          "type": "integer"
+        },
+        "line": {
+          "type": "integer"
+        },
+        "kind": {
+          "$ref": "#/$defs/CellKind"
+        },
+        "language": {
+          "description": "The canonical language of the cell's text, such as python or markdown; absent for raw cells, outputs and unknown languages.",
+          "type": "string"
+        }
+      },
+      "required": ["number", "line", "kind"]
+    },
+    "CellKind": {
+      "description": "CellKind is what a notebook cell holds: code, markdown or raw text, or (index.notebookOutputs) the text a code cell printed.",
+      "enum": ["code", "markdown", "raw", "output"]
+    },
+    "NotebookCell": {
+      "description": "NotebookCell is one cell of a Jupyter notebook previewed: its number, 1-based, and the lines of the notebook's text it is, from startLine for lineCount lines.",
+      "type": "object",
+      "properties": {
+        "number": {
+          "type": "integer"
+        },
+        "kind": {
+          "$ref": "#/$defs/CellKind"
+        },
+        "language": {
+          "description": "The canonical language of its text, such as python or markdown; absent for raw cells, outputs and unknown languages.",
+          "type": "string"
+        },
+        "startLine": {
+          "type": "integer"
+        },
+        "lineCount": {
+          "type": "integer"
+        },
+        "executionCount": {
+          "description": "The number Jupyter shows beside a code cell that ran; absent when it hasn't run.",
+          "type": "integer"
+        },
+        "outputs": {
+          "description": "What a code cell's outputs are, in order: text it printed or returned, an image, or something else. Only text outputs are ever searched, and only with index.notebookOutputs.",
+          "type": "array",
+          "items": {
+            "enum": ["text", "image", "other"]
+          }
+        }
+      },
+      "required": ["number", "kind", "startLine", "lineCount"]
+    },
     "LineHits": {
       "description": "LineHits are the matches on one preview line.",
       "type": "object",
@@ -876,6 +946,10 @@
           "items": {
             "$ref": "#/$defs/Hit"
           }
+        },
+        "cell": {
+          "description": "In a Jupyter notebook's diff, which diffs its cells' source: the cell the line is in, and its line there, in the notebook before the commit for a removed line and after it otherwise.",
+          "$ref": "#/$defs/CellPlace"
         }
       },
       "required": ["kind", "text", "hits"]
@@ -968,6 +1042,13 @@
               "type": "array",
               "items": {
                 "$ref": "#/$defs/OutlineSymbol"
+              }
+            },
+            "cells": {
+              "description": "For a Jupyter notebook, every cell, in order, so the preview can show each line's cell; lines and focusLine count lines of the notebook's text, each cell's source in turn. Absent for other files.",
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/NotebookCell"
               }
             }
           },
@@ -1187,6 +1268,10 @@
         "revision": {
           "description": "The full sha of the commit whose version of the file opens, for an at: result.",
           "type": "string"
+        },
+        "cell": {
+          "description": "For a result in a Jupyter notebook: the cell to open the notebook at, and the line in it. line still counts lines of the notebook's text.",
+          "$ref": "#/$defs/CellPlace"
         },
         "revisionLabel": {
           "description": "How the revision reads in the editor's title: the at: value (v1.0.0), or the short sha when the search is forgotten.",
@@ -1488,7 +1573,7 @@
       "required": ["ref"]
     },
     "RevisionText": {
-      "description": "RevisionText is a file's whole text as it was at the revision of a result's ref.",
+      "description": "RevisionText is a file's whole text as it was at the revision of a result's ref: for a Jupyter notebook, its JSON, so it opens in the notebook editor.",
       "type": "object",
       "properties": {
         "text": {

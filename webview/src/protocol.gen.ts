@@ -199,6 +199,8 @@ export interface Settings {
   exclude: string[];
   includeIgnored: boolean;
   maxFileSizeKB: number;
+  /** the spelunk.index.notebookOutputs setting: also search the text that a Jupyter notebook's code cells printed or returned. Absent means false: only cells' source is searched. */
+  notebookOutputs?: boolean;
   location: string;
   /** the spelunk.results.order setting: how a query without order: sorts current files. Absent means best. */
   order?: ResultOrder;
@@ -275,6 +277,8 @@ export type ResultItem =
       endLine?: number;
       /** For a struct: match, what each named hole of the template took, in template order, each hole once; absent otherwise. */
       holes?: HoleValue[];
+      /** For a result in a Jupyter notebook: the cell it is in, and its line there. line counts lines of the notebook's text, each cell's source in turn. */
+      cell?: CellPlace;
       /** The lines just above the match, top first, when the contextLines setting asks for them; fewer near the start of the file. */
       contextBefore?: string[];
       /** The lines just below the match (below endLine when it spans lines), when the contextLines setting asks for them; fewer near the end of the file. */
@@ -288,6 +292,8 @@ export type ResultItem =
       repoId: string;
       path: string;
       line: number;
+      /** For a result in a Jupyter notebook: the cell it is in, and its line there. line counts lines of the notebook's text, each cell's source in turn. */
+      cell?: CellPlace;
       name: string;
       symbolKind: SymbolKind;
       hits: Hit[];
@@ -313,6 +319,32 @@ export type ResultItem =
       bodyLine?: MessageLine;
     };
 
+/** CellPlace is where a line of a Jupyter notebook's text is: the cell, 1-based, and the line in it, 1-based. An output line (index.notebookOutputs) names the cell that printed it. */
+export interface CellPlace {
+  number: number;
+  line: number;
+  kind: CellKind;
+  /** The canonical language of the cell's text, such as python or markdown; absent for raw cells, outputs and unknown languages. */
+  language?: string;
+}
+
+/** CellKind is what a notebook cell holds: code, markdown or raw text, or (index.notebookOutputs) the text a code cell printed. */
+export type CellKind = "code" | "markdown" | "raw" | "output";
+
+/** NotebookCell is one cell of a Jupyter notebook previewed: its number, 1-based, and the lines of the notebook's text it is, from startLine for lineCount lines. */
+export interface NotebookCell {
+  number: number;
+  kind: CellKind;
+  /** The canonical language of its text, such as python or markdown; absent for raw cells, outputs and unknown languages. */
+  language?: string;
+  startLine: number;
+  lineCount: number;
+  /** The number Jupyter shows beside a code cell that ran; absent when it hasn't run. */
+  executionCount?: number;
+  /** What a code cell's outputs are, in order: text it printed or returned, an image, or something else. Only text outputs are ever searched, and only with index.notebookOutputs. */
+  outputs?: ("text" | "image" | "other")[];
+}
+
 /** LineHits are the matches on one preview line. */
 export interface LineHits {
   line: number;
@@ -335,6 +367,8 @@ export interface DiffLine {
   newNo?: number;
   text: string;
   hits: Hit[];
+  /** In a Jupyter notebook's diff, which diffs its cells' source: the cell the line is in, and its line there, in the notebook before the commit for a removed line and after it otherwise. */
+  cell?: CellPlace;
 }
 
 /** Hunk is one hunk of a commit diff. */
@@ -368,6 +402,8 @@ export type Preview =
       dirtyLines: number[];
       ownership?: Ownership;
       symbols?: OutlineSymbol[];
+      /** For a Jupyter notebook, every cell, in order, so the preview can show each line's cell; lines and focusLine count lines of the notebook's text, each cell's source in turn. Absent for other files. */
+      cells?: NotebookCell[];
     }
   | {
       kind: "commit";
@@ -454,6 +490,8 @@ export interface OpenTarget {
   sha?: string;
   /** The full sha of the commit whose version of the file opens, for an at: result. */
   revision?: string;
+  /** For a result in a Jupyter notebook: the cell to open the notebook at, and the line in it. line still counts lines of the notebook's text. */
+  cell?: CellPlace;
   /** How the revision reads in the editor's title: the at: value (v1.0.0), or the short sha when the search is forgotten. */
   revisionLabel?: string;
 }
@@ -576,7 +614,7 @@ export interface RevisionTextParams {
   ref: string;
 }
 
-/** RevisionText is a file's whole text as it was at the revision of a result's ref. */
+/** RevisionText is a file's whole text as it was at the revision of a result's ref: for a Jupyter notebook, its JSON, so it opens in the notebook editor. */
 export interface RevisionText {
   text: string;
 }

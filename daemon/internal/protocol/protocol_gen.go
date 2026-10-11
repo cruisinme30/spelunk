@@ -365,7 +365,9 @@ type Settings struct {
 	Exclude        []string `json:"exclude"`
 	IncludeIgnored bool     `json:"includeIgnored"`
 	MaxFileSizeKB  int      `json:"maxFileSizeKB"`
-	Location       string   `json:"location"`
+	// NotebookOutputs is the spelunk.index.notebookOutputs setting: also search the text that a Jupyter notebook's code cells printed or returned. Absent means false: only cells' source is searched.
+	NotebookOutputs bool   `json:"notebookOutputs,omitempty"`
+	Location        string `json:"location"`
 	// Order is the spelunk.results.order setting: how a query without order: sorts current files. Absent means best.
 	Order ResultOrder `json:"order,omitempty"`
 	// ContextLines is the spelunk.results.contextLines setting: how many lines each code result shows before and after its match, 0 to 3. Absent means 0.
@@ -446,6 +448,7 @@ type ResultItem struct {
 	SpanLines     []SpanLine    `json:"spanLines,omitempty"`
 	EndLine       int           `json:"endLine,omitempty"`
 	Holes         []HoleValue   `json:"holes,omitempty"`
+	Cell          *CellPlace    `json:"cell,omitempty"`
 	ContextBefore []string      `json:"contextBefore,omitempty"`
 	ContextAfter  []string      `json:"contextAfter,omitempty"`
 	Name          string        `json:"name,omitempty"`
@@ -522,6 +525,9 @@ func (v ResultItem) MarshalJSON() ([]byte, error) {
 		if len(v.Holes) > 0 {
 			fields["holes"] = v.Holes
 		}
+		if v.Cell != nil {
+			fields["cell"] = v.Cell
+		}
 		if len(v.ContextBefore) > 0 {
 			fields["contextBefore"] = v.ContextBefore
 		}
@@ -536,6 +542,9 @@ func (v ResultItem) MarshalJSON() ([]byte, error) {
 		fields["repoId"] = v.RepoID
 		fields["path"] = v.Path
 		fields["line"] = v.Line
+		if v.Cell != nil {
+			fields["cell"] = v.Cell
+		}
 		fields["name"] = v.Name
 		fields["symbolKind"] = v.SymbolKind
 		if v.Hits == nil {
@@ -580,6 +589,32 @@ func (v ResultItem) MarshalJSON() ([]byte, error) {
 	return json.Marshal(fields)
 }
 
+// CellPlace is where a line of a Jupyter notebook's text is: the cell, 1-based, and the line in it, 1-based. An output line (index.notebookOutputs) names the cell that printed it.
+type CellPlace struct {
+	Number int      `json:"number"`
+	Line   int      `json:"line"`
+	Kind   CellKind `json:"kind"`
+	// Language is the canonical language of the cell's text, such as python or markdown; absent for raw cells, outputs and unknown languages.
+	Language string `json:"language,omitempty"`
+}
+
+// CellKind is what a notebook cell holds: code, markdown or raw text, or (index.notebookOutputs) the text a code cell printed.
+type CellKind = string
+
+// NotebookCell is one cell of a Jupyter notebook previewed: its number, 1-based, and the lines of the notebook's text it is, from startLine for lineCount lines.
+type NotebookCell struct {
+	Number int      `json:"number"`
+	Kind   CellKind `json:"kind"`
+	// Language is the canonical language of its text, such as python or markdown; absent for raw cells, outputs and unknown languages.
+	Language  string `json:"language,omitempty"`
+	StartLine int    `json:"startLine"`
+	LineCount int    `json:"lineCount"`
+	// ExecutionCount is the number Jupyter shows beside a code cell that ran; absent when it hasn't run.
+	ExecutionCount int `json:"executionCount,omitempty"`
+	// Outputs is what a code cell's outputs are, in order: text it printed or returned, an image, or something else. Only text outputs are ever searched, and only with index.notebookOutputs.
+	Outputs []string `json:"outputs,omitempty"`
+}
+
 // LineHits are the matches on one preview line.
 type LineHits struct {
 	Line   int   `json:"line"`
@@ -612,6 +647,8 @@ type DiffLine struct {
 	NewNo int    `json:"newNo,omitempty"`
 	Text  string `json:"text"`
 	Hits  []Hit  `json:"hits"`
+	// Cell is in a Jupyter notebook's diff, which diffs its cells' source: the cell the line is in, and its line there, in the notebook before the commit for a removed line and after it otherwise.
+	Cell *CellPlace `json:"cell,omitempty"`
 }
 
 // MarshalJSON emits [] rather than null for required arrays.
@@ -673,6 +710,7 @@ type Preview struct {
 	DirtyLines   []int           `json:"dirtyLines,omitempty"`
 	Ownership    *Ownership      `json:"ownership,omitempty"`
 	Symbols      []OutlineSymbol `json:"symbols,omitempty"`
+	Cells        []NotebookCell  `json:"cells,omitempty"`
 	SHA          string          `json:"sha,omitempty"`
 	Subject      string          `json:"subject,omitempty"`
 	Body         string          `json:"body,omitempty"`
@@ -721,6 +759,9 @@ func (v Preview) MarshalJSON() ([]byte, error) {
 		}
 		if len(v.Symbols) > 0 {
 			fields["symbols"] = v.Symbols
+		}
+		if len(v.Cells) > 0 {
+			fields["cells"] = v.Cells
 		}
 	case "commit":
 		fields["sha"] = v.SHA
@@ -843,6 +884,8 @@ type OpenTarget struct {
 	SHA       string `json:"sha,omitempty"`
 	// Revision is the full sha of the commit whose version of the file opens, for an at: result.
 	Revision string `json:"revision,omitempty"`
+	// Cell is for a result in a Jupyter notebook: the cell to open the notebook at, and the line in it. line still counts lines of the notebook's text.
+	Cell *CellPlace `json:"cell,omitempty"`
 	// RevisionLabel is how the revision reads in the editor's title: the at: value (v1.0.0), or the short sha when the search is forgotten.
 	RevisionLabel string `json:"revisionLabel,omitempty"`
 }
@@ -1042,7 +1085,7 @@ type RevisionTextParams struct {
 	Ref string `json:"ref"`
 }
 
-// RevisionText is a file's whole text as it was at the revision of a result's ref.
+// RevisionText is a file's whole text as it was at the revision of a result's ref: for a Jupyter notebook, its JSON, so it opens in the notebook editor.
 type RevisionText struct {
 	Text string `json:"text"`
 }

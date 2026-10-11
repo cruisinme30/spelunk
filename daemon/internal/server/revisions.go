@@ -261,11 +261,11 @@ func readRevision(ctx context.Context, root string, revision history.Revision, s
 	maxBytes := int64(settings.MaxFileSizeKB) * 1024
 	kept := files[:0]
 	for _, file := range files {
-		if !exclude.Excludes(file.Path) && (maxBytes <= 0 || file.Size <= maxBytes) {
+		if !exclude.Excludes(file.Path) && (maxBytes <= 0 || file.Size <= trigram.ReadLimit(file.Path, maxBytes)) {
 			kept = append(kept, file)
 		}
 	}
-	opts := trigram.BuildOptions{Symbols: settings.Symbols}
+	opts := trigram.BuildOptions{Symbols: settings.Symbols, MaxFileBytes: maxBytes, NotebookOutputs: settings.NotebookOutputs}
 	var docs []trigram.Doc
 	err = history.ReadBlobs(ctx, root, kept, func(file history.TreeFile, content []byte) error {
 		if doc, ok := trigram.DocFromBlob(file.Path, content, revision.At, opts); ok {
@@ -279,9 +279,9 @@ func readRevision(ctx context.Context, root string, revision history.Revision, s
 	return trigram.NewShard(docs), nil
 }
 
-// content returns the text of path in commit sha of the repo at root, as a
-// finished read of that revision holds it; false when no kept read has it.
-func (c *revisionCache) content(root, sha, path string) ([]byte, bool) {
+// doc returns path in commit sha of the repo at root, as a finished read of
+// that revision holds it; false when no kept read has it.
+func (c *revisionCache) doc(root, sha, path string) (*trigram.Doc, bool) {
 	c.mu.Lock()
 	entries := slices.Clone(c.entries)
 	c.mu.Unlock()
@@ -297,30 +297,30 @@ func (c *revisionCache) content(root, sha, path string) ([]byte, bool) {
 		if entry.err != nil {
 			continue
 		}
-		for _, doc := range entry.shard.Docs {
-			if doc.Path == path {
-				return doc.Content, true
+		for i := range entry.shard.Docs {
+			if doc := &entry.shard.Docs[i]; doc.Path == path {
+				return doc, true
 			}
 		}
 	}
 	return nil, false
 }
 
-// readAtRevision returns the decoded text of the file a ref at a revision
-// names: from the revision's kept shard when the search read it, otherwise
-// from Git, decoded as the shard would hold it. A file the revision
-// doesn't have, or that is binary, is stale.
-func (s *Server) readAtRevision(ctx context.Context, root string, ref trigram.Ref) ([]byte, error) {
-	if content, ok := s.revisions.content(root, ref.Revision, ref.Path); ok {
-		return content, nil
+// readAtRevision returns the file a ref at a revision names: from the
+// revision's kept shard when the search read it, otherwise from Git, read
+// as the shard would hold it. A file the revision doesn't have, or that is
+// binary, is stale.
+func (s *Server) readAtRevision(ctx context.Context, root string, ref trigram.Ref) (*trigram.Doc, error) {
+	if doc, ok := s.revisions.doc(root, ref.Revision, ref.Path); ok {
+		return doc, nil
 	}
 	raw, err := history.ReadFileAt(ctx, root, ref.Revision, ref.Path)
 	if err != nil {
 		return nil, err
 	}
-	doc, ok := trigram.DocFromBlob(ref.Path, raw, time.Time{}, trigram.BuildOptions{})
+	doc, ok := trigram.DocFromBlob(ref.Path, raw, time.Time{}, trigram.BuildOptions{NotebookOutputs: s.Settings().NotebookOutputs})
 	if !ok {
 		return nil, history.ErrStale
 	}
-	return doc.Content, nil
+	return &doc, nil
 }

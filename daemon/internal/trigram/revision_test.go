@@ -128,20 +128,20 @@ func TestPreviewAndOpenAtARevision(t *testing.T) {
 	repo := atRevision(t)
 	plan := mustPlan(t, "at:v1.0.0 retry_after", defaultSettings, "")
 	ref := Ref{PlanID: 7, RepoID: repo.ID, Path: "src/backoff.py", Line: 1, Column: 10, Length: 11, Revision: sha40}
-	text := []byte("def parse_retry_after(header):\n    return int(header)\n")
-	preview, err := PreviewText(&repo, ref, plan, 3, text, fixedNow)
+	doc := Doc{Path: ref.Path, Lang: "python", ModTime: fixedNow, Content: []byte("def parse_retry_after(header):\n    return int(header)\n")}
+	preview, err := PreviewText(&repo, ref, plan, 3, &doc)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if preview.FocusLine != 1 || len(preview.Lines) != 3 || len(preview.Hits) != 1 || preview.Hits[0].Line != 1 {
 		t.Errorf("preview = %+v, want the file's lines with the term marked on line 1", preview)
 	}
-	target := RevisionTarget(&repo, ref, "v1.0.0")
+	target := RevisionTarget(&repo, ref, "v1.0.0", &doc)
 	if target.Path != "/repos/payments-api/src/backoff.py" || target.Revision != sha40 || target.RevisionLabel != "v1.0.0" ||
 		target.Line != 1 || target.Column != 11 || target.Length != 11 {
 		t.Errorf("RevisionTarget = %+v", target)
 	}
-	if _, err := PreviewText(&repo, Ref{RepoID: repo.ID, Path: "a", Line: 9, Revision: sha40}, nil, 3, text, fixedNow); !errors.Is(err, ErrStale) {
+	if _, err := PreviewText(&repo, Ref{RepoID: repo.ID, Path: "a", Line: 9, Revision: sha40}, nil, 3, &doc); !errors.Is(err, ErrStale) {
 		t.Errorf("a line past the end = %v, want ErrStale", err)
 	}
 }

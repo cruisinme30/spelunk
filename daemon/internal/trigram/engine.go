@@ -538,6 +538,9 @@ func (s *searcher) addCodeLines(repos []Repo) {
 					starts = lineStarts(c.doc.Content)
 				}
 				item.ContextBefore, item.ContextAfter = contextAround(c.doc.Content, starts, line.number, line.last(), s.plan.ContextLines)
+				if c.doc.Cells != nil {
+					item.ContextBefore, item.ContextAfter = trimToCell(c.doc.Cells, line.number, line.last(), item.ContextBefore, item.ContextAfter)
+				}
 			}
 			quality := 0
 			if s.holding {
@@ -613,6 +616,7 @@ func (s *searcher) symbolResult(repo *Repo, doc *Doc, symbol *symbols.Symbol) pr
 	return protocol.ResultItem{
 		Kind: query.KindSymbol, Ref: ref.String(), RepoID: repo.ID, Path: doc.Path, Line: symbol.Line,
 		Name: symbol.Name, SymbolKind: symbol.Kind, Hits: hits, SinceRevision: repo.sinceRevision(doc),
+		Cell: cellPlace(doc.Cells, symbol.Line),
 	}
 }
 
@@ -752,6 +756,7 @@ func (s *searcher) lineResult(repo *Repo, doc *Doc, line matchedLine) protocol.R
 	item := protocol.ResultItem{
 		Kind: query.KindLine, Ref: ref.String(), RepoID: repo.ID, Path: doc.Path,
 		Line: line.number, Text: text, Hits: hits, SinceRevision: repo.sinceRevision(doc),
+		Cell: cellPlace(doc.Cells, line.number),
 	}
 	if line.structure != nil {
 		item.Holes = line.structure.holes

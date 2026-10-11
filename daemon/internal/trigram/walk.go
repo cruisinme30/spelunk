@@ -84,10 +84,11 @@ func ListFiles(ctx context.Context, root string, opts WalkOptions) ([]File, erro
 }
 
 // indexable reports whether a file that info describes is one to read for
-// the index: a regular file, not too big. Whether it is binary is only
+// the index: a regular file, not too big (a notebook's limit is on its
+// cells' text, known once it is read; see ReadLimit). Whether it is binary is only
 // known once it is read (see Build).
 func indexable(info os.FileInfo, opts WalkOptions) bool {
-	return info.Mode().IsRegular() && (opts.MaxFileBytes <= 0 || info.Size() <= opts.MaxFileBytes)
+	return info.Mode().IsRegular() && (opts.MaxFileBytes <= 0 || info.Size() <= ReadLimit(info.Name(), opts.MaxFileBytes))
 }
 
 // nestedRepoPaths lists the files of the Git repo at dir (relative to

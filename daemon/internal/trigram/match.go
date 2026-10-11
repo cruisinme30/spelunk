@@ -6,6 +6,7 @@ import (
 	"regexp/syntax"
 	"slices"
 
+	"github.com/cruisinme30/spelunk/daemon/internal/notebook"
 	"github.com/cruisinme30/spelunk/daemon/internal/query"
 	"github.com/cruisinme30/spelunk/daemon/internal/symbols"
 )
@@ -52,6 +53,9 @@ type lineMatcher struct {
 	// definitions returns the file's definitions, which ref: terms skip.
 	// It is nil for texts that aren't files, such as commits.
 	definitions func() []symbols.Symbol
+	// cells are a notebook's cells, which no match may run across; nil for
+	// any other text.
+	cells []notebook.Cell
 	// lang is the language of a file's text, which struct: terms read it
 	// by; "" for a text in none.
 	lang string
@@ -101,10 +105,11 @@ func newLineMatcher(content []byte, terms termCache) *lineMatcher {
 func newFileMatcher(doc *Doc, terms termCache) *lineMatcher {
 	m := newLineMatcher(doc.Content, terms)
 	m.lang = doc.Lang
+	m.cells = doc.Cells
 	found, done := doc.Symbols, doc.Symbols != nil
 	m.definitions = func() []symbols.Symbol {
 		if !done {
-			found, done = symbols.Extract(doc.Lang, doc.Content), true
+			found, done = symbolsOf(doc.Lang, doc.Content, doc.Cells), true
 		}
 		return found
 	}
@@ -215,6 +220,11 @@ func (m *lineMatcher) matches(term *query.Content) []matchedLine {
 	}
 	if term.Reference && m.definitions != nil {
 		found = withoutDefinitions(found, term, m.definitions())
+	}
+	if m.cells != nil {
+		found = slices.DeleteFunc(found, func(line matchedLine) bool {
+			return line.spans() && !notebook.SameCell(m.cells, line.number, line.last())
+		})
 	}
 	m.cache[term] = found
 	return found

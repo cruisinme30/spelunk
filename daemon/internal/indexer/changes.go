@@ -41,8 +41,8 @@ func (o overlay) with(masked []string, docs []trigram.Doc, now time.Time) overla
 		next.readAt[path] = now
 		delete(next.docs, path)
 	}
-	for _, doc := range docs {
-		next.docs[doc.Path] = doc
+	for i := range docs {
+		next.docs[docs[i].Path] = docs[i]
 	}
 	return next.indexed()
 }
@@ -140,7 +140,9 @@ func (ix *Indexer) reread(id string, paths []string) {
 		// overlay must remember as re-read too (see overlay.since).
 		masked = append(masked, file.Path)
 	}
-	read, err := trigram.Build(ctx, root.Path, files, trigram.BuildOptions{Symbols: settings.Symbols, MaxFileBytes: walk.MaxFileBytes})
+	read, err := trigram.Build(ctx, root.Path, files, trigram.BuildOptions{
+		Symbols: settings.Symbols, MaxFileBytes: walk.MaxFileBytes, NotebookOutputs: settings.NotebookOutputs,
+	})
 	if err != nil {
 		return
 	}

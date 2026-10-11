@@ -158,6 +158,7 @@ func buildShard(job buildJob, progress func(float64)) (*trigram.Shard, error) {
 	}
 	return trigram.Build(job.ctx, job.root.Path, files, trigram.BuildOptions{
 		Symbols: job.settings.Symbols, Progress: progress, MaxFileBytes: walk.MaxFileBytes,
+		NotebookOutputs: job.settings.NotebookOutputs,
 	})
 }
 

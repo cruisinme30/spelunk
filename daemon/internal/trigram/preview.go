@@ -6,9 +6,8 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
-	"time"
 
-	"github.com/cruisinme30/spelunk/daemon/internal/lang"
+	"github.com/cruisinme30/spelunk/daemon/internal/notebook"
 	"github.com/cruisinme30/spelunk/daemon/internal/protocol"
 	"github.com/cruisinme30/spelunk/daemon/internal/query"
 	"github.com/cruisinme30/spelunk/daemon/internal/symbols"
@@ -29,19 +28,31 @@ const maxPreviewSpanLines = 200
 // lines), with the lines around it. A file that is gone, is no longer a
 // regular text file, or has grown past maxBytes (the index's size limit;
 // 0 for none) since it was indexed is ErrStale, and so is a path that a
-// symbolic link leads out of the repo's folder.
+// symbolic link leads out of the repo's folder. A Jupyter notebook is
+// shown as the index reads it, its cells' text, with the cells listed.
 func Preview(repo *Repo, ref Ref, plan *query.Plan, contextLines int, maxBytes int64) (protocol.Preview, error) {
-	content, info, err := readTextIn(repo.Root, ref.Path, maxBytes)
+	content, info, err := readTextIn(repo.Root, ref.Path, ReadLimit(ref.Path, maxBytes))
 	if err != nil {
 		return protocol.Preview{}, ErrStale
 	}
-	return PreviewText(repo, ref, plan, contextLines, content, info.ModTime())
+	// A notebook's outputs follow all its cells' source, so a ref past the
+	// source is to an output, from an index that reads them (see notebook.Read).
+	opts := BuildOptions{MaxFileBytes: maxBytes}
+	doc, ok := docOf(ref.Path, content, info.ModTime(), opts)
+	if ok && doc.Cells != nil && ref.Line >= doc.Cells[len(doc.Cells)-1].StartLine+doc.Cells[len(doc.Cells)-1].Lines {
+		opts.NotebookOutputs = true
+		doc, ok = docOf(ref.Path, content, info.ModTime(), opts)
+	}
+	if !ok {
+		return protocol.Preview{}, ErrStale
+	}
+	return PreviewText(repo, ref, plan, contextLines, &doc)
 }
 
-// PreviewText is Preview of a file whose text is already read: from a
-// commit's tree, for a result at a revision. modTime stands in for the
-// file's modification time.
-func PreviewText(repo *Repo, ref Ref, plan *query.Plan, contextLines int, content []byte, modTime time.Time) (protocol.Preview, error) {
+// PreviewText is Preview of a file that is already read: from a commit's
+// tree, for a result at a revision.
+func PreviewText(repo *Repo, ref Ref, plan *query.Plan, contextLines int, doc *Doc) (protocol.Preview, error) {
+	content := doc.Content
 	contextLines = max(contextLines, 0)
 	lines := splitLines(content)
 	focus := ref.Line
@@ -61,12 +72,11 @@ func PreviewText(repo *Repo, ref Ref, plan *query.Plan, contextLines int, conten
 		last = min(len(lines), 1+2*contextLines) // the top of the file
 	}
 
-	language := lang.Detect(ref.Path, content)
+	language := doc.Lang
 	var terms []*query.Content
 	// With type:file the words matched the file's name, not its text, so the
 	// text has nothing to mark.
 	if plan != nil && (!ref.IsFile() || plan.Kinds[query.KindLine]) {
-		doc := &Doc{Path: ref.Path, Lang: language, ModTime: modTime, Content: content}
 		terms = query.Contributing(plan.Pred, contentLeaf(repo, doc, newFileMatcher(doc, termCache{})))
 	}
 	// A term that spans lines is matched against the whole file; the others
@@ -88,8 +98,8 @@ func PreviewText(repo *Repo, ref Ref, plan *query.Plan, contextLines int, conten
 	}
 	preview := protocol.Preview{
 		Kind: protocol.PreviewKindFile, Path: ref.Path, FirstLine: first, Lines: shown,
-		FocusLine: focus, Hits: hits, DirtyLines: []int{}, Symbols: outline(symbols.Outline(language, content)),
-		Ownership: ownership(repo, ref.Path),
+		FocusLine: focus, Hits: hits, DirtyLines: []int{}, Symbols: outline(outlineOf(language, content, doc.Cells)),
+		Ownership: ownership(repo, ref.Path), Cells: previewCells(doc.Cells),
 	}
 	if ref.Spans() && len(lines) > focus {
 		preview.FocusEndLine = min(ref.EndLine, len(lines))
@@ -127,16 +137,30 @@ func OpenTarget(repo *Repo, ref Ref) (protocol.OpenTarget, error) {
 	if _, err := os.Stat(full); err != nil {
 		return protocol.OpenTarget{}, ErrStale
 	}
-	return targetIn(full, ref), nil
+	target := targetIn(full, ref)
+	if notebook.IsNotebook(ref.Path) && !ref.IsFile() {
+		// Read with outputs: a source line numbers the same either way, and
+		// an output line only exists in a search that read them.
+		if content, _, err := readTextIn(repo.Root, ref.Path, notebook.MaxFileBytes); err == nil {
+			if nb, ok := notebook.Read(content, true); ok {
+				target.Cell = cellPlace(nb.Cells, ref.Line)
+			}
+		}
+	}
+	return target, nil
 }
 
 // RevisionTarget is OpenTarget for a result at a revision, which opens
 // read-only with the file's text at that revision: path is where the file
 // is (or was) in the repo, and label names the revision in the editor's
-// title. The caller checks that the revision has the file.
-func RevisionTarget(repo *Repo, ref Ref, label string) protocol.OpenTarget {
+// title, and doc is the file as the revision has it, which the caller read
+// (so it checked the revision has the file).
+func RevisionTarget(repo *Repo, ref Ref, label string, doc *Doc) protocol.OpenTarget {
 	target := targetIn(filepath.Join(repo.Root, filepath.FromSlash(ref.Path)), ref)
 	target.Revision, target.RevisionLabel = ref.Revision, label
+	if !ref.IsFile() {
+		target.Cell = cellPlace(doc.Cells, ref.Line)
+	}
 	return target
 }
 

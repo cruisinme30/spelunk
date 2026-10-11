@@ -55,4 +55,5 @@ covered.
 | 50 | Search from your code: the editor's selection, or the name at the cursor, starts the search | `seed-from-editor` | `SeedFromEditor` | 2.1 |
 | 52 | VS Code's `files.exclude` and `search.exclude` hide results too; a note counts them, and Show them adds `excludes:no` | `editor-excludes` | `EditorExcludes` | 2.1 |
 | 53 | Result menu: right-click a result to copy it, its path, its link on GitHub (or GitLab, Bitbucket, Gitea, Azure DevOps), every result, or a link to the search | `share-result` | `Permalinks` | 2.1 |
+| 60 | Jupyter notebooks: searched by their cells, each result under its cell, opened at that cell | `notebook-cells` | `NotebookCells` | 2.1 |
 | 61 | Hover labels: rest the mouse on an icon and its name shows in a third of a second | `hover-labels` | `HoverLabels` | 2.1 |

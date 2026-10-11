@@ -9,7 +9,6 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
-	"time"
 
 	"github.com/cruisinme30/spelunk/daemon/internal/codeowners"
 	"github.com/cruisinme30/spelunk/daemon/internal/history"
@@ -45,11 +44,11 @@ func (s *Server) preview(ctx context.Context, raw json.RawMessage) (any, error) 
 	}
 	plan := s.plans.recall(ref.PlanID)
 	if ref.Revision != "" {
-		content, readErr := s.readAtRevision(ctx, repo.Root, ref)
+		doc, readErr := s.readAtRevision(ctx, repo.Root, ref)
 		if readErr != nil {
 			return nil, staleAsRPCError(readErr)
 		}
-		preview, previewErr := trigram.PreviewText(repo, ref, plan, params.ContextLines, content, time.Time{})
+		preview, previewErr := trigram.PreviewText(repo, ref, plan, params.ContextLines, doc)
 		return preview, staleAsRPCError(previewErr)
 	}
 	maxBytes := int64(s.Settings().MaxFileSizeKB) * 1024
@@ -77,14 +76,15 @@ func (s *Server) openResolve(ctx context.Context, raw json.RawMessage) (any, err
 		return nil, err
 	}
 	if ref.Revision != "" {
-		if _, readErr := s.readAtRevision(ctx, repo.Root, ref); readErr != nil {
+		doc, readErr := s.readAtRevision(ctx, repo.Root, ref)
+		if readErr != nil {
 			return nil, staleAsRPCError(readErr)
 		}
 		label := short(ref.Revision)
 		if plan := s.plans.recall(ref.PlanID); plan != nil && plan.At != "" {
 			label = plan.At
 		}
-		return trigram.RevisionTarget(repo, ref, label), nil
+		return trigram.RevisionTarget(repo, ref, label, doc), nil
 	}
 	target, err := trigram.OpenTarget(repo, ref)
 	return target, staleAsRPCError(err)
@@ -92,7 +92,8 @@ func (s *Server) openResolve(ctx context.Context, raw json.RawMessage) (any, err
 
 // revisionText answers revision/text: the whole text of the file a result
 // at a revision names, as it was then, for the read-only editor that
-// opening the result shows.
+// opening the result shows. A notebook's is its JSON, which the notebook
+// editor reads, not the cells' text a search reads.
 func (s *Server) revisionText(ctx context.Context, raw json.RawMessage) (any, error) {
 	var params protocol.RevisionTextParams
 	if err := decode(raw, &params); err != nil {
@@ -105,9 +106,20 @@ func (s *Server) revisionText(ctx context.Context, raw json.RawMessage) (any, er
 	if ref.Revision == "" {
 		return nil, rpc.Errorf(protocol.CodeRefStale, "not a result at a revision")
 	}
-	content, err := s.readAtRevision(ctx, repo.Root, ref)
+	doc, err := s.readAtRevision(ctx, repo.Root, ref)
 	if err != nil {
 		return nil, staleAsRPCError(err)
+	}
+	if doc.Cells == nil {
+		return protocol.RevisionText{Text: string(doc.Content)}, nil
+	}
+	blob, err := history.ReadFileAt(ctx, repo.Root, ref.Revision, ref.Path)
+	if err != nil {
+		return nil, staleAsRPCError(err)
+	}
+	content, ok := trigram.DecodeBlob(blob)
+	if !ok {
+		return nil, staleAsRPCError(history.ErrStale)
 	}
 	return protocol.RevisionText{Text: string(content)}, nil
 }

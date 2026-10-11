@@ -764,7 +764,13 @@
             "minimum": 1,
             "maximum": 1048576,
             "scope": "window",
-            "description": "Skip files larger than this."
+            "description": "Skip files larger than this. A Jupyter notebook counts only its cells' code and notes, not its outputs and plots."
+          },
+          "spelunk.index.notebookOutputs": {
+            "type": "boolean",
+            "default": false,
+            "scope": "window",
+            "description": "Also search the text a Jupyter notebook's code cells printed or returned. Off, only cells' code and notes are searched; plots and other images never are."
           },
           "spelunk.index.location": {
             "type": "string",

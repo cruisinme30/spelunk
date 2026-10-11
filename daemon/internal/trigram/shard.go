@@ -11,13 +11,13 @@ import (
 	"time"
 
 	"github.com/cruisinme30/spelunk/daemon/internal/engine"
-	"github.com/cruisinme30/spelunk/daemon/internal/lang"
+	"github.com/cruisinme30/spelunk/daemon/internal/notebook"
 	"github.com/cruisinme30/spelunk/daemon/internal/symbols"
 )
 
 // shardFormatVersion changes whenever the saved layout does; an index
 // written by another version is rebuilt rather than migrated.
-const shardFormatVersion = 2
+const shardFormatVersion = 3
 
 // maxDocs bounds a shard's files, so doc ids fit in a uint32.
 const maxDocs int64 = math.MaxUint32
@@ -34,6 +34,9 @@ type Doc struct {
 	// Symbols are the file's definitions, when the index keeps them
 	// (index.symbols), in line order.
 	Symbols []symbols.Symbol
+	// Cells are a Jupyter notebook's cells, whose text Content is (see
+	// notebook.Read); nil for any other file.
+	Cells []notebook.Cell
 }
 
 // Shard is the immutable index of one repo's current files.
@@ -88,6 +91,9 @@ type BuildOptions struct {
 	// MaxFileBytes, when positive, leaves out a file that grew past it
 	// since it was listed (see WalkOptions.MaxFileBytes).
 	MaxFileBytes int64
+	// NotebookOutputs also indexes the text a notebook's code cells printed
+	// (index.notebookOutputs).
+	NotebookOutputs bool
 }
 
 // Build reads files from root, which are in path order, and indexes them
@@ -166,39 +172,56 @@ func readDocs(ctx context.Context, root string, files []File, opts BuildOptions)
 // readDoc reads the file at path (relative to root) as Build indexes it;
 // ok is false when the file is left out (see Build).
 func readDoc(root, path string, opts BuildOptions) (Doc, bool) {
-	content, info, err := readText(filepath.Join(root, filepath.FromSlash(path)), opts.MaxFileBytes)
+	content, info, err := readText(filepath.Join(root, filepath.FromSlash(path)), ReadLimit(path, opts.MaxFileBytes))
 	if err != nil {
 		return Doc{}, false // deleted or replaced since it was listed, binary, or too big
 	}
-	doc := Doc{Path: path, Lang: lang.Detect(path, content), ModTime: info.ModTime(), Content: content}
+	return docOf(path, content, info.ModTime(), opts)
+}
+
+// docOf makes the doc of a file's decoded content: a notebook's is its
+// cells' text, which opts.MaxFileBytes then bounds.
+func docOf(path string, content []byte, modTime time.Time, opts BuildOptions) (Doc, bool) {
+	text, language, cells := searchText(path, content, opts.NotebookOutputs)
+	if opts.MaxFileBytes > 0 && int64(len(text)) > opts.MaxFileBytes {
+		return Doc{}, false
+	}
+	doc := Doc{Path: path, Lang: language, ModTime: modTime, Content: text, Cells: cells}
 	if opts.Symbols {
-		doc.Symbols = symbols.Extract(doc.Lang, content)
+		doc.Symbols = symbolsOf(doc.Lang, text, cells)
 	}
 	return doc, true
 }
 
 // DocFromBlob makes the doc of a file read from somewhere other than disk,
 // such as a commit's tree, as Build would read it: ok is false for a
-// binary file, which Build leaves out. modTime stands in for the file's
-// modification time; opts.Symbols finds its definitions.
+// binary file, which Build leaves out, and for one past opts.MaxFileBytes.
+// modTime stands in for the file's modification time; opts.Symbols finds
+// its definitions.
 func DocFromBlob(path string, raw []byte, modTime time.Time, opts BuildOptions) (Doc, bool) {
-	if isBinary(raw[:min(len(raw), binarySniffBytes)]) {
+	content, ok := DecodeBlob(raw)
+	if !ok {
 		return Doc{}, false
 	}
-	content := decodeText(raw)
-	doc := Doc{Path: path, Lang: lang.Detect(path, content), ModTime: modTime, Content: content}
-	if opts.Symbols {
-		doc.Symbols = symbols.Extract(doc.Lang, content)
+	return docOf(path, content, modTime, opts)
+}
+
+// DecodeBlob decodes a file's bytes read from somewhere other than disk as
+// Build decodes a file it reads (see decodeText); ok is false when they are
+// binary.
+func DecodeBlob(raw []byte) ([]byte, bool) {
+	if isBinary(raw[:min(len(raw), binarySniffBytes)]) {
+		return nil, false
 	}
-	return doc, true
+	return decodeText(raw), true
 }
 
 // NewShard indexes docs that are already read, keeping their order. The
 // indexer builds its overlay of re-read files with it.
 func NewShard(docs []Doc) *Shard {
 	s := &Shard{BuiltAt: time.Now(), postings: map[uint32][]uint32{}}
-	for _, doc := range docs {
-		s.add(doc)
+	for i := range docs {
+		s.add(docs[i])
 	}
 	return s
 }
