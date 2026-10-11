@@ -93,6 +93,8 @@ type repo struct {
 	// savedTree and savedHistory are when the saved indexes this repo last
 	// loaded were written, so a follower can load newer saves.
 	savedTree, savedHistory time.Time
+	// swept is when Sweep last listed the repo's files.
+	swept time.Time
 }
 
 // queue is a list of root IDs waiting for a worker, and a signal for it.
@@ -223,7 +225,7 @@ func (ix *Indexer) add(root protocol.Root, saved savedIndex) {
 		r.lock, _ = tryLock(lockPath(ix.settings.Location, root)) // nil: another daemon writes it
 	}
 	if r.lock == nil {
-		ix.startFollowing(r)
+		ix.startFollowing(r, !saved.treeTime.IsZero())
 		return
 	}
 	ix.treeQueue.add(root.ID)
@@ -232,11 +234,13 @@ func (ix *Indexer) add(root protocol.Root, saved savedIndex) {
 
 // startFollowing sets up a repo another daemon writes, or that a
 // read-only indexer reads: it serves the saved indexes, and only waits
-// for them when there are none yet. Callers hold mu.
-func (ix *Indexer) startFollowing(r *repo) {
+// for them when there are none yet. unusable says a saved index exists
+// that couldn't be loaded (another version of Spelunk saved it). Callers
+// hold mu.
+func (ix *Indexer) startFollowing(r *repo, unusable bool) {
 	if r.shard == nil {
 		r.state, r.visible = protocol.IndexStateQueued, true
-		r.message = ix.followerWaiting()
+		r.message = ix.followerWaiting(unusable)
 	}
 	switch {
 	case r.history == nil && !insideGit(r.root.Path):
@@ -251,8 +255,11 @@ func (ix *Indexer) startFollowing(r *repo) {
 }
 
 // followerWaiting says why a follower has no index yet. Callers hold mu.
-func (ix *Indexer) followerWaiting() string {
-	if ix.readOnly {
+func (ix *Indexer) followerWaiting(unusable bool) string {
+	switch {
+	case ix.readOnly && unusable:
+		return "Its saved index is from another version of Spelunk. Open this folder in VS Code to index it again."
+	case ix.readOnly:
 		return "Not indexed yet. Open this folder in VS Code with Spelunk to index it."
 	}
 	return "Another VS Code window is indexing this folder. Its results appear here when it saves them."

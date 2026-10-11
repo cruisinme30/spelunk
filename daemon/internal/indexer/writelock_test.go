@@ -1,6 +1,7 @@
 package indexer
 
 import (
+	"context"
 	"errors"
 	"os"
 	"path/filepath"
@@ -210,4 +211,49 @@ func TestAReadOnlyIndexerLeavesTheLockToAWindow(t *testing.T) {
 	window.SetRoots(roots)
 	waitFor(t, window, protocol.IndexStateReady)
 	eventually(t, "the reader loads the window's first save", func() bool { return hasPath(reader, "a.txt") })
+}
+
+func TestAReaderSweepsInFilesChangedSinceTheSave(t *testing.T) {
+	root := testutil.WriteTree(t, map[string]string{"keep.txt": "same\n", "edit.txt": "old\n", "gone.txt": "bye\n"})
+	settings := followSettings(t)
+	roots := []protocol.Root{{ID: "r1", Path: root, Name: "app"}}
+	window := New(settings, nil)
+	window.SetRoots(roots)
+	waitFor(t, window, protocol.IndexStateReady)
+	window.Close(time.Second)
+
+	reader := NewReadOnly(settings, nil)
+	defer reader.Close(time.Second)
+	reader.SetRoots(roots)
+	later := time.Now().Add(2 * time.Second) // a different modification time, whatever the clock's resolution
+	if err := os.WriteFile(filepath.Join(root, "edit.txt"), []byte("new\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chtimes(filepath.Join(root, "edit.txt"), later, later); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "added.txt"), []byte("hello\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(filepath.Join(root, "gone.txt")); err != nil {
+		t.Fatal(err)
+	}
+	reader.Sweep(context.Background(), root)
+
+	if !hasPath(reader, "added.txt") || hasPath(reader, "gone.txt") || !hasPath(reader, "keep.txt") {
+		t.Errorf("after a sweep: added %v, gone %v, keep %v; want true, false, true",
+			hasPath(reader, "added.txt"), hasPath(reader, "gone.txt"), hasPath(reader, "keep.txt"))
+	}
+	if got := reader.Status()[0].Reread; got != 3 {
+		t.Errorf("re-read count = %d, want 3 (edited, added, deleted)", got)
+	}
+	repo := reader.Repos()[0]
+	for _, doc := range repo.Overlay.Docs {
+		if doc.Path == "edit.txt" && string(doc.Content) != "new\n" {
+			t.Errorf("edit.txt in the overlay = %q, want the new text", doc.Content)
+		}
+	}
+	if entries, _ := os.ReadDir(filepath.Join(settings.Location, "tree")); len(entries) != 1 {
+		t.Errorf("tree folder holds %d files after the sweep, want the one saved shard", len(entries))
+	}
 }

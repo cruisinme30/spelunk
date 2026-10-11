@@ -108,6 +108,12 @@ func (s *Server) searchOn(ctx context.Context, raw json.RawMessage, conn *rpc.Co
 		return nil, err
 	}
 	started := time.Now() // wall clock: Options.Now may be frozen
+	if s.reader {
+		// No editor tells the reader what changed: it looks for itself.
+		for _, root := range params.Roots {
+			s.index.Sweep(ctx, root)
+		}
+	}
 	parsed := query.Parse(params.Text, s.resolver(params.OpenFiles))
 	plan, _, err := query.NewPlan(parsed, s.searchSettings(params, guest), s.now(), params.Cursor)
 	if err != nil {

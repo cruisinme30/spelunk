@@ -132,6 +132,10 @@ func (s *Server) IdleFor() time.Duration {
 	return time.Since(time.Unix(0, s.lastGuest.Load()))
 }
 
+// Configure applies settings as settings/update does, for the background
+// reader, which has no editor to send them.
+func (s *Server) Configure(settings protocol.Settings) { s.applySettings(settings) }
+
 // sharing is a window's socket while spelunk.agent.shareWindow is on.
 type sharing struct {
 	mu       sync.Mutex
