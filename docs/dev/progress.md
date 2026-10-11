@@ -468,3 +468,37 @@ editor on a click, and keeps the Outline closed until opened, remembering the ch
 - Built: `docs/dev/proof/file-outline.png` and `docs/dev/proof/file-outline-light.png`, from
   `node scripts/screenshotPanel.mjs --query 'retry_policy' --select 3 --theme "Dark Modern" --click-after
   '[data-testid="outline-toggle"]'` (and `"Light Modern"`).
+
+## Share a result from its right-click menu (2.1)
+
+Mock 53 (`share-result`): right-clicking a result shows VS Code's own menu, made for results through the webview's
+`data-vscode-context`: Open, Open to the Side; Copy, Copy Path, Copy Relative Path; Copy SHA and Copy SHA and Subject
+on a commit; Copy Permalink and Open on the repo's host, named after it (GitHub, GitLab, Bitbucket, Gitea, Azure
+DevOps); Copy All Results; Export Results as text, Markdown, CSV or JSON; and Copy Link to This Search, a
+`vscode://spelunk.spelunk/search?q=` link that opens Spelunk on the query. The daemon says what a permalink names
+(`link/resolve`, in `internal/permalink`): the remote the branch tracks (else `origin`, else the only one), HEAD when
+the remote has it or the newest commit of the remote's branch HEAD builds on, the path in the repository after a
+rename, and the lines mapped there from the file on disk by git's own diff. The host turns that into each host's
+address (`permalinks.ts`), and the panel learns each repo's host from `remotes.state`.
+
+- Daemon: `daemon/internal/permalink/permalink_test.go` (a pushed line; a line moved by uncommitted edits; its own
+  line changed; a match over lines; unpushed commits mapped to the remote's commit; a repo never pushed; a new file; a
+  rename; a folder inside a bigger repo; an `at:` revision, pushed or not; a commit result; which remote: tracked,
+  `origin`, the only one, or several to pick from; no Git, no remote; one `Linker` for many results) and
+  `daemon/internal/server/links_test.go` (`repo/remotes`, `link/resolve` for a code line, an `at:` result and a commit,
+  many refs in order, no remote, forged refs refused as stale).
+- Host: `permalinks.test.ts` (every form of remote URL, credentials dropped; each host's line, range, file and commit
+  address; `spelunk.permalinks.hosts` and names guessed; the menu's host per repo; why a result has no link),
+  `resultText.test.ts` (Copy, both paths, SHA and subject; text, Markdown, CSV and JSON exports), `resultActions.test.ts`
+  (each host's items, problems said in plain words, picking a remote, the clicked or selected result, Copy All with
+  more found, exports with links, search links round-tripping any query, and one copy end to end with the real
+  daemon), `allResults.test.ts` (an export's own pages) and the manifest's menu checks.
+- Panel: `webview/test/resultMenu.test.mjs` (each row's `data-vscode-context`, the box keeping VS Code's own menu,
+  `remotes.state` naming rows drawn before and after it).
+- End to end in VS Code: "The result menu opens and copies the clicked result, and copies a link to the search" in
+  `extension/src/e2e/commands.test.ts`. By hand in VS Code 1.141 on three Git repos (GitHub over SSH, GitLab over
+  HTTPS, no remote): the copied GitHub link, a line moved by an unpushed edit linking to its old line, the notification
+  for an edited line, an unpushed commit and an unknown server, and the greyed items without a remote.
+- Built: `docs/dev/proof/share-result.png` and `docs/dev/proof/share-result-light.png`, VS Code's real menu (drawn
+  with `window.menuStyle: custom`, so a screenshot shows it) over `retry_policy`, Copy GitHub Permalink chosen, under
+  Dark Modern and Light Modern.
