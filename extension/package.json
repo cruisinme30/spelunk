@@ -1097,7 +1097,7 @@
           "spelunk.ask.model": {
             "type": "string",
             "default": "claude-opus-5-5",
-            "markdownDescription": "The provider's model that writes the query. `claude-opus-5-5` is the default; `claude-haiku-4-5` answers faster and costs less. **Spelunk: Choose Ask Model** lists the models your API key can use and sets this."
+            "markdownDescription": "[Choose from your Anthropic models](command:spelunk.chooseAskModel): a list of the models your API key can use, fetched from Anthropic, with the effort levels each takes. Or type a model name: `claude-opus-5-5` is the default; `claude-haiku-4-5` answers faster and costs less."
           },
           "spelunk.ask.effort": {
             "type": "string",
@@ -1114,7 +1114,7 @@
               "Thinks as long as the model allows; slowest and costs the most."
             ],
             "default": "low",
-            "markdownDescription": "How long the model thinks before writing the query. Raise it when a question keeps becoming the wrong query. A level the model doesn't take becomes the nearest it does (Claude 4.5 and older take none); **Spelunk: Choose Ask Model** shows each model's levels."
+            "markdownDescription": "How long the model thinks before writing the query. Raise it when a question keeps becoming the wrong query. A level the model doesn't take becomes the nearest it does (Claude 4.5 and older take none); [Choose from your Anthropic models](command:spelunk.chooseAskModel) shows each model's levels."
           },
           "spelunk.ask.shareNames": {
             "type": "boolean",

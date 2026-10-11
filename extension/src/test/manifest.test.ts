@@ -26,7 +26,10 @@ interface Manifest {
     keybindings: Keybinding[];
     configuration: {
       title: string;
-      properties: Record<string, { enum?: string[]; deprecationMessage?: string; scope?: string }>;
+      properties: Record<
+        string,
+        { enum?: string[]; deprecationMessage?: string; scope?: string; markdownDescription?: string }
+      >;
     }[];
   };
 }
@@ -206,6 +209,11 @@ test("Ask has its own settings section, and Set Anthropic API Key is in the Comm
   const choose = manifest.contributes.commands.find((entry) => entry.command === "spelunk.chooseAskModel");
   assert.equal(choose?.title, "Choose Ask Model");
   const section = manifest.contributes.configuration.find((entry) => entry.title === "Ask in plain words");
+  // The model and effort settings link to the live list of the key's models.
+  for (const key of ["spelunk.ask.model", "spelunk.ask.effort"]) {
+    const description = section?.properties[key]?.markdownDescription ?? "";
+    assert.ok(description.includes("(command:spelunk.chooseAskModel)"), key);
+  }
   assert.deepEqual(Object.keys(section?.properties ?? {}), [
     "spelunk.ask.provider",
     "spelunk.ask.model",

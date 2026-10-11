@@ -17,9 +17,10 @@ All notable changes to this project are documented here. The format follows
   and turns Ask on); only the question, the repo names and the CODEOWNERS team names go to it (`spelunk.ask.shareNames`
   sends the question alone), never your code. `spelunk.ask.model` picks the model and `spelunk.ask.effort` how long it
   thinks; **Spelunk: Choose Ask Model** lists the models your key can use, with the effort levels each takes, and sets
-  both. A question too vague to search without guessing ("where are other files?") gets a question back (**Spelunk
-  asks** "Other than which files?") instead of a made-up query, and **Edit question** puts your words back as typed. The
-  daemon's parser checks every query it writes, and a query that doesn't parse goes back once for a repair.
+  both; the Model setting links to that list. A question too vague to search without guessing ("where are other files?")
+  gets a question back (**Spelunk asks** "Other than which files?") instead of a made-up query, and **Edit question**
+  puts your words back as typed. The daemon's parser checks every query it writes, and a query that doesn't parse goes
+  back once for a repair.
 - **History follows files through renames.** `file:retry_policy.py` finds a file's commits under every name it had,
   each saying what the file is called now, and marks the commits that renamed it. A commit that only moved a file no
   longer counts every line as added, so `type:added` finds the commit that wrote a line. A search at an old release
