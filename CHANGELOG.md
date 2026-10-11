@@ -7,6 +7,12 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- **Search in Folder with Spelunk**, on the Explorer's right-click menu under Find in Folder…, searches only inside the
+  folders right-clicked: the box starts with each folder from its repo's root (and its repo, with several open), the
+  cursor after it, and what was typed stays. Several folders, or a second pick, search any of them; a file selected
+  with them is searched too; any folder name works. A note under the results says when a folder's files aren't
+  searched (ignored by Git, left out by `spelunk.index.exclude`, or a symlink), with the setting to change, and in
+  history when a folder is a Git repo of its own, whose commits aren't searched.
 - Sort results by when each file last changed: the order name above each section of results (**Best match first**)
   is now a menu of best match, path order and **Recently changed**, and an arrow beside it flips the direction
   (newest or oldest first, A to Z or Z to A). Recently changed goes by the save time of a file with uncommitted edits

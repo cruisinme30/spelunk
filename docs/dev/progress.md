@@ -537,6 +537,37 @@ editor's right-click menu, search `sym:/^Name$/` and `ref:Name` for the name at 
   `docs/dev/proof/seed-from-editor-definitions.png` (Find Definitions on `RetryPolicy`), in VS Code 1.141 under Dark
   Modern.
 
+## Search in Folder (2.1)
+
+Mock 51 (`search-in-folder`): **Search in Folder with Spelunk**, on the Explorer's right-click menu for local folders
+(group `4_search`, after Find in Folder…; hidden from the Command Palette), opens the panel scoped to the folders
+right-clicked. `folderScope.ts` writes each one anchored at the root that holds it (the innermost, so a workspace folder
+opened inside another searches itself): `f:^src/api/`, with `repo:^name$` in front when more than one root is open, a
+root as `repo:^name$`, a file to its whole path, several ORed per repo and repos ORed in turn. RE2's metacharacters are
+escaped, and a name with a space, a bracket or a quote takes the `/…/` form. A pick while the box still starts with the
+last pick's scope joins it (a path already covered adds nothing; a folder drops the paths inside it); otherwise the
+scope goes in front of what was typed. The panel types it in with the cursor after it (`state.restore`'s
+`keepTyping`), so ⌘Z brings back the box as it was, which also stays under Recent. `folder/explain` says why a folder
+the index holds no file of isn't searched (`ignored`, `excluded`, `link`, `empty`, from its first files on disk) and
+which Git repo inside a root holds it; the host puts those as `folderNotes` on searches that start with the scope (the
+Git repo's only in history), and the panel draws them with the setting to change.
+
+- Daemon: `daemon/internal/server/folders_test.go` (an indexed folder, the root, a gitignored, an excluded and an empty
+  folder, a symlink, a repo cloned inside, a trailing slash; paths outside the repo refused, a closed repo stale).
+- Host: `extension/src/test/folderScope.test.ts` (anchoring, repo names, regex characters, spaces, brackets and
+  quotes, several folders and repos, files, covered folders, nested roots, joining a second pick, and every scope run
+  against the real daemon: no diagnostics, and exactly the folder's files, for `(shop)/orders/[id]`, `my components`,
+  `a.b` beside `aXb`, `c++`, `star*` beside `starXY`, a file, two repos and a root), the controller's notes (only
+  under searches that start with the scope, the Git repo's only in history) and `keepTyping` restore, the manifest's
+  menu entry, and `settings.open` opening only Spelunk's settings.
+- Panel: `webview/test/searchInFolder.test.mjs` (the scope typed in with the cursor after it, typing adds to it, ⌘Z
+  brings the last query back; the skipped-folder notes and their setting; the Git repo note in history; No results
+  pointing to them).
+- End to end in VS Code: "Search in Folder scopes the box to the folders picked in the Explorer, and a second pick
+  joins the first" in `extension/src/e2e/commands.test.ts`.
+- Built: `docs/dev/proof/search-in-folder.png` (web-checkout's `src/api`, right-clicked with `retry` typed) and
+  `docs/dev/proof/search-in-folder-notes.png` (a gitignored `dist/`), in VS Code 1.141 under Dark Modern.
+
 ## Hover labels (2.1)
 
 Mock 61 (`hover-labels`): resting the mouse on any control with a name shows it in a label the panel draws
