@@ -872,9 +872,10 @@ export interface RepoRemotes {
   preferred?: string;
 }
 
-/** LinkParams ask what a permalink to a result names: the remote, commit, path and lines. */
+/** LinkParams ask what permalinks to results name: the remote, commit, path and lines of each. */
 export interface LinkParams {
-  ref: string;
+  /** The results, at most 10,000: the result menu sends one, an export every result it saves. */
+  refs: string[];
   /** The remote to link to, picked by the user when the repo has several and none is preferred. */
   remote?: string;
 }
@@ -898,6 +899,11 @@ export interface Link {
   remotes?: Remote[];
 }
 
+/** Links are the permalinks link/resolve worked out, one per ref, in the same order. */
+export interface Links {
+  links: Link[];
+}
+
 /** Daemon JSON-RPC requests: method -> [params, result]. */
 export interface RpcRequests {
   "initialize": [InitializeParams, InitializeResult];
@@ -911,7 +917,7 @@ export interface RpcRequests {
   "replace/plan": [ReplacePlanParams, ReplacePlan];
   "shutdown": [Empty, Empty];
   "repo/remotes": [RepoRemotesParams, RepoRemotes];
-  "link/resolve": [LinkParams, Link];
+  "link/resolve": [LinkParams, Links];
 }
 
 /** Daemon JSON-RPC notifications: method -> params. */

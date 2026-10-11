@@ -101,8 +101,169 @@ type File struct {
 	Line, EndLine int
 	// Revision is the commit an at: result's file is from; "" for the file now.
 	Revision string
-	// Remote is the remote the user picked; "" for the preferred one.
-	Remote string
+}
+
+// Linker links results, reading each repo's remote and base commit, and
+// each file's diff against that commit, once however many results share
+// them. It is for one request: it never sees a later change.
+type Linker struct {
+	ctx context.Context // a Linker lives for one request, whose context it is
+	// picked is the remote the user picked; "" for each repo's preferred one.
+	picked string
+	repos  map[string]*repoLinks
+	files  map[[2]string]*fileLinks
+	pushed map[[2]string]bool
+}
+
+// repoLinks is what every link into one repo shares.
+type repoLinks struct {
+	remote  protocol.Remote
+	problem *protocol.Link // set when the repo can't have links
+	prefix  string         // the folder's path in its repository, ending in "/"
+	base    string         // the commit links to the files now go to; "" when the remote has none
+	err     error
+}
+
+// fileLinks is what every link into one file now shares.
+type fileLinks struct {
+	path  string // its path in base, from the folder: the old path of a file renamed since
+	hunks []hunk // base's file against the file on disk
+	gone  bool   // base doesn't have the file
+	err   error
+}
+
+// NewLinker starts linking for one request, to the remote picked, or to
+// each repo's preferred remote when picked is "".
+func NewLinker(ctx context.Context, picked string) *Linker {
+	return &Linker{
+		ctx: ctx, picked: picked,
+		repos: map[string]*repoLinks{}, files: map[[2]string]*fileLinks{}, pushed: map[[2]string]bool{},
+	}
+}
+
+// repo reads (once) what links into root share.
+func (l *Linker) repo(root string) *repoLinks {
+	if repo, ok := l.repos[root]; ok {
+		return repo
+	}
+	repo := &repoLinks{}
+	l.repos[root] = repo
+	repo.remote, repo.problem, repo.err = chosen(l.ctx, root, l.picked)
+	if repo.err != nil || repo.problem != nil {
+		return repo
+	}
+	prefix, err := git(l.ctx, root, "rev-parse", "--show-prefix")
+	if err != nil {
+		repo.err = err
+		return repo
+	}
+	repo.prefix = prefix
+	repo.base = pushedBase(l.ctx, root, repo.remote.Name)
+	return repo
+}
+
+// onRemote reports (once per commit) whether the remote has sha.
+func (l *Linker) onRemote(root, remote, sha string) bool {
+	key := [2]string{root, sha}
+	if pushed, ok := l.pushed[key]; ok {
+		return pushed
+	}
+	pushed := onRemote(l.ctx, root, remote, sha)
+	l.pushed[key] = pushed
+	return pushed
+}
+
+// Commit links to a commit result: the commit itself, when the remote has it.
+func (l *Linker) Commit(root, sha string) (protocol.Link, error) {
+	repo := l.repo(root)
+	if repo.err != nil || repo.problem != nil {
+		return deref(repo.problem), repo.err
+	}
+	remote := repo.remote
+	if !l.onRemote(root, remote.Name, sha) {
+		return protocol.Link{Remote: &remote, Problem: protocol.LinkProblemNotPushed}, nil
+	}
+	return protocol.Link{Remote: &remote, Commit: sha}, nil
+}
+
+// File links to a result in a file.
+func (l *Linker) File(file File) (protocol.Link, error) {
+	repo := l.repo(file.Root)
+	if repo.err != nil || repo.problem != nil {
+		return deref(repo.problem), repo.err
+	}
+	remote := repo.remote
+	link := protocol.Link{Remote: &remote, Line: file.Line, EndLine: file.EndLine}
+	// An at: result's file is the revision's, so its lines need no mapping.
+	if file.Revision != "" {
+		if !l.onRemote(file.Root, remote.Name, file.Revision) {
+			return protocol.Link{Remote: &remote, Problem: protocol.LinkProblemNotPushed}, nil
+		}
+		link.Commit, link.Path = file.Revision, repo.prefix+file.Path
+		return link, nil
+	}
+	if repo.base == "" {
+		return protocol.Link{Remote: &remote, Problem: protocol.LinkProblemNotPushed}, nil
+	}
+	now := l.fileSince(file, repo.base)
+	switch {
+	case now.err != nil:
+		return protocol.Link{}, now.err
+	case now.gone:
+		return protocol.Link{Remote: &remote, Problem: protocol.LinkProblemNotOnRemote}, nil
+	}
+	link.Commit, link.Path = repo.base, repo.prefix+now.path
+	if file.Line == 0 {
+		return link, nil
+	}
+	line, lineOK := mapLine(now.hunks, file.Line)
+	end, endOK := line, lineOK
+	if file.EndLine > 0 {
+		end, endOK = mapLine(now.hunks, file.EndLine)
+	}
+	if !lineOK || !endOK {
+		return protocol.Link{Remote: &remote, Problem: protocol.LinkProblemLineChanged}, nil
+	}
+	link.Line = line
+	if file.EndLine > 0 {
+		link.EndLine = end
+	}
+	return link, nil
+}
+
+// fileSince reads (once) the file's path in base and its diff from there to disk.
+func (l *Linker) fileSince(file File, base string) *fileLinks {
+	key := [2]string{file.Root, file.Path}
+	if found, ok := l.files[key]; ok {
+		return found
+	}
+	found := &fileLinks{}
+	l.files[key] = found
+	path, then, err := fileAt(l.ctx, file.Root, base, file.Path)
+	switch {
+	case err != nil:
+		found.err = err
+		return found
+	case then == nil:
+		found.gone = true
+		return found
+	}
+	found.path = path
+	now, err := os.ReadFile(filepath.Join(file.Root, filepath.FromSlash(file.Path)))
+	if err != nil {
+		found.err = err
+		return found
+	}
+	found.hunks, found.err = diffHunks(l.ctx, file.Root, then, now)
+	return found
+}
+
+// deref returns the problem link, or an empty one.
+func deref(link *protocol.Link) protocol.Link {
+	if link == nil {
+		return protocol.Link{}
+	}
+	return *link
 }
 
 // chosen picks the link's remote, or says why there is none.
@@ -159,90 +320,6 @@ func pushedBase(ctx context.Context, root, remote string) string {
 		}
 	}
 	return ""
-}
-
-// ForCommit links to a commit result: the commit itself, when the remote has it.
-func ForCommit(ctx context.Context, root, sha, picked string) (protocol.Link, error) {
-	remote, problem, err := chosen(ctx, root, picked)
-	if err != nil || problem != nil {
-		return deref(problem), err
-	}
-	if !onRemote(ctx, root, remote.Name, sha) {
-		return protocol.Link{Remote: &remote, Problem: protocol.LinkProblemNotPushed}, nil
-	}
-	return protocol.Link{Remote: &remote, Commit: sha}, nil
-}
-
-// ForFile links to a result in a file.
-func ForFile(ctx context.Context, file File) (protocol.Link, error) {
-	remote, problem, err := chosen(ctx, file.Root, file.Remote)
-	if err != nil || problem != nil {
-		return deref(problem), err
-	}
-	prefix, err := git(ctx, file.Root, "rev-parse", "--show-prefix")
-	if err != nil {
-		return protocol.Link{}, err
-	}
-	link := protocol.Link{Remote: &remote, Line: file.Line, EndLine: file.EndLine}
-	// An at: result's file is the revision's, so its lines need no mapping.
-	if file.Revision != "" {
-		if !onRemote(ctx, file.Root, remote.Name, file.Revision) {
-			link.Problem = protocol.LinkProblemNotPushed
-			return link, nil
-		}
-		link.Commit, link.Path = file.Revision, prefix+file.Path
-		return link, nil
-	}
-	base := pushedBase(ctx, file.Root, remote.Name)
-	if base == "" {
-		return protocol.Link{Remote: &remote, Problem: protocol.LinkProblemNotPushed}, nil
-	}
-	oldPath, then, err := fileAt(ctx, file.Root, base, file.Path)
-	if err != nil {
-		return protocol.Link{}, err
-	}
-	if then == nil {
-		return protocol.Link{Remote: &remote, Problem: protocol.LinkProblemNotOnRemote}, nil
-	}
-	link.Commit, link.Path = base, prefix+oldPath
-	if file.Line == 0 {
-		return link, nil
-	}
-	return mapped(ctx, file, link, then)
-}
-
-// mapped moves link's lines from the file on disk to then, the commit's
-// file, or says the result's own lines aren't in it.
-func mapped(ctx context.Context, file File, link protocol.Link, then []byte) (protocol.Link, error) {
-	now, err := os.ReadFile(filepath.Join(file.Root, filepath.FromSlash(file.Path)))
-	if err != nil {
-		return protocol.Link{}, err
-	}
-	hunks, err := diffHunks(ctx, file.Root, then, now)
-	if err != nil {
-		return protocol.Link{}, err
-	}
-	line, lineOK := mapLine(hunks, file.Line)
-	end, endOK := line, lineOK
-	if file.EndLine > 0 {
-		end, endOK = mapLine(hunks, file.EndLine)
-	}
-	if !lineOK || !endOK {
-		return protocol.Link{Remote: link.Remote, Problem: protocol.LinkProblemLineChanged}, nil
-	}
-	link.Line = line
-	if file.EndLine > 0 {
-		link.EndLine = end
-	}
-	return link, nil
-}
-
-// deref returns the problem link, or an empty one with err.
-func deref(link *protocol.Link) protocol.Link {
-	if link == nil {
-		return protocol.Link{}
-	}
-	return *link
 }
 
 // fileAt reads path (relative to root) as it was in commit sha, following a

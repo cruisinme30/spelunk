@@ -59,7 +59,13 @@ func write(t *testing.T, root, path, text string) {
 
 func linkTo(t *testing.T, file File) protocol.Link {
 	t.Helper()
-	link, err := ForFile(context.Background(), file)
+	return linkVia(t, "", file)
+}
+
+// linkVia links to file on the remote picked ("" for the preferred one).
+func linkVia(t *testing.T, picked string, file File) protocol.Link {
+	t.Helper()
+	link, err := NewLinker(context.Background(), picked).File(file)
 	if err != nil {
 		t.Fatalf("ForFile: %v", err)
 	}
@@ -106,6 +112,22 @@ func TestRefusesALineTheRemoteLacks(t *testing.T) {
 	}
 	if link := linkTo(t, File{Root: root, Path: "src/client.py", Line: 3, EndLine: 4}); link.Problem != "" || link.EndLine != 4 {
 		t.Fatalf("span above it: %+v", link)
+	}
+}
+
+// One Linker serves many results, sharing the repo's and the file's work.
+func TestOneLinkerLinksManyResults(t *testing.T) {
+	root, _ := repo(t)
+	write(t, root, "src/client.py", "# new\n"+clientPy)
+	linker := NewLinker(context.Background(), "")
+	for now, want := range map[int]int{4: 3, 6: 5, 1: 0} {
+		link, err := linker.File(File{Root: root, Path: "src/client.py", Line: now})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if want == 0 && link.Problem != protocol.LinkProblemLineChanged || want > 0 && link.Line != want {
+			t.Errorf("line %d: %+v, want line %d", now, link, want)
+		}
 	}
 }
 
@@ -185,10 +207,10 @@ func TestLinksACommitOnlyOnceItIsPushed(t *testing.T) {
 	write(t, root, "src/client.py", "# local\n"+clientPy)
 	run("commit", "--quiet", "-am", "Local")
 	local := run("rev-parse", "HEAD")
-	if link, err := ForCommit(context.Background(), root, pushed, ""); err != nil || link.Commit != pushed {
+	if link, err := NewLinker(context.Background(), "").Commit(root, pushed); err != nil || link.Commit != pushed {
 		t.Fatalf("pushed: %+v %v", link, err)
 	}
-	if link, _ := ForCommit(context.Background(), root, local, ""); link.Problem != protocol.LinkProblemNotPushed {
+	if link, _ := NewLinker(context.Background(), "").Commit(root, local); link.Problem != protocol.LinkProblemNotPushed {
 		t.Fatalf("local: %+v", link)
 	}
 }
@@ -217,7 +239,7 @@ func TestPicksTheRemote(t *testing.T) {
 	if link.Problem != protocol.LinkProblemPickRemote || len(link.Remotes) != 2 {
 		t.Fatalf("link = %+v", link)
 	}
-	if link := linkTo(t, File{Root: root, Path: "src/client.py", Line: 5, Remote: "upstream"}); link.Problem != "" || link.Remote.Name != "upstream" {
+	if link := linkVia(t, "upstream", File{Root: root, Path: "src/client.py", Line: 5}); link.Problem != "" || link.Remote.Name != "upstream" {
 		t.Fatalf("picked upstream: %+v", link)
 	}
 	run("remote", "remove", "fork")

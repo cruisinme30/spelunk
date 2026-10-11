@@ -2237,18 +2237,20 @@
       "required": ["git", "remotes"]
     },
     "LinkParams": {
-      "description": "LinkParams ask what a permalink to a result names: the remote, commit, path and lines.",
+      "description": "LinkParams ask what permalinks to results name: the remote, commit, path and lines of each.",
       "type": "object",
       "properties": {
-        "ref": {
-          "type": "string"
+        "refs": {
+          "description": "The results, at most 10,000: the result menu sends one, an export every result it saves.",
+          "type": "array",
+          "items": { "type": "string" }
         },
         "remote": {
           "description": "The remote to link to, picked by the user when the repo has several and none is preferred.",
           "type": "string"
         }
       },
-      "required": ["ref"]
+      "required": ["refs"]
     },
     "LinkProblem": {
       "description": "LinkProblem is why a result has no permalink: its folder isn't in Git (notGit), the repo has no remote (noRemote) or several and none is preferred (pickRemote), the remote has none of its commits (notPushed), the result's own lines differ from the newest commit the remote has (lineChanged), or its file isn't in that commit (notOnRemote).",
@@ -2290,6 +2292,14 @@
         }
       },
       "required": []
+    },
+    "Links": {
+      "description": "Links are the permalinks link/resolve worked out, one per ref, in the same order.",
+      "type": "object",
+      "properties": {
+        "links": { "type": "array", "items": { "$ref": "#/$defs/Link" } }
+      },
+      "required": ["links"]
     }
   },
   "x-rpc-methods": {
@@ -2383,7 +2393,7 @@
       "params": "Empty"
     },
     "repo/remotes": { "kind": "request", "params": "RepoRemotesParams", "result": "RepoRemotes" },
-    "link/resolve": { "kind": "request", "params": "LinkParams", "result": "Link" }
+    "link/resolve": { "kind": "request", "params": "LinkParams", "result": "Links" }
   },
   "x-webview-messages": {
     "query.changed": {

@@ -1496,11 +1496,22 @@ func (v RepoRemotes) MarshalJSON() ([]byte, error) {
 	return json.Marshal(p)
 }
 
-// LinkParams ask what a permalink to a result names: the remote, commit, path and lines.
+// LinkParams ask what permalinks to results name: the remote, commit, path and lines of each.
 type LinkParams struct {
-	Ref string `json:"ref"`
+	// Refs is the results, at most 10,000: the result menu sends one, an export every result it saves.
+	Refs []string `json:"refs"`
 	// Remote is the remote to link to, picked by the user when the repo has several and none is preferred.
 	Remote string `json:"remote,omitempty"`
+}
+
+// MarshalJSON emits [] rather than null for required arrays.
+func (v LinkParams) MarshalJSON() ([]byte, error) {
+	type plain LinkParams
+	p := plain(v)
+	if p.Refs == nil {
+		p.Refs = []string{}
+	}
+	return json.Marshal(p)
 }
 
 // LinkProblem is why a result has no permalink: its folder isn't in Git (notGit), the repo has no remote (noRemote) or several and none is preferred (pickRemote), the remote has none of its commits (notPushed), the result's own lines differ from the newest commit the remote has (lineChanged), or its file isn't in that commit (notOnRemote).
@@ -1530,6 +1541,21 @@ type Link struct {
 	Problem LinkProblem `json:"problem,omitempty"`
 	// Remotes is with pickRemote, the remotes to pick from.
 	Remotes []Remote `json:"remotes,omitempty"`
+}
+
+// Links are the permalinks link/resolve worked out, one per ref, in the same order.
+type Links struct {
+	Links []Link `json:"links"`
+}
+
+// MarshalJSON emits [] rather than null for required arrays.
+func (v Links) MarshalJSON() ([]byte, error) {
+	type plain Links
+	p := plain(v)
+	if p.Links == nil {
+		p.Links = []Link{}
+	}
+	return json.Marshal(p)
 }
 
 // Daemon JSON-RPC method names.
