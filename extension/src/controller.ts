@@ -9,6 +9,7 @@ import {
   type HostToWebview,
   type IndexState,
   type IndexStatusResult,
+  type OpenPosition,
   type OpenTarget,
   type OpenWhere,
   type ParsedQuery,
@@ -23,6 +24,7 @@ import {
   type UiSettings,
   type WatchMatchedParams,
 } from "./protocol.gen";
+import { movedTo } from "./openPosition";
 import { checkReplace, type DocumentLines, type LineEdit } from "./replaceEdits";
 import { pinnedEntry } from "./settings";
 import { UnseenWatches, watchMessage } from "./watches";
@@ -312,7 +314,7 @@ export class SearchController {
         return;
       }
       case "result.open": {
-        await this.onOpen(message.payload.ref, message.payload.where);
+        await this.onOpen(message.payload.ref, message.payload.where, message.payload.position);
         return;
       }
       case "results.more": {
@@ -783,11 +785,11 @@ export class SearchController {
     }
   }
 
-  /** Opens a result from the panel, remembers the query and, if set to, hides the panel. */
-  private async onOpen(ref: string, where: OpenWhere): Promise<void> {
+  /** Opens a result from the panel (at a preview's double-click), remembers the query and, if set to, hides it. */
+  private async onOpen(ref: string, where: OpenWhere, position?: OpenPosition): Promise<void> {
     const index = this.results.findIndex((result) => result.ref === ref);
     if (index !== -1) this.stepIndex = index;
-    if (!(await this.openRef(ref, where))) return;
+    if (!(await this.openRef(ref, where, position))) return;
     if (index !== -1) this.ui.showOpened(index + 1, this.results.length);
     this.rememberQuery();
     // Opening to the side puts the file next to the results, so they stay.
@@ -799,9 +801,9 @@ export class SearchController {
    * failure (an editor that can't show the file, a daemon that is down) is
    * shown to the user. Returns whether it opened.
    */
-  private async openRef(ref: string, where: OpenWhere): Promise<boolean> {
+  private async openRef(ref: string, where: OpenWhere, position?: OpenPosition): Promise<boolean> {
     try {
-      const target = await this.backend.request("open/resolve", { ref });
+      const target = movedTo(await this.backend.request("open/resolve", { ref }), position);
       const item =
         this.results.find((result) => result.ref === ref) ?? this.replacedResults.find((result) => result.ref === ref);
       return await this.ui.openTarget(target, where, this.options.uiSettings().preview, item);

@@ -435,6 +435,13 @@ export interface OpenTarget {
   revisionLabel?: string;
 }
 
+/** OpenPosition is where a double-click in a file preview lands, opened instead of the match: the word it selected, from a 1-based line and column (UTF-16), length long. */
+export interface OpenPosition {
+  line: number;
+  column: number;
+  length: number;
+}
+
 /** OpenWhere is which editor group a result opens in, or, for a result at a revision (at:), compare: a diff of the file then against the file now. */
 export type OpenWhere = "current" | "side" | "compare";
 
@@ -645,6 +652,7 @@ export interface ResultSelectMessage {
 export interface ResultOpenMessage {
   ref: string;
   where: OpenWhere;
+  position?: OpenPosition;
 }
 
 /** ResultsMoreMessage loads the next page of results. */

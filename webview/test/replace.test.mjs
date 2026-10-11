@@ -5,6 +5,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   CODE_LINE_RESULT,
+  dblclickInPreview,
   fromHost,
   lastSent,
   pageErrors,
@@ -46,6 +47,28 @@ async function previewReplace(t, replacement) {
   const request = await waitForSent(page, "replace.preview", { text: "retry_policy", replacement });
   return { page, request };
 }
+
+test("a double-click in a replace preview opens at the word's column in the file, not counting the new text", async (t) => {
+  const { page, request } = await previewReplace(t, "backoff");
+  await fromHost(page, "replace.plan", { seq: request.seq, plan: planFor("backoff") });
+  await page.click('[data-ref="l1"]');
+  await waitForSent(page, "result.select", { ref: "l1" });
+  await fromHost(page, "preview.result", {
+    ref: "l1",
+    preview: {
+      kind: "file",
+      path: "src/payments/client.py",
+      firstLine: 42,
+      lines: ["self.retry_policy = RetryPolicy()"],
+      focusLine: 42,
+      hits: [{ line: 42, ranges: [{ start: 5, end: 17, termIndex: 0 }] }],
+      dirtyLines: [],
+    },
+  });
+  assert.equal(await page.textContent('[data-testid="preview"] ins'), "backoff");
+  await dblclickInPreview(page, 42, "RetryPolicy");
+  assert.deepEqual((await lastSent(page, "result.open")).position, { line: 42, column: 21, length: 11 });
+});
 
 test("the Replace row previews a replace on the result rows and applies it on ⌘↵", async (t) => {
   // @covers screen:replace-in-files

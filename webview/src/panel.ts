@@ -682,8 +682,8 @@ export class SearchPanel {
     if (!this.results) return;
     const item = this.state.preview ? this.results.itemFor(this.state.preview.ref) : undefined;
     renderPreview(this.results.preview, this.state, previewOf(this.state, item), {
-      onOpen: (ref, where) => {
-        send("result.open", { ref, where });
+      onOpen: (ref, where, position) => {
+        send("result.open", position ? { ref, where, position } : { ref, where });
       },
       onShowHiddenFiles: () => {
         this.state.showHiddenFiles = true;

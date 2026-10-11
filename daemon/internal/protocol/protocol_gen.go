@@ -812,6 +812,13 @@ type OpenTarget struct {
 	RevisionLabel string `json:"revisionLabel,omitempty"`
 }
 
+// OpenPosition is where a double-click in a file preview lands, opened instead of the match: the word it selected, from a 1-based line and column (UTF-16), length long.
+type OpenPosition struct {
+	Line   int `json:"line"`
+	Column int `json:"column"`
+	Length int `json:"length"`
+}
+
 // OpenWhere is which editor group a result opens in, or, for a result at a revision (at:), compare: a diff of the file then against the file now.
 type OpenWhere = string
 
@@ -1148,8 +1155,9 @@ type ResultSelectMessage struct {
 
 // ResultOpenMessage opens a result in an editor.
 type ResultOpenMessage struct {
-	Ref   string    `json:"ref"`
-	Where OpenWhere `json:"where"`
+	Ref      string        `json:"ref"`
+	Where    OpenWhere     `json:"where"`
+	Position *OpenPosition `json:"position,omitempty"`
 }
 
 // ResultsMoreMessage loads the next page of results.

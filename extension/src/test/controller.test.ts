@@ -278,8 +278,13 @@ test("a query round-trips to results, preview and open through the real daemon",
     await controller.handle({ v: MESSAGE_VERSION, type: "result.open", payload: { ref, where: "current" } });
     assert.equal(host.closedPanels(), 1, "closeOnOpen closes the panel");
 
+    // A double-click in the preview opens at the word it landed on, not at the match.
+    const position = { line: 2, column: 9, length: 2 };
+    await controller.handle({ v: MESSAGE_VERSION, type: "result.open", payload: { ref, where: "side", position } });
+    assert.deepEqual(host.opened[2], { target: { path: join(workspace, "client.py"), ...position }, where: "side" });
+
     await controller.step(1);
-    assert.equal(host.opened.length, 3, "F4 opens a result without the panel");
+    assert.equal(host.opened.length, 4, "F4 opens a result without the panel");
   } finally {
     await daemon.stop();
   }
@@ -784,6 +789,22 @@ test("malformed panel messages are dropped at the boundary, and well-formed ones
     { historyDepth: "6m" },
     "only valid choices reach the user's settings",
   );
+  const open = (position: unknown) =>
+    parseWebviewMessage({ v: MESSAGE_VERSION, type: "result.open", payload: { ref: "r", where: "side", position } })
+      ?.payload;
+  assert.deepEqual(open({ line: 3, column: 1, length: 0, extra: 1 }), {
+    ref: "r",
+    where: "side",
+    position: { line: 3, column: 1, length: 0 },
+  });
+  for (const position of [
+    { line: 0, column: 1, length: 0 },
+    { line: 3, column: 1 },
+    { line: "3", column: 1, length: 2 },
+    7,
+  ]) {
+    assert.deepEqual(open(position), { ref: "r", where: "side" }, `${JSON.stringify(position)} opens at the match`);
+  }
 });
 
 test("a query.changed whose seq is not a number is ignored and doesn't let older queries back in", async () => {

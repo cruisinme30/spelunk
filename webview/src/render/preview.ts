@@ -1,7 +1,7 @@
 // The preview pane: a file excerpt around the match, or a commit's diff.
 import { button, element, fileStat, highlight, plural, scrollIntoContainer, shortSha, timeAgo } from "../format";
 import { textTerms } from "../parsedQuery";
-import type { OpenWhere, Ownership, Preview, ResultItem, SinceRevision } from "../protocol.gen";
+import type { OpenPosition, OpenWhere, Ownership, Preview, ResultItem, SinceRevision } from "../protocol.gen";
 import { repoName, type ViewState } from "../state";
 
 type FilePreview = Extract<Preview, { kind: "file" }>;
@@ -13,7 +13,8 @@ const DIFF_SIGN = { add: "+", del: "−", ctx: " " } as const;
 
 /** What the preview's buttons do. */
 interface PreviewHandlers {
-  onOpen: (ref: string, where: OpenWhere) => void;
+  /** Opens the result, at `position` instead of its match when given one. */
+  onOpen: (ref: string, where: OpenWhere, position?: OpenPosition) => void;
   onShowHiddenFiles: () => void;
   /** What a replace would make of a line's matches, while the Replace row previews one. */
   replacementsFor: (path: string, line: number) => string[] | undefined;
@@ -69,6 +70,11 @@ export function renderPreview(
   const header = { repo: of.repoId ? repoName(state, of.repoId) : "", actions, at: of.at?.label };
   if (preview.kind === "file") {
     renderFilePreview(container, preview, header, handlers.replacementsFor);
+    // A double-click on the code opens the file beside the panel, at the word it selected.
+    container.querySelector(".code")?.addEventListener("dblclick", (event) => {
+      const position = doubleClicked(event as MouseEvent);
+      if (position) handlers.onOpen(current.ref, "side", position);
+    });
   } else {
     renderCommitPreview(container, preview, header, {
       showHiddenFiles: state.showHiddenFiles,
@@ -144,7 +150,7 @@ function renderFilePreview(
     code.append(
       element(
         "div",
-        { class: classes.join(" ") },
+        { class: classes.join(" "), "data-line": String(lineNumber) },
         element("span", { class: "line-number" }, String(lineNumber)),
         element(
           "code",
@@ -161,6 +167,36 @@ function renderFilePreview(
     const names = preview.symbols.slice(0, MAX_OUTLINE_SYMBOLS).map((symbol) => element("code", {}, symbol.name));
     container.append(element("div", { class: "outline muted" }, "In this file: ", ...names));
   }
+}
+
+/**
+ * Where a double-click in a file preview landed: the word the browser selected, on its line, or the line's start
+ * for a double-click on its number.
+ */
+function doubleClicked(event: MouseEvent): OpenPosition | undefined {
+  const row = (event.target as Element).closest<HTMLElement>(".code-line[data-line]");
+  const line = Number(row?.dataset["line"]);
+  if (!row || !Number.isSafeInteger(line)) return undefined;
+  const code = row.querySelector("code");
+  const selection = document.getSelection();
+  const range = selection && selection.rangeCount > 0 ? selection.getRangeAt(0) : undefined;
+  if (!code || !range || !code.contains(range.startContainer)) return { line, column: 1, length: 0 };
+  const start = columnOf(code, range.startContainer, range.startOffset);
+  const end = code.contains(range.endContainer) ? columnOf(code, range.endContainer, range.endOffset) : start;
+  return { line, column: start + 1, length: Math.max(0, end - start) };
+}
+
+/**
+ * How many UTF-16 characters of the file's line come before `offset` in `node`, in a line's `code`. A replace
+ * preview's new text (ins) isn't in the file, so it doesn't count.
+ */
+function columnOf(code: HTMLElement, node: Node, offset: number): number {
+  const before = document.createRange();
+  before.setStart(code, 0);
+  before.setEnd(node, offset);
+  const fragment = before.cloneContents();
+  for (const inserted of fragment.querySelectorAll("ins")) inserted.remove();
+  return fragment.textContent.length;
 }
 
 /** "line 14", or "lines 29–30" for a match that spans lines. */

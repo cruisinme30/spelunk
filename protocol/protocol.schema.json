@@ -1148,6 +1148,22 @@
       },
       "required": []
     },
+    "OpenPosition": {
+      "description": "OpenPosition is where a double-click in a file preview lands, opened instead of the match: the word it selected, from a 1-based line and column (UTF-16), length long.",
+      "type": "object",
+      "properties": {
+        "line": {
+          "type": "integer"
+        },
+        "column": {
+          "type": "integer"
+        },
+        "length": {
+          "type": "integer"
+        }
+      },
+      "required": ["line", "column", "length"]
+    },
     "OpenWhere": {
       "description": "OpenWhere is which editor group a result opens in, or, for a result at a revision (at:), compare: a diff of the file then against the file now.",
       "type": "string",
@@ -1659,6 +1675,9 @@
         },
         "where": {
           "$ref": "#/$defs/OpenWhere"
+        },
+        "position": {
+          "$ref": "#/$defs/OpenPosition"
         }
       },
       "required": ["ref", "where"]

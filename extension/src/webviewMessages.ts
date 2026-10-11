@@ -2,7 +2,7 @@
 // the host acts on them. postMessage carries any JSON, so a message whose
 // shape doesn't match the protocol is dropped here instead of failing (or
 // doing something odd) deep inside a handler.
-import type { Envelope, WebviewToHost } from "./protocol.gen";
+import type { Envelope, OpenPosition, WebviewToHost } from "./protocol.gen";
 import { HISTORY_DEPTHS, MAX_CONTEXT_LINES, SHORTCUT_PRESETS } from "./settings";
 
 /** The `v` of every message between the extension host and a webview. */
@@ -42,6 +42,15 @@ function member<T extends string>(value: unknown, allowed: readonly T[]): T | un
   return allowed.find((candidate) => candidate === value);
 }
 
+/** `value` when it is a position to open at: a line and column from 1, and a length. */
+function openPosition(value: unknown): OpenPosition | undefined {
+  if (typeof value !== "object" || value === null) return undefined;
+  const { line, column, length } = value as Fields;
+  return isCount(line) && line > 0 && isCount(column) && column > 0 && isCount(length)
+    ? { line, column, length }
+    : undefined;
+}
+
 const PAYLOAD_CHECKS: { [K in keyof WebviewToHost]: PayloadCheck<K> } = {
   "query.changed": ({ text, cursor, seq, asTyped }) => {
     if (!isString(text) || !isCount(seq) || typeof cursor !== "number" || Number.isNaN(cursor)) return;
@@ -50,9 +59,12 @@ const PAYLOAD_CHECKS: { [K in keyof WebviewToHost]: PayloadCheck<K> } = {
     return { text, cursor: inText, seq, ...(asTyped === true ? { asTyped } : {}) };
   },
   "result.select": ({ ref }) => (isString(ref) ? { ref } : undefined),
-  "result.open": ({ ref, where }) => {
+  "result.open": ({ ref, where, position }) => {
     const side = member(where, ["current", "side", "compare"] as const);
-    return isString(ref) && side ? { ref, where: side } : undefined;
+    if (!isString(ref) || !side) return;
+    // A position that isn't one opens at the match, as a message without one does.
+    const at = openPosition(position);
+    return at ? { ref, where: side, position: at } : { ref, where: side };
   },
   "results.more": ({ searchId, cursor }) => (isString(searchId) && isString(cursor) ? { searchId, cursor } : undefined),
   "help.try": ({ query }) => (isString(query) ? { query } : undefined),

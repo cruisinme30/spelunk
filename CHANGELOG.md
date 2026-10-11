@@ -5,6 +5,11 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Double-click a word in a code preview to open the file beside the editor with that word selected, at the line and
+  column you double-clicked; a double-click on a line number opens at the start of that line. The panel stays open.
+
 ### Fixed
 
 - When a daemon that stopped answering was restarted, the searches waiting on it could fail with "write EPIPE"

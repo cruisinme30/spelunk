@@ -6,12 +6,14 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   CODE_LINE_RESULT,
+  dblclickInPreview,
   FILE_NAME_RESULT,
   fromHost,
   lastSent,
   MISSPELT,
   openPanel,
   openPanelWithSavedState,
+  pageErrors,
   panelWithResults,
   parsedQuery,
   QUERY,
@@ -356,6 +358,45 @@ test("the first result is selected and previewed; ↓ moves the selection", asyn
     },
   });
   assert.equal(await page.locator('[data-testid="preview"] mark').count(), 1);
+});
+
+test("a double-click in the preview opens its file to the side, at the word double-clicked", async (t) => {
+  // @covers msg:result.open
+  const page = await panelWithResults(t);
+  await page.keyboard.press("ArrowDown");
+  await waitForSent(page, "result.select", { ref: "l1" });
+  await fromHost(page, "preview.result", {
+    ref: "l1",
+    preview: {
+      kind: "file",
+      path: "src/payments/client.py",
+      firstLine: 41,
+      lines: ["    import retry", "self.retry_policy = RetryPolicy()"],
+      focusLine: 42,
+      hits: [{ line: 42, ranges: [{ start: 5, end: 17, termIndex: 0 }] }],
+      dirtyLines: [],
+    },
+  });
+  // One click only selects, as it always has.
+  await page.click('[data-testid="preview"] .code-line[data-line="41"] code');
+  assert.equal(await lastSent(page, "result.open"), undefined);
+
+  await dblclickInPreview(page, 42, "RetryPolicy");
+  assert.deepEqual(await lastSent(page, "result.open"), {
+    ref: "l1",
+    where: "side",
+    position: { line: 42, column: 21, length: 11 },
+  });
+  // A line above the match, indented, counts its indentation.
+  await dblclickInPreview(page, 41, "retry");
+  assert.deepEqual((await lastSent(page, "result.open")).position, { line: 41, column: 12, length: 5 });
+  // A word before the match's mark, at the line's start.
+  await dblclickInPreview(page, 42, "self");
+  assert.deepEqual((await lastSent(page, "result.open")).position, { line: 42, column: 1, length: 4 });
+  // The line number opens at the line's start.
+  await page.dblclick('[data-testid="preview"] .code-line[data-line="41"] .line-number');
+  assert.deepEqual((await lastSent(page, "result.open")).position, { line: 41, column: 1, length: 0 });
+  assert.deepEqual(pageErrors(page), []);
 });
 
 test("↑↓ go through the sections top to bottom, in the order their batches came, and stop at either end", async (t) => {

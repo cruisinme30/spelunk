@@ -111,6 +111,28 @@ export async function waitForSent(page, type, fields = {}) {
   return lastSent(page, type);
 }
 
+/** Double-clicks the middle of the first `word` on the preview's code line `line`, as a person would. */
+export async function dblclickInPreview(page, line, word) {
+  const { x, y } = await page.evaluate(
+    ([wantedLine, wantedWord]) => {
+      const code = document.querySelector(`[data-testid="preview"] .code-line[data-line="${wantedLine}"] code`);
+      const walker = document.createTreeWalker(code, NodeFilter.SHOW_TEXT);
+      for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+        const at = node.data.indexOf(wantedWord);
+        if (at === -1) continue;
+        const range = document.createRange();
+        range.setStart(node, at);
+        range.setEnd(node, at + wantedWord.length);
+        const box = range.getBoundingClientRect();
+        return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+      }
+      throw new Error(`no ${wantedWord} on preview line ${wantedLine}`);
+    },
+    [line, word],
+  );
+  await page.mouse.dblclick(x, y);
+}
+
 /** Plays a message from the host into the page. */
 export const fromHost = (page, type, payload) =>
   page.evaluate(([messageType, messagePayload]) => globalThis.__fromHost(messageType, messagePayload), [type, payload]);
