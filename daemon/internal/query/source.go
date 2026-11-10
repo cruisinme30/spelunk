@@ -7,6 +7,14 @@ import (
 	"github.com/cruisinme30/spelunk/daemon/internal/protocol"
 )
 
+// quoteText encodes literal text using the query lexer's quoting rules.
+// Escape backslashes before quotes so a trailing backslash cannot consume
+// the closing quote or change the value of an existing escape sequence.
+func quoteText(value string) string {
+	value = strings.ReplaceAll(value, `\`, `\\`)
+	return `"` + strings.ReplaceAll(value, `"`, `\"`) + `"`
+}
+
 // ApplyFix applies a fix's edits, whose spans are UTF-16 offsets, to text.
 func ApplyFix(text string, fix protocol.Fix) string {
 	src := newSource(text)

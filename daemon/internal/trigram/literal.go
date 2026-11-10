@@ -102,6 +102,18 @@ func (f literalFinder) index(content []byte, from int) int {
 // the needle's first letter in either case with bytes.IndexByte, which is
 // fast, and checks the rest there; it needs no lowercased copy of text.
 func indexFold(text, needle []byte, from int) int {
+	positions := foldedPositions{lower: -1, upper: -1}
+	return positions.index(text, needle, from)
+}
+
+// foldedPositions remembers the next occurrence of either case while scanning
+// one file forwards. A rare or absent case is looked for only once, rather
+// than rescanning the remaining file each time another line matches.
+// It belongs to one matcher, never the term facts shared across files.
+// Calls to index must use the same text/needle and nondecreasing offsets.
+type foldedPositions struct{ lower, upper int }
+
+func (p *foldedPositions) index(text, needle []byte, from int) int {
 	last := len(text) - len(needle) // the last position the needle can start at
 	if last < 0 {
 		return -1
@@ -110,17 +122,16 @@ func indexFold(text, needle []byte, from int) int {
 	lower, upper := needle[0], upperASCII(needle[0])
 	// The next position of each case of the first letter, found but not yet
 	// checked; last+1 when there is none.
-	nextLower, nextUpper := -1, -1
 	for from <= last {
-		if nextLower < from {
-			nextLower = indexByteFrom(candidates, lower, from)
+		if p.lower < from {
+			p.lower = indexByteFrom(candidates, lower, from)
 		}
-		at := nextLower
+		at := p.lower
 		if upper != lower {
-			if nextUpper < from {
-				nextUpper = indexByteFrom(candidates, upper, from)
+			if p.upper < from {
+				p.upper = indexByteFrom(candidates, upper, from)
 			}
-			at = min(at, nextUpper)
+			at = min(at, p.upper)
 		}
 		if at > last {
 			return -1
