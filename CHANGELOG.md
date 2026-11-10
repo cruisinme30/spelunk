@@ -6,8 +6,13 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [3.1.0] - 2026-11-10
+
 ### Fixed
 
+- **Issue:** dependencies included versions with known resource-exhaustion and network-security advisories.
+  **Example:** malformed Markdown or glob patterns could consume excessive resources in development tools.
+  **Fix:** update affected dependencies and pin patched transitive ranges; npm audit reports zero vulnerabilities.
 - **Issue:** Azure permalink normalization could change an explicitly configured server's hostname.
   **Example:** a custom Azure host named `example-dev.azure.com` was rewritten to `dev.azure.com`.
   **Fix:** normalize only the exact Azure SSH hostname; retain configured custom hosts.
