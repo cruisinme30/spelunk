@@ -8,6 +8,60 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- **Issue:** case-insensitive literal search repeatedly scanned the same file suffix.
+  **Example:** many lowercase matches with no uppercase occurrence made a broad search grow quadratically.
+  **Fix:** retain each case variant's next position within that file's matcher; query and index state stay immutable.
+- **Issue:** suggested query repairs and completions could change literal text or consume the next term.
+  **Example:** quoting the unknown operator in `unknown:\ schedule` swallowed `schedule` into an unclosed string.
+  **Fix:** quote values without changing backslashes, quotes, whitespace or leading slashes, with round-trip checks.
+- **Issue:** C/C++ continuation lines could hide executable code inside a comment or string result.
+  **Example:** a block-comment closer split after `*` by a backslash and newline left the following call marked
+  as a comment; a split identifier ending in `R` could be mistaken for a raw-string prefix.
+  **Fix:** read logical C/C++ tokens while preserving physical offsets, including continued comments and strings,
+  raw strings, character constants and numeric digit separators.
+- **Issue:** C/C++ definition search confused declarations with function bodies.
+  **Example:** a multiline prototype appeared as a function, while `int actual(void) { return 1; }` was missed.
+  **Fix:** distinguish declarations and initializers from bodies, recognize one-line definitions and trailing
+  implementation attributes, and rebuild saved symbol indexes with format 7. Extraction remains a lexical heuristic.
+- **Issue:** fuzzy file and workspace-symbol search used different Unicode case equivalence from text search.
+  **Example:** final sigma and long s were missed, while dotted capital I could match ordinary `i` incorrectly.
+  **Fix:** share Unicode simple case folding across fuzzy names and workspace symbols.
+- **Issue:** line-only replacement checks accepted plans whose surrounding source had changed.
+  **Example:** changing `// header` to `/* header` left an unchanged `retry()` call eligible for a stale code-only edit.
+  **Fix:** bind each plan to the complete source digest, notebook structure and any indexed output text, require the
+  current preview, validate UTF-16 ranges, and recheck document versions before applying the single editor edit.
+- **Issue:** replacement limits were checked after processing every match in a file.
+  **Example:** a dense line could build thousands of edits even when the caller's limit was 10.
+  **Fix:** stop after proving the limit exceeded and return no edits; use bounded capture batches and advancing
+  UTF-16 offsets. Notebook outputs never count as replaceable source.
+- **Issue:** a regex with many capture groups could allocate excessive replacement data.
+  **Example:** 64 empty groups followed by `(a)` over 2,000 matches produced far more indexes than edits.
+  **Fix:** cap capture-index storage and reject the whole plan when exhausted, while evaluating captures against
+  the original line so anchors keep their meaning.
+- **Issue:** a small edit count could still expand into an enormous replacement plan.
+  **Example:** repeating a 64 KiB capture 100,000 times would create over 6 GiB of replacement text for one edit.
+  **Fix:** enforce a 16 MiB request-wide JSON payload budget, including escaping and metadata, and charge capture
+  slices before appending. Exceeding it rejects the whole plan with guidance to narrow or shorten the replacement.
+- **Issue:** an undefined capture reference silently removed text during regex replacement.
+  **Example:** `$1_suffix` names the capture `1_suffix`; it does not mean group 1 followed by `_suffix`.
+  **Fix:** reject unknown capture references and suggest explicit braces such as `${1}_suffix`. Defined optional
+  groups can still expand to empty, and dollar text in literal-query replacements stays literal.
+- **Issue:** an unchanged source digest did not prove that a replacement path still named the indexed file.
+  **Example:** swapping a file for a symlink to identical text outside the workspace passed the content check.
+  **Fix:** bind each edit to a selected root, reject redirected descendant paths, and recheck file and directory
+  identities before opening, applying or saving. These checks do not make editor writes an atomic filesystem action.
+- **Issue:** a query could override an agent's requested result limit.
+  **Example:** MCP search with `limit: 1` and `count:all` returned more than one result.
+  **Fix:** enforce a separate per-call result ceiling while preserving the complete count and any lower query limit.
+- **Issue:** CLI and MCP summaries reported every incomplete search as a timeout and its count as exact.
+  **Example:** reaching the 50,000-result ceiling was described as running out of time.
+  **Fix:** report "at least" the counted results and a generic incomplete-search notice without guessing the cause.
+  An incomplete zero-result search asks for a narrower retry; complete counts and smaller output pages stay exact.
+- **Issue:** MCP requests could open too many backend sessions or hold them indefinitely.
+  **Example:** twelve calls opened twelve connections; an accepted connection that never answered held its slot.
+  **Fix:** allow at most eight active search, preview or status calls per MCP process; excess calls receive a retry
+  error without queuing. Connection handshakes have a two-second deadline and close stalled transports. Syntax help
+  remains available.
 - **Issue:** string-only replacement could target executable interpolation.
   **Example:** `dangerCall in:strings` selected the call in JavaScript `` `answer ${dangerCall()}` ``.
   **Fix:** classify JavaScript/TypeScript template and Python f-string expressions as code, preserving literal text
@@ -46,6 +100,11 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- **Issue:** MCP setup required guessing a stdio command or invoking the server to discover help.
+  **Example:** running `spelunk mcp` waited for a client rather than showing configuration instructions.
+  **Fix:** add `spelunk mcp --help`, `spelunk mcp config [--in DIR]` and an explicit default folder for the server.
+  Help and configuration work without an index; invalid arguments fail before connecting, and searches still
+  require an index.
 - **Issue:** terminal and agent users needed an editor to create the first index.
   **Example:** `spelunk search timeout` on a fresh checkout reported that it was not indexed.
   **Fix:** add `spelunk index [--in DIR] [--rebuild]`, using the existing settings and exclusive writer lock,
@@ -53,6 +112,14 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
+- **Issue:** code could pass CI while its wiki changes stayed unpublished or escaped validation.
+  **Example:** a checkout without the separate wiki clone silently skipped the old documentation check.
+  **Fix:** version the canonical wiki in `docs/wiki`, validate it with code in every PR, and publish a separate
+  GitHub wiki mirror only from merged `develop` changes after checks. The first hosted publication remains pending.
+- **Issue:** an older host could accept a replacement plan without enforcing complete-source validation.
+  **Example:** a version 1 host understood edited lines but ignored the new source digest.
+  **Fix:** require internal RPC protocol version 2 for the new replacement contract; update both host and daemon.
+  MCP's standard wire protocol and the webview message version are unchanged.
 - **Issue:** every iteration paid for the same integration path.
   **Example:** several small feature pushes could each trigger the full Actions suite before the feature was ready.
   **Fix:** collect work in draft feature PRs, run strict static checks and affected behavioral layers into `develop`,

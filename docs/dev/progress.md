@@ -948,3 +948,53 @@ checks covered navigation, tabs, percentile/corpus controls, finding filters and
 Wiki updates are prepared locally but not published: the GitHub connector cannot write repository wikis, and the
 wiki Git remote has no authenticated write credential in this environment. The pending patch is included with
 this change for review. This publication gap must be resolved before integration; do not mark the batch released.
+
+## Large-repository red team (2026-11-10, validation in progress)
+
+This unreleased batch starts from `a1b8baf` on the large-repository fix branch. The evidence below is from focused
+checks; integrated validation, final performance measurements and the first hosted wiki publication remain pending.
+
+- Literal matching now keeps per-file folded-search cursors instead of repeatedly scanning the remaining suffix.
+  Targeted tests compare 200 random texts and six needles against an independent oracle at increasing offsets,
+  check shared-term isolation across files, and preserve Unicode matching behavior. No index cache is added.
+- Query repair and completion quoting preserve literal bytes and following terms. The query package passed,
+  including 3,421 deterministic mutations and deep, large and error-heavy inputs; scoped lint and spelling passed.
+  Fuzz evidence from before this fix is not counted as validation of the new quoting behavior.
+- C/C++ context tests cover logical line splicing with physical offsets, split comment delimiters, CRLF strings,
+  raw prefixes, character constants, numeric separators and Unicode. A reduced Linux BPF assembly example keeps
+  assembly comments inside their C string. The structural suite and scoped lint passed; all six end-to-end
+  replacement regressions preserved executable code. A post-change, 30-second `FuzzLex` run completed 649,116
+  executions without failure, and scoped lint passed again. This does not claim compiler-level macro interpretation.
+- Definition extraction and outlines reject confirmed C/C++ prototypes and initializers, retain one-line bodies,
+  and recognize trailing implementation attributes. Full symbol tests and scoped lint passed. Unicode fuzzy names
+  and workspace symbols share simple case folding; 255 oracle queries, ten fuzzy cases and 18 existing ripgrep
+  parity cases passed. Saved shard format 7 rejects old format 6 and unknown format 8.
+- Replacement plans carry the full-source digest and notebook structure described in ADR 0010. Focused daemon,
+  server and extension checks passed, including 11 real-daemon replacement cases. Ten focused path-guard tests
+  passed for redirected paths, changed identities, removed roots and valid unusual filenames; their host integration
+  and protocol-rejection checks also passed. Capture-prefix and whole-plan budget-failure tests passed. Notebook
+  output eligibility tests and eight shared Go/TypeScript hash vectors passed, including a first searchable output.
+  Focused payload-budget tests passed for JSON escaping, metadata, multiple files and a capture expansion that
+  would otherwise exceed 6 GiB; the request-wide limit is 16 MiB and returns no partial plan. Server reruns are pending.
+  The complete gate remains in progress; no final replacement-safety sign-off is recorded here yet.
+- Focused MCP tests passed, including setup, internal RPC version 2 checks, hard result ceilings, an eight-call
+  per-process limit, cancellation, stalled handshakes and slot release. A query with `count:all` and a limit of one reports
+  three matches while showing one. A real saved-index reader refreshed an edited file and reported index age and
+  changed-file count over pipes. A built binary in a path containing spaces launched from generated configuration,
+  listed four tools, answered syntax and exited cleanly. Scoped CLI/server lint and spelling passed. Unix-socket
+  discovery and detached-process integration remain environment-blocked; pipe tests do not replace that missing
+  coverage. The complete integration gate remains pending.
+- CLI/MCP summary regressions passed for a result ceiling, other incomplete scans, complete counts with smaller
+  pages, and zero matches before a stop. Incomplete counts are lower bounds without an assumed timeout cause;
+  the zero-result case suggests narrowing and retrying. Scoped CLI lint and spelling passed.
+- Canonical wiki pages and all 69 images now live in `docs/wiki/`, including the previously unpublished edits.
+  Offline content validation passes against the mocks, screenshots, links and reference coverage; Markdown lint
+  passes after adding page headings and preserving the existing screenshot layouts. All 12 local publication
+  regressions and scoped static checks passed; [raw test output](evidence/wiki-publication-tests.tap) records the
+  cases. Hosted authentication and the first mirror publication remain unverified until the workflow runs.
+
+The benchmark methodology and comparison are maintained separately in
+[industry-comparison.md](industry-comparison.md). Completed samples, resource failures and unmeasured cases must
+remain distinct. [ADR 0011](../adr/0011-version-wiki-source-with-code.md) supersedes the earlier requirement to push
+the separate wiki before integration: canonical documentation is reviewed and merged with code, and publication
+follows merged `develop` changes. No updated legacy wiki patch or hosted publication is claimed here.

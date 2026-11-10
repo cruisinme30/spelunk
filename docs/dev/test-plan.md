@@ -151,6 +151,28 @@ exactly like a fresh rebuild. The check replays a random sequence, rebuilds from
 fixed set of 500 queries against both, and requires identical results. This is how the overlay, tombstones and
 compaction are proven correct.
 
+## Large-repository regression requirements
+
+The large-repository audit adds targeted checks at the cheapest layer that can prove each invariant. These are
+integration requirements, not claims that the broader nightly or cross-platform targets below already run.
+
+| Area | Required assertion | Test location |
+| --- | --- | --- |
+| Literal search | Folded scans match an independent oracle at increasing offsets; matcher cursors never cross file boundaries | `daemon/internal/trigram/literal_test.go` |
+| Query edits | A suggested repair exists, preserves every literal byte, and leaves following terms separate; completions round-trip through the lexer | `daemon/internal/query/fix_preservation_test.go`, `fix_mutation_test.go` |
+| C/C++ contexts | Escaped newlines, split comment markers, raw prefixes, numeric separators and Unicode preserve physical ranges; replacement changes only the requested context | `daemon/internal/structural/c_test.go`, `daemon/internal/trigram/c_context_test.go` |
+| Definitions | Multiline prototypes and initializers stay out of definitions and outlines; one-line bodies and trailing attributes keep the correct scope | `daemon/internal/symbols/code_test.go` |
+| Unicode names | Fuzzy names and workspace symbols agree with simple case folding, including final sigma, long s and dotted I | `daemon/internal/trigram/fuzzy_test.go`, `definitions_test.go` |
+| Replacement source | Untouched context changes invalidate a plan; notebook source, boundaries and languages are checked; changed or newly added searchable outputs invalidate stale eligibility; outputs are never edited | `daemon/internal/trigram/replace_source_test.go`, `extension/src/test/replace.test.ts` |
+| Replacement limits | Stop after proving the limit exceeded, return no partial plan, bound capture indexes and JSON payload across files, reject huge capture expansion before allocation, preserve full-line anchor meaning, and check UTF-16 offsets on dense lines | `daemon/internal/trigram/replace_test.go`, `replace_budget_test.go` |
+| Replacement references | Undefined references fail before planning; explicit suffix braces, whole-match references, literal dollars and unmatched optional groups retain their intended behavior | `daemon/internal/server/replace_test.go` |
+| Replacement apply | Require the current preview, valid UTF-16 ranges, current document versions and permitted file paths before applying or saving | `extension/src/test/controller.test.ts`, `replace.test.ts`, `replacementPaths.test.ts` |
+| Agent access | MCP setup needs no index; hard limits survive `count:all`; incompatible peers are rejected; busy calls and stalled handshakes release slots; saved-index refresh remains read-only | `daemon/internal/cli/mcp_backend_test.go`, `mcp_setup_test.go`, `mcp_wire_test.go` |
+| Agent summaries | Incomplete counts are lower bounds without an invented cause; complete totals stay exact when fewer rows are shown; an incomplete zero-result search does not suggest widening | `daemon/internal/cli/mcp_summary_test.go` |
+
+Report corpus revisions, sampled query families, exact match parity, cancellation and truncation alongside timings.
+An aborted or resource-exhausted run is evidence of a limit, never a completed benchmark sample.
+
 ## Performance and soak
 
 Budgets are measured the way a user feels them, from keystroke to pixels, and a nightly run fails the build when any p95
