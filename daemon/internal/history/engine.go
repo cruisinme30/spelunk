@@ -70,6 +70,7 @@ type searcher struct {
 	lines     *trigram.LineFinder
 	counted   int // matching commits so far
 	truncated bool
+	matchErr  error
 	// facets count the matching commits by repo, author and month.
 	facets *engine.Facets
 	// hidden counts, per filter index, commits that only that filter removed.
@@ -87,7 +88,7 @@ type searcher struct {
 
 // stats summarizes the search.
 func (s *searcher) stats() engine.Stats {
-	stats := engine.NewStats(s.plan, s.counted, s.truncated)
+	stats := engine.NewStats(s.plan, s.counted, s.truncated || s.matchErr != nil)
 	stats.Facets = s.facets.List()
 	hidden := engine.Hidden{ByFilter: s.hidden, ByCase: s.hiddenByCase, ByWord: s.hiddenByWord, ByType: s.hiddenBySide}
 	stats.AddHidden(s.plan, hidden, "commits", "commits")
@@ -102,6 +103,16 @@ func (s *searcher) stopped() bool {
 		s.truncated = true
 	}
 	return s.truncated
+}
+
+func (s *searcher) failMatches(err error) {
+	if err == nil {
+		return
+	}
+	if s.matchErr == nil {
+		s.matchErr = err
+	}
+	s.truncated = true
 }
 
 // searchNewestFirst visits the candidate commits of every repo, newest
@@ -164,13 +175,18 @@ func (s *searcher) visit(repo *Repo, c *Commit) {
 			failed = i
 		}
 	}
-	files := views(c, s.lines, s.plan.DiffSide)
+	files := views(s.ctx, c, s.lines, s.plan.DiffSide)
 	switch {
 	case failed >= 0:
 		s.creditFilter(repo, c, files, failed)
 	case s.matches(repo, c, files):
+		item, err := s.result(repo, c, files)
+		if err != nil {
+			s.failMatches(err)
+			return
+		}
 		if s.plan.OnPage(s.counted) {
-			s.emit(s.result(repo, c, files))
+			s.emit(item)
 		}
 		s.counted++
 		s.facets.CountRepo(repo.Name)
@@ -240,29 +256,36 @@ type messageView struct{ termLines }
 type termLines struct {
 	text    []byte
 	finder  *trigram.LineFinder
-	matches map[*query.Content][]int
+	ctx     context.Context
+	matches map[*query.Content]lineMatches
+	err     error
 }
 
-func newTermLines(text []byte, finder *trigram.LineFinder) termLines {
-	return termLines{text: text, finder: finder, matches: map[*query.Content][]int{}}
+type lineMatches struct {
+	lines []int
+	err   error
+}
+
+func newTermLines(ctx context.Context, text []byte, finder *trigram.LineFinder) termLines {
+	return termLines{ctx: ctx, text: text, finder: finder, matches: map[*query.Content]lineMatches{}}
 }
 
 // views returns a commit's files for matching, with text terms limited to
 // side (a Plan.DiffSide) of their diffs.
-func views(c *Commit, finder *trigram.LineFinder, side string) []*fileView {
-	message := newMessageView(c, finder)
+func views(ctx context.Context, c *Commit, finder *trigram.LineFinder, side string) []*fileView {
+	message := newMessageView(ctx, c, finder)
 	if len(c.Files) == 0 {
-		return []*fileView{newFileView(&FileChange{}, finder, message, side)}
+		return []*fileView{newFileView(ctx, &FileChange{}, finder, message, side)}
 	}
 	out := make([]*fileView, len(c.Files))
 	for i := range c.Files {
-		out[i] = newFileView(&c.Files[i], finder, message, side)
+		out[i] = newFileView(ctx, &c.Files[i], finder, message, side)
 	}
 	return out
 }
 
-func newFileView(file *FileChange, finder *trigram.LineFinder, message *messageView, side string) *fileView {
-	return &fileView{file: file, termLines: newTermLines(file.Text, finder), message: message, sign: sideSign(side)}
+func newFileView(ctx context.Context, file *FileChange, finder *trigram.LineFinder, message *messageView, side string) *fileView {
+	return &fileView{file: file, termLines: newTermLines(ctx, file.Text, finder), message: message, sign: sideSign(side)}
 }
 
 // sideSign is the diff sign of the lines a Plan.DiffSide keeps, or 0 for both.
@@ -303,8 +326,8 @@ func (v *fileView) messageLines(term *query.Content) []int {
 	return v.message.lines(term)
 }
 
-func newMessageView(c *Commit, finder *trigram.LineFinder) *messageView {
-	return &messageView{newTermLines([]byte(c.message()), finder)}
+func newMessageView(ctx context.Context, c *Commit, finder *trigram.LineFinder) *messageView {
+	return &messageView{newTermLines(ctx, []byte(c.message()), finder)}
 }
 
 // leafFor evaluates predicate leaves against one commit and one of its files.
@@ -378,11 +401,24 @@ func commitLeaf(repo *Repo, c *Commit, p query.Pred) (matched, ok bool) {
 // a file, in diff order).
 func (t *termLines) lines(term *query.Content) []int {
 	if found, ok := t.matches[term]; ok {
-		return found
+		if found.err != nil && t.err == nil {
+			t.err = found.err
+		}
+		return found.lines
 	}
-	found := t.finder.Lines(t.text, term)
-	t.matches[term] = found
+	found, err := t.finder.LinesContext(t.ctx, t.text, term)
+	t.matches[term] = lineMatches{lines: found, err: err}
+	if err != nil && t.err == nil {
+		t.err = err
+	}
 	return found
+}
+
+func (v *fileView) matchErr() error {
+	if v.err != nil {
+		return v.err
+	}
+	return v.message.err
 }
 
 // authorMatches compares author: with a commit's author, after .mailmap.
@@ -397,7 +433,12 @@ func authorMatches(a *query.Author, c *Commit) bool {
 // matches reports whether one of the commit's files satisfies the plan.
 func (s *searcher) matches(repo *Repo, c *Commit, views []*fileView) bool {
 	for _, view := range views {
-		if query.Eval(s.plan.Pred, leafFor(repo, c, view)) {
+		matched := query.Eval(s.plan.Pred, leafFor(repo, c, view))
+		if err := view.matchErr(); err != nil {
+			s.failMatches(err)
+			return false
+		}
+		if matched {
 			return true
 		}
 	}
@@ -406,58 +447,88 @@ func (s *searcher) matches(repo *Repo, c *Commit, views []*fileView) bool {
 
 // result builds the result of a commit that matches: the files that
 // satisfy the plan, and what matched in their diffs and in the message.
-func (s *searcher) result(repo *Repo, c *Commit, views []*fileView) protocol.ResultItem {
-	var files []protocol.FileStat
-	diffHits := 0
-	terms := map[int]bool{}
-	var contributing []*query.Content
+func (s *searcher) result(repo *Repo, c *Commit, views []*fileView) (protocol.ResultItem, error) {
+	facts := commitResultFacts{terms: map[int]bool{}}
 	for _, view := range views {
-		leaf := leafFor(repo, c, view)
-		if !query.Eval(s.plan.Pred, leaf) {
-			continue
+		if err := s.addResultView(repo, c, view, &facts); err != nil {
+			return protocol.ResultItem{}, err
 		}
-		if view.file.Path != "" {
-			files = append(files, protocol.FileStat{
-				Path: view.file.Path, Added: view.file.Added, Removed: view.file.Removed,
-				OldPath: view.file.OldPath, CurrentPath: view.file.Now, Resolution: view.file.Resolution,
-			})
-		}
-		matched := map[int]bool{}
-		for _, term := range query.Contributing(s.plan.Pred, leaf) {
-			terms[term.TermIndex] = true
-			contributing = append(contributing, term)
-			for _, line := range view.diffLines(term) {
-				matched[line] = true
-			}
-		}
-		diffHits += len(matched)
 	}
-	matchedTerms := make([]int, 0, len(terms))
-	for index := range terms {
+	matchedTerms := make([]int, 0, len(facts.terms))
+	for index := range facts.terms {
 		matchedTerms = append(matchedTerms, index)
 	}
 	slices.Sort(matchedTerms)
-	if len(files) > maxResultFiles {
-		files = files[:maxResultFiles]
+	if len(facts.files) > maxResultFiles {
+		facts.files = facts.files[:maxResultFiles]
 	}
 	var inMessage bool
 	var bodyLine *protocol.MessageLine
 	if s.plan.DiffSide == "" {
-		inMessage, bodyLine = messageMatch(views[0].message, contributing)
+		var err error
+		inMessage, bodyLine, err = messageMatch(s.ctx, views[0].message, facts.contributing)
+		if err != nil {
+			return protocol.ResultItem{}, err
+		}
+	}
+	subjectHits, err := messageHitsContext(s.ctx, s.plan, c.Subject)
+	if err != nil {
+		return protocol.ResultItem{}, err
 	}
 	return protocol.ResultItem{
 		Kind: query.KindCommit, Ref: Ref{PlanID: s.planID, RepoID: repo.ID, SHA: c.SHA}.String(), RepoID: repo.ID,
 		SHA: c.SHA, Subject: c.Subject, Author: protocol.Person{Name: c.AuthorName, Email: c.AuthorEmail},
-		At: c.At.UTC().Format(time.RFC3339), Files: files, DiffHits: diffHits, MatchedTerms: matchedTerms,
-		SubjectHits: messageHits(s.plan, c.Subject), InMessage: inMessage, BodyLine: bodyLine,
+		At: c.At.UTC().Format(time.RFC3339), Files: facts.files, DiffHits: facts.diffHits, MatchedTerms: matchedTerms,
+		SubjectHits: subjectHits, InMessage: inMessage, BodyLine: bodyLine,
 		Parents: parentsOf(c), MergedIn: c.MergedIn, MergedAt: mergedAt(c),
+	}, nil
+}
+
+type commitResultFacts struct {
+	files        []protocol.FileStat
+	diffHits     int
+	terms        map[int]bool
+	contributing []*query.Content
+}
+
+func (s *searcher) addResultView(repo *Repo, c *Commit, view *fileView, facts *commitResultFacts) error {
+	leaf := leafFor(repo, c, view)
+	matchedPlan := query.Eval(s.plan.Pred, leaf)
+	if err := view.matchErr(); err != nil {
+		return err
 	}
+	if !matchedPlan {
+		return nil
+	}
+	if view.file.Path != "" {
+		facts.files = append(facts.files, protocol.FileStat{
+			Path: view.file.Path, Added: view.file.Added, Removed: view.file.Removed,
+			OldPath: view.file.OldPath, CurrentPath: view.file.Now, Resolution: view.file.Resolution,
+		})
+	}
+	matched := map[int]bool{}
+	contributing := query.Contributing(s.plan.Pred, leaf)
+	if err := view.matchErr(); err != nil {
+		return err
+	}
+	for _, term := range contributing {
+		facts.terms[term.TermIndex] = true
+		facts.contributing = append(facts.contributing, term)
+		for _, line := range view.diffLines(term) {
+			matched[line] = true
+		}
+	}
+	if err := view.matchErr(); err != nil {
+		return err
+	}
+	facts.diffHits += len(matched)
+	return nil
 }
 
 // messageMatch reports whether terms match the commit's message, and when
 // none matches the subject, the first body line one matches, marked.
 // content: terms never match a message.
-func messageMatch(message *messageView, terms []*query.Content) (inMessage bool, bodyLine *protocol.MessageLine) {
+func messageMatch(ctx context.Context, message *messageView, terms []*query.Content) (inMessage bool, bodyLine *protocol.MessageLine, err error) {
 	terms = slices.DeleteFunc(slices.Clone(terms), func(term *query.Content) bool { return term.ContentOnly })
 	first := 0 // the first matched message line; the subject is line 1
 	for _, term := range terms {
@@ -467,43 +538,80 @@ func messageMatch(message *messageView, terms []*query.Content) (inMessage bool,
 			}
 		}
 	}
-	if first <= 1 {
-		return first == 1, nil
+	if message.err != nil {
+		return false, nil, message.err
 	}
-	text, hits := trigram.PreviewLine(strings.Split(string(message.text), "\n")[first-1], terms)
+	if first <= 1 {
+		return first == 1, nil, nil
+	}
+	text, hits, err := trigram.PreviewLineContext(ctx, strings.Split(string(message.text), "\n")[first-1], terms)
+	if err != nil {
+		return false, nil, err
+	}
 	ranges := make([]protocol.Range, len(hits))
 	for i, hit := range hits {
 		ranges[i] = protocol.Range{Start: hit.Start, End: hit.End}
 	}
-	return true, &protocol.MessageLine{Text: text, Hits: ranges}
+	return true, &protocol.MessageLine{Text: text, Hits: ranges}, nil
 }
 
-// messageHits marks what msg: terms, and the query's text terms unless
-// type:added or type:removed keeps them to diffs, match in a commit's
-// subject or body. content: terms never mark a message. A nil plan marks
-// nothing.
-func messageHits(plan *query.Plan, text string) []protocol.Range {
+// messageHitsContext marks what msg: terms, and the query's text terms
+// unless a diff-side filter keeps them out of messages. An error means the
+// highlight list would be incomplete.
+func messageHitsContext(ctx context.Context, plan *query.Plan, text string) ([]protocol.Range, error) {
 	ranges := []protocol.Range{}
 	if plan == nil {
-		return ranges
+		return ranges, nil
 	}
-	mark := func(re interface{ FindAllStringIndex(string, int) [][]int }) {
-		for _, loc := range re.FindAllStringIndex(text, -1) {
-			if loc[1] > loc[0] {
-				ranges = append(ranges, trigram.UTF16Range(text, loc[0], loc[1]))
-			}
-		}
+	if err := appendContentMessageHits(ctx, plan, text, &ranges); err != nil {
+		return nil, err
 	}
-	if plan.DiffSide == "" {
-		for _, term := range plan.Terms {
-			if !term.ContentOnly {
-				mark(term)
-			}
-		}
+	if err := appendMessageFilterHits(plan, text, &ranges); err != nil {
+		return nil, err
 	}
-	query.VisitPositive(plan.Pred, func(m *query.Message) { mark(m.Re) })
 	slices.SortFunc(ranges, func(a, b protocol.Range) int { return a.Start - b.Start })
-	return ranges
+	return ranges, nil
+}
+
+func appendContentMessageHits(ctx context.Context, plan *query.Plan, text string, ranges *[]protocol.Range) error {
+	if plan.DiffSide != "" {
+		return nil
+	}
+	for _, term := range plan.Terms {
+		if term.ContentOnly {
+			continue
+		}
+		err := term.VisitMatches(ctx, []byte(text), query.MaxMatchPositions, func(loc []int) bool {
+			if loc[1] > loc[0] {
+				*ranges = append(*ranges, trigram.UTF16Range(text, loc[0], loc[1]))
+			}
+			return true
+		})
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func appendMessageFilterHits(plan *query.Plan, text string, ranges *[]protocol.Range) error {
+	var matchErr error
+	query.VisitPositive(plan.Pred, func(message *query.Message) {
+		if matchErr != nil {
+			return
+		}
+		locs := message.Re.FindAllStringIndex(text, query.MaxMatchPositions+1)
+		if len(locs) > query.MaxMatchPositions {
+			locs = locs[:query.MaxMatchPositions]
+			matchErr = query.ErrMatchBudget
+		}
+		for _, loc := range locs {
+			if loc[1] > loc[0] {
+				*ranges = append(*ranges, trigram.UTF16Range(text, loc[0], loc[1]))
+			}
+		}
+	})
+	return matchErr
 }
 
 // countHidden credits a commit that doesn't match to the first top-level
@@ -524,7 +632,12 @@ func (s *searcher) creditFilter(repo *Repo, c *Commit, views []*fileView, index 
 	}
 	without := &query.And{Kids: slices.Delete(slices.Clone(s.plan.Pred.Kids), index, index+1)}
 	for _, view := range views {
-		if query.Eval(without, leafFor(repo, c, view)) {
+		matched := query.Eval(without, leafFor(repo, c, view))
+		if err := view.matchErr(); err != nil {
+			s.failMatches(err)
+			return false
+		}
+		if matched {
 			s.hidden[index]++
 			s.recordExcludes(repo, views, index)
 			return true

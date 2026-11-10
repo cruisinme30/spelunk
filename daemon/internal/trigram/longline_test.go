@@ -12,6 +12,9 @@ import (
 // measured the line again for each, so 20,000 matches on a 100 KB line
 // allocated gigabytes and took seconds.
 func TestManyMatchesOnOneLongLineCostAboutTheLine(t *testing.T) {
+	if raceEnabled {
+		t.Skip("allocation test; the race detector changes allocation totals")
+	}
 	// @covers op:struct
 	const matches = 20_000
 	const call = "f(x) "

@@ -2,6 +2,7 @@ package trigram
 
 import (
 	"bytes"
+	"context"
 	"regexp"
 	"regexp/syntax"
 	"slices"
@@ -43,7 +44,17 @@ type lineMatcher struct {
 	content []byte
 	file    *Doc // immutable indexed generation; nil for standalone text
 	terms   termCache
-	cache   map[*query.Content][]matchedLine
+	cache   map[*query.Content]matchResult
+	// ctx cancels bounded match enumeration. Callers that do not have a
+	// request context leave the background context installed by the
+	// constructor.
+	ctx context.Context
+	// complete keeps legacy wrappers exact. Request-driven search, preview and
+	// history paths leave it false and propagate ErrMatchBudget instead.
+	complete bool
+	// matchErr is the first error from a term scan. Its partial lines are a
+	// lower bound, but callers must not use their absence through NOT.
+	matchErr error
 	// lf is content with each "\r\n" as "\n", made the first time a term
 	// that spans lines needs it.
 	lf []byte
@@ -78,6 +89,14 @@ type lineMatcher struct {
 	work int
 }
 
+// matchResult caches one term's lines together with whether their scan was
+// complete. Keeping the error per term makes repeated predicate evaluation
+// return the same status instead of turning a partial cache into a success.
+type matchResult struct {
+	lines []matchedLine
+	err   error
+}
+
 // stopCheckBytes is how much text matching reads between asking whether
 // the search should stop.
 const stopCheckBytes = 64 << 10
@@ -101,7 +120,12 @@ func (m *lineMatcher) halted(n int) bool {
 }
 
 func newLineMatcher(content []byte, terms termCache) *lineMatcher {
-	return &lineMatcher{content: content, terms: terms, cache: map[*query.Content][]matchedLine{}}
+	return &lineMatcher{
+		content: content,
+		terms:   terms,
+		cache:   map[*query.Content]matchResult{},
+		ctx:     context.Background(),
+	}
 }
 
 // newFileMatcher returns a lineMatcher for doc's text that knows its
@@ -210,19 +234,21 @@ func canMatchNewline(re *regexp.Regexp) bool {
 // ripgrep: a match never spans a newline, and ^ and $ anchor lines. Only a
 // regex with \n in it matches across lines (see span.go).
 func (m *lineMatcher) matches(term *query.Content) []matchedLine {
-	if found, ok := m.cache[term]; ok {
-		return found
+	if result, ok := m.cache[term]; ok {
+		m.rememberMatchErr(result.err)
+		return result.lines
 	}
 	var found []matchedLine
+	var err error
 	switch facts := m.terms.facts(term); {
 	case term.Structural != nil:
-		found = m.matchStructure(term)
+		found, err = m.matchStructure(term)
 	case facts.multiline && !m.perLine:
-		found = m.matchAcrossLines(term)
+		found, err = m.matchAcrossLines(term)
 	case !facts.anchored:
-		found = m.scanForLines(term)
+		found, err = m.scanForLines(term)
 	default:
-		found = m.everyLine(term)
+		found, err = m.everyLine(term)
 	}
 	found = m.keepIn(term, found)
 	if term.Reference && m.definitions != nil {
@@ -233,8 +259,18 @@ func (m *lineMatcher) matches(term *query.Content) []matchedLine {
 			return line.spans() && !notebook.SameCell(m.cells, line.number, line.last())
 		})
 	}
-	m.cache[term] = found
+	m.cache[term] = matchResult{lines: found, err: err}
+	m.rememberMatchErr(err)
 	return found
+}
+
+func (m *lineMatcher) rememberMatchErr(err error) {
+	if err != nil && m.matchErr == nil {
+		m.matchErr = err
+	}
+	if context.Cause(m.ctx) != nil {
+		m.cut = true
+	}
 }
 
 // withoutDefinitions drops the lines that define the name a ref: term
@@ -258,7 +294,7 @@ func withoutDefinitions(found []matchedLine, term *query.Content, definitions []
 // matches on its own also matches the file at that line. A regex that can
 // cross lines and has no literal to look for is matched a line at a time
 // instead (see finder).
-func (m *lineMatcher) scanForLines(term *query.Content) []matchedLine {
+func (m *lineMatcher) scanForLines(term *query.Content) ([]matchedLine, error) {
 	content := m.content
 	next := m.finder(term)
 	if next == nil {
@@ -272,7 +308,7 @@ func (m *lineMatcher) scanForLines(term *query.Content) []matchedLine {
 	for {
 		at, read := next(lineStart)
 		if at < 0 || m.halted(read) {
-			return found
+			return found, context.Cause(m.ctx)
 		}
 		start := bytes.LastIndexByte(content[:at], '\n') + 1
 		number += bytes.Count(content[lineStart:start], []byte("\n"))
@@ -280,11 +316,15 @@ func (m *lineMatcher) scanForLines(term *query.Content) []matchedLine {
 		if i := bytes.IndexByte(content[at:], '\n'); i >= 0 {
 			end = at + i
 		}
-		if line, ok := matchLine(term, content[start:end], number); ok {
+		line, ok, err := m.matchLine(term, content[start:end], number)
+		if err != nil {
+			return found, err
+		}
+		if ok {
 			found = append(found, line)
 		}
 		if end == len(content) {
-			return found
+			return found, nil
 		}
 		lineStart, number = end+1, number+1
 	}
@@ -326,7 +366,7 @@ func (m *lineMatcher) finder(term *query.Content) func(from int) (at, read int) 
 }
 
 // everyLine matches term against each line in turn.
-func (m *lineMatcher) everyLine(term *query.Content) []matchedLine {
+func (m *lineMatcher) everyLine(term *query.Content) ([]matchedLine, error) {
 	var found []matchedLine
 	number := 0
 	for rest := m.content; len(rest) > 0; {
@@ -338,24 +378,39 @@ func (m *lineMatcher) everyLine(term *query.Content) []matchedLine {
 			rest = nil
 		}
 		if m.halted(len(line) + 1) {
-			return found
+			return found, context.Cause(m.ctx)
 		}
-		if matched, ok := matchLine(term, line, number); ok {
+		matched, ok, err := m.matchLine(term, line, number)
+		if err != nil {
+			return found, err
+		}
+		if ok {
 			found = append(found, matched)
 		}
 	}
-	return found
+	return found, nil
 }
 
-// matchLine returns the first non-empty matches of term in one line,
-// without its trailing "\r" (see lineHits).
-func matchLine(term *query.Content, line []byte, number int) (matchedLine, bool) {
+// matchLine returns the first kept, non-empty matches of term in one line,
+// without its trailing "\r". Applying in: while enumerating ensures rejected
+// hits do not fill the bounded highlight window before a later valid one.
+func (m *lineMatcher) matchLine(term *query.Content, line []byte, number int) (matchedLine, bool, error) {
 	line = bytes.TrimSuffix(line, []byte("\r"))
-	hits := lineHits(term, func(n int) [][]int { return term.FindAllIndex(line, n) })
-	if len(hits) == 0 {
-		return matchedLine{}, false
+	keep := m.keepsOnLine(number)
+	var hits []byteHit
+	var err error
+	if m.complete {
+		hits = completeLineHits(term, line, keep)
+	} else {
+		hits, err = lineHitsContext(m.ctx, term, line, keep)
 	}
-	return matchedLine{number: number, text: string(line), hits: hits}, true
+	if err != nil {
+		return matchedLine{}, false, err
+	}
+	if len(hits) == 0 {
+		return matchedLine{}, false, nil
+	}
+	return matchedLine{number: number, text: string(line), hits: hits}, true, nil
 }
 
 // maxLineHits is how many matches of one term in one line are kept. A
@@ -364,25 +419,31 @@ func matchLine(term *query.Content, line []byte, number int) (matchedLine, bool)
 // millions in a long minified line would take seconds and gigabytes.
 const maxLineHits = 2 * maxResultLineRunes
 
-// lineHits returns the first maxLineHits non-empty matches of term that
-// findAll (a FindAllIndex over one line, given a limit) reports. Empty
-// matches highlight nothing and are dropped; if the limit fills up with
-// them, the whole line is searched, so a match after them isn't missed.
-func lineHits(term *query.Content, findAll func(n int) [][]int) []byteHit {
-	locs := findAll(maxLineHits)
-	hits := nonEmptyHits(locs, term.TermIndex)
-	if len(hits) == 0 && len(locs) == maxLineHits {
-		hits = nonEmptyHits(findAll(-1), term.TermIndex)
-	}
-	return hits[:min(len(hits), maxLineHits)]
+// lineHitsContext returns the first maxLineHits non-empty matches kept by
+// keep. Empty and rejected candidates still spend the shared position budget,
+// so a late match is either found or reported as unknown, never silently lost.
+func lineHitsContext(ctx context.Context, term *query.Content, line []byte, keep func(int, int) bool) ([]byteHit, error) {
+	var hits []byteHit
+	err := term.VisitMatches(ctx, line, query.MaxMatchPositions, func(loc []int) bool {
+		if loc[1] > loc[0] && (keep == nil || keep(loc[0], loc[1])) {
+			hits = append(hits, byteHit{start: loc[0], end: loc[1], termIndex: term.TermIndex})
+		}
+		return len(hits) < maxLineHits
+	})
+	return hits, err
 }
 
-// nonEmptyHits turns the non-empty matches of a term into hits.
-func nonEmptyHits(locs [][]int, termIndex int) []byteHit {
+// completeLineHits is the exact, allocation-unbounded implementation used by
+// compatibility wrappers that cannot report ErrMatchBudget. Request paths use
+// lineHitsContext instead.
+func completeLineHits(term *query.Content, line []byte, keep func(int, int) bool) []byteHit {
 	var hits []byteHit
-	for _, loc := range locs {
-		if loc[1] > loc[0] {
-			hits = append(hits, byteHit{start: loc[0], end: loc[1], termIndex: termIndex})
+	for _, loc := range term.FindAllIndex(line, -1) {
+		if loc[1] > loc[0] && (keep == nil || keep(loc[0], loc[1])) {
+			hits = append(hits, byteHit{start: loc[0], end: loc[1], termIndex: term.TermIndex})
+			if len(hits) == maxLineHits {
+				break
+			}
 		}
 	}
 	return hits

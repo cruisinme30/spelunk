@@ -1,10 +1,11 @@
 # Engineering improvement notes
 
 Each note explains an actual improvement and keeps its evidence separate from its integration status.
-Performance notes distinguish isolated microbenchmarks, whole-query timings and configuration changes.
+Performance notes distinguish isolated micro-benchmarks, whole-query timings and configuration changes.
 
 | Note | Focus |
 | --- | --- |
+| [Bound raw match enumeration across search paths](bounded-match-enumeration.md) | Example, cause, mechanism, validation and limits |
 | [Preserve C and C++ lexical contexts across continuation lines](c-cpp-context-classification.md) | Example, cause, mechanism, validation and limits |
 | [Distinguish C and C++ declarations from definition bodies](c-cpp-definition-boundaries.md) | Example, cause, mechanism, validation and limits |
 | [Case-insensitive search: remember where each scan stopped](folded-literal-cursor.md) | Example, cause, mechanism, validation and limits |

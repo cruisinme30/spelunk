@@ -354,7 +354,7 @@ func (s *searcher) add(repo *Repo, doc *Doc, item protocol.ResultItem, score, qu
 // stats summarizes the search, with one hidden-results note per filter
 // that hid something, counting unit.
 func (s *searcher) stats(unit string) engine.Stats {
-	stats := engine.NewStats(s.plan, s.counted, s.truncated || s.incomplete)
+	stats := engine.NewStats(s.plan, s.counted, s.truncated || s.incomplete || s.matchErr != nil)
 	stats.Facets = s.facets.List()
 	hidden := engine.Hidden{ByFilter: s.hidden, ByCase: s.hiddenByCase, ByWord: s.hiddenByWord, ByType: s.hiddenByType, ByMatch: s.hiddenByMatch, ByIn: s.hiddenByIn}
 	stats.AddHidden(s.plan, hidden, unit, "matches")
@@ -454,24 +454,31 @@ func (s *searcher) forEachFileName(repos []Repo, countHidden bool, visit func(re
 // credits a file that one filter alone hid to that filter.
 func (s *searcher) fileNameMatches(repo *Repo, doc *Doc, countHidden bool) bool {
 	leaf := fileNameLeaf(repo, doc)
-	if query.Eval(s.plan.Pred, leaf) {
-		if s.leftOut == nil {
-			s.leftOut = leftOutTerms(s.plan.Pred)
-		}
-		if len(s.leftOut) == 0 {
-			return true
-		}
-		// A word left out leaves out the files whose text has it, as it
-		// leaves out their code lines, not only those whose name has it.
-		leaf = s.withLeftOutText(doc, leaf)
-		if query.Eval(s.plan.Pred, leaf) {
-			return true
-		}
+	leaf, matched := s.fileNamePredicate(doc, leaf)
+	if matched {
+		return true
 	}
 	if countHidden {
-		s.countHidden(repo, doc, leaf, func([]*query.Content) int { return 1 })
+		s.countHidden(repo, doc, nil, leaf, func([]*query.Content) int { return 1 })
 	}
 	return false
+}
+
+func (s *searcher) fileNamePredicate(doc *Doc, leaf func(query.Pred) bool) (func(query.Pred) bool, bool) {
+	if !query.Eval(s.plan.Pred, leaf) {
+		return leaf, false
+	}
+	if s.leftOut == nil {
+		s.leftOut = leftOutTerms(s.plan.Pred)
+	}
+	if len(s.leftOut) == 0 {
+		return leaf, true
+	}
+	// A word left out leaves out the files whose text has it, as it leaves
+	// out their code lines, not only those whose name has it.
+	leaf = s.withLeftOutText(doc, leaf)
+	matched := query.Eval(s.plan.Pred, leaf)
+	return leaf, matched && s.matchErr == nil
 }
 
 // withLeftOutText extends leaf, which judges a file by its name, so that a
@@ -488,9 +495,14 @@ func (s *searcher) withLeftOutText(doc *Doc, leaf func(query.Pred) bool) func(qu
 		}
 		if matcher == nil {
 			matcher = newFileMatcher(doc, s.terms)
+			matcher.ctx = s.ctx
 			matcher.stop = s.stopped
 		}
-		return len(matcher.matches(c)) > 0
+		matched := len(matcher.matches(c)) > 0
+		if s.matcherFailed(matcher) {
+			return false
+		}
+		return matched
 	}
 }
 
@@ -602,7 +614,7 @@ func pathFilterHit(filter *query.Path, path string) (protocol.Range, bool) {
 // countHidden credits a result that fails only one filter to that filter.
 // size says how many results the item would have produced given the terms
 // that would then contribute.
-func (s *searcher) countHidden(repo *Repo, doc *Doc, leaf func(query.Pred) bool, size func([]*query.Content) int) {
+func (s *searcher) countHidden(repo *Repo, doc *Doc, matcher *lineMatcher, leaf func(query.Pred) bool, size func([]*query.Content) int) {
 	if len(s.plan.Filters) == 0 {
 		return
 	}
@@ -610,22 +622,43 @@ func (s *searcher) countHidden(repo *Repo, doc *Doc, leaf func(query.Pred) bool,
 	failing := -1
 	for i, kid := range kids {
 		if !query.Eval(kid, leaf) {
+			if s.matchStatusFailed(matcher) {
+				return
+			}
 			if failing >= 0 {
 				return // fails more than one conjunct: no single filter hid it
 			}
 			failing = i
 		}
 	}
+	filter := query.Filter{Index: -1}
 	for _, f := range s.plan.Filters {
-		if f.Index == failing {
-			without := &query.And{Kids: append(append([]query.Pred{}, kids[:failing]...), kids[failing+1:]...)}
-			s.hidden[failing] += size(query.Contributing(without, leaf))
-			if f.Reason == "excludes" {
-				s.excludedBy[s.plan.Excludes.Hiding(repo.ID, repo.Root, doc.Path)] = true
-			}
-			return
+		if f.Index != failing {
+			continue
 		}
+		filter = f
+		break
 	}
+	if filter.Index < 0 {
+		return
+	}
+	without := &query.And{Kids: append(append([]query.Pred{}, kids[:failing]...), kids[failing+1:]...)}
+	terms := query.Contributing(without, leaf)
+	if s.matchStatusFailed(matcher) {
+		return
+	}
+	count := size(terms)
+	if s.matchStatusFailed(matcher) {
+		return
+	}
+	s.hidden[failing] += count
+	if filter.Reason == "excludes" {
+		s.excludedBy[s.plan.Excludes.Hiding(repo.ID, repo.Root, doc.Path)] = true
+	}
+}
+
+func (s *searcher) matchStatusFailed(matcher *lineMatcher) bool {
+	return matcher != nil && s.matcherFailed(matcher) || s.matchErr != nil
 }
 
 // addCodeLines adds a result for each matching line of each file that
@@ -634,12 +667,24 @@ func (s *searcher) countHidden(repo *Repo, doc *Doc, leaf func(query.Pred) bool,
 // filter removed to that filter.
 func (s *searcher) addCodeLines(repos []Repo) {
 	s.forEachCandidate(repos, func(c rankedCandidate, matcher *lineMatcher, leaf func(query.Pred) bool) {
-		if !query.Eval(s.plan.Pred, leaf) {
-			s.countHidden(c.repo, c.doc, leaf, func(terms []*query.Content) int { return len(matcher.lines(terms)) })
+		matched := query.Eval(s.plan.Pred, leaf)
+		if s.matcherFailed(matcher) {
+			return
+		}
+		if !matched {
+			s.countHidden(c.repo, c.doc, matcher, leaf, func(terms []*query.Content) int { return len(matcher.lines(terms)) })
+			return
+		}
+		terms := query.Contributing(s.plan.Pred, leaf)
+		if s.matcherFailed(matcher) {
+			return
+		}
+		matchedLines := matcher.lines(terms)
+		if s.matcherFailed(matcher) {
 			return
 		}
 		lines := codeLines{searcher: s, c: c, owners: c.repo.ownersOf(c.doc.Path)}
-		for _, line := range matcher.lines(query.Contributing(s.plan.Pred, leaf)) {
+		for _, line := range matchedLines {
 			lines.add(line, nil)
 		}
 	})
@@ -684,12 +729,16 @@ func (s *searcher) addSymbols(repos []Repo) {
 		for j := range c.doc.Symbols {
 			symbol := &c.doc.Symbols[j]
 			symbolLeaf := definitionLeaf(symbol, matcher, leaf)
-			if query.Eval(s.plan.Pred, symbolLeaf) {
+			matched := query.Eval(s.plan.Pred, symbolLeaf)
+			if s.matcherFailed(matcher) {
+				return
+			}
+			if matched {
 				item := s.symbolResult(c.repo, c.doc, symbol)
 				item.RankReason = c.rank.reason
 				s.add(c.repo, c.doc, item, c.rank.score, 0)
 			} else {
-				s.countHidden(c.repo, c.doc, symbolLeaf, func([]*query.Content) int { return 1 })
+				s.countHidden(c.repo, c.doc, matcher, symbolLeaf, func([]*query.Content) int { return 1 })
 			}
 		}
 	})
@@ -789,11 +838,18 @@ func (s *searcher) addUses(repos []Repo) {
 	}
 	s.forEachCandidate(repos, func(c rankedCandidate, matcher *lineMatcher, leaf func(query.Pred) bool) {
 		fileLeaf := fileLevelLeaf(leaf)
-		if !query.Eval(s.plan.Pred, fileLeaf) {
-			s.countHidden(c.repo, c.doc, fileLeaf, func(terms []*query.Content) int { return len(matcher.lines(bodyTerms(terms))) })
+		matched := query.Eval(s.plan.Pred, fileLeaf)
+		if s.matcherFailed(matcher) {
+			return
+		}
+		if !matched {
+			s.countHidden(c.repo, c.doc, matcher, fileLeaf, func(terms []*query.Content) int { return len(matcher.lines(bodyTerms(terms))) })
 			return
 		}
 		found, within := s.usesInDefinitions(c.doc, matcher, leaf)
+		if s.matcherFailed(matcher) {
+			return
+		}
 		lines := codeLines{searcher: s, c: c, owners: c.repo.ownersOf(c.doc.Path)}
 		for _, line := range found {
 			holder := within[line.number]
@@ -806,7 +862,11 @@ func (s *searcher) addUses(repos []Repo) {
 					terms = append(terms, term)
 				}
 			})
-			s.hidden[kindFilter] += max(len(matcher.lines(terms))-len(found), 0)
+			matchedLines := matcher.lines(terms)
+			if s.matcherFailed(matcher) {
+				return
+			}
+			s.hidden[kindFilter] += max(len(matchedLines)-len(found), 0)
 		}
 	})
 }
@@ -876,8 +936,17 @@ func lineOf(content []byte, number int) (string, bool) {
 // no results.
 func (s *searcher) countCodeLinesHiddenByType(repos []Repo) {
 	s.forEachCandidate(repos, func(_ rankedCandidate, matcher *lineMatcher, leaf func(query.Pred) bool) {
-		if query.Eval(s.plan.Pred, leaf) {
-			s.hiddenByType += len(matcher.lines(query.Contributing(s.plan.Pred, leaf)))
+		matched := query.Eval(s.plan.Pred, leaf)
+		if s.matcherFailed(matcher) || !matched {
+			return
+		}
+		terms := query.Contributing(s.plan.Pred, leaf)
+		if s.matcherFailed(matcher) {
+			return
+		}
+		lines := matcher.lines(terms)
+		if !s.matcherFailed(matcher) {
+			s.hiddenByType += len(lines)
 		}
 	})
 }
@@ -894,11 +963,27 @@ func (s *searcher) forEachCandidate(repos []Repo, visit func(c rankedCandidate, 
 			return
 		}
 		matcher := newFileMatcher(c.doc, s.terms)
+		matcher.ctx = s.ctx
 		matcher.in = s.plan.In
 		matcher.stop = s.stopped // a long file stops part way, marking the results truncated
 		visit(c, matcher, contentLeaf(c.repo, c.doc, matcher))
+		s.matcherFailed(matcher)
 		s.incomplete = s.incomplete || matcher.gaveUp
 	}
+}
+
+// matcherFailed records an incomplete positional scan and stops this search.
+// A caller must discard the candidate it was evaluating: partial absence is
+// not evidence that a NOT predicate matched.
+func (s *searcher) matcherFailed(matcher *lineMatcher) bool {
+	if matcher.matchErr == nil {
+		return false
+	}
+	if s.matchErr == nil {
+		s.matchErr = matcher.matchErr
+	}
+	s.truncated = true
+	return true
 }
 
 // candidates lists the current files of repos that the trigram index says

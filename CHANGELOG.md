@@ -8,6 +8,11 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- **Issue:** match limits did not bound the raw positions built before a result, highlight or edit was accepted.
+  **Example:** a zero-width regex on a 16 MiB line could enumerate millions of positions, while stopping early could
+  let `NOT` mistake an unknown suffix for a proven absence.
+  **Fix:** share a cancellable 32,768-position visitor across search, history, previews and Replace; incomplete
+  searches report a lower bound, previews refuse partial highlights and replacement returns no partial plan.
 - **Issue:** case-insensitive literal search repeatedly scanned the same file suffix.
   **Example:** many lowercase matches with no uppercase occurrence made a broad search grow quadratically.
   **Fix:** retain each case variant's next position within that file's matcher; query and index state stay immutable.

@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/cruisinme30/spelunk/daemon/internal/protocol"
+	"github.com/cruisinme30/spelunk/daemon/internal/query"
 	"github.com/cruisinme30/spelunk/daemon/internal/testutil"
 )
 
@@ -191,6 +192,18 @@ func TestReplacePlanCaptureBudgetReturnsOverloadedWithoutEdits(t *testing.T) {
 	wantRPCCode(t, "replacement capture budget", err, protocol.CodeOverloaded)
 	if len(out.Files) != 0 || out.Matches != 0 {
 		t.Fatalf("capture budget returned partial edits: %+v", out)
+	}
+}
+
+func TestReplacePlanMatchBudgetReturnsOverloadedWithoutEdits(t *testing.T) {
+	client, _ := replaceClient(t, map[string]string{
+		"dense.txt": "keep\n" + strings.Repeat("b", query.MaxMatchPositions+10),
+	})
+	var out protocol.ReplacePlan
+	err := client.call(protocol.MethodReplacePlan, protocol.ReplacePlanParams{Text: `keep -content:/a*/`, Replacement: "next"}, &out)
+	wantRPCCode(t, "replacement match budget", err, protocol.CodeOverloaded)
+	if len(out.Files) != 0 || out.Matches != 0 {
+		t.Fatalf("match budget returned partial edits: %+v", out)
 	}
 }
 

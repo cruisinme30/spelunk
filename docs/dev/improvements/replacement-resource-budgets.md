@@ -16,8 +16,8 @@ capture also defeats an otherwise small requested edit limit.
 source/new text, paths, notebook metadata, hashes, fields, punctuation and maximum-width integers. Capture references
 resolve to source slices; each slice is charged before it is appended. Templates also have a 16 MiB input cap, and
 validation runs under the existing 10-second planning deadline. Capture materialization is limited to 262,144
-integer indexes per line. Shared positional enumeration is being integrated to cover matching before edit creation,
-including whole-word assertions and long runs of empty matches.
+integer indexes per line. Shared positional enumeration limits each text scan to 32,768 raw positions before edit
+creation, including whole-word candidates and long runs of empty matches.
 
 **Why it works.** A budget error discards the entire plan and returns `Overloaded` with narrowing guidance. Earlier
 files cannot escape as a misleading partial success. The source of a repeated capture is inspected without first
@@ -25,8 +25,9 @@ copying its expansion. Conservative structural reserves prevent JSON serializati
 
 **Validation.** `replace_budget_test.go` compares escaped-byte accounting with `encoding/json`, covers Unicode and
 invalid UTF-8, tests maximum-width structural metadata, exercises cross-file exhaustion and rejects the potential
-6 GiB expansion. Those trigram tests passed. Server error-mapping tests and final shared enumeration checks are
-pending integration validation; the final scope will be updated with their results.
+6 GiB expansion. Trigram tests passed. Shared enumeration tests reject the entire plan after raw-position
+exhaustion, and server tests map that failure to `Overloaded` without returning edits. Focused tests and race tests
+passed; the complete daemon, extension and panel gates passed as well.
 
 **Tradeoffs and status.** The 16 MiB figure bounds the plan payload, not total process RSS. Conservative accounting
 can refuse a plan before it exactly fills that size. The capture-index limit excludes slice/runtime overhead and a

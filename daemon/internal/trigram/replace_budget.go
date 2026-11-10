@@ -89,7 +89,7 @@ func jsonTextBytes(text string, limit int) (int, bool) {
 }
 
 // jsonRuneBytes gives the first rune's source width and JSON-escaped size.
-func jsonRuneBytes(text string) (int, int) {
+func jsonRuneBytes(text string) (width, escaped int) {
 	switch text[0] {
 	case '"', '\\', '\b', '\f', '\n', '\r', '\t':
 		return 1, 2

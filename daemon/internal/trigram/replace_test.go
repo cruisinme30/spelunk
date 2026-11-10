@@ -148,3 +148,12 @@ func TestReplacementsFailWholePlanWhenCapturesExceedBudget(t *testing.T) {
 		t.Fatalf("capture budget = %+v, %v; want explicit failure and no partial plan", got, err)
 	}
 }
+
+func TestReplacementsRejectPredicateExhaustionBeforeEdits(t *testing.T) {
+	plan, term := replacementTerm(t, `keep -content:/a*/`)
+	repo := repoOf("r", map[string]string{"dense.txt": "keep\n" + strings.Repeat("b", query.MaxMatchPositions+10)})
+	got, err := Replacements(t.Context(), plan, []Repo{repo}, term, "next", 100)
+	if !errors.Is(err, ErrMatchBudget) || len(got.Files) != 0 || got.Matches != 0 {
+		t.Fatalf("predicate exhaustion = %+v, %v; want explicit failure and no partial plan", got, err)
+	}
+}

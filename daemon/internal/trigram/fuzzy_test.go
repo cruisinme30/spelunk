@@ -36,6 +36,7 @@ func TestMatchFuzzyFindsFileNamesWithAWordsLettersInOrder(t *testing.T) {
 
 func TestFuzzyNamesUseTheExactMatchersUnicodeCaseFolding(t *testing.T) {
 	// @covers op:match op:case
+	// cspell:ignore aelvin ftop ndex
 	for _, tc := range []struct {
 		name, term string
 		matched    bool

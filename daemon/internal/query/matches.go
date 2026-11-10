@@ -19,7 +19,7 @@ var ErrMatchBudget = errors.New("match position budget exhausted; narrow the sea
 // returns false. It returns ErrMatchBudget if more than maxPositions raw
 // candidates are needed, or ctx's cause if cancelled. A nil error means the
 // input was exhausted or the caller intentionally stopped visiting. A budget
-// above MaxMatchPositions is clamped to it; a nonpositive budget is exhausted.
+// above MaxMatchPositions is clamped to it; a non-positive budget is exhausted.
 //
 // Assertions always read the original text. RE2 cannot resume an assertion at
 // an offset, so bounded, growing prefixes of its match list are requested over

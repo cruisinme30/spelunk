@@ -1,5 +1,7 @@
 # Industry comparison and red team
 
+<!-- cspell:words PCRE -->
+
 Reviewed 2026-11-10. Compare specific tasks, not an overall product rank. A documented feature is not a measured
 performance result. Spelunk observations below refer to the development checkout; they do not imply a release.
 
@@ -27,7 +29,7 @@ advantage. Spelunk must demonstrate correct results, bounded resource use and ea
    input, argument schemas, cancellation, result limits, stale index state and process shutdown. Distinguish
    in-process tests from real client integration. Follow the [official protocol](https://modelcontextprotocol.io/specification).
 5. Start setup from a clean user profile. Count commands, manual configuration edits and prerequisites. Check paths
-   with spaces, an unrelated working directory, an unindexed repository, useful help and actionable failures.
+   with spaces, an unrelated working directory, a repository that is not indexed, useful help and actionable failures.
    Test generated configuration by launching it, not only by checking its JSON shape.
 6. Minimize each failure, fix its cause and add a regression. Keep Issue → Example → Fix changelog entries,
    architecture decisions, wiki and website synchronized. Integrate with merge commits after the develop gate;

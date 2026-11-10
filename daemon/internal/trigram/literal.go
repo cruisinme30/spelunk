@@ -110,7 +110,7 @@ func indexFold(text, needle []byte, from int) int {
 // one file forwards. A rare or absent case is looked for only once, rather
 // than rescanning the remaining file each time another line matches.
 // It belongs to one matcher, never the term facts shared across files.
-// Calls to index must use the same text/needle and nondecreasing offsets.
+// Calls to index must use the same text/needle and non-decreasing offsets.
 type foldedPositions struct{ lower, upper int }
 
 func (p *foldedPositions) index(text, needle []byte, from int) int {

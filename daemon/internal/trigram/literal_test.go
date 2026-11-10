@@ -117,7 +117,10 @@ func TestFoldedFinderCursorIsPerFile(t *testing.T) {
 	for _, text := range []string{strings.Repeat("needle filler\n", 200), "NEEDLE\n", "no match", "nEedLe\nNEEDLE\nneedle\n"} {
 		matcher := newLineMatcher([]byte(text), shared)
 		got := matcher.matches(plan.Terms[0])
-		want := newLineMatcher([]byte(text), termCache{}).everyLine(plan.Terms[0])
+		want, err := newLineMatcher([]byte(text), termCache{}).everyLine(plan.Terms[0])
+		if err != nil {
+			t.Fatalf("everyLine(%q): %v", text, err)
+		}
 		if !reflect.DeepEqual(got, want) {
 			t.Fatalf("cursor results changed across files: got %#v, want %#v", got, want)
 		}

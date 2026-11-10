@@ -9,7 +9,7 @@ import (
 )
 
 func TestMatchRankOrdersExactPrefixContainsLetters(t *testing.T) {
-	// cspell:ignore rtpl Ünïcode 𝒻ind
+	// cspell:ignore ftop ndex rtpl Ünïcode 𝒻ind
 	for _, tc := range []struct {
 		name, text string
 		exact      bool

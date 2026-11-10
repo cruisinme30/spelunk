@@ -987,6 +987,13 @@ checks; integrated validation, final performance measurements and the first host
 - CLI/MCP summary regressions passed for a result ceiling, other incomplete scans, complete counts with smaller
   pages, and zero matches before a stop. Incomplete counts are lower bounds without an assumed timeout cause;
   the zero-result case suggests narrowing and retrying. Scoped CLI lint and spelling passed.
+- Shared match enumeration now caps each text scan at 32,768 raw positions across working-tree and history search,
+  multiline and structural matching, previews and replacement. Empty and rejected whole-word candidates consume the
+  same budget. Per-term status prevents incomplete scans from satisfying `NOT` or earning hidden-filter credit;
+  search reports a truncated lower bound, previews reject incomplete highlights and replacement returns no plan.
+  Query, trigram and history tests passed with and without the race detector; focused replacement server tests,
+  `go vet` and whole-daemon `golangci-lint` passed. The complete daemon gate passed every package, including CLI and
+  server Unix-socket integration; all 248 extension tests and 225 Playwright panel tests passed.
 - Canonical wiki pages and all 69 images now live in `docs/wiki/`, including the previously unpublished edits.
   Offline content validation passes against the mocks, screenshots, links and reference coverage; Markdown lint
   passes after adding page headings and preserving the existing screenshot layouts. All 12 local publication

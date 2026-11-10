@@ -127,6 +127,11 @@ extra Git work.
 The first page holds 500 results (`spelunk.results.count`); **Load more** fetches the next. Any count over
 50,000 stops there, and the results say they were truncated.
 
+One file, commit message or changed-line scan also stops after 32,768 raw match positions. This includes empty
+matches and positions that `word:yes` later rejects. Results found before that point are a lower bound and the search
+is marked incomplete; Spelunk does not treat the not-yet-scanned suffix as proof for `NOT` or an exact hidden-result
+count.
+
 A note that counts what a filter hid ("18 matches hidden by `case:yes`") shows only when every one could be counted:
 a search that runs out of time, or whose count without the filter passes 50,000, leaves the note out rather than
 show a number too small.

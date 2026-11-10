@@ -19,7 +19,7 @@ func TestCPlacesSpliceLinesBeforeReadingCommentsAndStrings(t *testing.T) {
 		{"CRLF string", "\"first\\\r\nsecond\"; call();", []string{"s:\"first\\\r\nsecond\""}},
 		{"escape after splice", "\"first\\\\\n\"second\"; call();", []string{"s:\"first\\\\\n\"second\""}},
 		{"macro string", "#define TEXT \"first\\\n/* second */\"\ncall();", []string{"s:\"first\\\n/* second */\""}},
-		{"multichar constant", "int x = '\"ab'; call(); // tail", []string{"s:'\"ab'", "c:// tail"}},
+		{"multi-character constant", "int x = '\"ab'; call(); // tail", []string{"s:'\"ab'", "c:// tail"}},
 		{"digit separators", "int x = 1'000'000; double y = 0x1.af'feP+2; char c = '0';", []string{"s:'0'"}},
 		{"Unicode offsets", "int café = 0; /* λ *\\\n/ café++; \"λ\"", []string{"c:/* λ *\\\n/", "s:\"λ\""}},
 	} {
@@ -35,6 +35,7 @@ func TestCPlacesSpliceLinesBeforeReadingCommentsAndStrings(t *testing.T) {
 
 func TestCKernelAssemblyCommentTextRemainsInStrings(t *testing.T) {
 	// @covers op:in op:struct
+	// cspell:words selftests unpriv
 	// Reduced from tools/testing/selftests/bpf/progs/verifier_unpriv.c:
 	// assembly comments inside continued C string literals remain strings.
 	literal := "\"r2 = r0;\\\n\t/* u64 foo; */\\\n\tr6 = r10;\\\n\tr6 += -8;\""

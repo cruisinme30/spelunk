@@ -46,41 +46,71 @@ func Preview(ctx context.Context, repo *Repo, ref Ref, plan *query.Plan, context
 	hunks, files := parseShow(out)
 	nameNow(repo.Store.find(ref.SHA), files)
 	markNotebookCells(ctx, repo.Root, ref.SHA, hunks)
-	var terms []*query.Content
-	marked := map[string]bool{"add": true, "del": true} // the kinds of line whose terms are marked
-	if plan != nil {
-		terms = plan.Terms
-		switch plan.DiffSide {
-		case query.TypeAdded:
-			marked = map[string]bool{"add": true}
-		case query.TypeRemoved:
-			marked = map[string]bool{"del": true}
-		}
-		finder := trigram.NewLineFinder()
-		message := newMessageView(&commit, finder)
-		for i := range files {
-			change := changedLinesOf(files[i].Path, hunks)
-			change.OldPath, change.Now = files[i].OldPath, files[i].CurrentPath
-			view := newFileView(change, finder, message, plan.DiffSide)
-			files[i].HiddenByFilter = !query.Eval(plan.Pred, leafFor(repo, &commit, view))
-		}
+	terms, marked, err := previewMatchState(ctx, repo, &commit, plan, hunks, files)
+	if err != nil {
+		return protocol.Preview{}, err
 	}
-	for h := range hunks {
-		for l := range hunks[h].Lines {
-			line := &hunks[h].Lines[l]
-			if marked[line.Kind] {
-				line.Text, line.Hits = trigram.PreviewLine(line.Text, terms)
-			} else {
-				line.Text, line.Hits = trigram.PreviewLine(line.Text, nil)
-			}
-		}
+	if matchErr := markPreviewHunks(ctx, hunks, terms, marked); matchErr != nil {
+		return protocol.Preview{}, matchErr
+	}
+	subjectHits, err := messageHitsContext(ctx, plan, commit.Subject)
+	if err != nil {
+		return protocol.Preview{}, err
+	}
+	bodyHits, err := messageHitsContext(ctx, plan, commit.Body)
+	if err != nil {
+		return protocol.Preview{}, err
 	}
 	return protocol.Preview{
 		Kind: protocol.PreviewKindCommit, SHA: commit.SHA, Subject: commit.Subject, Body: commit.Body,
 		Author: commit.AuthorName + " <" + commit.AuthorEmail + ">", At: commit.At.UTC().Format(time.RFC3339),
-		Files: files, Hunks: hunks, SubjectHits: messageHits(plan, commit.Subject), BodyHits: messageHits(plan, commit.Body),
+		Files: files, Hunks: hunks, SubjectHits: subjectHits, BodyHits: bodyHits,
 		Parents: parentsOf(&commit),
 	}, nil
+}
+
+func previewMatchState(ctx context.Context, repo *Repo, commit *Commit, plan *query.Plan, hunks []protocol.Hunk, files []protocol.FileStat) ([]*query.Content, map[string]bool, error) {
+	marked := map[string]bool{"add": true, "del": true}
+	if plan == nil {
+		return nil, marked, nil
+	}
+	switch plan.DiffSide {
+	case query.TypeAdded:
+		marked = map[string]bool{"add": true}
+	case query.TypeRemoved:
+		marked = map[string]bool{"del": true}
+	}
+	finder := trigram.NewLineFinder()
+	message := newMessageView(ctx, commit, finder)
+	for i := range files {
+		change := changedLinesOf(files[i].Path, hunks)
+		change.OldPath, change.Now = files[i].OldPath, files[i].CurrentPath
+		view := newFileView(ctx, change, finder, message, plan.DiffSide)
+		matched := query.Eval(plan.Pred, leafFor(repo, commit, view))
+		if matchErr := view.matchErr(); matchErr != nil {
+			return nil, nil, matchErr
+		}
+		files[i].HiddenByFilter = !matched
+	}
+	return plan.Terms, marked, nil
+}
+
+func markPreviewHunks(ctx context.Context, hunks []protocol.Hunk, terms []*query.Content, marked map[string]bool) error {
+	for h := range hunks {
+		for l := range hunks[h].Lines {
+			line := &hunks[h].Lines[l]
+			lineTerms := terms
+			if !marked[line.Kind] {
+				lineTerms = nil
+			}
+			var err error
+			line.Text, line.Hits, err = trigram.PreviewLineContext(ctx, line.Text, lineTerms)
+			if err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 // OpenTarget returns where opening a commit result goes: the commit, which

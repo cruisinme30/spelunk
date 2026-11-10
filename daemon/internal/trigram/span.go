@@ -2,6 +2,7 @@ package trigram
 
 import (
 	"bytes"
+	"context"
 	"slices"
 	"sort"
 
@@ -145,26 +146,26 @@ func lfText(text []byte) []byte {
 // matchAcrossLines finds term's matches in the whole text, each a result
 // on the line it starts, joined where their lines overlap. A match no line
 // shows any of (a lone newline, say) highlights nothing and is dropped.
-func (m *lineMatcher) matchAcrossLines(term *query.Content) []matchedLine {
+func (m *lineMatcher) matchAcrossLines(term *query.Content) ([]matchedLine, error) {
 	text := m.lfContent()
-	locs := term.FindAllIndex(text, -1)
-	if len(locs) == 0 || m.halted(len(text)) {
-		return nil
+	if m.halted(len(text)) {
+		return nil, context.Cause(m.ctx)
 	}
 	lines := newLineIndex(text)
 	var found []matchedLine
-	for _, loc := range locs {
+	err := term.VisitMatches(m.ctx, text, query.MaxMatchPositions, func(loc []int) bool {
 		if m.halted(loc[1] - loc[0] + 1) {
-			break
+			return false
 		}
 		if m.in != 0 && !m.keeps(loc[0], loc[1]) {
-			continue // in: judges a match across lines as a whole
+			return true // in: judges a match across lines as a whole
 		}
 		if match, ok := lines.match(loc[0], loc[1], term.TermIndex); ok {
 			found = append(found, match)
 		}
-	}
-	return joinLines(found)
+		return true
+	})
+	return joinLines(found), err
 }
 
 // lineIndex finds the lines of a text whose lines end in "\n" alone.
@@ -255,17 +256,21 @@ func (x lineIndex) match(start, end, termIndex int) (match matchedLine, ok bool)
 // with \n, or a struct: template, read as language), returning the rest and,
 // by line number, the parts of the taken terms' matches on lines first to
 // last of content.
-func splitAcrossLines(terms []*query.Content, content []byte, language string, first, last int, m *lineMatcher) ([]*query.Content, map[int][]byteHit) {
+func splitAcrossLines(ctx context.Context, terms []*query.Content, content []byte, language string, first, last int, m *lineMatcher) ([]*query.Content, map[int][]byteHit, error) {
 	acrossLines := map[int][]byteHit{}
+	var matchErr error
 	rest := slices.DeleteFunc(slices.Clone(terms), func(term *query.Content) bool {
+		if matchErr != nil {
+			return true
+		}
 		var found map[int][]byteHit
 		switch {
 		case term.Structural != nil && !m.keepsStructure():
 			// in: leaves out code, all a template matches
 		case term.Structural != nil:
-			found = hitsOfStructure(lfText(content), term, language, first, last)
+			found, matchErr = hitsOfStructure(ctx, lfText(content), term, language, first, last)
 		case term.Multiline:
-			found = hitsAcrossLines(lfText(content), term, first, last, m)
+			found, matchErr = hitsAcrossLines(ctx, lfText(content), term, first, last, m)
 		default:
 			return false
 		}
@@ -274,24 +279,25 @@ func splitAcrossLines(terms []*query.Content, content []byte, language string, f
 		}
 		return true
 	})
-	return rest, acrossLines
+	return rest, acrossLines, matchErr
 }
 
 // hitsAcrossLines returns, by line number, the parts of term's matches
 // that fall on lines first to last (1-based) of text, a text whose lines
 // end in "\n" alone. A preview marks a match that spans lines with them.
-func hitsAcrossLines(text []byte, term *query.Content, first, last int, m *lineMatcher) map[int][]byteHit {
+func hitsAcrossLines(ctx context.Context, text []byte, term *query.Content, first, last int, m *lineMatcher) (map[int][]byteHit, error) {
 	lines := newLineIndex(text)
 	hits := map[int][]byteHit{}
-	for _, loc := range term.FindAllIndex(text, -1) {
+	err := term.VisitMatches(ctx, text, query.MaxMatchPositions, func(loc []int) bool {
 		if loc[0] == loc[1] || (m.in != 0 && !m.keeps(loc[0], loc[1])) {
-			continue
+			return true
 		}
 		for i := max(lines.of(loc[0]), first-1); i <= min(lines.of(loc[1]-1), last-1); i++ {
 			if from, to := lines.shown(i, loc[0], loc[1]); from < to {
 				hits[i+1] = append(hits[i+1], byteHit{start: from, end: to, termIndex: term.TermIndex})
 			}
 		}
-	}
-	return hits
+		return true
+	})
+	return hits, err
 }

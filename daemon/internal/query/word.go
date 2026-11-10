@@ -22,7 +22,7 @@ func (c *Content) FindAllIndex(b []byte, n int) [][]int {
 		return c.Re.FindAllIndex(b, n)
 	}
 	if !c.resumable {
-		return keepWholeWords(b, c.Re.FindAllIndex(b, -1), n)
+		return c.findAssertedWholeWords(b, n)
 	}
 	var found [][]int
 	for from := 0; from <= len(b) && (n < 0 || len(found) < n); {
@@ -43,6 +43,36 @@ func (c *Content) FindAllIndex(b []byte, n int) [][]int {
 		}
 	}
 	return found
+}
+
+// findAssertedWholeWords preserves assertions against the original input while
+// avoiding an all-candidates allocation when a caller asks for a small prefix.
+// A negative n retains FindAllIndex's complete, potentially unbounded contract.
+func (c *Content) findAssertedWholeWords(b []byte, n int) [][]int {
+	if n == 0 {
+		return nil
+	}
+	requested, visited := 64, 0
+	if n < 0 {
+		requested = -1
+	}
+	var found [][]int
+	for {
+		locs := c.Re.FindAllIndex(b, requested)
+		for _, loc := range locs[visited:] {
+			if isWholeWord(b, loc[0], loc[1]) {
+				found = append(found, loc)
+				if n > 0 && len(found) == n {
+					return found
+				}
+			}
+		}
+		if requested < 0 || len(locs) < requested {
+			return found
+		}
+		visited = len(locs)
+		requested *= 2
+	}
 }
 
 // FindAllStringIndex is FindAllIndex for a string.
@@ -79,21 +109,6 @@ func (c *Content) findStructure(b []byte, n int) [][]int {
 		locs[i] = []int{m.Start, m.End}
 	}
 	return locs
-}
-
-// keepWholeWords keeps up to n of locs (all when n is negative) that are
-// whole words of b.
-func keepWholeWords(b []byte, locs [][]int, n int) [][]int {
-	var kept [][]int
-	for _, loc := range locs {
-		if n >= 0 && len(kept) == n {
-			break
-		}
-		if isWholeWord(b, loc[0], loc[1]) {
-			kept = append(kept, loc)
-		}
-	}
-	return kept
 }
 
 // isWholeWord reports whether b[start:end] is a whole word, as VS Code's

@@ -9,6 +9,7 @@ These rules always hold. Each keeps a whole class of bugs out, so a change that 
 | **`ref` is opaque** | Hosts and webviews pass refs back unchanged | Clients depending on daemon internals |
 | **One writer** | Only the indexer holding the repo's writer lock writes its index; engines read published snapshots. Explicit `spelunk index` uses that same lock; search and MCP remain read-only | Searches over half-written indexes, and windows overwriting each other's saves |
 | **One write path** | Only Replace all changes the user's files: the host checks the current preview, source and relevant output digests, notebook structure, target ranges and document versions, then applies one `WorkspaceEdit`. The daemon never writes source files | Edits whose unchanged lines no longer qualify, or whose ranges moved |
+| **Uncertainty never becomes absence** | A match scan that reaches its position budget marks search incomplete, rejects partial previews and replacement plans, and cannot make `NOT` succeed | Dense expressions silently admitting results or partial edits |
 | **Engines own results** | The RPC layer forwards `ResultItem`s unchanged | Results changed in transit |
 | **Protocol changes start in the schema** | Additive changes keep the version; breaking ones bump it | Type drift between Go and TypeScript |
 

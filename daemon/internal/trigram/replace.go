@@ -25,45 +25,17 @@ var ErrIncomplete = errors.New("a struct: filter gave up on a file, so some matc
 // lower bound: work stops as soon as limit is exceeded.
 func Replacements(ctx context.Context, plan *query.Plan, repos []Repo, term *query.Content, replacement string, limit int) (protocol.ReplacePlan, error) {
 	s := newSearcher(ctx, plan, 0, func(protocol.ResultItem) {})
-	out := protocol.ReplacePlan{Files: []protocol.ReplaceFile{}}
-	visible := withoutExcludes(plan)
-	builder := newReplacementBuilder(ctx, term, replacement)
-	var buildErr error
-	s.forEachCandidate(repos, func(c rankedCandidate, matcher *lineMatcher, leaf func(query.Pred) bool) {
-		if out.Truncated {
-			return
-		}
-		if !query.Eval(plan.Pred, leaf) {
-			excluded, err := excludedEdits(ctx, visible, leaf, matcher, term)
-			out.Excluded += excluded
-			if err != nil {
-				buildErr = err
-				s.truncated = true
-			}
-			return
-		}
-		file, matches, err := builder.file(c, matcher, query.Contributing(plan.Pred, leaf), max(1, limit-out.Matches+1))
-		if err != nil {
-			buildErr = err
-			s.truncated = true
-			return
-		}
-		out.Matches += matches
-		if out.Matches > limit {
-			out.Truncated = true
-			s.truncated = true // stops forEachCandidate
-		}
-		if len(file.Lines) > 0 && !out.Truncated {
-			file.SourceHash, file.Cells = replacementSource(c.doc)
-			file.OutputHash = replacementOutputs(c.doc)
-			out.Files = append(out.Files, file)
-		}
-	})
+	work := replacementSearch{
+		ctx: ctx, plan: plan, term: term, limit: limit, searcher: s,
+		out: protocol.ReplacePlan{Files: []protocol.ReplaceFile{}}, visible: withoutExcludes(plan),
+		builder: newReplacementBuilder(ctx, term, replacement),
+	}
+	s.forEachCandidate(repos, work.visit)
 	if err := ctx.Err(); err != nil {
 		return protocol.ReplacePlan{}, context.Cause(ctx)
 	}
-	if buildErr != nil {
-		return protocol.ReplacePlan{}, buildErr
+	if work.err != nil {
+		return protocol.ReplacePlan{}, work.err
 	}
 	if s.matchErr != nil {
 		return protocol.ReplacePlan{}, s.matchErr
@@ -71,10 +43,66 @@ func Replacements(ctx context.Context, plan *query.Plan, repos []Repo, term *que
 	if s.incomplete {
 		return protocol.ReplacePlan{}, ErrIncomplete
 	}
-	if out.Truncated {
-		out.Files = []protocol.ReplaceFile{}
+	if work.out.Truncated {
+		work.out.Files = []protocol.ReplaceFile{}
 	}
-	return out, nil
+	return work.out, nil
+}
+
+type replacementSearch struct {
+	ctx      context.Context
+	plan     *query.Plan
+	term     *query.Content
+	limit    int
+	searcher *searcher
+	visible  *query.And
+	builder  replacementBuilder
+	out      protocol.ReplacePlan
+	err      error
+}
+
+func (r *replacementSearch) visit(c rankedCandidate, matcher *lineMatcher, leaf func(query.Pred) bool) {
+	if r.out.Truncated {
+		return
+	}
+	matched := query.Eval(r.plan.Pred, leaf)
+	if matcher.matchErr != nil {
+		r.fail(matcher.matchErr)
+		return
+	}
+	if !matched {
+		excluded, err := excludedEdits(r.ctx, r.visible, leaf, matcher, r.term)
+		r.out.Excluded += excluded
+		if err != nil {
+			r.fail(err)
+		}
+		return
+	}
+	terms := query.Contributing(r.plan.Pred, leaf)
+	if matcher.matchErr != nil {
+		r.fail(matcher.matchErr)
+		return
+	}
+	file, matches, err := r.builder.file(c, matcher, terms, max(1, r.limit-r.out.Matches+1))
+	if err != nil {
+		r.fail(err)
+		return
+	}
+	r.out.Matches += matches
+	if r.out.Matches > r.limit {
+		r.out.Truncated = true
+		r.searcher.truncated = true // stops forEachCandidate
+	}
+	if len(file.Lines) > 0 && !r.out.Truncated {
+		file.SourceHash, file.Cells = replacementSource(c.doc)
+		file.OutputHash = replacementOutputs(c.doc)
+		r.out.Files = append(r.out.Files, file)
+	}
+}
+
+func (r *replacementSearch) fail(err error) {
+	r.err = err
+	r.searcher.truncated = true
 }
 
 // replacementBuilder keeps a request's replacement settings together while
@@ -100,7 +128,11 @@ func (b replacementBuilder) file(c rankedCandidate, matcher *lineMatcher, terms 
 		RepoID: c.repo.ID, Path: c.doc.Path, File: filepath.Join(c.repo.Root, filepath.FromSlash(c.doc.Path)),
 	}
 	count := 0
-	for _, line := range matcher.lines(terms) {
+	lines := matcher.lines(terms)
+	if matcher.matchErr != nil {
+		return protocol.ReplaceFile{}, 0, matcher.matchErr
+	}
+	for _, line := range lines {
 		if isOutputLine(c.doc.Cells, line.number) {
 			continue // running a cell writes its outputs
 		}
@@ -142,11 +174,26 @@ func withoutExcludes(plan *query.Plan) *query.And {
 // excludedEdits counts the edits a replace would make in a file that only
 // VS Code's excludes hid: one that visible, the plan without them, keeps.
 func excludedEdits(ctx context.Context, visible *query.And, leaf func(query.Pred) bool, matcher *lineMatcher, term *query.Content) (int, error) {
-	if visible == nil || !query.Eval(visible, leaf) {
+	if visible == nil {
+		return 0, nil
+	}
+	matched := query.Eval(visible, leaf)
+	if matcher.matchErr != nil {
+		return 0, matcher.matchErr
+	}
+	if !matched {
 		return 0, nil
 	}
 	count := 0
-	for _, line := range matcher.lines(query.Contributing(visible, leaf)) {
+	terms := query.Contributing(visible, leaf)
+	if matcher.matchErr != nil {
+		return 0, matcher.matchErr
+	}
+	lines := matcher.lines(terms)
+	if matcher.matchErr != nil {
+		return 0, matcher.matchErr
+	}
+	for _, line := range lines {
 		if isOutputLine(matcher.cells, line.number) {
 			continue
 		}

@@ -1,5 +1,7 @@
 # Case-insensitive search: remember where each scan stopped
 
+<!-- cspell:words benchtime -->
+
 Measured 2026-11-10. **Status:** implemented locally; focused checks pass; integration and repository-wide
 benchmarks are pending. This is an isolated line-matching improvement, not an 8× product-wide claim.
 

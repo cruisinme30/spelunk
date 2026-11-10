@@ -139,7 +139,7 @@ func textResult(text string, isError bool) *mcp.CallToolResult {
 // for a line inside the definitions the query asked for, the one it is in.
 func searchText(session *Session, results []Result, summary *Summary, now time.Time) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "Repo %s (%s): %s\n", session.Repo.Name, session.Repo.Root, summaryLine(summary, now))
+	_, _ = fmt.Fprintf(&b, "Repo %s (%s): %s\n", session.Repo.Name, session.Repo.Root, summaryLine(summary, now))
 	for i := range results {
 		var line strings.Builder
 		_ = printResults(&line, FormatText, results[i:i+1], session.Repo.Root, session.Repo.Root)
@@ -147,7 +147,7 @@ func searchText(session *Session, results []Result, summary *Summary, now time.T
 		if in := results[i].Within; in != nil {
 			text += fmt.Sprintf("  [in %s %s]", in.Kind, in.Name)
 		}
-		fmt.Fprintf(&b, "%s  [ref %s]\n", text, results[i].Ref)
+		_, _ = fmt.Fprintf(&b, "%s  [ref %s]\n", text, results[i].Ref)
 	}
 	if summary.Total == 0 {
 		if summary.Truncated {
@@ -163,23 +163,23 @@ func searchText(session *Session, results []Result, summary *Summary, now time.T
 func previewText(preview *protocol.Preview) string {
 	var b strings.Builder
 	if preview.Kind == protocol.PreviewKindCommit {
-		fmt.Fprintf(&b, "commit %s\nAuthor: %s\nDate: %s\n\n%s\n", preview.SHA, preview.Author, preview.At, preview.Subject)
+		_, _ = fmt.Fprintf(&b, "commit %s\nAuthor: %s\nDate: %s\n\n%s\n", preview.SHA, preview.Author, preview.At, preview.Subject)
 		if preview.Body != "" {
 			b.WriteString("\n" + preview.Body + "\n")
 		}
 		for _, file := range preview.Files {
-			fmt.Fprintf(&b, "  %s\n", file.Path)
+			_, _ = fmt.Fprintf(&b, "  %s\n", file.Path)
 		}
 		return b.String()
 	}
-	fmt.Fprintf(&b, "%s\n", preview.Path)
+	_, _ = fmt.Fprintf(&b, "%s\n", preview.Path)
 	for i, line := range preview.Lines {
 		number := preview.FirstLine + i
 		marker := " "
 		if number >= preview.FocusLine && number <= max(preview.FocusLine, preview.FocusEndLine) {
 			marker = ">"
 		}
-		fmt.Fprintf(&b, "%s%6d  %s\n", marker, number, line)
+		_, _ = fmt.Fprintf(&b, "%s%6d  %s\n", marker, number, line)
 	}
 	return b.String()
 }
