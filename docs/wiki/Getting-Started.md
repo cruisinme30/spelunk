@@ -5,7 +5,8 @@
 
 **Spelunk** is a VS Code extension that replaces several searches with one box. Type a query and see, as you
 type, matching **file names**, **code lines**, **symbol definitions** and **Git commits** from every repo in your
-workspace. Everything is indexed and searched on your machine; nothing is sent anywhere.
+workspace. Indexing and search run on your machine. Optional Ask query generation sends your question and,
+if enabled, repository and CODEOWNERS names to Anthropic; it does not send source code.
 
 <img
   src="images/mocks/Main.png"
@@ -19,7 +20,7 @@ from the [latest release](https://github.com/cruisinme30/spelunk/releases/latest
 **Extensions: Install from VSIX…** in VS Code, or from a terminal:
 
 ```sh
-code --install-extension spelunk-2.0.0-darwin-arm64.vsix
+code --install-extension spelunk-3.1.0-darwin-arm64.vsix
 ```
 
 To build it from a clone instead, see [Contributing](Contributing).

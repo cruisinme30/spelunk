@@ -1,46 +1,55 @@
 # Architecture Overview
 
-Three processes split the work. Only the daemon touches files, Git or indexes.
+Spelunk has three main parts: a search panel, a VS Code integration, and a local search engine written in Go.
+The panel shows results; the extension connects them to your editor; the engine indexes and searches your projects.
 
 ```mermaid
 flowchart LR
-  subgraph VSCode["VS Code / code-server"]
-    WV["Webview<br/>search panel · help · welcome"] -- "postMessage" --> EH["Extension host"]
-  end
-  EH -- "JSON-RPC 2.0 over stdio" --> RPC
-  subgraph Daemon["Search daemon (Go) · one per window"]
-    RPC["rpc + server"] --> Q["query<br/>parser + planner"]
-    Q -- Plan --> TE["trigram<br/>working-tree engine"]
-    Q -- Plan --> HE["history<br/>commit engine"]
-    IX["indexer<br/>only writer"] -- "published snapshots" --> TE
-    IX -- "published snapshots" --> HE
-  end
-  IX --> DISK[("index.location<br/>on disk")]
+  Panel["Search panel<br/>Type a query, preview results"] <--> Host["VS Code extension<br/>Commands, settings, editors"]
+  Host <--> Engine["Go daemon<br/>Parse, search, index"]
+  Engine <--> Index[("Local indexes")]
+  Files["Project files and Git history"] --> Engine
 ```
+
+The panel and extension communicate through VS Code messages. The extension starts a daemon for its window and
+communicates with it over standard input/output. Search doesn't require a remote service.
 
 ## Who owns what
 
-| Part | Owns | Never |
+| Part | Responsibility | Start here |
 | --- | --- | --- |
-| [[Webview]] | Rendering, debouncing, fix-its and completions as text edits | Reads files, calls Git, reaches the daemon, parses queries |
-| [[Extension Host]] | Commands, keybindings, settings, spawning the daemon, opening editors | Searches, parses, or keeps results past the current list |
-| [[Daemon]]: `rpc`, `server` | Request lifecycle, cancellation, search IDs, batching | Reads or writes an index |
-| [[Daemon]]: `query` | Grammar, diagnostics, fix-its, completions, planning | I/O beyond author and repo lookups |
-| [[Daemon]]: `trigram`, `history` | Results and previews for files and commits | Writes an index |
-| [[Daemon]]: `indexer` | Building, refreshing and publishing both indexes | Answers searches |
+| Search panel | Query input, suggestions, results and previews | `webview/` · [[Webview]] |
+| VS Code extension | Commands, settings, daemon lifecycle, opening files and applying editor edits | `extension/` · [[Extension Host]] |
+| Go daemon | Query parsing, indexing, search and preview data | `daemon/` · [[Daemon]] |
+| Shared protocol | Message definitions and generated types | `protocol/` · [[Protocol]] |
+
+The daemon builds search indexes and reads them to answer queries. The extension applies replacements through
+VS Code after validating the plan and current files. The panel never accesses files or Git directly.
+
+## Follow a search
+
+1. You type `lang:python retry` in the panel.
+2. The extension sends the query to the daemon, which checks it and chooses a search engine.
+3. The engine reads an index snapshot and sends matching results back in batches.
+4. The panel displays them. Selecting a result requests a preview; opening it asks VS Code to show the file.
+
+New searches cancel older ones, and outdated responses are ignored. The indexer publishes complete snapshots,
+so searches never read a half-written index. See [[Search Flow]] for the message sequence.
 
 ## One query, one engine
 
-The planner sends each query to **exactly one** engine:
-
-| Query has… | Engine | Results |
+| Search | Engine | Example |
 | --- | --- | --- |
-| Text, `file:`, `language:`, `symbol:`, `type:file`, `since:`, `until:` | Working tree (`trigram`) | File names, code lines, symbol definitions |
-| `author:`, `message:`, `type:commit` | History (`history`) | Commits whose changed lines or message match |
-| `type:added`, `type:removed` | History (`history`) | Commits whose added (or removed) lines match |
+| Current files, code and definitions | Working-tree engine (`trigram`) | `lang:python retry` |
+| Git commits and their changes | History engine (`history`) | `author:jane retry` |
+| Added or removed lines | History engine (`history`) | `type:added retry` |
+
+Plain text searches current files. Filters such as `author:`, `message:` and `type:commit` switch to history.
+`since:` alone filters current files by when they changed; it doesn't switch engines.
 
 ## Next
 
-- [[Search Flow]]: what happens on each keystroke
-- [[Protocol]]: the messages between processes
-- [[Indexing]]: how the indexes are built and kept fresh
+- [[Search Flow]]: follow the messages for searching, previewing and opening.
+- [[Indexing]]: understand index creation and updates.
+- [[Protocol]]: look up request and response contracts.
+- [[Contributing]]: set up a development environment and run checks.

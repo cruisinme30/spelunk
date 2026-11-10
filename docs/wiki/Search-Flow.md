@@ -3,7 +3,13 @@
 <!-- Mermaid sequence-diagram keyword. -->
 <!-- cspell:words autonumber -->
 
-A keystroke travels webview → host → daemon, and results stream back the same way in batches.
+When you type, the panel waits briefly for a pause, then sends your query through the extension to the daemon.
+The daemon checks the query and streams results back in batches. A new query cancels the previous search.
+
+For the component map, start with [[Architecture Overview]]. The diagrams below show the messages used by
+contributors working on search, preview or editor integration.
+
+## From typing to results
 
 ```mermaid
 sequenceDiagram
