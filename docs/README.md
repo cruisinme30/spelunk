@@ -1,30 +1,33 @@
 # Documentation
 
-The docs follow [Diátaxis](https://diataxis.fr/): each page has one job. Pick the folder by what the reader is doing.
+Start with the task you want to do. You don't need to read the architecture to use Spelunk.
 
-| Folder | For a reader who wants to… | Examples |
-| --- | --- | --- |
-| `tutorial/` | learn by doing, start to finish | Your first search session |
-| `how-to/` | get a specific task done | Index a huge repo, debug the webview |
-| `reference/` | look something up | Query language, settings, protocol |
-| `explanation/` | understand why it works this way | How results are ranked and merged |
-| [`adr/`](adr/) | know why a decision was made | [Architecture decision records](adr/README.md) |
-| [`wiki/`](wiki/Home.md) | read the canonical user guide and code map | Published to the GitHub wiki after develop merges |
-| [`dev/`](dev/) | build or plan the project itself | Plans and progress, below |
+## Use Spelunk
 
-User docs (tutorial, how-to, reference) are written as each feature lands. Until then, the help page inside the
-extension (Spelunk: Open Help) is the query-language reference.
+| I want to… | Read |
+| --- | --- |
+| Install it and run my first search | [Getting Started](wiki/Getting-Started.md) |
+| Copy a useful search | [Recipes](wiki/Recipes.md) |
+| Look up a filter or operator | [Query Language](wiki/Query-Language.md) |
+| Learn shortcuts, previews and replacements | [Using the Panel](wiki/Using-the-Panel.md) |
+| Search from a terminal or AI agent | [Agents and the Terminal](wiki/Agents-and-the-Terminal.md) |
+| Fix a problem | [Troubleshooting](wiki/Troubleshooting.md) |
 
-## For contributors
+## Work on the code
 
-- [Wiki source](wiki/Home.md), with a [published mirror](https://github.com/cruisinme30/spelunk/wiki): the user guide
-  and query reference, the code map, the rules that always hold, and the design mocks.
-- [CONTRIBUTING.md](../CONTRIBUTING.md): setup, commit and code conventions, tests.
-- [dev/implementation-plan.md](dev/implementation-plan.md): the original build plan: scope, interfaces between the
-  parts, indexing, performance budgets, the order of work and risks.
-- [dev/test-plan.md](dev/test-plan.md): test layers, the end-to-end harness, its scenarios and CI gates.
-- [dev/mocks.md](dev/mocks.md): the design mockups, with the screen ids tests use in `@covers screen:…`.
-- [dev/progress.md](dev/progress.md): what each stage of the plan delivered, with the tests that prove it.
-- [Improvement notes](dev/improvements/README.md): maintained technical write-ups for individual fixes, their
-  rationale, validation and remaining limits.
-- [Industry comparison](dev/industry-comparison.md): comparable tools, measurement methods and product tradeoffs.
+Start with [Contributing](../CONTRIBUTING.md) to set up your checkout, then read
+[Architecture Overview](wiki/Architecture-Overview.md) for the three main components.
+[Search Flow](wiki/Search-Flow.md) follows one query through them.
+
+For deeper work:
+
+- [Protocol](wiki/Protocol.md): messages between components.
+- [Indexing](wiki/Indexing.md): how files and history become searchable.
+- [Architecture decisions](adr/README.md): why the design works this way.
+- [Test plan](dev/test-plan.md): coverage, scenarios and release checks.
+- [Implementation plan](dev/implementation-plan.md): detailed design and milestones.
+- [Progress](dev/progress.md) and [improvement notes](dev/improvements/README.md): implementation evidence and limits.
+- [Design mocks](dev/mocks.md): the screens and their test identifiers.
+
+The versioned [wiki source](wiki/Home.md) is maintained alongside the code. The
+[GitHub wiki](https://github.com/cruisinme30/spelunk/wiki) is its published mirror.
