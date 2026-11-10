@@ -60,6 +60,8 @@ type syntax struct {
 	nestedComments bool
 	// template and formatted recognize executable interpolation in JS and Python.
 	template, formatted bool
+	// cFamily removes escaped newlines before recognizing C/C++ tokens.
+	cFamily bool
 }
 
 var cLike = syntax{lineComments: []string{"//"}, blockComments: [][2]string{{"/*", "*/"}}, quotes: `"`, charQuote: true}
@@ -68,8 +70,8 @@ var cLike = syntax{lineComments: []string{"//"}, blockComments: [][2]string{{"/*
 // package); any other file reads as plain text with "strings".
 var languages = map[string]syntax{
 	"go":         {lineComments: []string{"//"}, blockComments: [][2]string{{"/*", "*/"}}, quotes: `"`, charQuote: true, rawQuotes: "`"},
-	"c":          cLike,
-	"c++":        withCppRaw(cLike),
+	"c":          withCFamily(cLike),
+	"c++":        withCppRaw(withCFamily(cLike)),
 	"java":       withTriple(cLike),
 	"kotlin":     withTriple(cLike),
 	"scala":      withTriple(cLike),
@@ -108,6 +110,7 @@ func withTriple(s syntax) syntax   { s.tripleQuote = true; return s }
 func withCppRaw(s syntax) syntax   { s.cppRaw = true; return s }
 func withRustRaw(s syntax) syntax  { s.rustRaw = true; s.nestedComments = true; return s }
 func withVerbatim(s syntax) syntax { s.verbatim = true; return s }
+func withCFamily(s syntax) syntax  { s.cFamily = true; return s }
 
 // syntaxOf returns the syntax of language, a lang package name.
 func syntaxOf(language string) syntax {
@@ -162,6 +165,7 @@ func (l *lexer) next() {
 	case isSpaceRune(r):
 		l.pos += size
 		l.gap = true
+	case l.cFamily && l.cToken():
 	case l.comment():
 		l.gap = true
 	case isWordRune(r):
@@ -226,6 +230,9 @@ func isSpaceRune(r rune) bool {
 // comment skips a comment that starts at pos, reporting whether there was
 // one. Block comments go first: Lua's --[[ starts with its line comment's --.
 func (l *lexer) comment() bool {
+	if l.cFamily {
+		return l.cComment()
+	}
 	rest := l.text[l.pos:]
 	for _, pair := range l.blockComments {
 		if !bytes.HasPrefix(rest, []byte(pair[0])) {
@@ -305,6 +312,9 @@ func (l *lexer) closedBy(width int, closer string, escapes bool) bool {
 // oneLine reads a quote-delimited string with backslash escapes that ends
 // on its line.
 func (l *lexer) oneLine(quote byte) bool {
+	if l.cFamily {
+		return l.cQuoted(l.pos, l.pos, quote)
+	}
 	for i := l.pos + 1; i < len(l.text); i++ {
 		switch l.text[i] {
 		case '\\':
@@ -339,6 +349,9 @@ func (l *lexer) doubled(start, body int, quote byte) bool {
 // char reads a character literal: a quote, one character or an escape, and
 // a quote. Anything else leaves the quote as punctuation.
 func (l *lexer) char() bool {
+	if l.cFamily {
+		return l.cQuoted(l.pos, l.pos, '\'')
+	}
 	i := l.pos + 1
 	if i >= len(l.text) || l.text[i] == '\n' || l.text[i] == '\'' {
 		return false
@@ -372,8 +385,6 @@ func (l *lexer) prefixedString(start int) bool {
 		return l.formattedString(start)
 	case l.rustRaw && (prefix == "r" || prefix == "br"):
 		end = rustRawEnd(l.text, l.pos)
-	case l.cppRaw && (prefix == "R" || prefix == "u8R" || prefix == "LR" || prefix == "uR" || prefix == "UR"):
-		end = cppRawEnd(l.text, l.pos)
 	}
 	if end < 0 {
 		return false
@@ -409,8 +420,8 @@ func cppRawEnd(text []byte, at int) int {
 	if at >= len(text) || text[at] != '"' {
 		return -1
 	}
-	paren := bytes.IndexByte(text[at:], '(')
-	if paren < 0 || paren > 17 || bytes.ContainsAny(text[at+1:at+paren], " \\)\n") {
+	paren := bytes.IndexByte(text[at:min(at+18, len(text))], '(')
+	if paren < 0 || paren > 17 || bytes.ContainsAny(text[at+1:at+paren], " \\)\n\r\t\v\f") {
 		return -1
 	}
 	closer := ")" + string(text[at+1:at+paren]) + `"`

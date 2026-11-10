@@ -38,7 +38,11 @@ func Outline(lang string, content []byte) []Entry {
 	code, _ := definitionCode(content, lang)
 	var r outlineReader
 	eachLine(code, func(number int, line []byte) { r.read(rules, lang == "rust", number, line) })
-	return r.flatten()
+	var declarations map[int]bool
+	if supportsBraceSpans(lang) {
+		_, declarations = cHeaders(r.found, code)
+	}
+	return r.flatten(declarations)
 }
 
 // outlineReader reads a file's definitions a line at a time, and which
@@ -93,10 +97,12 @@ func (r *outlineReader) read(rules []rule, implBlocks bool, number int, line []b
 
 // flatten lists the definitions read as a tree, top to bottom, at most
 // MaxOutline of them.
-func (r *outlineReader) flatten() []Entry {
+func (r *outlineReader) flatten(declarations map[int]bool) []Entry {
 	children := make(map[int][]int, len(r.found))
 	for i := range r.found {
-		children[r.parentOf(i)] = append(children[r.parentOf(i)], i)
+		if !declarations[i] {
+			children[r.parentOf(i)] = append(children[r.parentOf(i)], i)
+		}
 	}
 	entries := make([]Entry, 0, min(len(r.found), MaxOutline))
 	seen := make([]bool, len(r.found))
@@ -115,7 +121,7 @@ func (r *outlineReader) flatten() []Entry {
 	// Types that name each other as parents reach no top-level definition;
 	// list them at the top rather than lose them.
 	for i := range r.found {
-		if !seen[i] && len(entries) < MaxOutline {
+		if !seen[i] && !declarations[i] && len(entries) < MaxOutline {
 			seen[i] = true
 			entries = append(entries, Entry{Symbol: r.found[i]})
 			walk(i, 1)

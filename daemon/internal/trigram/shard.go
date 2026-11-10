@@ -17,7 +17,7 @@ import (
 
 // shardFormatVersion changes whenever the saved layout does; an index
 // written by another version is rebuilt rather than migrated.
-const shardFormatVersion = 6
+const shardFormatVersion = 7
 
 // maxDocs bounds a shard's files, so doc ids fit in a uint32.
 const maxDocs int64 = math.MaxUint32
@@ -37,6 +37,10 @@ type Doc struct {
 	// Cells are a Jupyter notebook's cells, whose text Content is (see
 	// notebook.Read); nil for any other file.
 	Cells []notebook.Cell
+	// NotebookOutputs records whether this generation searched cell outputs,
+	// including a notebook that had no outputs yet. Replacement freshness
+	// must use the indexed setting rather than a later workspace setting.
+	NotebookOutputs bool
 	// places is a runtime-only cache owned by this immutable shard generation.
 	places *placesCache
 }
@@ -189,7 +193,7 @@ func docOf(path string, content []byte, modTime time.Time, opts BuildOptions) (D
 	if opts.MaxFileBytes > 0 && int64(len(text)) > opts.MaxFileBytes {
 		return Doc{}, false
 	}
-	doc := Doc{Path: path, Lang: language, ModTime: modTime, Content: text, Cells: cells}
+	doc := Doc{Path: path, Lang: language, ModTime: modTime, Content: text, Cells: cells, NotebookOutputs: cells != nil && opts.NotebookOutputs}
 	if opts.Symbols {
 		doc.Symbols = symbolsOf(doc.Lang, text, cells)
 	}

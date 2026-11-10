@@ -85,8 +85,56 @@ func TestAmbiguousBraceSyntaxKeepsLanguageSpanRules(t *testing.T) {
 func TestCHeaderSkipsBlankLinesInOnePass(t *testing.T) {
 	// @covers op:kind op:content
 	header := "void test(void)" + strings.Repeat("\n", 100_000) + "{\n}"
-	if got, want := headerBodyStart([]byte(header)), strings.IndexByte(header, '{'); got != want {
+	got, _ := scanCHeader([]byte(header))
+	if want := strings.IndexByte(header, '{'); got != want {
 		t.Errorf("header body starts at %d, want %d", got, want)
+	}
+}
+
+func TestCDefinitionsDistinguishBodiesFromDeclarations(t *testing.T) {
+	// @covers op:sym op:kind op:content
+	for _, tc := range []struct {
+		name, source string
+		want         []string
+	}{
+		{"multiline prototype", "static int declared(int first,\n int second);\n", nil},
+		{"prototype with separate terminator", "int declared(void)\n;\n", nil},
+		{"prototype with trailing attribute", "static int declared(int value)\n __attribute__((pure));\n", nil},
+		{"macro variable initializer", "static DEFINE_PER_CPU(struct work, pending) =\n WORK_INIT(notify);\n", nil},
+		{"macro aggregate initializer", "static DECLARE_ENTRY(entry)\n= { 1, 2 };\n", nil},
+		{"one-line function", "int actual(void) { return 1; }\n", []string{"actual 1-1"}},
+		{"prototype followed by definition", "int declared(int first,\n int second);\nint actual(void) { return 1; }\n", []string{"actual 3-3"}},
+		{"trailing attributes", "static int actual(int value)\n__acquires(lock)\n__releases(lock)\n{\nreturn value;\n}\n", []string{"actual 1-6"}},
+		{"standard attribute", "int actual(void)\n[[deprecated]]\n{\nreturn 1;\n}\n", []string{"actual 1-5"}},
+		{"braces and semicolons in attribute string", "int actual(void)\n__section(\"};\")\n{\nreturn 1;\n}\n", []string{"actual 1-5"}},
+		{"incomplete signature", "int pending(\n", []string{"pending 1-1"}},
+	} {
+		for _, language := range []string{"c", "c++"} {
+			t.Run(language+"/"+tc.name, func(t *testing.T) {
+				if got := spans(language, tc.source); !reflect.DeepEqual(got, tc.want) {
+					t.Errorf("Extract(%q, %q) = %q, want %q", language, tc.source, got, tc.want)
+				}
+				extracted := Extract(language, []byte(tc.source))
+				outline := Outline(language, []byte(tc.source))
+				if len(outline) != len(extracted) {
+					t.Fatalf("Outline has %d definitions, Extract has %d", len(outline), len(extracted))
+				}
+				for i, entry := range outline {
+					if entry.Name != extracted[i].Name || entry.Line != extracted[i].Line {
+						t.Errorf("Outline[%d] = %+v, Extract = %+v", i, entry, extracted[i])
+					}
+				}
+			})
+		}
+	}
+}
+
+func TestCOutlineRetainsParentsAfterSkippingDeclarations(t *testing.T) {
+	// @covers op:sym
+	source := "int declared(int first,\n int second);\nclass Outer {\n  class Inner {\n  };\n};\n"
+	got := Outline("c++", []byte(source))
+	if len(got) != 2 || got[0].Name != "Outer" || got[0].Depth != 0 || got[1].Name != "Inner" || got[1].Depth != 1 {
+		t.Errorf("Outline = %+v, want Outer containing Inner", got)
 	}
 }
 
@@ -99,7 +147,7 @@ func BenchmarkCHeaderBlankLines(b *testing.B) {
 			header := []byte("void test(void)" + strings.Repeat("\n", lines.count) + "{\n}")
 			b.ResetTimer()
 			for range b.N {
-				if headerBodyStart(header) < 0 {
+				if at, _ := scanCHeader(header); at < 0 {
 					b.Fatal("body not found")
 				}
 			}

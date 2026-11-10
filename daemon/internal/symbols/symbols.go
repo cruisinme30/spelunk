@@ -50,7 +50,7 @@ func Extract(lang string, content []byte) []Symbol {
 	})
 	b.closeAll(found)
 	if supportsBraceSpans(lang) {
-		applyBraceSpans(found, code)
+		found = applyBraceSpans(found, code)
 	}
 	return found
 }

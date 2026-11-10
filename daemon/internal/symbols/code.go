@@ -96,13 +96,27 @@ func maskDirectives(code, content []byte) {
 // and other brace-bearing syntax need a language parser before changing it.
 func supportsBraceSpans(language string) bool { return language == "c" || language == "c++" }
 
-// applyBraceSpans replaces indentation estimates with matching brace spans.
-// Header scans stop at the next definition, so total work is linear. Only
-// definition braces are tracked: a generated file's unrelated braces do not
-// allocate a stack entry or map item each.
-func applyBraceSpans(found []Symbol, code []byte) {
+// applyBraceSpans replaces indentation estimates with matching brace spans
+// and removes function candidates that turned out to be declarations.
+func applyBraceSpans(found []Symbol, code []byte) []Symbol {
+	openers, declarations := cHeaders(found, code)
+	completeBraceSpans(found, code, openers)
+	kept := found[:0]
+	for i, symbol := range found {
+		if !declarations[i] {
+			kept = append(kept, symbol)
+		}
+	}
+	return kept
+}
+
+// cHeaders locates body openers and confirmed non-definition functions.
+// Header scans stop at the next candidate, so total work is linear even
+// when an incomplete header never closes its parameters. Only definition
+// braces allocate a map item; unrelated braces need no retained state.
+func cHeaders(found []Symbol, code []byte) (openers map[int]int, declarations map[int]bool) {
 	if len(found) == 0 {
-		return
+		return nil, nil
 	}
 	starts := []int{0}
 	for i, c := range code {
@@ -110,17 +124,24 @@ func applyBraceSpans(found []Symbol, code []byte) {
 			starts = append(starts, i+1)
 		}
 	}
-	openers := make(map[int]int, len(found))
+	openers = make(map[int]int, len(found))
 	for i, symbol := range found {
 		start, limit := starts[symbol.Line-1], len(code)
 		if i+1 < len(found) {
 			limit = starts[found[i+1].Line-1]
 		}
-		if at := headerBodyStart(code[start:limit]); at >= 0 {
+		at, declared := scanCHeader(code[start:limit])
+		if at >= 0 {
 			openers[start+at] = i
 		}
+		if declared && symbol.Kind == function {
+			if declarations == nil {
+				declarations = make(map[int]bool)
+			}
+			declarations[i] = true
+		}
 	}
-	completeBraceSpans(found, code, openers)
+	return openers, declarations
 }
 
 // completeBraceSpans assigns only complete bodies; an unmatched body keeps
@@ -148,14 +169,20 @@ func completeBraceSpans(found []Symbol, code []byte, openers map[int]int) {
 	}
 }
 
-// headerBodyStart finds the first ungrouped brace before a declaration ends.
+// scanCHeader distinguishes a body from a declaration or initializer before
+// it. Reserved implementation attributes can continue a signature on later
+// lines (Linux __acquires/__releases, GCC __attribute__, C++ [[attributes]]).
 // It skips braces nested in parameter or type-argument lists.
-func headerBodyStart(header []byte) int {
+// An unknown continuation keeps the existing incomplete-definition fallback.
+func scanCHeader(header []byte) (body int, declaration bool) {
 	parens, brackets := 0, 0
 	endedLine := false
 	for i, c := range header {
-		if endedLine && !headerSpace(c) && c != '{' {
-			return -1
+		if endedLine && !headerSpace(c) {
+			if !headerContinuation(header[i:]) {
+				return -1, false
+			}
+			endedLine = false
 		}
 		switch c {
 		case '(':
@@ -168,17 +195,24 @@ func headerBodyStart(header []byte) int {
 			brackets = max(0, brackets-1)
 		case '{':
 			if parens+brackets == 0 {
-				return i
+				return i, false
 			}
 		case '\n':
 			endedLine = parens+brackets == 0
-		case ';', '}':
+		case ';', '=', '}':
 			if parens+brackets == 0 {
-				return -1
+				return -1, c != '}'
 			}
 		}
 	}
-	return -1
+	return -1, false
+}
+
+// headerContinuation recognizes punctuation ending a declaration, a body,
+// or an implementation attribute after a signature's line break.
+func headerContinuation(rest []byte) bool {
+	return rest[0] == '{' || rest[0] == ';' || rest[0] == '=' ||
+		bytes.HasPrefix(rest, []byte("__")) || bytes.HasPrefix(rest, []byte("[["))
 }
 
 // headerSpace is whitespace allowed between a signature and its body brace.
