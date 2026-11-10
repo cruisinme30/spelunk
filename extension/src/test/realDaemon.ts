@@ -9,7 +9,7 @@ import { daemonSettings } from "../settings";
 import { setTimeout as sleep } from "node:timers/promises";
 
 /** The binary `npm test` builds into daemon/bin, or $SPELUNK_DAEMON. Tests run from extension/dist-test. */
-const DAEMON_BINARY = process.env["SPELUNK_DAEMON"] ?? join(__dirname, "../../daemon/bin/spelunk-daemon");
+export const DAEMON_BINARY = process.env["SPELUNK_DAEMON"] ?? join(__dirname, "../../daemon/bin/spelunk-daemon");
 
 /** The `skip` option of a test that needs the binary: why it is skipped, or false when the binary exists. */
 export const SKIP_WITHOUT_DAEMON = !existsSync(DAEMON_BINARY) && "daemon not built";

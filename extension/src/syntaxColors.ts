@@ -6,6 +6,7 @@ import { readFile } from "node:fs/promises";
 import { basename, join } from "node:path";
 import { loadWASM, OnigScanner, OnigString } from "vscode-oniguruma";
 import { INITIAL, parseRawGrammar, Registry, type IGrammar, type IRawTheme, type StateStack } from "vscode-textmate";
+import { editorLanguage } from "./languageIds";
 import type { SyntaxLinesMessage } from "./protocol.gen";
 import type { FileLines, SyntaxSource } from "./syntaxLines";
 
@@ -110,7 +111,7 @@ export class GrammarCatalog {
    * of the same name, or the one VS Code calls it otherwise.
    */
   scopeForLanguage(language: string): string | undefined {
-    return this.scopeByLanguage.get(VSCODE_LANGUAGE_IDS[language] ?? language);
+    return this.scopeByLanguage.get(editorLanguage(language));
   }
 
   /** The grammar file of `scope`. */
@@ -213,15 +214,6 @@ export class SyntaxColors implements SyntaxSource {
     });
   }
 }
-
-/** VS Code's ids for the languages Spelunk names otherwise; the rest are the same in both. */
-const VSCODE_LANGUAGE_IDS: Readonly<Record<string, string>> = {
-  "c++": "cpp",
-  shell: "shellscript",
-  make: "makefile",
-  docker: "dockerfile",
-  text: "plaintext",
-};
 
 /** vscode-textmate's [start, attributes, …] as LineTokens, merging neighbours of the same style. */
 function lineTokens(encoded: Uint32Array): LineTokens {

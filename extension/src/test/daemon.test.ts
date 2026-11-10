@@ -302,3 +302,14 @@ test("an idle daemon is never probed", async () => {
   assert.ok(!log.some((line) => line.includes("no answer")));
   await daemon.stop();
 });
+
+test("an older daemon protocol is refused before the extension becomes ready", async () => {
+  // @covers rpc:initialize
+  const counter = countingSpawn();
+  const { daemon, states } = newFakeDaemon("oldProtocol", { spawn: counter.spawn });
+  await assert.rejects(daemon.start(), /protocol mismatch/);
+  assert.equal(daemon.state, "protocolMismatch");
+  assert.ok(!states.includes("ok"));
+  assert.equal(counter.spawns, 1, "a protocol mismatch must not restart into an incompatible daemon");
+  await daemon.stop();
+});
