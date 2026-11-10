@@ -1,8 +1,8 @@
 // Package cli is the spelunk command: search, status and help in a
 // terminal, the background reader it starts, and the MCP server agents
-// run. It never builds or saves an index. It asks the VS Code window that
-// has the folder open, over that window's socket, and otherwise the
-// background reader, which serves the saved index.
+// run. Search and agents ask the VS Code window that has the folder open,
+// over its socket, or the background reader, which serves the saved index.
+// The explicit index command builds saved indexes without either process.
 package cli
 
 import (

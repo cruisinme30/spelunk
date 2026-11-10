@@ -25,16 +25,21 @@ const (
 const defaultCount = 50
 
 // Usage is the command's help.
-const Usage = `Spelunk searches code and Git history from the index the Spelunk VS Code
-extension builds. It never builds or changes an index itself.
+const Usage = `Spelunk searches code and Git history from local indexes built by VS Code
+or the explicit index command. Search and MCP tools only read.
 
 Usage:
+  spelunk index [--in DIR] [--rebuild] build or refresh local indexes without VS Code
   spelunk search [options] QUERY...   search the repo that holds this folder
   spelunk status                      say which index answers here, and how fresh it is
   spelunk help query                  the query language, with examples
   spelunk mcp                         serve AI agents (Model Context Protocol, stdin/stdout)
   spelunk mcp add claude              add Spelunk to Claude Code for every project
   spelunk --version
+
+Index options:
+  --in DIR         index the repo that holds DIR instead of the current folder
+  --rebuild        read history again in full, replacing the saved indexes
 
 Search options:
   -n, --count N    show up to N results (default 50)
@@ -72,6 +77,8 @@ func Main(ctx context.Context, env Env) int {
 		return exitFound
 	}
 	switch env.Args[0] {
+	case "index":
+		return runIndex(ctx, env, env.Args[1:])
 	case "search":
 		return runSearch(ctx, env, env.Args[1:])
 	case "status":
@@ -191,7 +198,7 @@ func notIndexedText(err error) string {
 	}
 	reason := notIndexed.Reason
 	if reason == "" {
-		reason = "Not indexed yet. Open this folder in VS Code with Spelunk to index it."
+		reason = "Not indexed yet. Run spelunk index here, or open this folder in VS Code with Spelunk."
 	}
 	return notIndexed.Root + ": " + reason
 }
