@@ -13,3 +13,5 @@ Start from [template.md](template.md) (a short form of [MADR](https://adr.github
 | [0005](0005-vscode-grammar-engine-for-syntax-colors.md) | Code is colored by VS Code's grammar engine, in the extension host | Accepted |
 | [0006](0006-search-notebooks-by-their-cells.md) | Jupyter notebooks are searched by their cells, and diffed through a textconv filter | Accepted |
 | [0007](0007-agents-search-through-the-daemon.md) | Agents and the terminal search through the daemon, over MCP with the official SDK | Accepted |
+| [0008](0008-explicit-cli-indexing.md) | Explicit terminal indexing shares the existing writer lock; search and MCP remain read-only | Accepted |
+| [0009](0009-cache-lexical-regions-per-snapshot.md) | Bound lexical-region reuse to immutable snapshots | Accepted |

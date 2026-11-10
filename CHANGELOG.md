@@ -1,17 +1,75 @@
 # Changelog
 
 All notable changes to this project are documented here. The format follows
-[Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses [Semantic Versioning](https://semver.org/).
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
+[Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
 ### Fixed
 
-- **An AI-written search stays under Recent.** A search Generate query wrote went under **Recent** only once you opened
-  one of its results, pressed Esc or ran Replace, so reading its results and reloading the window lost it. It now goes
-  under Recent as soon as it runs, shown under your question; clicking it runs the same search again without asking
-  the AI, and pinning it names the pin after the question. The search left in the box when the window closes also goes
-  under Recent, as Esc would have put it.
+- **Issue:** string-only replacement could target executable interpolation.
+  **Example:** `dangerCall in:strings` selected the call in JavaScript `` `answer ${dangerCall()}` ``.
+  **Fix:** classify JavaScript/TypeScript template and Python f-string expressions as code, preserving literal text
+  and nested string contexts; regression tests apply the replacement plan and check that the call stays unchanged.
+- **Issue:** nested Rust comments could leak into code-only search.
+  **Example:** `dangerCall in:code` matched `/* outer /* inner */ dangerCall(); */`.
+  **Fix:** track nested block-comment depth for Rust rather than stopping at the first closing marker.
+- **Issue:** string and comment contents could become phantom definitions.
+  **Example:** a Python triple-quoted example containing `def phantom():` appeared as a real function.
+  **Fix:** use the shared lexical classification before extracting definitions and outline entries.
+- **Issue:** C and C++ function scope depended on formatting.
+  **Example:** an unindented `dangerCall();` inside a C function was absent from `kind:function content:dangerCall`.
+  **Fix:** use complete code-brace bodies in C and C++, retaining the existing language rules elsewhere.
+  Saved symbol indexes are rebuilt once so old scope data cannot survive the correction.
+- **Issue:** masking multiline strings could prematurely end a Python definition's scope.
+  **Example:** a triple-quoted string's closing quotes at column zero excluded a later indented `return`
+  from its function.
+  **Fix:** hide multiline closing quotes from indentation checks while retaining the literal's full line extent,
+  including functions whose only body is a docstring.
+- **Issue:** a suggested query repair could leave the same placement error behind.
+  **Example:** moving `case:yes` in `(case:yes 0000000000000000 -case:yes` did not reduce misplaced globals.
+  **Fix:** validate repairs against the parsed tree and offer removal when moving cannot make progress.
+- **Issue:** the release performance gate accepted incomplete or misleading evidence.
+  **Example:** synthetic output with 9-second total latency, a 9,000 MB heap value, and no history queries passed.
+  **Fix:** require every named workload, at least 20 samples, p95 response and total latency, complete results,
+  valid heap measurements, and negative controls that measure completion instead of an imaginary first result.
+  The heap gate is explicitly a retained-heap proxy, not a claim about total process RSS.
+- **Issue:** repeated context-filtered searches scanned unchanged files again.
+  **Example:** every `timeout in:code` query reclassified the same comments and strings.
+  **Fix:** reuse lexical regions within immutable snapshots, with an 8 MiB cache budget per shard, fresh caches
+  for changed overlays, and uncached fallback when full. Cold and warm measurements are reported separately.
+- **Issue:** malformed nested templates could trigger excessive speculative parsing.
+  **Example:** a file containing 1,000 copies of the unclosed JavaScript opener `` `${ `` caused excessive retries.
+  **Fix:** share an input-sized work budget across nested attempts and conservatively leave ambiguous text as code
+  after exhaustion, preventing string-only replacements from selecting uncertain expressions.
+
+### Added
+
+- **Issue:** terminal and agent users needed an editor to create the first index.
+  **Example:** `spelunk search timeout` on a fresh checkout reported that it was not indexed.
+  **Fix:** add `spelunk index [--in DIR] [--rebuild]`, using the existing settings and exclusive writer lock,
+  waiting for successful saves, and keeping search and MCP read-only.
+
+### Changed
+
+- **Issue:** every iteration paid for the same integration path.
+  **Example:** several small feature pushes could each trigger the full Actions suite before the feature was ready.
+  **Fix:** collect work in draft feature PRs, run strict static checks and affected behavioral layers into `develop`,
+  and promote coherent batches into `main` only after the full suite and end-to-end tests.
+- **Issue:** squash merges discarded the feature branch's individual commits.
+  **Example:** merging a feature's fix and regression test as one squash commit lost their separate history.
+  **Fix:** use merge commits when integrating feature branches and promoting release batches.
+- **Issue:** the README's unconditional local-only statement omitted optional query generation.
+  **Example:** enabling Ask sends the question, and optionally repo and CODEOWNERS names, to Anthropic.
+  **Fix:** distinguish local indexing/search from explicitly enabled provider calls; source code is not sent.
+
+### Fixed (earlier unreleased work)
+
+- **Issue:** generated searches were not added to Recent until a later action.
+  **Example:** generate a query, read its results, then reload the window: the search was missing from Recent.
+  **Fix:** save a generated search as soon as it runs, display it under the original question, and rerun or pin it
+  without another provider call. Also save the current search when the window closes.
 
 ## [3.0.0] - 2026-10-11
 
