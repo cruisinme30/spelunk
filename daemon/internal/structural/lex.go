@@ -56,6 +56,10 @@ type syntax struct {
 	// rustRaw reads r"…" and r#"…"#; cppRaw R"delim(…)delim"; verbatim
 	// C#'s @"…", whose "" is a quote.
 	rustRaw, cppRaw, verbatim bool
+	// nestedComments balances block comment openers, as Rust does.
+	nestedComments bool
+	// template and formatted recognize executable interpolation in JS and Python.
+	template, formatted bool
 }
 
 var cLike = syntax{lineComments: []string{"//"}, blockComments: [][2]string{{"/*", "*/"}}, quotes: `"`, charQuote: true}
@@ -73,10 +77,10 @@ var languages = map[string]syntax{
 	"csharp":     withVerbatim(withTriple(cLike)),
 	"rust":       withRustRaw(cLike),
 	"protobuf":   {lineComments: []string{"//"}, blockComments: [][2]string{{"/*", "*/"}}, quotes: `"'`},
-	"javascript": {lineComments: []string{"//"}, blockComments: [][2]string{{"/*", "*/"}}, quotes: `"'`, rawQuotes: "`", rawEscapes: true},
-	"typescript": {lineComments: []string{"//"}, blockComments: [][2]string{{"/*", "*/"}}, quotes: `"'`, rawQuotes: "`", rawEscapes: true},
+	"javascript": {lineComments: []string{"//"}, blockComments: [][2]string{{"/*", "*/"}}, quotes: `"'`, rawQuotes: "`", rawEscapes: true, template: true},
+	"typescript": {lineComments: []string{"//"}, blockComments: [][2]string{{"/*", "*/"}}, quotes: `"'`, rawQuotes: "`", rawEscapes: true, template: true},
 	"php":        {lineComments: []string{"//", "#"}, blockComments: [][2]string{{"/*", "*/"}}, quotes: `"'`},
-	"python":     {lineComments: []string{"#"}, quotes: `"'`, tripleQuote: true},
+	"python":     {lineComments: []string{"#"}, quotes: `"'`, tripleQuote: true, formatted: true},
 	"ruby":       {lineComments: []string{"#"}, quotes: `"'`},
 	"shell":      {lineComments: []string{"#"}, hashAtWordStart: true, quotes: `"`, doubledQuotes: "'"},
 	"sql":        {lineComments: []string{"--"}, blockComments: [][2]string{{"/*", "*/"}}, doubledQuotes: `'"`},
@@ -102,7 +106,7 @@ var plainText = syntax{quotes: `"`}
 
 func withTriple(s syntax) syntax   { s.tripleQuote = true; return s }
 func withCppRaw(s syntax) syntax   { s.cppRaw = true; return s }
-func withRustRaw(s syntax) syntax  { s.rustRaw = true; return s }
+func withRustRaw(s syntax) syntax  { s.rustRaw = true; s.nestedComments = true; return s }
 func withVerbatim(s syntax) syntax { s.verbatim = true; return s }
 
 // syntaxOf returns the syntax of language, a lang package name.
@@ -125,6 +129,11 @@ type lexer struct {
 	// places, when set, collects the comments and strings read instead of
 	// the tokens (see Places).
 	places *[]Place
+	// interpolationDepth bounds nesting in malformed or generated files.
+	interpolationDepth int
+	// interpolationWork is shared by speculative reads, bounding retries
+	// after malformed nested strings by the size of the input.
+	interpolationWork *int
 }
 
 // lex reads text into tokens. Comments and spaces become nothing; they
@@ -144,13 +153,13 @@ func lexInto(buf []token, text []byte, s syntax) []token {
 }
 
 func (l *lexer) next() {
-	r, size := utf8.DecodeRune(l.text[l.pos:])
+	r, size := runeAt(l.text, l.pos)
 	switch {
 	case r == '\n':
 		l.pos++
 		l.line++
 		l.gap = true
-	case unicode.IsSpace(r):
+	case isSpaceRune(r):
 		l.pos += size
 		l.gap = true
 	case l.comment():
@@ -158,7 +167,7 @@ func (l *lexer) next() {
 	case isWordRune(r):
 		start := l.pos
 		for l.pos < len(l.text) {
-			next, width := utf8.DecodeRune(l.text[l.pos:])
+			next, width := runeAt(l.text, l.pos)
 			if !isWordRune(next) {
 				break
 			}
@@ -193,7 +202,25 @@ func (l *lexer) emit(k kind, start, end, line int) {
 
 // isWordRune reports whether r belongs in a word.
 func isWordRune(r rune) bool {
-	return r == '_' || unicode.IsLetter(r) || unicode.IsDigit(r)
+	if r < utf8.RuneSelf {
+		return r == '_' || r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9'
+	}
+	return unicode.IsLetter(r) || unicode.IsDigit(r)
+}
+
+// runeAt avoids Unicode decoding for ASCII source bytes.
+func runeAt(text []byte, pos int) (rune, int) {
+	if text[pos] < utf8.RuneSelf {
+		return rune(text[pos]), 1
+	}
+	return utf8.DecodeRune(text[pos:])
+}
+
+func isSpaceRune(r rune) bool {
+	if r < utf8.RuneSelf {
+		return r == ' ' || r >= '\t' && r <= '\r'
+	}
+	return unicode.IsSpace(r)
 }
 
 // comment skips a comment that starts at pos, reporting whether there was
@@ -204,12 +231,7 @@ func (l *lexer) comment() bool {
 		if !bytes.HasPrefix(rest, []byte(pair[0])) {
 			continue
 		}
-		end := bytes.Index(rest[len(pair[0]):], []byte(pair[1]))
-		if end < 0 {
-			end = len(rest) // an unclosed comment runs to the end
-		} else {
-			end += len(pair[0]) + len(pair[1])
-		}
+		end := blockCommentEnd(rest, pair, l.nestedComments)
 		l.place(Comment, l.pos, l.pos+end)
 		l.skip(end)
 		return true
@@ -242,9 +264,14 @@ func (l *lexer) skip(n int) {
 // reporting whether there was one. A quote that never closes is
 // punctuation, so one stray apostrophe can't hide the rest of a file.
 func (l *lexer) literal() bool {
+	if l.interpolationExhausted() {
+		return false // ambiguous remaining quotes stay code, never string edits
+	}
 	c := l.text[l.pos]
 	switch {
-	case l.tripleQuote && (c == '"' || c == '\'') && bytes.HasPrefix(l.text[l.pos:], []byte{c, c, c}):
+	case l.template && c == '`':
+		return l.interpolated(l.pos, l.pos+1, "`", false)
+	case l.tripleQuote && tripleQuoted(l.text[l.pos:]):
 		return l.closedBy(3, string([]byte{c, c, c}), true)
 	case l.verbatim && c == '@' && l.pos+1 < len(l.text) && l.text[l.pos+1] == '"':
 		return l.doubled(l.pos, l.pos+2, '"')
@@ -341,6 +368,8 @@ func (l *lexer) prefixedString(start int) bool {
 	prefix := string(l.text[start:l.pos])
 	end := -1
 	switch {
+	case l.formatted && formattedPrefix(prefix):
+		return l.formattedString(start)
 	case l.rustRaw && (prefix == "r" || prefix == "br"):
 		end = rustRawEnd(l.text, l.pos)
 	case l.cppRaw && (prefix == "R" || prefix == "u8R" || prefix == "LR" || prefix == "uR" || prefix == "UR"):
