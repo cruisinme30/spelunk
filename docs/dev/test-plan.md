@@ -1,7 +1,9 @@
 # Test plan
 
-Every user-visible behavior is proven by an automated scenario that runs the real extension, the real daemon and real
-Git repos, in desktop VS Code and in code-server, before a change merges.
+This plan defines target coverage across the real extension, daemon and Git repositories. The current integration
+gates below distinguish implemented automation from the broader cross-platform and soak targets. Before merging
+to `develop`, run relevant behavioral layers and all static checks. Before promoting a batch to `main`, run the
+entire implemented suite and real VS Code end-to-end tests.
 
 ## Test layers
 
@@ -10,10 +12,10 @@ should almost always show up first in a cheaper layer.
 
 | Layer | Proves | Runs for real | Faked | When | Time limit |
 | --- | --- | --- | --- | --- | --- |
-| L1 Unit | Parser, planner, diagnostics, fix-its, ranking, small helpers | The function under test | Everything else | Every commit | 1 min |
-| L2 Contract | Each side of each contract on its own: engines against oracles, RPC messages against the JSON Schemas, the webview against recorded host messages | One component plus fixture repos | The other side of the contract, from recorded transcripts | Every commit | 3 min |
-| L3 Daemon integration | The whole daemon through its stdio API: indexing, freshness, cancellation, crash recovery | Daemon binary, Git, ctags, fixture repos | VS Code; a test client speaks JSON-RPC | Every pull request | 10 min |
-| L4 End to end | Every mock's behavior, keyboard and mouse included | Everything: VS Code or code-server, extension, webview, daemon, Git | Only the clock, frozen for date-relative results | Smoke set on every pull request; full set on merge | 15 min smoke; 45 min full |
+| L1 Unit | Parser, planner, diagnostics, fix-its, ranking, small helpers | The function under test | Everything else | Affected develop changes; all main promotions | 1 min |
+| L2 Contract | Each side of each contract on its own: engines against oracles, RPC messages against the JSON Schemas, the webview against recorded host messages | One component plus fixture repos | The other side of the contract, from recorded transcripts | Affected develop changes; all main promotions | 3 min |
+| L3 Daemon integration | The whole daemon through its stdio API: indexing, freshness, cancellation, crash recovery | Daemon binary, Git, ctags, fixture repos | VS Code; a test client speaks JSON-RPC | Affected develop changes; all main promotions | 10 min |
+| L4 End to end | Every mock's behavior, keyboard and mouse included | Everything: VS Code or code-server, extension, webview, daemon, Git | Only the clock, frozen for date-relative results | Full implemented set before main promotion | 15 min smoke; 45 min full |
 | L5 Performance and soak | Budgets, memory, long-run stability, index consistency | Everything, on a large real repo | Nothing | Nightly | 10 hours |
 | L6 Release | Install and first run on clean machines, every platform | The published `.vsix` files | Nothing | Each release candidate | 1 day, partly manual |
 
@@ -184,7 +186,23 @@ continuously. It must end with:
 Nothing merges, closes a milestone or ships unless its gate is green. A spec-coverage check makes "all aspects tested"
 something CI can verify, not a judgment call.
 
-### Gates
+### Current integration gates
+
+| Event | Required validation | Platform |
+| --- | --- | --- |
+| Ready PR into develop | Generated-code check, format, type checks, all linters, gate tests, affected behavioral layers | Linux |
+| Ready PR into main | All quality and behavioral checks plus the full implemented VS Code E2E suite | Linux |
+| Main push or reusable release CI | Full quality, behavioral and E2E checks | Linux |
+| Release | Full CI plus packaging, strict spec coverage and complete performance budgets | Configured release targets |
+
+Draft feature PRs collect work without running test jobs. Ready PR updates replace obsolete runs. Main pushes
+finish independently; title/body edits cannot replace a failed validation check. Retargeting a ready PR reevaluates
+its gate. Use merge commits for integration and batch several coherent iterations before promoting main.
+
+### Target expanded coverage
+
+The matrix below remains a test-plan target; it does not claim that nightly soak, every operating system, or
+code-server coverage is already enabled in the current workflow.
 
 | Event | Runs | Platforms | Blocks |
 | --- | --- | --- | --- |

@@ -22,7 +22,7 @@ import (
 // mcpInstructions tell an agent what Spelunk is for. They and the tool
 // descriptions are all an agent knows about it, and agents reach for grep
 // unless told when Spelunk does better.
-const mcpInstructions = `Spelunk searches this repo's code and Git history from an index the Spelunk VS Code extension keeps.
+const mcpInstructions = `Spelunk searches this repo's code and Git history from a local index built by VS Code or spelunk index.
 Prefer spelunk_search over grep, find or git log for: definitions by name, references, commits and the lines
 they added or removed, a past revision, and any search in a large repo, where it answers in milliseconds.
 Call spelunk_syntax once if you are unsure of the query language. Every tool only reads.`

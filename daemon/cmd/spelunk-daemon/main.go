@@ -9,7 +9,7 @@
 //	spelunk-daemon notebook-text <file>
 //	                          print a notebook's cells' source: Git's textconv
 //	                          filter for notebooks in history searches
-//	spelunk-daemon search|status|help|mcp ...
+//	spelunk-daemon index|search|status|help|mcp ...
 //	                          the spelunk command (internal/cli). Installed as
 //	                          spelunk, the binary is that command with no
 //	                          subcommand too.
@@ -56,7 +56,7 @@ func main() {
 }
 
 // commands are the subcommands of the spelunk command.
-var commands = map[string]bool{"search": true, "status": true, "help": true, "-h": true, "--help": true, "mcp": true}
+var commands = map[string]bool{"index": true, "search": true, "status": true, "help": true, "-h": true, "--help": true, "mcp": true}
 
 // runCommand runs the spelunk command or its background reader when args
 // ask for one, and reports whether they did. With no arguments the binary

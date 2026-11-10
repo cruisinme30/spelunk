@@ -27,7 +27,7 @@ func TestPlacesReadsCommentsAndStrings(t *testing.T) {
 		want           []string
 	}{
 		{"go", "f(\"a\") // b\nx := `c\nd` /* e\n*/", []string{`s:"a"`, "c:// b", "s:`c\nd`", "c:/* e\n*/"}},
-		{"typescript", "log(`retry ${n}`); // retry", []string{"s:`retry ${n}`", "c:// retry"}},
+		{"typescript", "log(`retry ${n}`); // retry", []string{"s:`retry ${", "s:}`", "c:// retry"}},
 		{"python", "x = 'a' # b", []string{"s:'a'", "c:# b"}},
 		{"shell", "echo ${#a} # b", []string{"c:# b"}},
 		{"sql", "SELECT 'it''s' -- x", []string{"s:'it''s'", "c:-- x"}},

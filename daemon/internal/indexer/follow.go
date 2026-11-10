@@ -52,6 +52,9 @@ func (ix *Indexer) follow(ctx context.Context) {
 func (ix *Indexer) followers() []followJob {
 	ix.mu.Lock()
 	defer ix.mu.Unlock()
+	if ix.oneShot {
+		return nil // an explicit index command never takes over from a writer
+	}
 	var jobs []followJob
 	took := false
 	for _, id := range ix.order {

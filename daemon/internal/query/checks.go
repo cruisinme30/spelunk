@@ -147,13 +147,44 @@ func reportMisplacedGlobal(src *source, node, parent *protocol.Node, problems *d
 	// run anyway.
 	fixes := []protocol.Fix{}
 	if src.length() <= maxQueryLength {
-		fixes = append(fixes, moveToTopLevel(src, written, removed))
+		fix := moveToTopLevel(src, written, removed)
+		before := misplacedGlobals(parseTree(src.text))
+		if misplacedGlobals(parseTree(ApplyFix(src.text, fix))) >= before {
+			// An incomplete group can expose globals at the root. Prefixing
+			// another global would nest that group and displace those globals.
+			// Offer an honest removal instead of a move that makes no progress.
+			fix = removeFix("Remove "+src.slice(removed.Start, removed.End), src, removed)
+		}
+		if misplacedGlobals(parseTree(ApplyFix(src.text, fix))) < before {
+			fixes = append(fixes, fix)
+		}
 	}
 	where := "inside ( ), after - or NOT, or in an OR branch"
 	if node.Op == protocol.OpNameIn {
 		where = "inside ( ) or in an OR branch"
 	}
 	problems.errorf(DiagGlobalMisplaced, node.Span, fixes, "%s: applies to the whole query, so it can't be %s", node.Op, where)
+}
+
+// misplacedGlobals counts placement errors without building fixes. Calling
+// Parse here would recursively construct fixes for every remaining error.
+func misplacedGlobals(root *protocol.Node) int {
+	if root == nil {
+		return 0
+	}
+	atTop := map[*protocol.Node]bool{}
+	for _, node := range topLevel(root) {
+		atTop[node] = true
+	}
+	count := 0
+	walkWithParent(root, nil, func(node, parent *protocol.Node) {
+		if node.Kind == protocol.NodeKindOp {
+			if op, _ := lookupOperator(node.Op); op.global && !globalAtTop(node, parent, atTop) {
+				count++
+			}
+		}
+	})
+	return count
 }
 
 // moveToTopLevel rewrites the whole query as "<global> <rest>", where rest

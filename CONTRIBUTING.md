@@ -14,9 +14,11 @@ npm test                     # every linter and test layer: scripts/test-all.sh
 npm run presubmit            # everything CI runs, with CI's tool versions; the pre-push hook runs this
 ```
 
-`npm install` also points git at `.githooks/`, whose pre-push hook runs `npm run presubmit` on the commit being pushed
-(commit or stash other changes first). It installs CI's pinned golangci-lint into `.tools/`, builds with the Go version
-in `daemon/go.mod`, runs the CI and e2e jobs and, for a `v*` tag, the release checks. If it passes, CI passes.
+`npm install` also points git at `.githooks/`, whose pre-push hook validates the commit being pushed
+(commit or stash other changes first). It installs CI's pinned golangci-lint into `.tools/` and uses the Go version
+in `daemon/go.mod`. Feature and `develop` pushes run all static checks and affected behavioral layers against
+`origin/develop`; without that base, the hook runs the full suite. Pushes to `main` and release tags also run E2E;
+release tags add packaging checks. Remote CI remains authoritative for its environment and the exact PR merge commit.
 
 To try the extension, open the repo in VS Code and press **F5**. It builds the daemon and the extension, then opens
 a second window running the extension on the sample repos in `testdata/workspace/`. From a terminal, the same is:
@@ -84,14 +86,14 @@ Fixes #12
 - **Subject:** imperative mood ("add", not "added"), lowercase after the colon, no full stop, 72 characters at most
   (50 is better).
 - **Breaking protocol change:** `feat(protocol)!: …` plus a `BREAKING CHANGE:` footer.
-- **One logical change per commit**, and every commit passes `npm test`. A schema change and its regenerated
-  output are one change.
+- **One logical change per commit**, with relevant tests and all static quality checks passing before integration.
+  A schema change and its regenerated output are one change. Full validation gates promotion to `main`.
 
 ## Pull requests
 
-Short-lived branches off `main`, small PRs (aim for under 400 changed lines, not counting generated code), one
-concern each. PRs are squash-merged, so **the PR title becomes the commit subject** and must be a Conventional
-Commit. The template asks for test evidence.
+Short-lived branches off `develop`, small PRs (aim for under 400 changed lines, not counting generated code), one
+concern each. PRs use **Create a merge commit** so their commits stay intact. PR titles and commit subjects use
+Conventional Commits. Do not squash or rebase when merging. The template asks for test evidence.
 
 ## Code conventions
 
@@ -188,3 +190,38 @@ mock needs a test.
 The docs follow [Diátaxis](https://diataxis.fr/). See [docs/README.md](docs/README.md) for where each kind goes.
 Record any decision a future contributor might question as an [ADR](docs/adr/). Add user-visible changes to
 `CHANGELOG.md` under **Unreleased**.
+
+## Development and promotion
+
+Work on short-lived feature branches and merge them into `develop` with a merge commit. Keep exploratory work
+local or in a draft PR; mark the PR ready when the change, tests, docs, and changelog form a reviewable batch.
+Draft PRs do not consume CI runs. CI runs when the PR becomes ready and whenever that ready PR changes.
+
+- **Into develop:** run all static quality checks and the behavioral dependency closure selected by
+  `scripts/test-changed.sh --base BASE --head HEAD`. A daemon change tests the daemon and both consumers; an extension change
+  tests extension and webview; a webview-only change tests the webview. Shared configuration, protocol, fixtures,
+  unknown paths, and the test infrastructure fall back to the full suite.
+- **Into main:** promote a coherent batch of completed iterations through a `develop` to `main` PR. Run the
+  entire suite and real VS Code end-to-end tests. Do not promote merely because an arbitrary commit count passed.
+  Promote when the batch has a clear user outcome, current docs, passing checks, and no unresolved blocking defects.
+- Feature and develop pushes do not trigger duplicate Actions runs. Main pushes retain a full safety run, including
+  direct changes. Main promotions are intentionally less frequent.
+- Never weaken lint rules, skip failing assertions, or bypass checks to make a merge green. Report an environmental
+  blocker accurately and rely on a successful equivalent CI run before merging if the local environment cannot run it.
+- Before fixing a bug, identify the failing invariant and whether it belongs in shared infrastructure. Prefer a
+  coherent shared change over query-specific special cases. Add regression tests for neighboring behavior as well
+  as the reproducer, and review memory, cancellation, concurrency, and persistence implications.
+
+## Changelog and website maintenance
+
+Every new changelog entry uses **Issue → Example → Fix**. Always include a concrete example that makes the issue
+understandable. Do not publish implementation-only bullet points or say a change is released while it is only on
+`develop`. Keep the website's architecture, benchmark methodology, fix status, and changelog aligned with the code.
+Benchmark improvements must identify the baseline, corpus, measurement method, and relevant limitations.
+
+Example:
+
+- **Issue:** a string-only replacement could change an executable expression.
+  **Example:** in JavaScript, `dangerCall in:strings` selected the call inside
+  `` `answer ${dangerCall()}` ``.
+  **Fix:** classify interpolation expressions as code and verify replacement plans preserve them.

@@ -49,6 +49,9 @@ type Indexer struct {
 	// a repo's write lock, so it never builds a working-tree index, reads a
 	// whole history, or saves anything.
 	readOnly bool
+	// oneShot only processes explicit build queues, without sweeps, HEAD
+	// polling or following another writer, and requires a real write lock.
+	oneShot bool
 }
 
 // repo is one root's index state.
@@ -135,16 +138,24 @@ func (q *queue) remove(id string) {
 // New starts an indexer. notify receives every status change; it is called
 // without locks held and must not block for long.
 func New(settings protocol.Settings, notify func([]protocol.RepoStatus)) *Indexer {
-	ctx, stop := context.WithCancel(context.Background())
+	return newIndexer(context.Background(), settings, notify, false)
+}
+
+// newIndexer binds all index work to parent, including loading saved indexes.
+func newIndexer(parent context.Context, settings protocol.Settings, notify func([]protocol.RepoStatus), oneShot bool) *Indexer {
+	ctx, stop := context.WithCancel(parent)
 	ix := &Indexer{
-		notify: notify, settings: settings, repos: map[string]*repo{}, life: ctx, stop: stop,
+		notify: notify, settings: settings, repos: map[string]*repo{}, life: ctx, stop: stop, oneShot: oneShot,
 		treeQueue:    queue{wake: make(chan struct{}, 1)},
 		historyQueue: queue{wake: make(chan struct{}, 1)},
 	}
-	ix.workers.Add(3)
+	ix.workers.Add(2)
 	go ix.treeWork(ctx)
 	go ix.historyWork(ctx)
-	go ix.sweepWork(ctx)
+	if !oneShot {
+		ix.workers.Add(1)
+		go ix.sweepWork(ctx)
+	}
 	return ix
 }
 
@@ -225,7 +236,14 @@ func (ix *Indexer) add(root protocol.Root, saved savedIndex) {
 	if !ix.readOnly {
 		r.lock, _ = tryLock(lockPath(ix.settings.Location, root)) // nil: another daemon writes it
 	}
+	if ix.oneShot && r.lock != nil && r.lock.file == nil {
+		r.state, r.message = protocol.IndexStateError, errWriteLock.Error()
+		return // never queue writes without an actual lock
+	}
 	if r.lock == nil {
+		if ix.oneShot {
+			return // the command rejects another writer instead of following it
+		}
 		ix.startFollowing(r, !saved.treeTime.IsZero())
 		return
 	}
@@ -259,9 +277,9 @@ func (ix *Indexer) startFollowing(r *repo, unusable bool) {
 func (ix *Indexer) followerWaiting(unusable bool) string {
 	switch {
 	case ix.readOnly && unusable:
-		return "Its saved index is from another version of Spelunk. Open this folder in VS Code to index it again."
+		return "Its saved index is from another version of Spelunk. Run spelunk index --rebuild here, or open this folder in VS Code."
 	case ix.readOnly:
-		return "Not indexed yet. Open this folder in VS Code with Spelunk to index it."
+		return "Not indexed yet. Run spelunk index here, or open this folder in VS Code with Spelunk."
 	}
 	return "Another VS Code window is indexing this folder. Its results appear here when it saves them."
 }
@@ -499,6 +517,11 @@ func (ix *Indexer) Close(timeout time.Duration) {
 	}
 	// A build abandoned past the timeout may still save once; the next
 	// writer's build replaces it, as after a crash.
+	ix.releaseLocks()
+}
+
+// releaseLocks gives up every repo's writer lock.
+func (ix *Indexer) releaseLocks() {
 	ix.mu.Lock()
 	defer ix.mu.Unlock()
 	for _, r := range ix.repos {
@@ -508,7 +531,7 @@ func (ix *Indexer) Close(timeout time.Duration) {
 }
 
 // ErrNotWriter is Rebuild's error for a repo another daemon writes.
-var ErrNotWriter = errors.New("another VS Code window keeps this folder's index, so rebuild it there")
+var ErrNotWriter = errors.New("another Spelunk process keeps this folder's index; use that window to rebuild or close it first")
 
 // relock moves every repo's write lock to the index location the settings
 // now name. Callers hold mu.

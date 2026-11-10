@@ -57,7 +57,8 @@ A keystroke travels webview → extension → RPC server → planner → one eng
 batches. The indexer is the only writer to the index directory.
 
 The same binary is also the `spelunk` command and the MCP server AI agents run (see "The spelunk command and agents").
-Neither builds or saves an index: they ask a window's daemon over its socket, or a read-only background reader.
+Search and MCP ask a window's daemon over its socket, or a read-only background reader. The explicit
+`spelunk index` command can build or rebuild the same index under the existing single-writer lock.
 
 ### Who owns what
 
@@ -518,7 +519,9 @@ at all, as in an unwritable location, leaves the daemon writing, as before locks
 ## The spelunk command and agents
 
 The daemon binary is also the `spelunk` command (`internal/cli`), run as `spelunk` or with a subcommand: `search`,
-`status`, `help`, `mcp` and `mcp add claude`. It never builds or saves an index; it asks a daemon that has one.
+`status`, `index`, `help`, `mcp` and `mcp add claude`. Search asks a daemon that has an index.
+`spelunk index [--in DIR] [--rebuild]` builds one explicitly, with the existing indexer and writer lock; it
+waits for indexing and saving to finish, then releases the lock. It does not add a writable MCP or guest method.
 
 1. **A window that shares.** With `spelunk.agent.shareWindow` on, a window's daemon listens on `run/w-<pid>.sock`.
    The command asks every such socket with `share/hello` and uses the window with the innermost root that holds the

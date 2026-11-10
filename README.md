@@ -50,9 +50,11 @@ removed `timeout` or `retry`. Drop `author:` and the same box searches current f
 - **Replace in current files.** ⇄ shows every code match struck out and replaced, then **Replace all** changes
   them in one edit that ⌘Z undoes, skipping any file edited since it was indexed.
 - **From the terminal and AI agents.** The `spelunk` command and an MCP server let a shell, Claude Code or Copilot run
-  the same searches over the same index ([guide](https://github.com/cruisinme30/spelunk/wiki/Agents-and-the-Terminal)).
+  the same searches over the same index. Run `spelunk index --in /path/to/repo` to create that index without
+  opening VS Code, or add `--rebuild` to rebuild it ([guide](https://github.com/cruisinme30/spelunk/wiki/Agents-and-the-Terminal)).
 - **Keyboard first:** ⌘P or ⇧⌘F to open, ↵ to open at the match, ⌘↵ to open to the side, F4 to step through results.
-- Works the same in desktop VS Code and code-server. Nothing leaves your machine.
+- Works the same in desktop VS Code and code-server. Indexing and search run locally. If you enable Ask, your
+  question and optionally repo and CODEOWNERS names go to Anthropic; source code is not sent.
 
 ## Documentation
 

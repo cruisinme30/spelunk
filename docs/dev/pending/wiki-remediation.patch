@@ -1,0 +1,103 @@
+diff --git a/Agents-and-the-Terminal.md b/Agents-and-the-Terminal.md
+index 0d1bcf1..0ed2fa5 100644
+--- a/Agents-and-the-Terminal.md
++++ b/Agents-and-the-Terminal.md
+@@ -1,5 +1,6 @@
+ Claude Code, Copilot and the Terminal app can use the same search as Spelunk's box: the same query language, the same
+-index, the same history. Nothing outside VS Code builds or changes an index; it asks the one VS Code keeps.
++index, the same history. Search and MCP only read. The explicit `spelunk index` command can build or refresh the
++same index without opening VS Code, under the same exclusive writer lock.
+ 
+ ## Setting it up
+ 
+@@ -24,6 +25,7 @@ daemon/internal/trigram/savefile.go:50:function LoadGob
+ | Command | Does |
+ | --- | --- |
+ | `spelunk search [options] QUERY` | Search the repo that holds the current folder. Lines read `path:line:text`, paths relative to where you are, as ripgrep prints them; commits read `sha date author subject`. A summary goes to standard error |
++| `spelunk index [--in DIR] [--rebuild]` | Build an initial index or refresh it with saved settings; `--rebuild` rereads configured history. Waits for successful saves, rejects a competing writer, and exits 2 on an error |
+ | `spelunk status` | Which repo answers here, whether VS Code answers live or the saved index does, and how fresh it is |
+ | `spelunk help query` | The query language, with examples, as the parser knows it |
+ | `spelunk mcp` | Serve AI agents over the Model Context Protocol on standard input and output |
+@@ -63,8 +65,8 @@ searches stop after 2, since an agent can't tell an answer that stopped early to
+ | --- | --- |
+ | A VS Code window has the folder open (`spelunk.agent.shareWindow` on) | That window, at once, with what you saved a moment ago |
+ | No window has it | A background reader loads the saved index the first time (about 30 seconds for a repo the size of Linux), then answers at once. Before each search it re-reads files changed since the index was saved, and every answer says how old the index is. It quits after 10 minutes with no questions |
+-| The folder was never opened in VS Code with Spelunk | Nothing: "Not indexed yet. Open this folder in VS Code with Spelunk to index it." |
+-| The saved index is from another version of Spelunk | Nothing, until VS Code opens the folder and indexes it again |
++| The folder has no saved index | Run `spelunk index --in DIR`, or open it in VS Code with Spelunk |
++| The saved index is from another version of Spelunk | Run `spelunk index --rebuild --in DIR`, or open it in VS Code to rebuild |
+ 
+ Windows talk to the command through a socket in `~/.spelunk/run`, which only your user account can open, and only to
+ search, preview and read status: nothing that arrives there can rebuild an index, replace text, change settings or
+diff --git a/Definitions-and-Code-Shape.md b/Definitions-and-Code-Shape.md
+index 71b6913..9f0389b 100644
+--- a/Definitions-and-Code-Shape.md
++++ b/Definitions-and-Code-Shape.md
+@@ -53,8 +53,11 @@ content:timeout` lists the lines inside methods that mention `timeout`, and `kin
+ uses inside functions named for parsing. Left out, they leave out definitions: `kind:function -ref:RetryPolicy` lists
+ the functions that never use it.
+ 
+-A definition ends at the last line indented under it, or at the `}` or `end` that lines up with it, as Python's
+-indentation and the usual brace styles both show. Selecting a result marks those lines in the preview, which says
++Definitions inside string and comment contents are ignored. C and C++ definitions with complete brace bodies end
++at the matching code brace, regardless of body indentation; braces in literals and comments do not close a body.
++Python multiline literal extents remain inside their definitions even when closing quotes have no indentation.
++Other languages retain their indentation/end-based span rules, so extraction remains heuristic rather than AST-backed.
++Selecting a result marks those lines in the preview, which says
+ **In method from_config, lines 40–45** under its title. The uses outside every definition the query keeps, such as an
+ import, are counted in a note: "2 matches outside a method hidden by `kind:method`", with **Show every match**, which
+ removes `kind:`.
+diff --git a/Testing.md b/Testing.md
+index d3c37ca..3c54cf1 100644
+--- a/Testing.md
++++ b/Testing.md
+@@ -2,13 +2,29 @@ Put each test in the cheapest layer that can prove the behaviour. Full detail: [
+ 
+ | Layer | Proves | When |
+ | --- | --- | --- |
+-| L1 Unit | Parser, planner, diagnostics, fix-its, ranking | Every commit |
+-| L2 Contract | Each side of each contract alone: engines vs. oracles, messages vs. the schema | Every commit |
+-| L3 Daemon integration | The whole daemon over stdio: indexing, freshness, cancellation, crashes | Every pull request |
+-| L4 End to end | Every mock's behaviour in a real VS Code | Smoke on PRs, full on merge |
++| L1 Unit | Parser, planner, diagnostics, fix-its, ranking | Affected develop changes; all main promotions |
++| L2 Contract | Each side of each contract alone: engines vs. oracles, messages vs. the schema | Affected develop changes; all main promotions |
++| L3 Daemon integration | The whole daemon over stdio: indexing, freshness, cancellation, crashes | Affected develop changes; all main promotions |
++| L4 End to end | Every mock's behaviour in a real VS Code | Full implemented suite before main promotion |
+ | L5 Performance and soak | Budgets, memory, long runs | Nightly |
+ | L6 Release | Install and first run on clean machines | Each release candidate |
+ 
++The table is a coverage plan; broader nightly soak and cross-platform targets are not all implemented.
++
++## Integration policy
++
++Feature branches merge into `develop` with merge commits, never squash. Draft PRs collect iterations without CI;
++mark ready when code, tests, docs and the changelog are reviewable. Develop PRs run every static quality check and
++the affected behavioral dependency closure. Shared or unknown paths run all layers. Promote coherent batches to
++`main` only after the entire suite and real VS Code end-to-end tests pass.
++
++Every new changelog entry states **Issue → Example → Fix**. Always show a concrete example. Keep website status
++explicit about local fixes, develop integration, and main release.
++
++Release benchmarks require every named workload and at least 20 samples. They check response and total p95,
++completion for no-hit searches, truncation, stable counts, build times, and a retained Go heap proxy. That proxy
++is not measured daemon RSS or peak process memory.
++
+ ## Oracles
+ 
+ - **ripgrep** checks working-tree results; **`git log -G`** checks history results.
+diff --git a/Words-Regex-and-Logic.md b/Words-Regex-and-Logic.md
+index 83eef63..3608e63 100644
+--- a/Words-Regex-and-Logic.md
++++ b/Words-Regex-and-Logic.md
+@@ -211,6 +211,11 @@ the same ones `struct:` uses, and each match counts on its own: on `retryCount++
+ marks only the second `retry`, and Replace changes only that one. The facets count only what is kept, and a note says
+ how many matches `in:` hid ("20 matches hidden by `in:comments` · Show them").
+ 
++- **Executable interpolation.** JavaScript/TypeScript template expressions such as `${dangerCall()}` and Python
++  f-string expressions count as code. Literal segments and quoted strings nested inside an expression count as
++  strings, so `in:strings` replacement does not edit the executable call. Rust block comments retain nested comments.
++- **Repeated queries.** Immutable working-tree snapshots cache lexical regions within an 8 MiB per-shard budget.
++  Changed overlays and disk loads start fresh; a full cache computes without retaining more regions.
+ - **Where it can go.** Like `case:`, it applies to the whole query: once, at the top level, never inside `( )` or an
+   `OR` branch. Unlike the others, it can take a minus: `-in:comments`.
+ - **A match that crosses places**, such as `/retryCount\+\+; \/\/ retry/`, which starts in code and ends in a

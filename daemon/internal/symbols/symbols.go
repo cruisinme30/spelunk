@@ -13,8 +13,8 @@ type Symbol struct {
 	Kind protocol.SymbolKind
 	Line int // 1-based
 	// End is the definition's last line (1-based, at least Line): the last
-	// line indented under it, or the closing brace or end that lines up
-	// with it (see bodies).
+	// line of its matched C/C++ brace body, or its indentation/end-based
+	// body when no complete brace body is found.
 	End int
 }
 
@@ -30,15 +30,17 @@ func Extract(lang string, content []byte) []Symbol {
 	if len(rules) == 0 {
 		return nil
 	}
+	code, continued := definitionCode(content, lang)
 	var found []Symbol
 	var squeezed []byte
 	var b bodies
-	eachLine(content, func(number int, line []byte) {
+	eachLine(code, func(number int, line []byte) {
 		indent := indentOf(line)
 		if indent == len(line) {
 			return // a blank line ends nothing
 		}
 		b.read(found, number, line[indent:], indent)
+		b.nonBlank = max(b.nonBlank, continued[number])
 		squeezed = squeezeSpace(squeezed[:0], line)
 		if symbol, _, ok := match(rules, squeezed); ok {
 			symbol.Line = number
@@ -47,6 +49,9 @@ func Extract(lang string, content []byte) []Symbol {
 		}
 	})
 	b.closeAll(found)
+	if supportsBraceSpans(lang) {
+		applyBraceSpans(found, code)
+	}
 	return found
 }
 

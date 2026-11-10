@@ -891,3 +891,60 @@ handlers to `webview/src/resultHandlers.ts`.
   `docs/dev/proof/ask-in-words-broaden.png` (`functions that call charge_card?`, no results, Broaden) and
   `docs/dev/proof/ask-in-words-clarify.png` (`where are other files?`, **Spelunk asks** "Other than which files?"), from
   `node scripts/screenshotPanel.mjs --ask … --setting ask.provider=anthropic` with `SPELUNK_ASK_FAKE`.
+
+## Audit remediation and development gates (2026-11-10)
+
+The remediation branch targets `develop`; these changes are unreleased. Merge commits preserve feature history.
+Main promotions batch coherent iterations and require the complete suite plus E2E. The develop gate always runs
+formatting, generated-code checks, TypeScript checks and every linter, then the affected behavioral dependency
+closure. Unknown/shared changes conservatively run all layers. Metadata-only PR edits cannot replace failed checks.
+
+- Context classification separates JS/TS and Python interpolation from literal text and nests Rust block comments.
+  Replacement regression tests apply a plan to fixtures and preserve executable calls. Malformed interpolation has
+  an input-sized work budget and a conservative code fallback; final lexer fuzzing completed 125,191 executions.
+- Definitions and outlines mask literal/comment content. Complete C/C++ bodies use matching code braces; other
+  languages keep their existing span rules. Python literal extents retain function scope even with unindented
+  closing quotes. New saved-index format 6 forces existing symbol indexes to rebuild.
+- Parser fixes must reduce misplaced globals; deterministic regression and 40,591 fuzz executions pass.
+- Explicit `spelunk index` shares the indexer and writer lock, waits for durable saves, and drains active workers
+  before releasing ownership on cancellation. One-shot operation disables background sweeps, polls and takeover.
+  CLI/indexer race tests and full indexer tests pass. See ADR 0008.
+- Context queries reuse lexical regions within immutable shards, with an 8 MiB accounting budget per shard and
+  one additional pointer per document. Overlays and loads start fresh. Full trigram and cache race tests pass.
+  See ADR 0009 for ownership, limits and cold-read tradeoffs.
+- The release gate requires all 14 named tree/history workloads, at least 20 samples, response and total p95,
+  complete stable results, build limits and retained-heap evidence. Sixteen script tests reject invalid evidence,
+  including missing queries, duplicate metrics, false no-hit timings and invalid sample counts.
+
+### Same-workload performance evidence
+
+Linux, Intel Xeon Platinum 8573C, Go 1.25.0, `GOMAXPROCS=4`. Baseline is
+`4337e12165cd1cc0ed13cdc240f979e1d9f22c88`; Go source is the installed Go 1.25 tree (10,259 files), Prometheus is
+`0b1983060510028164ab063444a0b64c0ca4b69d` (1,761 files). Each version/corpus runs in a fresh process with warm
+filesystem cache. One initial query is followed by 20 warm samples; p95 is the 19th sorted sample. Search excludes
+parsing, transport and UI. The same `content:timeout in:code` query returns 2,092 Go and 794 Prometheus matches,
+without truncation, before and after. It emits at most 500 rows while counting all matches.
+
+| Corpus | Warm total p50 before → after | Warm total p95 before → after | Initial query before → after |
+| --- | --- | --- | --- |
+| Go source | 280.203 → 65.193 ms | 294.642 → 81.392 ms | 279.706 → 321.254 ms |
+| Prometheus | 106.449 → 24.273 ms | 119.868 → 29.767 ms | 104.459 → 98.454 ms |
+
+| Corpus | Post-query Go heap before → after | Post-query process RSS before → after |
+| --- | --- | --- |
+| Go source | 183.20 → 190.36 MiB | 435.79 → 442.01 MiB |
+| Prometheus | 41.33 → 43.95 MiB | 105.49 → 109.68 MiB |
+
+Memory is sampled after the whole eight-query sequence and a GC, including capped broad regex queries. These are
+engine-test process measurements, not full desktop footprint or peaks. The cache adds about 7.16 MiB and 2.62 MiB
+of retained heap in these workloads. A single initial-query sample is noisy; no cold-query speedup is claimed.
+Regex measurements were mixed, so no general regex speedup is claimed. Original-audit daemon RSS and ripgrep
+comparisons remain separately labeled on the website.
+
+The expanded website has 18 px body text, section navigation, architecture and code-organization views, interactive
+benchmark controls, memory limitations, findings and Issue → Example → Fix changelog entries. Desktop browser
+checks covered navigation, tabs, percentile/corpus controls, finding filters and expandable changelog entries.
+
+Wiki updates are prepared locally but not published: the GitHub connector cannot write repository wikis, and the
+wiki Git remote has no authenticated write credential in this environment. The pending patch is included with
+this change for review. This publication gap must be resolved before integration; do not mark the batch released.

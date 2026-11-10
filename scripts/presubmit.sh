@@ -14,7 +14,9 @@
 # The release benchmarks (a 40-minute run on a Prometheus clone) are the one
 # workflow step left to CI.
 #
-# Usage: scripts/presubmit.sh [--clean] [--tag vX.Y.Z]
+# Usage: scripts/presubmit.sh [--clean] [--base origin/develop] [--tag vX.Y.Z]
+# --base selects develop validation on a clean tree; dirty trees run all layers.
+# Full validation (no --base) and release tags also run real VS Code E2E.
 #   --clean  fail if the working tree has changes, so what's tested is exactly
 #            what's committed (the hook passes this)
 set -euo pipefail
@@ -23,10 +25,12 @@ root=$PWD
 
 clean=""
 tag=""
+base=""
 while [ $# -gt 0 ]; do
   case $1 in
     --clean) clean=1 ;;
     --tag) tag=$2; shift ;;
+    --base) base=$2; shift ;;
     *) echo "unknown argument: $1" >&2; exit 2 ;;
   esac
   shift
@@ -61,13 +65,21 @@ node_major=$(node -p 'process.versions.node.split(".")[0]')
 ci_node=$(sed -n 's/.*node-version: *\([0-9]*\).*/\1/p' .github/workflows/ci.yml | head -n 1)
 [ "$node_major" = "$ci_node" ] || echo "warning: Node $node_major here, CI uses Node $ci_node"
 
-step "CI test job: scripts/test-all.sh"
-CI=1 scripts/test-all.sh
+step "CI quality and behavioral tests"
+if [ -n "$base" ] && [ -z "$tag" ] && [ -z "$(git status --porcelain)" ]; then
+  CI=1 scripts/test-changed.sh --base "$base" --head HEAD
+else
+  # Uncommitted files are not part of a ref diff: test all, never omit them.
+  CI=1 scripts/test-all.sh
+fi
 
+if [ -z "$base" ] || [ -n "$tag" ]; then
 step "CI e2e job: the commands in a real VS Code window"
 (cd daemon && go build -o bin/spelunk-daemon ./cmd/spelunk-daemon)
 npm run build
 if [ "$(uname)" = Linux ] && [ -z "${DISPLAY:-}" ]; then xvfb-run -a node scripts/e2e.mjs; else node scripts/e2e.mjs; fi
+
+fi
 
 step "the wiki matches the mocks"
 node scripts/checkWikiSync.mjs
