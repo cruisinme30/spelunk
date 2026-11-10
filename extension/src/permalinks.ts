@@ -82,7 +82,7 @@ export function webRemote(url: string, hosts: HostSettings = {}): WebRemote | un
   if (kind === "azure") {
     // git@ssh.dev.azure.com:v3/org/project/repo and https://dev.azure.com/org/project/_git/repo
     parts = parts.filter((part) => part !== "v3" && part !== "_git");
-    if (host.endsWith("dev.azure.com")) host = "dev.azure.com";
+    if (host === "ssh.dev.azure.com") host = "dev.azure.com";
   }
   return { kind, host, web: `https://${host}/${path}`, parts };
 }

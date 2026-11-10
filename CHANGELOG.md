@@ -8,6 +8,9 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- **Issue:** Azure permalink normalization could change an explicitly configured server's hostname.
+  **Example:** a custom Azure host named `example-dev.azure.com` was rewritten to `dev.azure.com`.
+  **Fix:** normalize only the exact Azure SSH hostname; retain configured custom hosts.
 - **Issue:** match limits did not bound the raw positions built before a result, highlight or edit was accepted.
   **Example:** a zero-width regex on a 16 MiB line could enumerate millions of positions, while stopping early could
   let `NOT` mistake an unknown suffix for a proven absence.
