@@ -35,8 +35,9 @@ func Outline(lang string, content []byte) []Entry {
 	if len(rules) == 0 {
 		return nil
 	}
+	code, _ := definitionCode(content, lang)
 	var r outlineReader
-	eachLine(content, func(number int, line []byte) { r.read(rules, lang == "rust", number, line) })
+	eachLine(code, func(number int, line []byte) { r.read(rules, lang == "rust", number, line) })
 	return r.flatten()
 }
 
