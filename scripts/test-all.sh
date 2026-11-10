@@ -12,6 +12,22 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 root=$PWD
 
+# Static checks always run. Only behavioral layers may be selected by the
+# dependency-aware develop gate; no argument means the complete suite.
+layers=daemon,extension,webview
+if [ "$#" -gt 0 ]; then
+  if [ "$#" -ne 2 ] || [ "$1" != --layers ]; then
+    echo "usage: scripts/test-all.sh [--layers daemon,extension,webview|none]" >&2
+    exit 2
+  fi
+  layers=$2
+  case "$layers" in
+    none|daemon|extension|webview|daemon,extension|daemon,webview|extension,webview|daemon,extension,webview) ;;
+    *) echo "invalid test layer selection: $layers" >&2; exit 2 ;;
+  esac
+fi
+has_layer() { [[ ",$layers," == *",$1,"* ]]; }
+
 # Prints a step heading.
 step() { printf '\n== %s\n' "$*"; }
 # The workspace's copy of a Node tool if `npm install` put one there, else the one on PATH.
@@ -39,6 +55,17 @@ else
 fi
 (cd daemon && test -z "$(gofmt -l .)" || { gofmt -l .; echo "gofmt: files above need formatting"; exit 1; })
 
+step "types: extension and webview TypeScript"
+(
+  cd extension
+  if [ -d "$root/node_modules/@types/vscode" ] || [ -d node_modules/@types/vscode ]; then
+    "$(tool tsc)" -p tsconfig.json
+  else
+    "$(tool tsc)" -p tsconfig.offline.json
+  fi
+)
+(cd webview && "$(tool tsc)" -p tsconfig.json)
+
 step "lint: golangci-lint, ESLint, Stylelint, markdownlint, cspell, knip"
 # Linters whose configs load plugins run only from the workspace's node_modules.
 workspace_lint() {
@@ -54,30 +81,42 @@ if command -v "$markdownlint" >/dev/null; then "$markdownlint"; else missing mar
 workspace_lint cspell --no-progress --gitignore .
 workspace_lint knip
 
+step "wiki: canonical content matches code and mocks"
+node scripts/checkWikiSync.mjs
+
+step "scripts: benchmark gates, wiki publication and tooling regressions"
+node --test scripts/*.test.mjs
+
+if has_layer daemon; then
 step "daemon: go vet, go test, build the binary"
 (cd daemon && go vet ./... && go test -count=1 ./... && go build -o bin/spelunk-daemon ./cmd/spelunk-daemon)
 
-step "extension: typecheck + node tests (real daemon)"
+elif has_layer extension; then
+  step "daemon: build for extension integration tests"
+  (cd daemon && go build -o bin/spelunk-daemon ./cmd/spelunk-daemon)
+fi
+
+if has_layer extension; then
+step "extension: node tests (real daemon)"
 (
   cd extension
-  if [ -d "$root/node_modules/@types/vscode" ] || [ -d node_modules/@types/vscode ]; then
-    "$(tool tsc)" -p tsconfig.json
-  else
-    "$(tool tsc)" -p tsconfig.offline.json
-  fi
   node build.mjs --tests
   node --test "dist-test/*.test.js"
 )
 
-step "webview: typecheck + Playwright contract tests"
+fi
+
+if has_layer webview; then
+step "webview: Playwright contract tests"
 (
   cd webview
-  "$(tool tsc)" -p tsconfig.json
   node test/buildHarness.mjs
   node --test "test/*.test.mjs"
 )
 
+fi
+
 step "spec coverage (fails only on unknown @covers ids; gaps are listed, not failed)"
 node scripts/specCoverage.mjs
 
-printf '\nAll layers passed.\n'
+printf '\nStatic checks and selected behavioral layers passed (%s).\n' "$layers"

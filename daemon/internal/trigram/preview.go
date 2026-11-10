@@ -1,6 +1,7 @@
 package trigram
 
 import (
+	"context"
 	"errors"
 	"os"
 	"path/filepath"
@@ -31,6 +32,11 @@ const maxPreviewSpanLines = 200
 // symbolic link leads out of the repo's folder. A Jupyter notebook is
 // shown as the index reads it, its cells' text, with the cells listed.
 func Preview(repo *Repo, ref Ref, plan *query.Plan, contextLines int, maxBytes int64) (protocol.Preview, error) {
+	return PreviewContext(context.Background(), repo, ref, plan, contextLines, maxBytes)
+}
+
+// PreviewContext is Preview with cancellation for bounded match enumeration.
+func PreviewContext(ctx context.Context, repo *Repo, ref Ref, plan *query.Plan, contextLines int, maxBytes int64) (protocol.Preview, error) {
 	content, info, err := readTextIn(repo.Root, ref.Path, ReadLimit(ref.Path, maxBytes))
 	if err != nil {
 		return protocol.Preview{}, ErrStale
@@ -46,44 +52,44 @@ func Preview(repo *Repo, ref Ref, plan *query.Plan, contextLines int, maxBytes i
 	if !ok {
 		return protocol.Preview{}, ErrStale
 	}
-	return PreviewText(repo, ref, plan, contextLines, &doc)
+	return PreviewTextContext(ctx, repo, ref, plan, contextLines, &doc)
 }
 
 // PreviewText is Preview of a file that is already read: from a commit's
 // tree, for a result at a revision.
 func PreviewText(repo *Repo, ref Ref, plan *query.Plan, contextLines int, doc *Doc) (protocol.Preview, error) {
+	return PreviewTextContext(context.Background(), repo, ref, plan, contextLines, doc)
+}
+
+// PreviewTextContext is PreviewText with cancellation for bounded matching.
+func PreviewTextContext(ctx context.Context, repo *Repo, ref Ref, plan *query.Plan, contextLines int, doc *Doc) (protocol.Preview, error) {
 	content := doc.Content
 	contextLines = max(contextLines, 0)
 	lines := splitLines(content)
-	focus := ref.Line
-	if ref.IsFile() {
-		focus = 1
-	}
-	if focus > len(lines) {
-		return protocol.Preview{}, ErrStale
-	}
-	focusEnd := focus
-	if ref.Spans() {
-		focusEnd = min(ref.EndLine, focus+maxPreviewSpanLines, len(lines))
-	}
-	first := max(1, focus-contextLines)
-	last := min(len(lines), focusEnd+contextLines)
-	if ref.IsFile() {
-		last = min(len(lines), 1+2*contextLines) // the top of the file
+	focus, first, last, err := previewWindow(ref, len(lines), contextLines)
+	if err != nil {
+		return protocol.Preview{}, err
 	}
 
 	language := doc.Lang
 	var terms []*query.Content
 	matcher := newFileMatcher(doc, termCache{})
+	matcher.ctx = ctx
 	// With type:file the words matched the file's name, not its text, so the
 	// text has nothing to mark.
 	if plan != nil && (!ref.IsFile() || plan.Kinds[query.KindLine]) {
 		matcher.in = plan.In
 		terms = query.Contributing(plan.Pred, contentLeaf(repo, doc, matcher))
+		if matcher.matchErr != nil {
+			return protocol.Preview{}, matcher.matchErr
+		}
 	}
 	// A term that spans lines is matched against the whole file; the others
 	// line by line, as markLine does. Both mark only what in: keeps.
-	terms, acrossLines := splitAcrossLines(terms, content, language, first, last, matcher)
+	terms, acrossLines, err := splitAcrossLines(ctx, terms, content, language, first, last, matcher)
+	if err != nil {
+		return protocol.Preview{}, err
+	}
 	hits := []protocol.LineHits{}
 	shown := make([]string, 0, last-first+1)
 	for number := first; number <= last; number++ {
@@ -92,7 +98,10 @@ func PreviewText(repo *Repo, ref Ref, plan *query.Plan, contextLines int, doc *D
 		if number == ref.Line {
 			own = &ref
 		}
-		text, ranges := markLine(line, terms, acrossLines[number], own, matcher.keepsOnLine(number))
+		text, ranges, err := markLineContext(ctx, line, terms, acrossLines[number], own, matcher.keepsOnLine(number))
+		if err != nil {
+			return protocol.Preview{}, err
+		}
 		shown = append(shown, text)
 		if len(ranges) > 0 {
 			hits = append(hits, protocol.LineHits{Line: number, Ranges: ranges})
@@ -107,6 +116,26 @@ func PreviewText(repo *Repo, ref Ref, plan *query.Plan, contextLines int, doc *D
 		preview.FocusEndLine = min(ref.EndLine, len(lines))
 	}
 	return preview, nil
+}
+
+func previewWindow(ref Ref, lineCount, contextLines int) (focus, first, last int, err error) {
+	focus = ref.Line
+	if ref.IsFile() {
+		focus = 1
+	}
+	if focus > lineCount {
+		return 0, 0, 0, ErrStale
+	}
+	focusEnd := focus
+	if ref.Spans() {
+		focusEnd = min(ref.EndLine, focus+maxPreviewSpanLines, lineCount)
+	}
+	first = max(1, focus-contextLines)
+	last = min(lineCount, focusEnd+contextLines)
+	if ref.IsFile() {
+		last = min(lineCount, 1+2*contextLines) // the top of the file
+	}
+	return focus, first, last, nil
 }
 
 // ownership says who owns the file at path and which CODEOWNERS line says
@@ -206,6 +235,20 @@ func PreviewLine(line string, terms []*query.Content) (string, []protocol.Hit) {
 	return text, hits
 }
 
+// PreviewLineContext is PreviewLine with bounded, cancellable matching. An
+// error means the returned highlights would be incomplete, so none are
+// returned.
+func PreviewLineContext(ctx context.Context, line string, terms []*query.Content) (string, []protocol.Hit, error) {
+	text, hits, err := markLineContext(ctx, line, terms, nil, nil, nil)
+	if err != nil {
+		return "", nil, err
+	}
+	if hits == nil {
+		hits = []protocol.Hit{}
+	}
+	return text, hits, nil
+}
+
 // markLine is PreviewLine for a working-tree preview: marked are terms'
 // matches in the line and the parts of matches across lines already found
 // on it, and when those mark nothing on the result's own line (own, nil on
@@ -213,12 +256,25 @@ func PreviewLine(line string, terms []*query.Content) (string, []protocol.Hit) {
 func markLine(line string, terms []*query.Content, acrossLines []byteHit, own *Ref, keep func(start, end int) bool) (string, []protocol.Hit) {
 	hits := slices.Clone(acrossLines)
 	for _, term := range terms {
-		for _, hit := range lineHits(term, func(n int) [][]int { return term.FindAllStringIndex(line, n) }) {
-			if keep == nil || keep(hit.start, hit.end) {
-				hits = append(hits, hit)
-			}
-		}
+		hits = append(hits, completeLineHits(term, []byte(line), keep)...)
 	}
+	return finishMarkedLine(line, hits, own)
+}
+
+func markLineContext(ctx context.Context, line string, terms []*query.Content, acrossLines []byteHit, own *Ref, keep func(start, end int) bool) (string, []protocol.Hit, error) {
+	hits := slices.Clone(acrossLines)
+	for _, term := range terms {
+		found, err := lineHitsContext(ctx, term, []byte(line), keep)
+		if err != nil {
+			return "", nil, err
+		}
+		hits = append(hits, found...)
+	}
+	text, ranges := finishMarkedLine(line, hits, own)
+	return text, ranges, nil
+}
+
+func finishMarkedLine(line string, hits []byteHit, own *Ref) (string, []protocol.Hit) {
 	sortHits(hits)
 	if len(hits) == 0 && own != nil {
 		start, end := byteOffset(line, own.Column), byteOffset(line, own.Column+own.Length)

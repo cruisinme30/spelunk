@@ -13,6 +13,7 @@ import (
 
 	"github.com/cruisinme30/spelunk/daemon/internal/engine"
 	"github.com/cruisinme30/spelunk/daemon/internal/protocol"
+	"github.com/cruisinme30/spelunk/daemon/internal/query"
 )
 
 var webRepo = repoOf("web", map[string]string{
@@ -439,6 +440,27 @@ func TestAHugeLineIsSearchedInBoundedTimeAndMemory(t *testing.T) {
 	items, _ = runItems(t, "/a+/ f:run", defaultSettings, "", repo)
 	if len(items) != 1 || !reflect.DeepEqual(items[0].Hits, []protocol.Hit{{Start: 81, End: maxResultLineRunes + 1}}) {
 		t.Errorf("hits of a match past the window = %+v, want it marked from where it starts to the window's end", items)
+	}
+}
+
+func TestInFilterAppliesBeforeTheHighlightLimit(t *testing.T) {
+	line := strings.Repeat(`"needle" `, maxLineHits+1) + "needle"
+	repo := repoOf("r", map[string]string{"late.js": line})
+	items, stats := runItems(t, "type:code in:code needle", defaultSettings, "", repo)
+	if len(items) != 1 || stats.Truncated {
+		t.Fatalf("late kept match = %d items, %+v; want one complete result", len(items), stats)
+	}
+	if !strings.Contains(items[0].Text, "needle") || len(items[0].Hits) != 1 {
+		t.Fatalf("late kept match = %+v; want its one code highlight", items[0])
+	}
+}
+
+func TestMatchExhaustionCannotMakeNotSucceed(t *testing.T) {
+	content := "keep\n" + strings.Repeat("b", query.MaxMatchPositions+10)
+	repo := repoOf("r", map[string]string{"dense.txt": content})
+	items, stats := runItems(t, `type:code keep -content:/a*/`, defaultSettings, "", repo)
+	if len(items) != 0 || !stats.Truncated {
+		t.Fatalf("NOT after exhaustion = %d items, %+v; want no uncertain result and truncated", len(items), stats)
 	}
 }
 

@@ -2,7 +2,11 @@ package trigram
 
 import (
 	"bytes"
+	"fmt"
+	"math/rand"
 	"reflect"
+	"slices"
+	"strings"
 	"testing"
 )
 
@@ -79,6 +83,72 @@ func TestIndexFoldFindsEveryCaseOfTheNeedle(t *testing.T) {
 					t.Errorf("indexFold(%q, %q, %d) = %d, want %d", text, needle, from, got, want)
 				}
 			}
+		}
+	}
+}
+
+func TestFoldedPositionsAgreeWithIndependentSearches(t *testing.T) {
+	rng := rand.New(rand.NewSource(20261110))
+	alphabet := []byte("aAbB_9\n")
+	for range 200 {
+		text := make([]byte, rng.Intn(300))
+		for i := range text {
+			text[i] = alphabet[rng.Intn(len(alphabet))]
+		}
+		for _, needle := range []string{"a", "b", "ab", "aaa", "9_", "bbb"} {
+			positions := foldedPositions{lower: -1, upper: -1}
+			for from := 0; from <= len(text); from += 1 + rng.Intn(7) {
+				got := positions.index(text, []byte(needle), from)
+				want := bytes.Index(bytes.ToLower(text[from:]), []byte(needle))
+				if want >= 0 {
+					want += from
+				}
+				if got != want {
+					t.Fatalf("text %q needle %q from %d: got %d want %d", text, needle, from, got, want)
+				}
+			}
+		}
+	}
+}
+
+func TestFoldedFinderCursorIsPerFile(t *testing.T) {
+	plan := mustPlan(t, "content:needle", defaultSettings, "")
+	shared := termCache{}
+	for _, text := range []string{strings.Repeat("needle filler\n", 200), "NEEDLE\n", "no match", "nEedLe\nNEEDLE\nneedle\n"} {
+		matcher := newLineMatcher([]byte(text), shared)
+		got := matcher.matches(plan.Terms[0])
+		want, err := newLineMatcher([]byte(text), termCache{}).everyLine(plan.Terms[0])
+		if err != nil {
+			t.Fatalf("everyLine(%q): %v", text, err)
+		}
+		if !reflect.DeepEqual(got, want) {
+			t.Fatalf("cursor results changed across files: got %#v, want %#v", got, want)
+		}
+	}
+}
+
+func BenchmarkFoldedLiteralLineScan(b *testing.B) {
+	for _, size := range []int{1024, 64 << 10, 1 << 20} {
+		for _, casing := range []string{"lower", "upper", "mixed"} {
+			line := "needle and some unrelated text on each line\n"
+			if casing == "upper" {
+				line = strings.ToUpper(line)
+			}
+			if casing == "mixed" {
+				line += strings.ToUpper(line)
+			}
+			content := []byte(strings.Repeat(line, size/len(line)))
+			b.Run(fmt.Sprintf("%s/%d", casing, size), func(b *testing.B) {
+				plan := mustPlan(b, "content:needle", defaultSettings, "")
+				b.SetBytes(int64(len(content)))
+				b.ReportAllocs()
+				for b.Loop() {
+					got := newLineMatcher(content, termCache{}).matches(plan.Terms[0])
+					if !slices.IsSortedFunc(got, func(a, b matchedLine) int { return a.number - b.number }) {
+						b.Fatal("unordered matches")
+					}
+				}
+			})
 		}
 	}
 }

@@ -1,6 +1,8 @@
 package trigram
 
 import (
+	"context"
+	"errors"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -33,12 +35,23 @@ const maxHoleRunes = 80
 
 // matchStructure finds a struct: term's matches in the text, joined where
 // their lines overlap.
-func (m *lineMatcher) matchStructure(term *query.Content) []matchedLine {
+func (m *lineMatcher) matchStructure(term *query.Content) ([]matchedLine, error) {
+	if err := context.Cause(m.ctx); err != nil {
+		return nil, err
+	}
 	text := m.lfContent()
-	matches, complete := term.Structural.Find(text, m.lang, term.IgnoreCase, -1)
+	matches, complete := term.Structural.Find(text, m.lang, term.IgnoreCase, query.MaxMatchPositions+1)
+	if err := context.Cause(m.ctx); err != nil {
+		return nil, err
+	}
+	var matchErr error
+	if len(matches) > query.MaxMatchPositions {
+		matches = matches[:query.MaxMatchPositions]
+		matchErr = query.ErrMatchBudget
+	}
 	m.gaveUp = m.gaveUp || !complete
 	if len(matches) == 0 || m.halted(len(text)) {
-		return nil
+		return nil, errors.Join(matchErr, context.Cause(m.ctx))
 	}
 	lines := newLineIndex(text)
 	found := make([]matchedLine, 0, len(matches))
@@ -48,7 +61,7 @@ func (m *lineMatcher) matchStructure(term *query.Content) []matchedLine {
 		}
 		found = append(found, lines.structure(match, term.TermIndex))
 	}
-	return joinLines(found)
+	return joinLines(found), matchErr
 }
 
 // structure turns a template's match into a result: its lines, as for any
@@ -121,8 +134,19 @@ func holeText(code []byte) string {
 // hitsOfStructure returns, by line number, the marks of a struct: term's
 // matches on lines first to last (1-based) of text, read as language: the
 // template's code and each hole's code, as results mark them.
-func hitsOfStructure(text []byte, term *query.Content, language string, first, last int) map[int][]byteHit {
-	matches, _ := term.Structural.Find(text, language, term.IgnoreCase, -1)
+func hitsOfStructure(ctx context.Context, text []byte, term *query.Content, language string, first, last int) (map[int][]byteHit, error) {
+	if err := context.Cause(ctx); err != nil {
+		return nil, err
+	}
+	matches, _ := term.Structural.Find(text, language, term.IgnoreCase, query.MaxMatchPositions+1)
+	if err := context.Cause(ctx); err != nil {
+		return nil, err
+	}
+	var matchErr error
+	if len(matches) > query.MaxMatchPositions {
+		matches = matches[:query.MaxMatchPositions]
+		matchErr = query.ErrMatchBudget
+	}
 	lines := newLineIndex(text)
 	hits := map[int][]byteHit{}
 	mark := func(start, end, hole int) {
@@ -140,5 +164,5 @@ func hitsOfStructure(text []byte, term *query.Content, language string, first, l
 			mark(hole.Start, hole.End, hole.Number)
 		}
 	}
-	return hits
+	return hits, matchErr
 }

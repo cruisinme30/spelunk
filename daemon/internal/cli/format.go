@@ -159,12 +159,15 @@ func summaryLine(summary *Summary, now time.Time) string {
 	if summary.Total == 1 {
 		parts[0] = "1 result"
 	}
+	if summary.Truncated {
+		parts[0] = "at least " + parts[0]
+	}
 	if summary.Shown < summary.Total {
 		parts[0] += fmt.Sprintf(" (showing %d)", summary.Shown)
 	}
 	parts = append(parts, fmt.Sprintf("%d ms", summary.Ms), sourceText(summary.Source, summary.SavedAt, summary.Reread, now))
 	if summary.Truncated {
-		parts = append(parts, "stopped at the time limit, so there may be more")
+		parts = append(parts, "search incomplete; there may be more results")
 	}
 	return strings.Join(parts, " · ")
 }

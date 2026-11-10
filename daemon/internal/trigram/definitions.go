@@ -241,17 +241,26 @@ func lettersInOrder(name, folded string) bool {
 	return i == len(folded)
 }
 
-// foldName lowercases a name for matching that ignores case.
+// foldName folds a name for matching that ignores case.
 func foldName(s string) string {
 	return strings.Map(foldRune, s)
 }
 
+// foldRune chooses one representative of a Unicode simple-fold cycle, as
+// regexp's ignore-case matching does. Lowercasing alone misses final sigma
+// and long s, and equates dotted capital I with i when simple folding does not.
 func foldRune(r rune) rune {
+	if r >= utf8.RuneSelf {
+		first := r
+		for next := unicode.SimpleFold(first); next != first; next = unicode.SimpleFold(next) {
+			r = min(r, next)
+		}
+	}
 	if r < utf8.RuneSelf {
 		if 'A' <= r && r <= 'Z' {
 			return r + ('a' - 'A')
 		}
 		return r
 	}
-	return unicode.ToLower(r)
+	return r
 }

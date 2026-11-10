@@ -123,10 +123,11 @@ func timeAgo(d time.Duration) string {
 	return "just now"
 }
 
-// quoteIfNeeded quotes a value that contains a space or a quote.
+// quoteIfNeeded keeps a suggested value in one token, with literal slashes
+// rather than regex delimiters.
 func quoteIfNeeded(value string) string {
-	if strings.ContainsAny(value, " \t\"()") {
-		return `"` + strings.ReplaceAll(value, `"`, `\"`) + `"`
+	if strings.ContainsFunc(value, endsBareWord) || strings.HasPrefix(value, "/") {
+		return quoteText(value)
 	}
 	return value
 }

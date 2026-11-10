@@ -1,27 +1,49 @@
-# Every push and pull request runs the whole suite: generated-code check,
-# formatting, every linter, and all test layers (scripts/test-all.sh).
+# Main and releases run the full suite. Feature PRs into develop run all
+# static checks and behavioral layers selected by their dependency closure.
 name: CI
 
 on:
   push:
     branches: [main]
   pull_request:
+    branches: [main, develop]
+    types: [opened, synchronize, reopened, ready_for_review, edited]
   workflow_call: # the release runs it before publishing
 
 permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.ref }}
-  # A newer push to a pull request replaces its run; every commit on main finishes its own.
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  # Only active PR validation shares a group. Main/release runs and skipped
+  # metadata events must not replace another run waiting in the concurrency queue.
+  group: >-
+    ci-${{ github.event_name == 'pull_request' && !github.event.pull_request.draft &&
+           (github.event.action != 'edited' || github.event.changes.base != null) &&
+           github.ref || github.run_id }}
+  # A newer PR commit replaces its run; each main commit finishes its own.
+  cancel-in-progress: >-
+    ${{ github.event_name == 'pull_request' && !github.event.pull_request.draft &&
+        (github.event.action != 'edited' || github.event.changes.base != null) }}
 
 jobs:
   test:
+    # A skipped job is a successful check on GitHub. Give metadata-only events
+    # a distinct name so they cannot supersede a failed test check on this SHA.
+    name: >-
+      ${{ github.event_name == 'pull_request' && github.event.action == 'edited' &&
+          !github.event.changes.base && 'metadata-only-test' || 'test' }}
+    # Drafts collect edits without CI churn. Retargeting a ready PR rechecks
+    # it against its new destination; title/body-only edits do not rerun CI.
+    if: >-
+      github.event_name != 'pull_request' ||
+      (!github.event.pull_request.draft &&
+       (github.event.action != 'edited' || github.event.changes.base != null))
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0 # compare the PR merge commit with the exact base SHA
 
       - uses: actions/setup-go@v6
         with:
@@ -51,11 +73,26 @@ jobs:
       - name: Install Chromium for the webview tests
         run: npx playwright install --with-deps chromium
 
-      - name: Lint and test
+      - name: Full quality and behavioral suite
+        if: github.event_name != 'pull_request' || github.base_ref != 'develop'
         run: npm test
+
+      - name: Static quality and affected behavioral layers
+        if: github.event_name == 'pull_request' && github.base_ref == 'develop'
+        env:
+          TEST_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          TEST_HEAD_SHA: ${{ github.sha }}
+        run: scripts/test-changed.sh --base "$TEST_BASE_SHA" --head "$TEST_HEAD_SHA"
 
   # The commands in a real VS Code window (scripts/e2e.mjs downloads it).
   e2e:
+    name: >-
+      ${{ github.event_name == 'pull_request' && github.event.action == 'edited' &&
+          !github.event.changes.base && 'metadata-only-e2e' || 'e2e' }}
+    if: >-
+      github.event_name != 'pull_request' ||
+      (!github.event.pull_request.draft && github.base_ref == 'main' &&
+       (github.event.action != 'edited' || github.event.changes.base != null))
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:

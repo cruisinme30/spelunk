@@ -2,14 +2,24 @@
 // to apply, keeping only the files whose text still matches what the daemon
 // read. It has no vscode import, so tests run it in plain Node; extension.ts
 // reads the documents and applies the edits as one WorkspaceEdit.
-import { resolve } from "node:path";
-import type { ReplaceFile, ReplacePlan } from "./protocol.gen";
+import { createHash } from "node:crypto";
+import { resolve, sep } from "node:path";
+import { editorLanguage } from "./languageIds";
+import type { ReplaceCell, ReplaceFile, ReplacePlan } from "./protocol.gen";
 
 /** A document's lines as the editor has them, unsaved changes included. */
 export interface DocumentLines {
   lineCount: number;
   /** Line `index` (0-based) without its line end. */
   lineText(index: number): string;
+  /** Source cells with editor language IDs, when this is a notebook. */
+  cells?: readonly ReplaceCell[];
+  /** Searchable notebook outputs, independently fingerprinted from editable source. */
+  outputHash?: string;
+  /** Whether the live document still has the version this view captured. */
+  isCurrent?(): boolean;
+  /** Whether the original confined path is still safe to save, after our edit changes its version. */
+  pathIsCurrent?(): boolean;
 }
 
 /** One match to replace: a range in a 0-based line of `file`, in UTF-16 units. */
@@ -28,6 +38,10 @@ interface CheckedReplace {
   files: string[];
   /** The repo-relative paths of the files left alone. */
   skipped: string[];
+  /** Recheck live document versions immediately before submitting the edit. */
+  isCurrent: () => boolean;
+  /** Recheck only path identities when saving the edited documents. */
+  pathsCurrent: () => boolean;
 }
 
 /**
@@ -38,8 +52,8 @@ interface CheckedReplace {
 export const OPEN_AT_ONCE = 16;
 
 /**
- * Keeps the files of `plan` whose every planned line still reads as the
- * daemon read it. A file edited since it was indexed (unsaved, or saved
+ * Keeps the files of `plan` whose complete source and notebook structure
+ * still match the indexed generation. A file edited since it was indexed (unsaved, or saved
  * but not yet re-indexed) is skipped whole: its ranges might cut the wrong
  * characters, and half a file's matches replaced would be worse than none.
  * A file the plan lists more than once (under two workspace folders, one
@@ -50,19 +64,30 @@ export const OPEN_AT_ONCE = 16;
  */
 export async function checkReplace(
   plan: ReplacePlan,
-  open: (file: string) => Promise<DocumentLines | undefined>,
+  open: (file: string, planned: readonly ReplaceFile[]) => Promise<DocumentLines | undefined>,
 ): Promise<CheckedReplace> {
-  const checked: CheckedReplace = { edits: [], files: [], skipped: [] };
+  const accepted: DocumentLines[] = [];
+  const checked: CheckedReplace = {
+    edits: [],
+    files: [],
+    skipped: [],
+    isCurrent: () => accepted.every((document) => document.isCurrent?.() ?? true),
+    pathsCurrent: () => accepted.every((document) => document.pathIsCurrent?.() ?? true),
+  };
   const groups = groupBy(plan.files, (file) => fileIdentity(file.file));
-  const documents = await mapAtMost(groups, OPEN_AT_ONCE, ({ first }) => open(first.file));
+  const documents = await mapAtMost(groups, OPEN_AT_ONCE, ({ first, all }) => open(first.file, all));
   for (const [index, { first, all }] of groups.entries()) {
     const document = documents[index];
+    const sourceHash = document ? documentHash(document) : undefined;
     const edits =
-      document && all.every((entry) => unchanged(entry, document)) ? mergedEdits(first.file, all) : undefined;
-    if (!edits) {
+      document && all.every((entry) => unchanged(entry, document, sourceHash))
+        ? mergedEdits(first.file, all)
+        : undefined;
+    if (!document || !edits) {
       checked.skipped.push(first.path);
       continue;
     }
+    accepted.push(document);
     checked.files.push(first.file);
     checked.edits.push(...edits);
   }
@@ -71,10 +96,13 @@ export async function checkReplace(
 
 /**
  * A file as VS Code's URIs name it, so two spellings of one file are one:
- * absolute, with "/" separators and a Windows drive letter in lower case.
+ * absolute, with a Windows drive letter in lower case and its separators
+ * normalized. On POSIX a backslash is a filename character.
  */
 export function fileIdentity(file: string): string {
-  const path = resolve(file).replaceAll("\\", "/");
+  const resolved = resolve(file);
+  if (sep !== "\\") return resolved;
+  const path = resolved.replaceAll("\\", "/");
   return /^[A-Za-z]:/.test(path) ? path.charAt(0).toLowerCase() + path.slice(1) : path;
 }
 
@@ -102,11 +130,66 @@ function mergedEdits(file: string, entries: ReplaceFile[]): LineEdit[] | undefin
   return overlaps ? undefined : edits;
 }
 
-/** Whether each line `file` plans to edit reads in `document` exactly as the daemon read it. */
-function unchanged(file: ReplaceFile, document: DocumentLines): boolean {
-  return file.lines.every(
-    ({ line, text }) => line >= 1 && line <= document.lineCount && document.lineText(line - 1) === text,
+/** The indexed source digest: UTF-8 source lines, each followed by LF. */
+export function documentHash(document: DocumentLines): string {
+  const digest = createHash("sha256");
+  for (let index = 0; index < document.lineCount; index++) {
+    digest.update(document.lineText(index), "utf8");
+    digest.update("\n");
+  }
+  return digest.digest("hex");
+}
+
+/** Whether the complete source, cell boundaries and every planned line still match. */
+function unchanged(file: ReplaceFile, document: DocumentLines, sourceHash: string | undefined): boolean {
+  return (
+    file.sourceHash === sourceHash &&
+    (file.outputHash === undefined || file.outputHash === document.outputHash) &&
+    sameCells(file.cells, document.cells) &&
+    (document.isCurrent?.() ?? true) &&
+    file.lines.every(
+      ({ line, text, edits }) =>
+        Number.isSafeInteger(line) &&
+        line >= 1 &&
+        line <= document.lineCount &&
+        document.lineText(line - 1) === text &&
+        edits.every(({ start, end }) => validRange(text, start, end)),
+    )
   );
+}
+
+/** A plan cannot reuse offsets across notebook cell or language changes. */
+function sameCells(expected: ReplaceCell[] | undefined, actual: readonly ReplaceCell[] | undefined): boolean {
+  if (!expected || !actual) return expected === actual;
+  return (
+    expected.length === actual.length &&
+    expected.every((cell, index) => {
+      const live = actual[index];
+      return (
+        live?.lineCount === cell.lineCount &&
+        live.kind === cell.kind &&
+        (cell.kind === "raw" || editorLanguage(cell.language) === live.language)
+      );
+    })
+  );
+}
+
+/** Reject malformed ranges instead of letting the editor clamp them onto unrelated text. */
+function validRange(text: string, start: number, end: number): boolean {
+  return (
+    Number.isSafeInteger(start) &&
+    Number.isSafeInteger(end) &&
+    start >= 0 &&
+    start < end &&
+    end <= text.length &&
+    !splitsSurrogate(text, start) &&
+    !splitsSurrogate(text, end)
+  );
+}
+
+/** Whether a UTF-16 offset cuts a supplementary character in half. */
+function splitsSurrogate(text: string, offset: number): boolean {
+  return (text.codePointAt(offset - 1) ?? 0) > 65_535;
 }
 
 /** `items` in groups of equal `key`, each with its first item, in the order the groups first appear. */
@@ -132,4 +215,19 @@ async function mapAtMost<T, R>(items: readonly T[], limit: number, map: (item: T
   };
   await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
   return results;
+}
+
+/** What a replace plan would change, as one string: every file, line, text and edit, in order. */
+export function replacementPlanKey(plan: ReplacePlan): string {
+  return JSON.stringify(
+    plan.files.map((file) => [
+      file.repoId,
+      file.path,
+      file.file,
+      file.sourceHash,
+      file.outputHash,
+      file.cells,
+      file.lines,
+    ]),
+  );
 }

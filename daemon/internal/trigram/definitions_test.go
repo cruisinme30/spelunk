@@ -9,7 +9,7 @@ import (
 )
 
 func TestMatchRankOrdersExactPrefixContainsLetters(t *testing.T) {
-	// cspell:ignore rtpl Ünïcode 𝒻ind
+	// cspell:ignore ftop ndex rtpl Ünïcode 𝒻ind
 	for _, tc := range []struct {
 		name, text string
 		exact      bool
@@ -24,6 +24,10 @@ func TestMatchRankOrdersExactPrefixContainsLetters(t *testing.T) {
 		{"RetryPolicy", "RetryPolicyX", false, 0, false},
 		{"Ünïcode", "ünï", false, rankPrefix, true},
 		{"naïve_𝒻ind", "ï𝒻", false, rankLetters, true},
+		{"\u017ftopWorker", "stw", false, rankLetters, true},
+		{"\u03c2ampleValue", "\u03c3av", false, rankLetters, true},
+		{"\u03c3ampleValue", "\u03a3ample", false, rankPrefix, true},
+		{"\u0130ndex", "index", false, 0, false},
 		{"RetryPolicy", "RetryPolicy", true, rankExact, true},
 		{"RetryPolicy", "retryPolicy", true, 0, false},
 		{"NewRetryPolicy", "RetryPolicy", true, 0, false},

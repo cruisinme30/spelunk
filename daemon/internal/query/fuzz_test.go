@@ -43,6 +43,12 @@ var querySeeds = []string{
 	`/abc\`,
 	`f:/abc\`,
 	`msg:"abc\`,
+	`unknown:\ schedule`,
+	`unknown:"drivers\\net" handle_mm_fault`,
+	`unknown:"a\"b" copy_process`,
+	`sym:copy_process f:kernel/fork.c`,
+	`(handle_mm_fault OR do_anonymous_page) f:mm/memory.c`,
+	`f:drivers/net/ethernet/ -sym:dup_task_struct case:yes`,
 }
 
 // FuzzParse checks Parse's invariants on any text: it never panics, every
@@ -118,6 +124,9 @@ func checkFix(t *testing.T, src *source, text string, d protocol.Diagnostic, fix
 			t.Fatalf("%q: fix %q has overlapping edits", text, fix.Title)
 		}
 	}
+	if d.Code == DiagUnknownOperator && fix.Title == "Search for the text instead" {
+		checkLiteralFallback(t, src, fix)
+	}
 	before := Parse(text, testResolver).Diagnostics
 	if d.Severity != protocol.SeverityError || len(text) > maxQueryLength || len(before) == maxDiagnostics {
 		return // a capped list can't show that one problem went
@@ -125,6 +134,21 @@ func checkFix(t *testing.T, src *source, text string, d protocol.Diagnostic, fix
 	fixed := ApplyFix(text, fix)
 	if count(Parse(fixed, testResolver).Diagnostics, d.Code) >= count(before, d.Code) {
 		t.Fatalf("fix %q on %q gives %q, which still has as many %s", fix.Title, text, fixed, d.Code)
+	}
+}
+
+// checkLiteralFallback ensures quoting an unknown token cannot consume an
+// adjacent term or change the text the user asked to search for.
+func checkLiteralFallback(t *testing.T, src *source, fix protocol.Fix) {
+	t.Helper()
+	if len(fix.Edits) != 1 {
+		t.Fatalf("literal fallback has %d edits, want one", len(fix.Edits))
+	}
+	edit := fix.Edits[0]
+	want := src.slice(edit.Span.Start, edit.Span.End)
+	tokens := lex(newSource(edit.NewText))
+	if len(tokens) != 2 || tokens[0].kind != tokenTerm || tokens[0].form != formQuoted || tokens[0].unclosed != 0 || tokens[0].value != want {
+		t.Fatalf("literal fallback %q does not preserve %q as one closed quoted term: %+v", edit.NewText, want, tokens)
 	}
 }
 

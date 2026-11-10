@@ -42,10 +42,11 @@ func fuzzyTarget(term *query.Content, filePath string) (string, int) {
 	return name, len(filePath) - len(name)
 }
 
-// foldFor is how a term compares characters: lower-cased when it ignores case.
+// foldFor is how a term compares characters: Unicode simple folding, as the
+// exact matcher uses, when it ignores case.
 func foldFor(term *query.Content) func(rune) rune {
 	if term.IgnoreCase {
-		return unicode.ToLower
+		return foldRune
 	}
 	return func(r rune) rune { return r }
 }

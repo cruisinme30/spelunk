@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cruisinme30/spelunk/daemon/internal/benchmark"
+	"github.com/cruisinme30/spelunk/daemon/internal/engine"
 	"github.com/cruisinme30/spelunk/daemon/internal/protocol"
 	"github.com/cruisinme30/spelunk/daemon/internal/trigram"
 )
@@ -39,36 +41,24 @@ func BenchmarkLargeHistory(b *testing.B) {
 	var mem runtime.MemStats
 	runtime.GC()
 	runtime.ReadMemStats(&mem)
-	b.Logf("read %d commits in %v (newest searchable after %v); heap %d MB",
-		store.Commits(), time.Since(started).Round(time.Millisecond), firstPublish.Round(time.Millisecond), mem.HeapAlloc>>20)
+	b.Logf("read %d commits in %v (newest searchable after %v); heap %d bytes",
+		store.Commits(), time.Since(started).Round(time.Millisecond), firstPublish.Round(time.Millisecond), mem.HeapAlloc)
 
 	repos := []Repo{{ID: "r", Name: "r", Root: root, Store: store}}
-	for _, text := range []string{
-		"type:commit timeout",
-		"type:commit /context\\.WithTimeout/",
-		`msg:"fix flaky"`,
-		"author:a f:_test.go$ retry",
-		"type:commit (timeout OR deadline) -f:vendor/ since:1y",
-		"type:commit case:yes Mutex",
+	for _, query := range []struct{ name, text string }{
+		{"literal", "type:commit timeout"},
+		{"regex", `type:commit /context\.WithTimeout/`},
+		{"message", `msg:"fix flaky"`},
+		{"author", "author:a f:_test.go$ retry"},
+		{"boolean", "type:commit (timeout OR deadline) -f:vendor/ since:1y"},
+		{"case", "type:commit case:yes Mutex"},
+		{"no-hit", "type:commit spelunk_benchmark_absent_928374650193"},
 	} {
-		b.Run(text, func(b *testing.B) {
-			p := plan(b, text)
-			var first, total time.Duration
-			for range b.N {
-				start := time.Now()
-				seen := false
-				if _, err := Search(ctx, p, repos, 1, func(protocol.ResultItem) {
-					if !seen {
-						first += time.Since(start)
-						seen = true
-					}
-				}); err != nil {
-					b.Fatal(err)
-				}
-				total += time.Since(start)
-			}
-			b.ReportMetric(float64(first.Microseconds())/float64(b.N)/1000, "ms-to-first")
-			b.ReportMetric(float64(total.Microseconds())/float64(b.N)/1000, "ms-total")
+		b.Run(query.name, func(b *testing.B) {
+			p := plan(b, query.text)
+			benchmark.Measure(b, func(emit func(protocol.ResultItem)) (engine.Stats, error) {
+				return Search(ctx, p, repos, 1, emit)
+			}, query.name == "no-hit")
 		})
 	}
 }

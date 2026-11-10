@@ -1,36 +1,19 @@
 #!/usr/bin/env node
-// Checks the wiki still matches the repo's mock table (docs/dev/mocks.md):
-// the same screens with the same numbers, ids and milestones on the Screens
-// page, a section for each screen on its group page, an image for each canvas
-// board (or one per variant), and the same design-canvas link. Every screen
-// the panel draws needs a built screenshot from docs/dev/proof/ in its section,
-// and its Built column must say so. Every image a page shows must be committed
-// under that exact name, since GitHub's paths are case-sensitive and the Mac's
-// aren't. A screen's section is the block from `<!-- screen:<id> -->` to
-// `<!-- /screen -->`, on whichever page documents that feature. Every wiki link
-// must reach a page (and heading) that exists, every page must be in the
-// sidebar, and the repo's links into the wiki must name real pages. Every
-// operator must be on the Query Language page, every diagnostic code have an
-// entry on the Error Index, and every setting and command be on Settings and
-// Commands. It also
-// fails while the wiki has uncommitted or unpushed changes, which GitHub can't
-// see.
-//
-// The wiki is its own git repo, so this looks for a clone next to this one
-// (../<this folder>.wiki, e.g. ../spelunk.wiki) or at $SPELUNK_WIKI. Without a clone it
-// says so and passes; CI never has one, so this runs only in the presubmit.
-//
-// Usage: node scripts/checkWikiSync.mjs
-import { execFileSync } from "node:child_process";
+// Mandatory, offline validation of canonical docs/wiki against code, mocks,
+// screenshots, links and reference coverage. Deployment is checked separately
+// with checkWikiDeployment.mjs; a missing source never silently passes.
 import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { basename, dirname, join } from "node:path";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+
+import { wikiFiles, wikiImagePaths } from "./wikiFiles.mjs";
 
 import { screenRows } from "./mockTable.mjs";
 import { commands, diagnosticCodes, operatorNames, settingKeys } from "./specIds.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
-const wiki = process.env.SPELUNK_WIKI ?? join(root, "..", `${basename(root)}.wiki`);
+const wiki = join(root, "docs/wiki");
+const sourceFiles = new Set(wikiFiles(wiki));
 const problems = [];
 /** Screens with no built screenshot: they're VS Code's own UI, which scripts/screenshotPanel.mjs can't draw. */
 const vsCodeUi = "VS Code's own UI";
@@ -44,12 +27,12 @@ if (existsSync(join(wiki, "Screens.md"))) {
   checkImages();
   checkLinks();
   checkCoverage();
-  checkWikiPushed();
   for (const problem of problems) console.log(`  ${problem}`);
   console.log(problems.length > 0 ? `${String(problems.length)} wiki problem(s)` : "Wiki matches the mocks.");
   if (problems.length > 0) process.exitCode = 1;
 } else {
-  console.log(`No wiki clone at ${wiki}; skipped (git clone the spelunk.wiki repo there to check it).`);
+  console.error(`Missing required wiki source: ${wiki}/Screens.md`);
+  process.exitCode = 1;
 }
 
 /** Compares docs/dev/mocks.md with the wiki's Screens page and group pages. */
@@ -89,20 +72,22 @@ function checkScreens() {
 
 /**
  * Checks each screen's block and built screenshot against its Screens row, and
- * that every image the pages show is a committed file: images/ in the wiki,
+ * that every image the pages show exists under its exact source name: images/ in the wiki,
  * and docs/dev/proof/ in this repo, which the pages load from GitHub.
  */
 function checkImages() {
-  const wikiFiles = new Set(git("ls-files").split("\n"));
+  const imageFiles = sourceFiles;
   const proofFiles = new Set(
-    execFileSync("git", ["-C", root, "ls-files", "docs/dev/proof"], { encoding: "utf8" }).trim().split("\n"),
+    readdirSync(join(root, "docs/dev/proof"), { withFileTypes: true })
+      .filter((entry) => entry.isFile())
+      .map((entry) => `docs/dev/proof/${entry.name}`),
   );
   for (const [page, text] of wikiPages()) {
-    for (const [, path] of text.matchAll(/(?:src|href)="(images\/[^"]+)"|\]\((images\/[^)\s]+)\)/g)) {
-      if (path && !wikiFiles.has(path)) problems.push(`${page}.md shows ${path}, which isn't committed to the wiki`);
+    for (const path of wikiImagePaths(text)) {
+      if (path && !imageFiles.has(path)) problems.push(`${page}.md shows ${path}, which is absent from docs/wiki`);
     }
     for (const [path] of text.matchAll(/docs\/dev\/proof\/[\w.-]+/g)) {
-      if (!proofFiles.has(path)) problems.push(`${page}.md shows ${path}, which isn't committed to this repo`);
+      if (!proofFiles.has(path)) problems.push(`${page}.md shows ${path}, which is absent from docs/dev/proof`);
     }
   }
   const blocks = screenBlocks();
@@ -167,11 +152,26 @@ function checkLinks() {
   for (const page of pages.keys()) {
     if (!page.startsWith("_") && page !== "Home" && !listed.has(page)) problems.push(`${page} isn't in _Sidebar.md`);
   }
-  const repoDocuments = execFileSync("git", ["-C", root, "ls-files", "*.md"], { encoding: "utf8" }).trim().split("\n");
-  for (const document of repoDocuments.filter((path) => !path.startsWith("testdata/"))) {
+  for (const document of repositoryDocuments()) {
     for (const [, linked, anchor] of readFileSync(join(root, document), "utf8").matchAll(wikiUrl))
       check(document, linked ?? "", anchor);
   }
+}
+
+/** Reads maintained repository docs without Git state, remote access, fixtures or installed dependencies. */
+function repositoryDocuments() {
+  const files = readdirSync(root, { withFileTypes: true })
+    .filter((entry) => entry.isFile() && entry.name.endsWith(".md"))
+    .map((entry) => entry.name);
+  const visit = (directory) => {
+    for (const entry of readdirSync(join(root, directory), { withFileTypes: true })) {
+      const path = `${directory}/${entry.name}`;
+      if (entry.isDirectory()) visit(path);
+      else if (entry.isFile() && entry.name.endsWith(".md")) files.push(path);
+    }
+  };
+  visit("docs");
+  return files;
 }
 
 /**
@@ -264,19 +264,4 @@ function checkCoverage() {
     (title) => title,
     "command",
   );
-}
-
-/** Flags wiki edits that GitHub can't see yet. */
-function checkWikiPushed() {
-  if (git("status", "--porcelain") !== "") problems.push("the wiki has uncommitted changes");
-  try {
-    if (git("rev-list", "--count", "@{upstream}..HEAD") !== "0") problems.push("the wiki has unpushed commits");
-  } catch {
-    problems.push("the wiki's branch has no upstream to compare with");
-  }
-}
-
-/** Runs git in the wiki clone and returns its trimmed output. */
-function git(...args) {
-  return execFileSync("git", ["-C", wiki, ...args], { encoding: "utf8" }).trim();
 }

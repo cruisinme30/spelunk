@@ -1,7 +1,9 @@
 # Test plan
 
-Every user-visible behavior is proven by an automated scenario that runs the real extension, the real daemon and real
-Git repos, in desktop VS Code and in code-server, before a change merges.
+This plan defines target coverage across the real extension, daemon and Git repositories. The current integration
+gates below distinguish implemented automation from the broader cross-platform and soak targets. Before merging
+to `develop`, run relevant behavioral layers and all static checks. Before promoting a batch to `main`, run the
+entire implemented suite and real VS Code end-to-end tests.
 
 ## Test layers
 
@@ -10,10 +12,10 @@ should almost always show up first in a cheaper layer.
 
 | Layer | Proves | Runs for real | Faked | When | Time limit |
 | --- | --- | --- | --- | --- | --- |
-| L1 Unit | Parser, planner, diagnostics, fix-its, ranking, small helpers | The function under test | Everything else | Every commit | 1 min |
-| L2 Contract | Each side of each contract on its own: engines against oracles, RPC messages against the JSON Schemas, the webview against recorded host messages | One component plus fixture repos | The other side of the contract, from recorded transcripts | Every commit | 3 min |
-| L3 Daemon integration | The whole daemon through its stdio API: indexing, freshness, cancellation, crash recovery | Daemon binary, Git, ctags, fixture repos | VS Code; a test client speaks JSON-RPC | Every pull request | 10 min |
-| L4 End to end | Every mock's behavior, keyboard and mouse included | Everything: VS Code or code-server, extension, webview, daemon, Git | Only the clock, frozen for date-relative results | Smoke set on every pull request; full set on merge | 15 min smoke; 45 min full |
+| L1 Unit | Parser, planner, diagnostics, fix-its, ranking, small helpers | The function under test | Everything else | Affected develop changes; all main promotions | 1 min |
+| L2 Contract | Each side of each contract on its own: engines against oracles, RPC messages against the JSON Schemas, the webview against recorded host messages | One component plus fixture repos | The other side of the contract, from recorded transcripts | Affected develop changes; all main promotions | 3 min |
+| L3 Daemon integration | The whole daemon through its stdio API: indexing, freshness, cancellation, crash recovery | Daemon binary, Git, ctags, fixture repos | VS Code; a test client speaks JSON-RPC | Affected develop changes; all main promotions | 10 min |
+| L4 End to end | Every mock's behavior, keyboard and mouse included | Everything: VS Code or code-server, extension, webview, daemon, Git | Only the clock, frozen for date-relative results | Full implemented set before main promotion | 15 min smoke; 45 min full |
 | L5 Performance and soak | Budgets, memory, long-run stability, index consistency | Everything, on a large real repo | Nothing | Nightly | 10 hours |
 | L6 Release | Install and first run on clean machines, every platform | The published `.vsix` files | Nothing | Each release candidate | 1 day, partly manual |
 
@@ -149,6 +151,28 @@ exactly like a fresh rebuild. The check replays a random sequence, rebuilds from
 fixed set of 500 queries against both, and requires identical results. This is how the overlay, tombstones and
 compaction are proven correct.
 
+## Large-repository regression requirements
+
+The large-repository audit adds targeted checks at the cheapest layer that can prove each invariant. These are
+integration requirements, not claims that the broader nightly or cross-platform targets below already run.
+
+| Area | Required assertion | Test location |
+| --- | --- | --- |
+| Literal search | Folded scans match an independent oracle at increasing offsets; matcher cursors never cross file boundaries | `daemon/internal/trigram/literal_test.go` |
+| Query edits | A suggested repair exists, preserves every literal byte, and leaves following terms separate; completions round-trip through the lexer | `daemon/internal/query/fix_preservation_test.go`, `fix_mutation_test.go` |
+| C/C++ contexts | Escaped newlines, split comment markers, raw prefixes, numeric separators and Unicode preserve physical ranges; replacement changes only the requested context | `daemon/internal/structural/c_test.go`, `daemon/internal/trigram/c_context_test.go` |
+| Definitions | Multiline prototypes and initializers stay out of definitions and outlines; one-line bodies and trailing attributes keep the correct scope | `daemon/internal/symbols/code_test.go` |
+| Unicode names | Fuzzy names and workspace symbols agree with simple case folding, including final sigma, long s and dotted I | `daemon/internal/trigram/fuzzy_test.go`, `definitions_test.go` |
+| Replacement source | Untouched context changes invalidate a plan; notebook source, boundaries and languages are checked; changed or newly added searchable outputs invalidate stale eligibility; outputs are never edited | `daemon/internal/trigram/replace_source_test.go`, `extension/src/test/replace.test.ts` |
+| Replacement limits | Stop after proving the limit exceeded, return no partial plan, bound capture indexes and JSON payload across files, reject huge capture expansion before allocation, preserve full-line anchor meaning, and check UTF-16 offsets on dense lines | `daemon/internal/trigram/replace_test.go`, `replace_budget_test.go` |
+| Replacement references | Undefined references fail before planning; explicit suffix braces, whole-match references, literal dollars and unmatched optional groups retain their intended behavior | `daemon/internal/server/replace_test.go` |
+| Replacement apply | Require the current preview, valid UTF-16 ranges, current document versions and permitted file paths before applying or saving | `extension/src/test/controller.test.ts`, `replace.test.ts`, `replacementPaths.test.ts` |
+| Agent access | MCP setup needs no index; hard limits survive `count:all`; incompatible peers are rejected; busy calls and stalled handshakes release slots; saved-index refresh remains read-only | `daemon/internal/cli/mcp_backend_test.go`, `mcp_setup_test.go`, `mcp_wire_test.go` |
+| Agent summaries | Incomplete counts are lower bounds without an invented cause; complete totals stay exact when fewer rows are shown; an incomplete zero-result search does not suggest widening | `daemon/internal/cli/mcp_summary_test.go` |
+
+Report corpus revisions, sampled query families, exact match parity, cancellation and truncation alongside timings.
+An aborted or resource-exhausted run is evidence of a limit, never a completed benchmark sample.
+
 ## Performance and soak
 
 Budgets are measured the way a user feels them, from keystroke to pixels, and a nightly run fails the build when any p95
@@ -184,7 +208,23 @@ continuously. It must end with:
 Nothing merges, closes a milestone or ships unless its gate is green. A spec-coverage check makes "all aspects tested"
 something CI can verify, not a judgment call.
 
-### Gates
+### Current integration gates
+
+| Event | Required validation | Platform |
+| --- | --- | --- |
+| Ready PR into develop | Generated-code check, format, type checks, all linters, gate tests, affected behavioral layers | Linux |
+| Ready PR into main | All quality and behavioral checks plus the full implemented VS Code E2E suite | Linux |
+| Main push or reusable release CI | Full quality, behavioral and E2E checks | Linux |
+| Release | Full CI plus packaging, strict spec coverage and complete performance budgets | Configured release targets |
+
+Draft feature PRs collect work without running test jobs. Ready PR updates replace obsolete runs. Main pushes
+finish independently; title/body edits cannot replace a failed validation check. Retargeting a ready PR reevaluates
+its gate. Use merge commits for integration and batch several coherent iterations before promoting main.
+
+### Target expanded coverage
+
+The matrix below remains a test-plan target; it does not claim that nightly soak, every operating system, or
+code-server coverage is already enabled in the current workflow.
 
 | Event | Runs | Platforms | Blocks |
 | --- | --- | --- | --- |

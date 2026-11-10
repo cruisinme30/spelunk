@@ -199,6 +199,9 @@ func (s *Server) initialize(_ context.Context, raw json.RawMessage) (any, error)
 	if err := decode(raw, &params); err != nil {
 		return nil, err
 	}
+	if params.Protocol != protocol.Version {
+		return nil, rpc.Errorf(rpc.CodeInvalidParams, "protocol mismatch: daemon requires %d, client sent %d", protocol.Version, params.Protocol)
+	}
 	// Settings are required by the schema, but a client that sends none
 	// keeps the defaults rather than an all-zero settings object.
 	var present struct {

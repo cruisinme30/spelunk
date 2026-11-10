@@ -14,6 +14,7 @@ import { daemonSettings } from "../settings";
  * - "silent" never answers anything;
  * - "refuse" answers initialize with an invalid-params error;
  * - "nullResult" answers initialize with a null result;
+ * - "oldProtocol" answers initialize with the previous internal protocol version;
  * - "garbage" writes stray output and a body that isn't JSON before each answer;
  * - "stderrFlood" writes 4 MB to stderr, blocking until it is read, before answering initialize;
  * - "slowInitialize" answers initialize after 200 ms, and later messages only after that;
@@ -28,6 +29,7 @@ export type FakeBehaviour =
   | "silent"
   | "refuse"
   | "nullResult"
+  | "oldProtocol"
   | "garbage"
   | "stderrFlood"
   | "slowInitialize"
@@ -54,6 +56,7 @@ const handle = async ({ id, method }) => {
     if (behaviour === "slowInitialize") await new Promise((resolve) => setTimeout(resolve, 200));
     if (behaviour === "refuse") return send({ id, error: { code: -32602, message: "invalid params: bad settings" } });
     if (behaviour === "nullResult") return send({ id, result: null });
+    if (behaviour === "oldProtocol") return send({ id, result: { protocol: ${PROTOCOL_VERSION - 1}, daemonVersion: "0.0.0-old" } });
     return send({ id, result: { protocol: ${PROTOCOL_VERSION}, daemonVersion: "0.0.0-fake" } });
   }
   if (behaviour === "exitOnRequest" && id !== undefined) process.exit(4);

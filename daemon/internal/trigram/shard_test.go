@@ -91,21 +91,22 @@ func TestShardSaveAndLoad(t *testing.T) {
 
 func TestLoadRejectsOtherFormatsAndCorruption(t *testing.T) {
 	dir := t.TempDir()
-	old := filepath.Join(dir, "old.shard")
-	// A shard file written by another format version.
-	saved := savedShard{Version: shardFormatVersion + 1}
-	f, err := os.Create(old)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := gobEncode(f, saved); err != nil {
-		t.Fatal(err)
-	}
-	if err := f.Close(); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := Load(old); !errors.Is(err, ErrStaleFormat) {
-		t.Errorf("Load(other version) error = %v, want ErrStaleFormat", err)
+	other := filepath.Join(dir, "other.shard")
+	// Old symbol scopes must be rebuilt, as must any newer unsupported format.
+	for _, version := range []int{shardFormatVersion - 1, shardFormatVersion + 1} {
+		f, err := os.Create(other)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := gobEncode(f, savedShard{Version: version}); err != nil {
+			t.Fatal(err)
+		}
+		if err := f.Close(); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := Load(other); !errors.Is(err, ErrStaleFormat) {
+			t.Errorf("Load(version %d) error = %v, want ErrStaleFormat", version, err)
+		}
 	}
 
 	corrupt := filepath.Join(dir, "corrupt.shard")

@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/cruisinme30/spelunk/daemon/internal/protocol"
+	"github.com/cruisinme30/spelunk/daemon/internal/query"
 	"github.com/cruisinme30/spelunk/daemon/internal/testutil"
 )
 
@@ -38,6 +39,15 @@ func TestPreviewHighlightsEveryContributingTerm(t *testing.T) {
 	}
 	if !reflect.DeepEqual(got.Hits, want) {
 		t.Errorf("hits = %+v\nwant %+v", got.Hits, want)
+	}
+}
+
+func TestPreviewRejectsIncompleteMatchEnumeration(t *testing.T) {
+	plan := mustPlan(t, `keep -content:/a*/`, defaultSettings, "")
+	doc := &Doc{Path: "dense.txt", Content: []byte("keep\n" + strings.Repeat("b", query.MaxMatchPositions+10))}
+	_, err := PreviewTextContext(t.Context(), &Repo{ID: "r", Name: "r"}, Ref{RepoID: "r", Path: doc.Path, Line: 1}, plan, 1, doc)
+	if !errors.Is(err, query.ErrMatchBudget) {
+		t.Fatalf("incomplete preview = %v; want match budget error", err)
 	}
 }
 

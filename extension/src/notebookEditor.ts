@@ -4,6 +4,7 @@
 import * as vscode from "vscode";
 import type { Daemon } from "./daemon";
 import { cellLineOf, isNotebookPath, notebookLines } from "./notebookLines";
+import { notebookOutputHash } from "./notebookOutputHash";
 import type { OpenTarget } from "./protocol.gen";
 import type { DocumentLines, LineEdit } from "./replaceEdits";
 import { revisionDocumentPath } from "./revisionPath";
@@ -58,16 +59,42 @@ function cellOf(
   return at && cell ? { cell, line: at.line } : undefined;
 }
 
-/** A notebook as replace's check reads it: its cells' text as the editor has it, unsaved edits included. */
-export async function readNotebook(file: string): Promise<DocumentLines | undefined> {
+/** A notebook as replace reads it; outputs are fingerprinted only when the indexed query used them. */
+export async function readNotebook(file: string, includeOutputs: boolean): Promise<DocumentLines | undefined> {
   try {
     const notebook = await vscode.workspace.openNotebookDocument(vscode.Uri.file(file));
-    return notebookLines(
-      notebook.getCells().map((cell) => ({
+    const version = notebook.version;
+    const cells = notebook.getCells();
+    const versions = cells.map((cell) => cell.document.version);
+    const outputs = () =>
+      notebookOutputHash(
+        cells.map((cell) => ({ code: cell.kind === vscode.NotebookCellKind.Code, outputs: cell.outputs })),
+      );
+    const outputHash = includeOutputs ? outputs() : undefined;
+    return {
+      ...notebookLines(
+        cells.map((cell) => ({
+          lineCount: cell.document.lineCount,
+          lineAt: (line: number) => cell.document.lineAt(line).text,
+        })),
+      ),
+      cells: cells.map((cell) => ({
+        kind:
+          cell.kind === vscode.NotebookCellKind.Markup
+            ? "markdown"
+            : cell.document.languageId === "raw"
+              ? "raw"
+              : "code",
+        language: cell.document.languageId,
         lineCount: cell.document.lineCount,
-        lineAt: (line: number) => cell.document.lineAt(line).text,
       })),
-    );
+      ...(outputHash === undefined ? {} : { outputHash }),
+      isCurrent: () =>
+        !notebook.isClosed &&
+        notebook.version === version &&
+        cells.every((cell, index) => !cell.document.isClosed && cell.document.version === versions[index]) &&
+        (!includeOutputs || outputs() === outputHash),
+    };
   } catch {
     return undefined;
   }

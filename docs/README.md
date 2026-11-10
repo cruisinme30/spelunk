@@ -9,6 +9,7 @@ The docs follow [Diátaxis](https://diataxis.fr/): each page has one job. Pick t
 | `reference/` | look something up | Query language, settings, protocol |
 | `explanation/` | understand why it works this way | How results are ranked and merged |
 | [`adr/`](adr/) | know why a decision was made | [Architecture decision records](adr/README.md) |
+| [`wiki/`](wiki/Home.md) | read the canonical user guide and code map | Published to the GitHub wiki after develop merges |
 | [`dev/`](dev/) | build or plan the project itself | Plans and progress, below |
 
 User docs (tutorial, how-to, reference) are written as each feature lands. Until then, the help page inside the
@@ -16,11 +17,14 @@ extension (Spelunk: Open Help) is the query-language reference.
 
 ## For contributors
 
-- [Wiki](https://github.com/cruisinme30/spelunk/wiki): the user guide and query reference, the code map, the rules that
-  always hold, and the design mocks.
+- [Wiki source](wiki/Home.md), with a [published mirror](https://github.com/cruisinme30/spelunk/wiki): the user guide
+  and query reference, the code map, the rules that always hold, and the design mocks.
 - [CONTRIBUTING.md](../CONTRIBUTING.md): setup, commit and code conventions, tests.
 - [dev/implementation-plan.md](dev/implementation-plan.md): the original build plan: scope, interfaces between the
   parts, indexing, performance budgets, the order of work and risks.
 - [dev/test-plan.md](dev/test-plan.md): test layers, the end-to-end harness, its scenarios and CI gates.
 - [dev/mocks.md](dev/mocks.md): the design mockups, with the screen ids tests use in `@covers screen:…`.
 - [dev/progress.md](dev/progress.md): what each stage of the plan delivered, with the tests that prove it.
+- [Improvement notes](dev/improvements/README.md): maintained technical write-ups for individual fixes, their
+  rationale, validation and remaining limits.
+- [Industry comparison](dev/industry-comparison.md): comparable tools, measurement methods and product tradeoffs.

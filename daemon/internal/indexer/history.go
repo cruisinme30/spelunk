@@ -42,14 +42,19 @@ func (ix *Indexer) commitCheck() time.Duration {
 // next check.
 func (ix *Indexer) historyWork(ctx context.Context) {
 	defer ix.workers.Done()
-	poll := time.NewTimer(ix.commitCheck())
-	defer poll.Stop()
+	var poll *time.Timer
+	var ticks <-chan time.Time
+	if !ix.oneShot {
+		poll = time.NewTimer(ix.commitCheck())
+		ticks = poll.C
+		defer poll.Stop()
+	}
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-ix.historyQueue.wake:
-		case <-poll.C:
+		case <-ticks:
 			ix.follow(ctx)
 			ix.queueMovedHeads(ctx)
 			poll.Reset(ix.commitCheck())

@@ -1,60 +1,115 @@
 #!/usr/bin/env node
-// Checks benchmark output against the performance budgets of the
-// implementation plan, and fails when one is exceeded. It reads the output
-// of `go test -bench 'LargeRepo|LargeHistory' -v` (see the Budgets workflow).
-//
+// Release benchmark gate. Require every workload, complete results, p95
+// response/completion latency, and retained heap measurements from both engines.
+// The heap sum is a conservative proxy, not a measurement of daemon RSS.
 // Usage: node scripts/checkBudgets.mjs bench.txt
 import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 
-/** Budgets in milliseconds, by benchmark family. */
-const FIRST_RESULT_MS = { BenchmarkLargeRepo: 100, BenchmarkLargeHistory: 250 };
-/** How long the working-tree index may take to build. */
-const TREE_BUILD_MS = 2 * 60_000;
-/** How long the history index may take to read. */
-const HISTORY_READ_MS = 15 * 60_000;
-/** How long until the first commits of a history read are searchable. */
+const FAMILIES = {
+  BenchmarkLargeRepo: {
+    response: 100,
+    names: ["literal", "conjunction", "regex", "case-filter", "exclude", "file", "no-hit"],
+  },
+  BenchmarkLargeHistory: {
+    response: 250,
+    names: ["literal", "regex", "message", "author", "boolean", "case", "no-hit"],
+  },
+};
+// Existing plan: 2-second search hard limit, 1 GB steady-state memory,
+// 2-minute tree build, 15-minute history read, first commits within a minute.
+const TOTAL_MS = 2000;
+const HEAP_BYTES = 1_000_000_000;
+const MIN_SAMPLES = 20;
+const TREE_BUILD_MS = 120_000;
+const HISTORY_READ_MS = 900_000;
 const HISTORY_FIRST_SEARCHABLE_MS = 60_000;
 
-const file = process.argv[2];
-if (!file) throw new Error("usage: node scripts/checkBudgets.mjs <go test -bench output>");
-const output = readFileSync(file, "utf8");
-
-/** Go's duration strings ("1m2.5s", "608ms", "21.95s") in milliseconds. */
+/** Read an entire Go duration, rejecting malformed or missing measurements. */
 function milliseconds(duration) {
-  let total = 0;
-  for (const [, value, unit] of duration.matchAll(/([\d.]+)(ms|µs|h|m|s)/g)) {
-    total += Number(value) * { h: 3_600_000, m: 60_000, s: 1000, ms: 1, µs: 0.001 }[unit];
-  }
-  return total;
+  const parts = [...duration.matchAll(/(\d+(?:\.\d+)?)(ns|µs|ms|s|m|h)/g)];
+  if (parts.map(([part]) => part).join("") !== duration) return Number.NaN;
+  return parts.reduce(
+    (sum, [, value, unit]) =>
+      sum + Number(value) * { h: 3_600_000, m: 60_000, s: 1000, ms: 1, µs: 0.001, ns: 0.000_001 }[unit],
+    0,
+  );
 }
 
-const failures = [];
-let checked = 0;
-for (const [, family, name, firstMs] of output.matchAll(/^(Benchmark\w+)\/(\S+?)-\d+\s.*?([\d.]+) ms-to-first/gm)) {
-  checked++;
-  const budget = FIRST_RESULT_MS[family];
-  const verdict = Number(firstMs) <= budget ? "ok" : "OVER";
-  console.log(`${verdict.padEnd(4)} ${family}/${name}: first result in ${firstMs} ms (budget ${budget} ms)`);
-  if (verdict === "OVER") failures.push(`${family}/${name}`);
+/** Require a finite nonnegative metric, then enforce its maximum. */
+function withinBudget(value, maximum, label, failures) {
+  if (!Number.isFinite(value) || value < 0 || value > maximum) failures.push(`${label}: ${value} (maximum ${maximum})`);
 }
-// A benchmark that didn't run (it failed to build, or panicked) must fail the check, not skip its budgets.
-const built = /indexed \d+ files in (\S+);/.exec(output);
-if (built) {
-  console.log(`working tree indexed in ${built[1]}`);
-  if (milliseconds(built[1]) > TREE_BUILD_MS) failures.push("working-tree build time");
-} else {
-  failures.push("no working-tree build time found");
+
+/** Check one completed benchmark line, including the no-hit negative control. */
+function checkSearch(match, failures, seen) {
+  const [, family, name, iterations, tail] = match;
+  const suite = FAMILIES[family];
+  const label = `${family}/${name}`;
+  if (!suite.names.includes(name)) failures.push(`unexpected workload ${label}`);
+  seen.add(label);
+  const entries = [...tail.matchAll(/(\S+)\s+(\S+)(?:\s+|$)/g)].map(([, value, unit]) => [unit, Number(value)]);
+  if (new Set(entries.map(([unit]) => unit)).size !== entries.length) failures.push(`${label} repeats a metric`);
+  const metrics = Object.fromEntries(entries);
+  withinBudget(metrics["ms-response-p95"], suite.response, `${label} response p95`, failures);
+  withinBudget(metrics["ms-total-p95"], TOTAL_MS, `${label} total p95`, failures);
+  withinBudget(metrics.matches, Number.MAX_SAFE_INTEGER, `${label} match count`, failures);
+  if (!Number.isInteger(metrics.matches)) failures.push(`${label} has no integer match count`);
+  if (metrics.truncated !== 0) failures.push(`${label} is truncated or lacks truncation evidence`);
+  if (!Number.isSafeInteger(metrics.samples) || metrics.samples !== Number(iterations) || metrics.samples < MIN_SAMPLES)
+    failures.push(`${label} needs at least ${MIN_SAMPLES} measured samples`);
+  if (metrics["ms-response-p95"] > metrics["ms-total-p95"]) failures.push(`${label} response exceeds completion`);
+  if (name === "no-hit" && (metrics.matches !== 0 || metrics["ms-response-p95"] !== metrics["ms-total-p95"])) {
+    failures.push(`${label} must have zero matches and measure completion as its response`);
+  }
 }
-const read = /read \d+ commits in (\S+) \(newest searchable after (\S+)\)/.exec(output);
-if (!read) failures.push("no history read time found");
-if (read) {
-  const [, total, first] = read;
-  console.log(`history read in ${total}, newest searchable after ${first}`);
-  if (milliseconds(total) > HISTORY_READ_MS) failures.push("history read time");
-  if (milliseconds(first) > HISTORY_FIRST_SEARCHABLE_MS) failures.push("time to the first searchable commits");
+
+/** Validate build timing and retained heap; return the largest heap observed. */
+function checkBuilds(output, family, failures) {
+  const tree = family === "tree";
+  const pattern = tree
+    ? /indexed (\d+) files in (\S+); heap (\d+) bytes/g
+    : /read (\d+) commits in (\S+) \(newest searchable after (\S+)\); heap (\d+) bytes/g;
+  const records = [...output.matchAll(pattern)];
+  if (records.length === 0) failures.push(`no ${family} build and heap measurements found`);
+  let heap = 0;
+  for (const record of records) {
+    if (Number(record[1]) < 1) failures.push(`${family} corpus is empty`);
+    withinBudget(milliseconds(record[2]), tree ? TREE_BUILD_MS : HISTORY_READ_MS, `${family} build time`, failures);
+    if (!tree) withinBudget(milliseconds(record[3]), HISTORY_FIRST_SEARCHABLE_MS, "first searchable history", failures);
+    heap = Math.max(heap, Number(record[tree ? 3 : 4]));
+  }
+  return heap;
 }
-if (checked === 0) failures.push("no benchmark results found");
-if (failures.length > 0) {
-  console.error(`Over budget: ${failures.join(", ")}`);
-  process.exitCode = 1;
+
+/** Return every gate failure; missing evidence is a failure, never a skipped budget. */
+export function checkBudgets(output) {
+  const failures = [];
+  const seen = new Set();
+  for (const match of output.matchAll(/^(BenchmarkLarge(?:Repo|History))\/(\S+?)-\d+\s+(\d+)\s+(.+)$/gm)) {
+    checkSearch(match, failures, seen);
+  }
+  for (const [family, suite] of Object.entries(FAMILIES)) {
+    for (const name of suite.names) {
+      if (!seen.has(`${family}/${name}`)) failures.push(`missing workload ${family}/${name}`);
+    }
+  }
+  if (/^(?:FAIL\b|--- FAIL:|panic:)/m.test(output)) failures.push("benchmark process reported failure");
+  const heap = checkBuilds(output, "tree", failures) + checkBuilds(output, "history", failures);
+  withinBudget(heap, HEAP_BYTES, "combined retained heap bytes (RSS not measured)", failures);
+  return failures;
+}
+
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  const file = process.argv[2];
+  if (!file) throw new Error("usage: node scripts/checkBudgets.mjs <go test -bench output>");
+  const failures = checkBudgets(readFileSync(file, "utf8"));
+  if (failures.length > 0) {
+    console.error(`Benchmark gate failed:\n${failures.map((failure) => `- ${failure}`).join("\n")}`);
+    process.exitCode = 1;
+  } else {
+    console.log(
+      "Benchmark gate passed: complete workloads, p95 response/total latency, and retained heap proxy. RSS not measured.",
+    );
+  }
 }

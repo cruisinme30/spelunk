@@ -5,7 +5,7 @@ package protocol
 import "encoding/json"
 
 // Version is the protocol version exchanged in initialize.
-const Version = 1
+const Version = 2
 
 // Application error codes carried in JSON-RPC error.code.
 const (
@@ -1141,6 +1141,8 @@ type SearchStartParams struct {
 	TimeLimitMs int `json:"timeLimitMs,omitempty"`
 	// Count is how many results to return when the query has no count:; absent means the setting (spelunk.results.count).
 	Count int `json:"count,omitempty"`
+	// ResultLimit is a hard maximum on results returned by this call, even when the query requests count:all; 0 or absent leaves the query's count unchanged. Must be between 0 and 50000.
+	ResultLimit int `json:"resultLimit,omitempty"`
 }
 
 // SearchResult ends a search after its batches.
@@ -1293,12 +1295,25 @@ func (v ReplaceLine) MarshalJSON() ([]byte, error) {
 	return json.Marshal(p)
 }
 
+// ReplaceCell is a source cell whose boundary and language must still match the indexed notebook before edits apply.
+type ReplaceCell struct {
+	Kind      string `json:"kind"`
+	Language  string `json:"language"`
+	LineCount int    `json:"lineCount"`
+}
+
 // ReplaceFile is one file to edit, with its absolute path.
 type ReplaceFile struct {
 	RepoID string        `json:"repoId"`
 	Path   string        `json:"path"`
 	File   string        `json:"file"`
 	Lines  []ReplaceLine `json:"lines"`
+	// SourceHash is a SHA-256 hex digest of every decoded editor source line, each followed by LF. Plain files include the trailing empty line when present; notebooks contain source lines only, with no synthetic final empty line or outputs.
+	SourceHash string `json:"sourceHash"`
+	// OutputHash is when this indexed notebook generation included outputs, SHA-256 hex of its searchable output blocks in cell order, including the empty digest when it had none. Each block is framed as decimal cell number, colon, decimal UTF-8 byte length, colon, then normalized text including its final LF.
+	OutputHash string `json:"outputHash,omitempty"`
+	// Cells is for notebooks, the source cells in order; absent for ordinary files.
+	Cells []ReplaceCell `json:"cells,omitempty"`
 }
 
 // MarshalJSON emits [] rather than null for required arrays.
@@ -1313,9 +1328,11 @@ func (v ReplaceFile) MarshalJSON() ([]byte, error) {
 
 // ReplacePlan is every edit a replace would make. When it would make more than the daemon plans at once, truncated is set and files is empty.
 type ReplacePlan struct {
-	Matches   int           `json:"matches"`
-	Files     []ReplaceFile `json:"files"`
-	Truncated bool          `json:"truncated"`
+	// Matches is the number of editable matches found; a lower bound when truncated is true because planning stops after exceeding the edit limit.
+	Matches int           `json:"matches"`
+	Files   []ReplaceFile `json:"files"`
+	// Truncated is whether the edit limit was exceeded; files is empty and matches is a lower bound in that case.
+	Truncated bool `json:"truncated"`
 	// Excluded is how many matches are in files VS Code's excludes hide, which the plan leaves alone; absent when none.
 	Excluded int `json:"excluded,omitempty"`
 }
@@ -1458,7 +1475,7 @@ type ReplacePreviewMessage struct {
 	Replacement string `json:"replacement"`
 }
 
-// ReplaceApplyMessage replaces the matches its preview showed; matches is how many that was, so a plan that changed since is not applied.
+// ReplaceApplyMessage requests the edits its current preview showed. The host compares the complete new plan with its saved preview, including source fingerprints, before applying; matches also verifies the preview count.
 type ReplaceApplyMessage struct {
 	Seq         int    `json:"seq"`
 	Text        string `json:"text"`

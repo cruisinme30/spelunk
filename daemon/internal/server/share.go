@@ -158,7 +158,7 @@ func (s *Server) updateSharing(ctx context.Context) {
 	case on && s.share.listener == nil:
 		listener, err := Listen(ctx, RunDir(), WindowSocket(RunDir(), os.Getpid()))
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "spelunk-daemon: not sharing this window: %v\n", err)
+			_, _ = fmt.Fprintf(os.Stderr, "spelunk-daemon: not sharing this window: %v\n", err)
 			return
 		}
 		acceptCtx, cancel := context.WithCancel(ctx)

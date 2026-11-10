@@ -512,7 +512,7 @@ func (p *parser) reportUnknownOperator(t token) {
 	for _, name := range names {
 		fixes = append(fixes, replaceFix(fmt.Sprintf("Change to %s:", name), nameSpan, name+":"))
 	}
-	fixes = append(fixes, replaceFix("Search for the text instead", p.span(t), `"`+strings.ReplaceAll(word, `"`, `\"`)+`"`))
+	fixes = append(fixes, replaceFix("Search for the text instead", p.span(t), quoteText(word)))
 	p.problems.errorf(DiagUnknownOperator, nameSpan, fixes, "%s", message)
 }
 

@@ -31,7 +31,7 @@ import { textWithoutCompletedWord } from "../completedWord";
 import { RpcError } from "../jsonRpc";
 import { ErrorCodes } from "../protocol.gen";
 import { makeRoot } from "../roots";
-import type { DocumentLines } from "../replaceEdits";
+import { documentHash, type DocumentLines } from "../replaceEdits";
 import { MESSAGE_VERSION, parseWebviewMessage, type WebviewMessage } from "../webviewMessages";
 import { newTestDaemon, SKIP_WITHOUT_DAEMON as skip, untilIndexed, waitFor } from "./realDaemon";
 
@@ -1374,7 +1374,15 @@ test("a watched query announces new commits through the real daemon", { skip }, 
 const planAt = (path: string): ReplacePlan => ({
   matches: 1,
   truncated: false,
-  files: [{ repoId: "r1", path, file: `/work/${path}`, lines: [{ line: 1, text: "retry()", edits: [] }] }],
+  files: [
+    {
+      repoId: "r1",
+      path,
+      file: `/work/${path}`,
+      sourceHash: "indexed-source",
+      lines: [{ line: 1, text: "retry()", edits: [] }],
+    },
+  ],
 });
 
 test("Replace all applies nothing when the matches moved since the preview, though their count is the same", async () => {
@@ -1523,4 +1531,82 @@ test("a query Ask wrote is under Recent at once, labeled with the question, and 
   assert.ok(restored);
   assert.equal(restored.text, "symbol:Retry");
   assert.deepEqual(restored.recent, [{ query: "symbol:Retry", question }, { query: "timeout" }]);
+});
+
+test("Replace all needs the matching preview, including untouched source context", async () => {
+  // @covers msg:replace.preview msg:replace.apply
+  const host = recordingUi();
+  let plan = planAt("a.py");
+  const { backend } = scriptedBackend((method) => {
+    if (method === "replace/plan") return plan;
+    throw new Error(`unexpected request ${method}`);
+  });
+  const controller = newController(backend, host.ui);
+  const message = { text: "retry", replacement: "next", matches: 1 };
+  await controller.handle({ v: MESSAGE_VERSION, type: "replace.apply", payload: { seq: 1, ...message } });
+  assert.equal(host.payloads("replace.done").at(-1)?.changed, true, "missing preview refreshes instead of applying");
+  plan = { ...plan, files: plan.files.map((file) => ({ ...file, sourceHash: "changed-context" })) };
+  await controller.handle({ v: MESSAGE_VERSION, type: "replace.apply", payload: { seq: 2, ...message } });
+  assert.equal(
+    host.payloads("replace.done").at(-1)?.changed,
+    true,
+    "same count and edit lines do not hide changed context",
+  );
+  await controller.handle({
+    v: MESSAGE_VERSION,
+    type: "replace.apply",
+    payload: { seq: 3, ...message, replacement: "different" },
+  });
+  assert.equal(host.payloads("replace.done").at(-1)?.changed, true, "a different replacement needs its own preview");
+});
+
+test("Replace saves only while the original file paths remain current", async () => {
+  // @covers msg:replace.apply msg:replace.save
+  const host = recordingUi();
+  let pathCurrent = true;
+  let documentCurrent = true;
+  let saved = 0;
+  const document = {
+    lineCount: 1,
+    lineText: () => "retry()",
+    isCurrent: () => documentCurrent,
+    pathIsCurrent: () => pathCurrent,
+  };
+  const plan: ReplacePlan = {
+    matches: 1,
+    truncated: false,
+    files: [
+      {
+        repoId: "r1",
+        path: "a.py",
+        file: "/work/a.py",
+        sourceHash: documentHash(document),
+        lines: [{ line: 1, text: "retry()", edits: [{ start: 0, end: 5, newText: "next" }] }],
+      },
+    ],
+  };
+  const { backend } = scriptedBackend((method) => {
+    if (method === "replace/plan") return plan;
+    throw new Error(`unexpected request ${method}`);
+  });
+  host.ui.readDocument = () => Promise.resolve(document);
+  host.ui.applyEdits = (_edits, _label, isCurrent) => {
+    assert.equal(isCurrent(), true);
+    documentCurrent = false; // our own edit changes the text document's version
+    return Promise.resolve(true);
+  };
+  host.ui.saveFiles = () => {
+    saved++;
+  };
+  const controller = newController(backend, host.ui);
+  const message = { text: "retry", replacement: "next" };
+  await controller.handle({ v: MESSAGE_VERSION, type: "replace.preview", payload: { seq: 1, ...message } });
+  await controller.handle({ v: MESSAGE_VERSION, type: "replace.apply", payload: { seq: 2, ...message, matches: 1 } });
+  assert.equal(host.payloads("replace.done").at(-1)?.replaced, 1);
+  await controller.handle({ v: MESSAGE_VERSION, type: "replace.save", payload: {} });
+  assert.equal(saved, 1, "our own text edit does not invalidate path validation");
+  pathCurrent = false;
+  await controller.handle({ v: MESSAGE_VERSION, type: "replace.save", payload: {} });
+  assert.equal(saved, 1, "a path swap cannot be saved through the old plan");
+  assert.match(host.errors.at(-1) ?? "", /path changed/);
 });

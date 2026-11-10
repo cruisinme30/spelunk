@@ -238,7 +238,7 @@ func TestFindGivesUpOnTemplatesThatTakeTooLong(t *testing.T) {
 func TestFindStaysFastOnLargeFiles(t *testing.T) {
 	var b strings.Builder
 	for i := range 20_000 {
-		fmt.Fprintf(&b, "    retry(call_%d, tries=%d)\n    x = f(%d)\n", i, i, i)
+		_, _ = fmt.Fprintf(&b, "    retry(call_%d, tries=%d)\n    x = f(%d)\n", i, i, i)
 	}
 	tmpl := mustParse(t, "retry(:[call], attempts=:[n])")
 	began := time.Now()

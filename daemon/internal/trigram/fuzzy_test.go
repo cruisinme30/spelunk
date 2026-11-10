@@ -34,6 +34,39 @@ func TestMatchFuzzyFindsFileNamesWithAWordsLettersInOrder(t *testing.T) {
 	}
 }
 
+func TestFuzzyNamesUseTheExactMatchersUnicodeCaseFolding(t *testing.T) {
+	// @covers op:match op:case
+	// cspell:ignore aelvin ftop ndex
+	for _, tc := range []struct {
+		name, term string
+		matched    bool
+	}{
+		{"\u017ftopWorker.go", "stw", true},
+		{"StopWorker.go", "\u017ftw", true},
+		{"\u03c2ampleValue.go", "\u03c3av", true},
+		{"\u03c3ampleValue.go", "\u03c2av", true},
+		{"\u03c2ampleValue.go", "\u03a3av", true},
+		{"\u212aelvinHandler.go", "klh", true},
+		{"\u0130ndexHandler.go", "idh", false},
+	} {
+		repo := repoOf("names", map[string]string{tc.name: ""})
+		for _, sensitive := range []bool{false, true} {
+			text := "type:file match:fuzzy " + tc.term
+			if sensitive {
+				text += " case:yes"
+			}
+			items, _ := runItems(t, text, defaultSettings, "", repo)
+			want := 0
+			if tc.matched && !sensitive {
+				want = 1
+			}
+			if len(items) != want {
+				t.Errorf("Search(%q) in %q = %d results, want %d", text, tc.name, len(items), want)
+			}
+		}
+	}
+}
+
 func TestExactNameMatchesRankAboveFuzzyOnesAndCodeLinesStayExact(t *testing.T) {
 	items, _ := runItems(t, "match:fuzzy usrsvc", bestMatchSettings, "", fuzzyRepo())
 	want := []string{

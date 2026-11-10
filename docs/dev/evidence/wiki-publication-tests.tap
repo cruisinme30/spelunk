@@ -1,0 +1,82 @@
+TAP version 13
+# Subtest: wiki paths reject traversal, metadata, unsupported payloads and platform separators
+ok 1 - wiki paths reject traversal, metadata, unsupported payloads and platform separators
+  ---
+  duration_ms: 1.768477
+  type: 'test'
+  ...
+# Subtest: publication copies safe assets, removes obsolete pages, preserves history and makes no duplicate commit
+ok 2 - publication copies safe assets, removes obsolete pages, preserves history and makes no duplicate commit
+  ---
+  duration_ms: 245.268862
+  type: 'test'
+  ...
+# Subtest: an older develop SHA cannot publish over newer code
+ok 3 - an older develop SHA cannot publish over newer code
+  ---
+  duration_ms: 239.23138
+  type: 'test'
+  ...
+# Subtest: an unrelated develop commit does not strand an otherwise current publication
+ok 4 - an unrelated develop commit does not strand an otherwise current publication
+  ---
+  duration_ms: 317.85198
+  type: 'test'
+  ...
+# Subtest: new publication tooling supersedes an older run even when docs match
+ok 5 - new publication tooling supersedes an older run even when docs match
+  ---
+  duration_ms: 220.893206
+  type: 'test'
+  ...
+# Subtest: publication identity includes only paths that trigger the workflow
+ok 6 - publication identity includes only paths that trigger the workflow
+  ---
+  duration_ms: 0.449077
+  type: 'test'
+  ...
+# Subtest: a develop advance while preparing publication leaves the remote untouched
+ok 7 - a develop advance while preparing publication leaves the remote untouched
+  ---
+  duration_ms: 146.167797
+  type: 'test'
+  ...
+# Subtest: source symlinks and unexpected metadata fail before altering the mirror
+ok 8 - source symlinks and unexpected metadata fail before altering the mirror
+  ---
+  duration_ms: 172.990347
+  type: 'test'
+  ...
+# Subtest: symlink ancestors and leaf files in a mirror cannot redirect publication
+ok 9 - symlink ancestors and leaf files in a mirror cannot redirect publication
+  ---
+  duration_ms: 179.687961
+  type: 'test'
+  ...
+# Subtest: a concurrent wiki update is rejected without force or history loss
+ok 10 - a concurrent wiki update is rejected without force or history loss
+  ---
+  duration_ms: 219.685484
+  type: 'test'
+  ...
+# Subtest: missing source and dirty or mismatched checkouts never publish
+ok 11 - missing source and dirty or mismatched checkouts never publish
+  ---
+  duration_ms: 103.699792
+  type: 'test'
+  ...
+# Subtest: the source checker sees Markdown images as well as HTML screenshot links
+ok 12 - the source checker sees Markdown images as well as HTML screenshot links
+  ---
+  duration_ms: 0.710024
+  type: 'test'
+  ...
+1..12
+# tests 12
+# suites 0
+# pass 12
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1991.417798

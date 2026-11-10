@@ -7,6 +7,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/cruisinme30/spelunk/daemon/internal/protocol"
@@ -44,12 +47,59 @@ func (s *Server) replacePlan(ctx context.Context, raw json.RawMessage) (any, err
 	ctx, cancel := context.WithTimeoutCause(ctx, replaceBudget,
 		rpc.Errorf(protocol.CodeOverloaded, "finding every match took too long; narrow the search to replace"))
 	defer cancel()
+	if templateErr := validateReplacement(ctx, term, params.Replacement); templateErr != nil {
+		return nil, templateErr
+	}
 	repos := trigram.WithOpenFiles(s.index.Repos(), params.OpenFiles)
 	replace, err := trigram.Replacements(ctx, plan, repos, term, params.Replacement, maxReplaceMatches)
+	if errors.Is(err, trigram.ErrCaptureBudget) || errors.Is(err, trigram.ErrReplaceBudget) || errors.Is(err, trigram.ErrMatchBudget) {
+		return nil, rpc.Errorf(protocol.CodeOverloaded, "%v", err)
+	}
 	if errors.Is(err, trigram.ErrIncomplete) {
 		return nil, rpc.Errorf(protocol.CodeQueryInvalid, "%v", err)
 	}
-	return replace, err
+	if err != nil {
+		return nil, err
+	}
+	if err := checkReplacementPaths(ctx, replace.Files, repos); err != nil {
+		return nil, err
+	}
+	return replace, nil
+}
+
+// checkReplacementPaths refuses indexed paths whose live files can no
+// longer be edited inside the selected roots. The extension repeats this
+// check against its trusted workspace immediately before applying/saving;
+// a plan cannot hold a filesystem path still across editor interaction.
+func checkReplacementPaths(ctx context.Context, files []protocol.ReplaceFile, repos []trigram.Repo) error {
+	roots := make(map[string]string, len(repos))
+	for _, repo := range repos {
+		roots[repo.ID] = repo.Root
+	}
+	for i := range files {
+		file := &files[i]
+		if ctx.Err() != nil {
+			return context.Cause(ctx)
+		}
+		root, ok := roots[file.RepoID]
+		if !ok || !filepath.IsLocal(filepath.FromSlash(file.Path)) {
+			return rpc.Errorf(protocol.CodeRefStale, "replacement file is outside its folder")
+		}
+		if err := insideRoot(root, file.Path); err != nil {
+			return err
+		}
+		// Unlike read-only opening, replacement never follows even an
+		// in-root link: the index did not index that redirected file.
+		full := root
+		for _, part := range strings.Split(file.Path, "/") {
+			full = filepath.Join(full, part)
+			info, err := os.Lstat(full)
+			if err != nil || info.Mode()&os.ModeSymlink != 0 {
+				return rpc.Errorf(protocol.CodeRefStale, "replacement path changed since indexing: %s", file.Path)
+			}
+		}
+	}
+	return nil
 }
 
 // replacedTerm is the one text term a replace changes, or why plan can't

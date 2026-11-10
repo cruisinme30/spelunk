@@ -172,8 +172,8 @@ func TestSearchOfAFolderNothingIndexed(t *testing.T) {
 	f := newFixture(t, true)
 	elsewhere := testutil.WriteTree(t, map[string]string{"a.txt": "alpha\n"})
 	code, out, errOut := f.run(t, elsewhere, "search", "alpha")
-	if code != exitError || out != "" || !strings.Contains(errOut, "Not indexed yet. Open this folder in VS Code") {
-		t.Errorf("exit %d, stdout %q, stderr %q; want 2 and a pointer to VS Code", code, out, errOut)
+	if code != exitError || out != "" || !strings.Contains(errOut, "Not indexed yet. Run spelunk index") {
+		t.Errorf("exit %d, stdout %q, stderr %q; want 2 and a pointer to spelunk index", code, out, errOut)
 	}
 }
 

@@ -1,0 +1,416 @@
+[
+  {
+    "name": "no outputs",
+    "notebook": {
+      "metadata": {
+        "language_info": {
+          "name": "python"
+        }
+      },
+      "cells": [
+        {
+          "cell_type": "code",
+          "source": "Retry",
+          "outputs": []
+        }
+      ]
+    },
+    "editor": [
+      {
+        "code": true,
+        "outputs": []
+      }
+    ],
+    "hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "name": "first output",
+    "notebook": {
+      "metadata": {
+        "language_info": {
+          "name": "python"
+        }
+      },
+      "cells": [
+        {
+          "cell_type": "code",
+          "source": "Retry",
+          "outputs": [
+            {
+              "output_type": "stream",
+              "name": "stdout",
+              "text": "forbidden\n"
+            }
+          ]
+        }
+      ]
+    },
+    "editor": [
+      {
+        "code": true,
+        "outputs": [
+          {
+            "items": [
+              {
+                "mime": "application/vnd.code.notebook.stdout",
+                "text": "forbidden\n"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "hash": "4e8326bcc63bdce40058e298af82e9b93b419934d0ea61beed44887d04bd43be"
+  },
+  {
+    "name": "empty printed line",
+    "notebook": {
+      "metadata": {
+        "language_info": {
+          "name": "python"
+        }
+      },
+      "cells": [
+        {
+          "cell_type": "code",
+          "source": "Retry",
+          "outputs": [
+            {
+              "output_type": "stream",
+              "name": "stdout",
+              "text": "\n"
+            }
+          ]
+        }
+      ]
+    },
+    "editor": [
+      {
+        "code": true,
+        "outputs": [
+          {
+            "items": [
+              {
+                "mime": "application/vnd.code.notebook.stdout",
+                "text": "\n"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "hash": "3bda5af51b78d986300de15b166f2f18199c5d19b02aa13529277943c811e2ca"
+  },
+  {
+    "name": "CRLF final line",
+    "notebook": {
+      "metadata": {
+        "language_info": {
+          "name": "python"
+        }
+      },
+      "cells": [
+        {
+          "cell_type": "code",
+          "source": "Retry",
+          "outputs": [
+            {
+              "output_type": "stream",
+              "name": "stdout",
+              "text": "x\r\n"
+            }
+          ]
+        }
+      ]
+    },
+    "editor": [
+      {
+        "code": true,
+        "outputs": [
+          {
+            "items": [
+              {
+                "mime": "application/vnd.code.notebook.stdout",
+                "text": "x\r\n"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "hash": "1ff0cd902a953b18d1fa084aff554a50b31902dda106853186b2f0c5162a7036"
+  },
+  {
+    "name": "Unicode and byte order marker",
+    "notebook": {
+      "metadata": {
+        "language_info": {
+          "name": "python"
+        }
+      },
+      "cells": [
+        {
+          "cell_type": "code",
+          "source": "Retry",
+          "outputs": [
+            {
+              "output_type": "stream",
+              "name": "stdout",
+              "text": "﻿😀x\n"
+            }
+          ]
+        }
+      ]
+    },
+    "editor": [
+      {
+        "code": true,
+        "outputs": [
+          {
+            "items": [
+              {
+                "mime": "application/vnd.code.notebook.stdout",
+                "text": "﻿😀x\n"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "hash": "8ffdae6c0b50d99a5de2cb8726e6b9d82405e810dee3b39b8cff129ca124b985"
+  },
+  {
+    "name": "image captions are not searched",
+    "notebook": {
+      "metadata": {
+        "language_info": {
+          "name": "python"
+        }
+      },
+      "cells": [
+        {
+          "cell_type": "code",
+          "source": "Retry",
+          "outputs": [
+            {
+              "output_type": "display_data",
+              "data": {
+                "image/png": "picture",
+                "text/plain": "caption"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "editor": [
+      {
+        "code": true,
+        "outputs": [
+          {
+            "items": [
+              {
+                "mime": "image/png",
+                "text": "picture"
+              },
+              {
+                "mime": "text/plain",
+                "text": "caption"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "name": "joined streams and rich display",
+    "notebook": {
+      "metadata": {
+        "language_info": {
+          "name": "python"
+        }
+      },
+      "cells": [
+        {
+          "cell_type": "markdown",
+          "source": "Retry",
+          "outputs": [
+            {
+              "output_type": "stream",
+              "name": "stdout",
+              "text": "ignored"
+            }
+          ]
+        },
+        {
+          "cell_type": "code",
+          "source": "Retry",
+          "outputs": [
+            {
+              "output_type": "stream",
+              "name": "stdout",
+              "text": ["safe\r\n"]
+            },
+            {
+              "output_type": "stream",
+              "name": "stderr",
+              "text": "more\r"
+            },
+            {
+              "output_type": "display_data",
+              "data": {
+                "image/png": "picture",
+                "text/plain": "caption"
+              }
+            },
+            {
+              "output_type": "execute_result",
+              "data": {
+                "text/plain": [" café\n", "last\n"],
+                "text/html": "<p>ignored</p>"
+              }
+            },
+            {
+              "output_type": "error",
+              "traceback": ["ignored"]
+            }
+          ]
+        }
+      ]
+    },
+    "editor": [
+      {
+        "code": false,
+        "outputs": [
+          {
+            "items": [
+              {
+                "mime": "application/vnd.code.notebook.stdout",
+                "text": "ignored"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "code": true,
+        "outputs": [
+          {
+            "items": [
+              {
+                "mime": "application/vnd.code.notebook.stdout",
+                "text": "safe\r\n"
+              }
+            ]
+          },
+          {
+            "items": [
+              {
+                "mime": "application/vnd.code.notebook.stderr",
+                "text": "more\r"
+              }
+            ]
+          },
+          {
+            "items": [
+              {
+                "mime": "image/png",
+                "text": "picture"
+              },
+              {
+                "mime": "text/plain",
+                "text": "caption"
+              }
+            ]
+          },
+          {
+            "items": [
+              {
+                "mime": "text/plain",
+                "text": " café\nlast\n"
+              },
+              {
+                "mime": "text/html",
+                "text": "<p>ignored</p>"
+              }
+            ]
+          },
+          {
+            "items": [
+              {
+                "mime": "application/vnd.code.notebook.error",
+                "text": "ignored"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "hash": "02eea1dd0a593546588061357f98a55aaa422537f286c2d417560d5744f3ad34"
+  },
+  {
+    "name": "two code cell output blocks",
+    "notebook": {
+      "metadata": {
+        "language_info": {
+          "name": "python"
+        }
+      },
+      "cells": [
+        {
+          "cell_type": "code",
+          "source": "Retry",
+          "outputs": [
+            {
+              "output_type": "stream",
+              "name": "stdout",
+              "text": "a"
+            }
+          ]
+        },
+        {
+          "cell_type": "code",
+          "source": "Retry",
+          "outputs": [
+            {
+              "output_type": "stream",
+              "name": "stdout",
+              "text": "b"
+            }
+          ]
+        }
+      ]
+    },
+    "editor": [
+      {
+        "code": true,
+        "outputs": [
+          {
+            "items": [
+              {
+                "mime": "application/vnd.code.notebook.stdout",
+                "text": "a"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "code": true,
+        "outputs": [
+          {
+            "items": [
+              {
+                "mime": "application/vnd.code.notebook.stdout",
+                "text": "b"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "hash": "07739cddaf67de34c3cd1ebbf177306cebf368ac610d3f24fae599122acc9069"
+  }
+]

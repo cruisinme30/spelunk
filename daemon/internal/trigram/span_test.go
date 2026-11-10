@@ -1,6 +1,8 @@
 package trigram
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"reflect"
 	"strings"
@@ -296,6 +298,16 @@ func TestLineFinderKeepsARegexThatSpansLinesToOneLine(t *testing.T) {
 	}
 }
 
+func TestLineFinderReportsCancellation(t *testing.T) {
+	plan := mustPlan(t, "needle", defaultSettings, "")
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	lines, err := NewLineFinder().LinesContext(ctx, []byte("needle\n"), plan.Terms[0])
+	if !errors.Is(err, context.Canceled) || len(lines) != 0 {
+		t.Fatalf("cancelled line finding = %v, %v; want no lines and cancellation", lines, err)
+	}
+}
+
 // The preview shows the whole match, marks each of its lines, and says
 // where it ends; it reads "\r\n" files as the search does.
 func TestPreviewShowsAMatchAcrossLines(t *testing.T) {
@@ -368,13 +380,14 @@ func TestOpenTargetSelectsAMatchAcrossLines(t *testing.T) {
 // Joining many matches that share lines stays linear: a file where every
 // line ends one match and starts the next is one result, found quickly.
 func TestJoiningManyMatchesIsQuick(t *testing.T) {
-	repo := repoOf("r", map[string]string{"a.txt": strings.Repeat("ab\n", 200_000)})
+	const lines = 20_000 // below the explicit per-text position budget
+	repo := repoOf("r", map[string]string{"a.txt": strings.Repeat("ab\n", lines)})
 	start := time.Now()
 	items, stats := runItems(t, `type:code /b\na/`, defaultSettings, "", repo)
 	if elapsed := time.Since(start); elapsed > 5*time.Second {
 		t.Errorf("search took %s", elapsed)
 	}
-	if len(items) != 1 || stats.Total != 1 || len(items[0].SpanLines) != maxSpanLines || items[0].EndLine != 200_000 {
-		t.Fatalf("got %d results (total %d), want one from line 1 to 200000", len(items), stats.Total)
+	if len(items) != 1 || stats.Total != 1 || len(items[0].SpanLines) != maxSpanLines || items[0].EndLine != lines {
+		t.Fatalf("got %d results (total %d), want one from line 1 to %d", len(items), stats.Total, lines)
 	}
 }

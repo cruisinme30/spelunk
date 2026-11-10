@@ -57,7 +57,8 @@ A keystroke travels webview → extension → RPC server → planner → one eng
 batches. The indexer is the only writer to the index directory.
 
 The same binary is also the `spelunk` command and the MCP server AI agents run (see "The spelunk command and agents").
-Neither builds or saves an index: they ask a window's daemon over its socket, or a read-only background reader.
+Search and MCP ask a window's daemon over its socket, or a read-only background reader. The explicit
+`spelunk index` command can build or rebuild the same index under the existing single-writer lock.
 
 ### Who owns what
 
@@ -254,12 +255,13 @@ used unchanged here.
 
 The host talks to the daemon over JSON-RPC 2.0 on the daemon's stdin and stdout, with LSP-style `Content-Length`
 framing. There is no network port. The host spawns one daemon per VS Code window and restarts it if it dies.
+The internal contract is protocol version 2; this is separate from MCP negotiation and the webview message version.
 
 ### Lifecycle
 
 1. Host spawns the daemon binary bundled for the platform and sends `initialize`.
-2. The daemon replies with its version and the protocol version. On a protocol mismatch the host shows an error and
-   stops.
+2. The daemon rejects a mismatched protocol before applying initialization settings or roots. The host also checks
+   the response version, shows an error on mismatch and stops.
 3. Host sends `workspace/setRoots` whenever folders are added or removed, and `settings/update` and `watch/set`
    whenever a `spelunk.*` setting changes.
 4. On exit the host sends `shutdown`, then `exit`. The daemon must flush index writes within 2 seconds.
@@ -268,7 +270,7 @@ framing. There is no network port. The host spawns one daemon per VS Code window
 
 | Method | Kind | Params | Result |
 | --- | --- | --- | --- |
-| `initialize` | request | `{ protocol: 1, roots: Root[], settings: Settings, watches?: string[] }` | `{ daemonVersion, protocol: 1 }` |
+| `initialize` | request | `{ protocol: 2, roots: Root[], settings: Settings, watches?: string[] }` | `{ daemonVersion, protocol: 2 }` |
 | `workspace/setRoots` | notification | `{ roots: Root[] }` | — |
 | `settings/update` | notification | `{ settings: Settings }` | — |
 | `watch/set` | notification | `{ queries: string[] }`: the watched pinned queries | — |
@@ -279,6 +281,7 @@ framing. There is no network port. The host spawns one daemon per VS Code window
 | `preview/get` | request | `{ ref, contextLines }` | `Preview` |
 | `open/resolve` | request | `{ ref }` | `{ path, line, column, length, endLine?, endColumn? }`, plus `revision` and `revisionLabel` for a file at a revision, or `{ repoId, sha, path }` |
 | `revision/text` | request | `{ ref }` of a result at a revision | `{ text }`: the file's whole text then, for the read-only editor |
+| `replace/plan` | request | `{ text, replacement, openFiles? }` | `ReplacePlan`: edits, complete-source digests and notebook source-cell metadata; no edits if the replacement limit is exceeded |
 | `index/status` | request | `{}` | `{ repos: RepoStatus[] }` |
 | `index/progress` | notification, daemon → host | `{ repos: RepoStatus[] }` | — |
 | `watch/matched` | notification, daemon → host | `{ query, repoId, repoName, total, commits: { sha, subject, author }[] }` | — |
@@ -287,11 +290,38 @@ framing. There is no network port. The host spawns one daemon per VS Code window
 | `share/hello` | request, guests only | `{}` | `{ daemonVersion, protocol, reader, location, repos: RepoStatus[] }` |
 | `share/open` | request, the reader only | `{ path }` | `RepoStatus` of the root that holds `path`, once loaded |
 
-`search/start` also takes `roots`, `timeLimitMs` and `count`, which the spelunk command and agents send to search one
-root under their own limits. `RepoStatus` also carries `root`, `savedAt`, `reread` and `writer`.
+`search/start` also takes `roots`, `timeLimitMs`, `count` and `resultLimit`, which the spelunk command and agents send
+to search one root under their own limits. `resultLimit` is a hard output ceiling even when the query has
+`count:all`; zero or omission leaves the query unchanged, and its maximum is 50,000. A lower query limit still applies.
+`RepoStatus` also carries `root`, `savedAt`, `reread` and `writer`.
 
 `search/start` re-parses `text` itself rather than accepting an AST, so the daemon never trusts a parse it did not make.
 Results stream as `search/batch` notifications of up to 200 items; the request's response marks the end.
+
+Replacement plans bind edits to the complete decoded source, not only their target lines. The host checks the
+source digest, notebook source-cell boundaries and languages, UTF-16 ranges and live document versions, and requires
+the exact current preview before applying one `WorkspaceEdit`. A changed file is skipped whole. Planning stops at
+the first match beyond 10,000 and returns no partial edit list; notebook outputs are never replacement targets.
+When the indexed generation searched notebook outputs, an additional output digest protects query eligibility,
+including negated output terms and a first searchable output added after indexing. Source-only generations need no
+output digest.
+Regex capture expansion retains original-line anchor semantics and grows a bounded prefix of capture indexes.
+Each line's capture matrix may contain at most 262,144 indexes; exceeding that budget fails with `Overloaded` and no
+edits. The indexes alone occupy about 2 MiB on a 64-bit process; slices, runtime overhead and an earlier prefix can
+add temporary memory, so this is not a total RSS limit.
+A separate 16 MiB request-wide plan budget accounts for JSON-escaped source lines, replacement text, paths and cell
+metadata, with conservative reserves for fields, hashes and structure. Capture expansion charges source slices
+before appending them, preventing a short template from allocating a huge expanded string. Template input is also
+limited to 16 MiB before reference scanning, within the ten-second planning deadline. Exhaustion returns
+`Overloaded` with no partial plan and asks the caller to narrow the search or shorten the replacement. This bounds
+the payload, not total daemon memory.
+Undefined regex replacement references fail with `QueryInvalid` before planning. Explicit `${1}_suffix` keeps the
+suffix outside the capture name; `$0`, `$$` and defined-but-unmatched optional groups retain Go expansion semantics.
+Literal-query replacements do not interpret dollar references.
+Replacement paths must remain inside a selected root without redirected descendants. The host rechecks path
+identities before opening, applying and saving; these are validation checks around asynchronous editor operations,
+not an atomic filesystem transaction.
+See [ADR 0010](../adr/0010-bind-replacement-to-complete-source.md).
 
 ### Shared types
 
@@ -518,7 +548,9 @@ at all, as in an unwritable location, leaves the daemon writing, as before locks
 ## The spelunk command and agents
 
 The daemon binary is also the `spelunk` command (`internal/cli`), run as `spelunk` or with a subcommand: `search`,
-`status`, `help`, `mcp` and `mcp add claude`. It never builds or saves an index; it asks a daemon that has one.
+`status`, `index`, `help`, `mcp` and `mcp add claude`. Search asks a daemon that has an index.
+`spelunk index [--in DIR] [--rebuild]` builds one explicitly, with the existing indexer and writer lock; it
+waits for indexing and saving to finish, then releases the lock. It does not add a writable MCP or guest method.
 
 1. **A window that shares.** With `spelunk.agent.shareWindow` on, a window's daemon listens on `run/w-<pid>.sock`.
    The command asks every such socket with `share/hello` and uses the window with the innermost root that holds the
@@ -539,6 +571,19 @@ serves the Model Context Protocol on standard input and output, through the offi
 `spelunk_search`, `spelunk_syntax` (the query guide, generated from the operator table), `spelunk_preview` and
 `spelunk_status`. The extension lists that server for VS Code's agents through VS Code's MCP API when the editor has
 it (1.101 and later), and Spelunk: Add to Claude Code runs Claude Code's own `claude mcp add`.
+
+`spelunk mcp --help` explains setup without starting a connection. `spelunk mcp config [--in DIR]` emits client JSON
+with the executable path and separate arguments; it needs no index. `spelunk mcp --in DIR` fixes the server's default
+folder instead of using the client's working directory. MCP search defaults to 50 results and accepts up to 50,000;
+its hard per-call ceiling cannot be overridden by `count:`. Invalid requests are rejected before opening a session.
+Each MCP process permits at most eight active search, preview or status calls; excess calls get an immediate retry
+error instead of waiting in a queue. Syntax help needs no backend slot. This is a per-process bound, not a limit
+shared across separate clients or a total memory budget.
+Window and reader connection handshakes have a two-second deadline; expiry closes the transport so stalled writes
+cannot retain a backend slot. The later search still uses its configured time budget.
+CLI and MCP summaries describe truncated totals as "at least N" and say the search is incomplete, without assuming
+the cause was a timeout. Complete searches retain exact counts even when fewer rows are shown. An incomplete search
+with zero matches asks the caller to narrow the query and retry.
 
 ## Contract 5: settings, commands and keybindings
 

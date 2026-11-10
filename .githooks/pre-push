@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Runs scripts/presubmit.sh before a push, so nothing reaches GitHub that its
 # workflows would fail. `npm install` points git at this folder (the prepare
-# script sets core.hooksPath). Skip it only in an emergency: git push --no-verify
+# script sets core.hooksPath). Never bypass a failing gate.
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
 
@@ -9,10 +9,12 @@ head=$(git rev-parse HEAD)
 zero=0000000000000000000000000000000000000000
 tag=""
 run=""
+full=""
 # git passes one line per ref: <local ref> <local sha> <remote ref> <remote sha>
-while read -r local_ref local_sha _ _; do
+while read -r local_ref local_sha remote_ref _; do
   [ "$local_sha" = "$zero" ] && continue # deleting a remote ref tests nothing
   run=1
+  case $remote_ref in refs/heads/main) full=1 ;; esac
   commit=$(git rev-parse "$local_sha^{commit}")
   if [ "$commit" != "$head" ]; then
     echo "pre-push: $local_ref isn't the checked-out commit; check it out so the presubmit tests what's pushed." >&2
@@ -26,4 +28,7 @@ done
 # worktree). The tests' fixture repos would inherit them and write to this repo.
 for name in $(env | sed -n 's/^\(GIT_[A-Za-z0-9_]*\)=.*/\1/p'); do unset "$name"; done
 if [ -n "$tag" ]; then exec scripts/presubmit.sh --clean --tag "$tag"; fi
+if [ -z "$full" ] && git rev-parse --verify origin/develop >/dev/null 2>&1; then
+  exec scripts/presubmit.sh --clean --base origin/develop
+fi
 exec scripts/presubmit.sh --clean

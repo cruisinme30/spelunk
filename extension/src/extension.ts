@@ -16,7 +16,7 @@ import { type ControllerOptions, SearchController, SHOW_MATCHES, STOP_WATCHING, 
 import { Daemon, type DaemonState } from "./daemon";
 import { followWorkspace, withEditorExcludes } from "./workspaceSettings";
 import { HelpPanel } from "./helpPanel";
-import { addLineEdit, openNotebookAt, readNotebook, saveFile } from "./notebookEditor";
+import { openNotebookAt, saveFile } from "./notebookEditor";
 import { isNotebookPath } from "./notebookLines";
 import { SearchPanel } from "./panel";
 import type { SavedState } from "./savedState";
@@ -33,7 +33,7 @@ import type {
   WelcomeChooseMessage as WelcomeChoice,
   WelcomeStateMessage as WelcomeState,
 } from "./protocol.gen";
-import type { DocumentLines, LineEdit } from "./replaceEdits";
+import { applyReplacementEdits, readReplacementDocument } from "./replacementEditor";
 import { ShownResults } from "./resultActions";
 import { registerResultMenu } from "./resultMenu";
 import {
@@ -473,8 +473,8 @@ function createUi({ panel, daemon, documents, openedStatus, globalState, logErro
       openedStatus.text = `$(search) Opened from search · result ${position} of ${total}`;
       openedStatus.show();
     },
-    readDocument,
-    applyEdits,
+    readDocument: (file, planned) => readReplacementDocument(file, planned, workspaceRoots),
+    applyEdits: applyReplacementEdits,
     showWatchMatch: async (message) => vscode.window.showInformationMessage(message, SHOW_MATCHES, STOP_WATCHING),
     showQuery: (query) => {
       vscode.commands.executeCommand("spelunk.open", { query }).then(undefined, logError("watches"));
@@ -487,30 +487,6 @@ function createUi({ panel, daemon, documents, openedStatus, globalState, logErro
       for (const file of files) saveFile(file, logError("save after replace"));
     },
   };
-}
-
-/** A file as the editor has it, unsaved changes included; undefined when it isn't a text file that opens. */
-async function readDocument(file: string): Promise<DocumentLines | undefined> {
-  if (isNotebookPath(file)) return readNotebook(file);
-  try {
-    const document = await vscode.workspace.openTextDocument(vscode.Uri.file(file));
-    return { lineCount: document.lineCount, lineText: (index) => document.lineAt(index).text };
-  } catch {
-    return undefined;
-  }
-}
-
-/**
- * Applies a replace's edits as one WorkspaceEdit: a single step that ⌘Z
- * undoes in every file at once. The files stay unsaved, as after a rename.
- */
-async function applyEdits(edits: LineEdit[], label: string): Promise<boolean> {
-  const edit = new vscode.WorkspaceEdit();
-  const metadata: vscode.WorkspaceEditEntryMetadata = { label, needsConfirmation: false };
-  for (const lineEdit of edits) {
-    if (!(await addLineEdit(edit, lineEdit, metadata))) return false;
-  }
-  return vscode.workspace.applyEdit(edit);
 }
 
 /**

@@ -77,7 +77,7 @@ func TestLexLeavesAnUnclosedQuoteAsPunctuation(t *testing.T) {
 		{"sql", "x = 'abc", []string{"x", "=", "'", "abc"}},
 		{"rust", "r#\"abc", []string{"r", "#", `"`, "abc"}},
 		{"c++", `R"x(abc`, []string{"R", `"`, "x", "(", "abc"}},
-		{"c", "'ab'", []string{"'", "ab", "'"}},
+		{"c", "'ab\ncall();", []string{"'", "ab", "call", "(", ")", ";"}},
 	}
 	for _, test := range tests {
 		if got := texts(test.text, test.language); !slices.Equal(got, test.want) {

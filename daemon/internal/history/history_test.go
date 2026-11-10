@@ -1,6 +1,7 @@
 package history
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/cruisinme30/spelunk/daemon/internal/engine"
 	"github.com/cruisinme30/spelunk/daemon/internal/protocol"
+	"github.com/cruisinme30/spelunk/daemon/internal/query"
 	"github.com/cruisinme30/spelunk/daemon/internal/trigram"
 )
 
@@ -166,9 +168,9 @@ func TestContentMatchesDiffsButNeverMessages(t *testing.T) {
 	r, _ := paymentsHistory(t)
 	repo := Repo{ID: "r1", Name: "payments-api", Root: r.root, Store: r.ingest()}
 	// Only the messages say flaky and update, so content: finds neither.
-	for _, query := range []string{"type:commit content:flaky", "author:marta content:update"} {
-		if got, _ := runSearch(t, query, repo); len(got) != 0 {
-			t.Errorf("%s = %q, want nothing", query, got)
+	for _, queryText := range []string{"type:commit content:flaky", "author:marta content:update"} {
+		if got, _ := runSearch(t, queryText, repo); len(got) != 0 {
+			t.Errorf("%s = %q, want nothing", queryText, got)
 		}
 	}
 	got, items := runSearch(t, "type:commit content:timeout", repo)
@@ -638,5 +640,33 @@ func TestUpdateDropsCommitsOlderThanTheWindow(t *testing.T) {
 	}
 	if unmoved.Commits() != 2 {
 		t.Errorf("with HEAD unmoved: %d commits, want the 2 made in the window", unmoved.Commits())
+	}
+}
+
+func TestMatchExhaustionCannotMakeHistoryNotSucceedOrCreditAFilter(t *testing.T) {
+	text := []byte("keep\n" + strings.Repeat("b", query.MaxMatchPositions+10) + "\n")
+	commit := Commit{
+		SHA: "0123456789abcdef", Subject: "Dense change", AuthorName: "A", AuthorEmail: "a@example.com", At: fixedNow,
+		Files: []FileChange{{Path: "dense.txt", Text: text, Signs: bytes.Repeat([]byte{signAdded}, 2)}},
+	}
+	repo := Repo{ID: "r", Name: "r", Store: &Store{segments: []*segment{newSegment([]Commit{commit})}}}
+	var items []protocol.ResultItem
+	stats, err := Search(t.Context(), plan(t, `type:commit keep -content:/a*/`), []Repo{repo}, 1, func(item protocol.ResultItem) {
+		items = append(items, item)
+	})
+	if err != nil || len(items) != 0 || !stats.Truncated || len(stats.Hidden) != 0 {
+		t.Fatalf("history NOT after exhaustion = %d items, %+v, %v; want no result or filter credit and truncated", len(items), stats, err)
+	}
+}
+
+func TestHistoryPreviewRejectsIncompleteFilterEvaluation(t *testing.T) {
+	r := newTestRepo(t)
+	sha := r.commit("A <a@example.com>", "Dense change", fixedNow, map[string]string{
+		"dense.txt": "keep\n" + strings.Repeat("b", query.MaxMatchPositions+10) + "\n",
+	})
+	repo := &Repo{ID: "r", Name: "r", Root: r.root, Store: r.ingest()}
+	_, err := Preview(t.Context(), repo, Ref{RepoID: repo.ID, SHA: sha}, plan(t, `type:commit keep -content:/a*/`), 0)
+	if !errors.Is(err, query.ErrMatchBudget) {
+		t.Fatalf("incomplete history preview = %v; want match budget error", err)
 	}
 }

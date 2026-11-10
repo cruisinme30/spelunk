@@ -891,3 +891,117 @@ handlers to `webview/src/resultHandlers.ts`.
   `docs/dev/proof/ask-in-words-broaden.png` (`functions that call charge_card?`, no results, Broaden) and
   `docs/dev/proof/ask-in-words-clarify.png` (`where are other files?`, **Spelunk asks** "Other than which files?"), from
   `node scripts/screenshotPanel.mjs --ask … --setting ask.provider=anthropic` with `SPELUNK_ASK_FAKE`.
+
+## Audit remediation and development gates (2026-11-10)
+
+The remediation branch targets `develop`; these changes are unreleased. Merge commits preserve feature history.
+Main promotions batch coherent iterations and require the complete suite plus E2E. The develop gate always runs
+formatting, generated-code checks, TypeScript checks and every linter, then the affected behavioral dependency
+closure. Unknown/shared changes conservatively run all layers. Metadata-only PR edits cannot replace failed checks.
+
+- Context classification separates JS/TS and Python interpolation from literal text and nests Rust block comments.
+  Replacement regression tests apply a plan to fixtures and preserve executable calls. Malformed interpolation has
+  an input-sized work budget and a conservative code fallback; final lexer fuzzing completed 125,191 executions.
+- Definitions and outlines mask literal/comment content. Complete C/C++ bodies use matching code braces; other
+  languages keep their existing span rules. Python literal extents retain function scope even with unindented
+  closing quotes. New saved-index format 6 forces existing symbol indexes to rebuild.
+- Parser fixes must reduce misplaced globals; deterministic regression and 40,591 fuzz executions pass.
+- Explicit `spelunk index` shares the indexer and writer lock, waits for durable saves, and drains active workers
+  before releasing ownership on cancellation. One-shot operation disables background sweeps, polls and takeover.
+  CLI/indexer race tests and full indexer tests pass. See ADR 0008.
+- Context queries reuse lexical regions within immutable shards, with an 8 MiB accounting budget per shard and
+  one additional pointer per document. Overlays and loads start fresh. Full trigram and cache race tests pass.
+  See ADR 0009 for ownership, limits and cold-read tradeoffs.
+- The release gate requires all 14 named tree/history workloads, at least 20 samples, response and total p95,
+  complete stable results, build limits and retained-heap evidence. Sixteen script tests reject invalid evidence,
+  including missing queries, duplicate metrics, false no-hit timings and invalid sample counts.
+
+### Same-workload performance evidence
+
+Linux, Intel Xeon Platinum 8573C, Go 1.25.0, `GOMAXPROCS=4`. Baseline is
+`4337e12165cd1cc0ed13cdc240f979e1d9f22c88`; Go source is the installed Go 1.25 tree (10,259 files), Prometheus is
+`0b1983060510028164ab063444a0b64c0ca4b69d` (1,761 files). Each version/corpus runs in a fresh process with warm
+filesystem cache. One initial query is followed by 20 warm samples; p95 is the 19th sorted sample. Search excludes
+parsing, transport and UI. The same `content:timeout in:code` query returns 2,092 Go and 794 Prometheus matches,
+without truncation, before and after. It emits at most 500 rows while counting all matches.
+
+| Corpus | Warm total p50 before → after | Warm total p95 before → after | Initial query before → after |
+| --- | --- | --- | --- |
+| Go source | 280.203 → 65.193 ms | 294.642 → 81.392 ms | 279.706 → 321.254 ms |
+| Prometheus | 106.449 → 24.273 ms | 119.868 → 29.767 ms | 104.459 → 98.454 ms |
+
+| Corpus | Post-query Go heap before → after | Post-query process RSS before → after |
+| --- | --- | --- |
+| Go source | 183.20 → 190.36 MiB | 435.79 → 442.01 MiB |
+| Prometheus | 41.33 → 43.95 MiB | 105.49 → 109.68 MiB |
+
+Memory is sampled after the whole eight-query sequence and a GC, including capped broad regex queries. These are
+engine-test process measurements, not full desktop footprint or peaks. The cache adds about 7.16 MiB and 2.62 MiB
+of retained heap in these workloads. A single initial-query sample is noisy; no cold-query speedup is claimed.
+Regex measurements were mixed, so no general regex speedup is claimed. Original-audit daemon RSS and ripgrep
+comparisons remain separately labeled on the website.
+
+The expanded website has 18 px body text, section navigation, architecture and code-organization views, interactive
+benchmark controls, memory limitations, findings and Issue → Example → Fix changelog entries. Desktop browser
+checks covered navigation, tabs, percentile/corpus controls, finding filters and expandable changelog entries.
+
+Wiki updates are prepared locally but not published: the GitHub connector cannot write repository wikis, and the
+wiki Git remote has no authenticated write credential in this environment. The pending patch is included with
+this change for review. This publication gap must be resolved before integration; do not mark the batch released.
+
+## Large-repository red team (2026-11-10, validation in progress)
+
+This unreleased batch starts from `a1b8baf` on the large-repository fix branch. The evidence below is from focused
+checks; integrated validation, final performance measurements and the first hosted wiki publication remain pending.
+
+- Literal matching now keeps per-file folded-search cursors instead of repeatedly scanning the remaining suffix.
+  Targeted tests compare 200 random texts and six needles against an independent oracle at increasing offsets,
+  check shared-term isolation across files, and preserve Unicode matching behavior. No index cache is added.
+- Query repair and completion quoting preserve literal bytes and following terms. The query package passed,
+  including 3,421 deterministic mutations and deep, large and error-heavy inputs; scoped lint and spelling passed.
+  Fuzz evidence from before this fix is not counted as validation of the new quoting behavior.
+- C/C++ context tests cover logical line splicing with physical offsets, split comment delimiters, CRLF strings,
+  raw prefixes, character constants, numeric separators and Unicode. A reduced Linux BPF assembly example keeps
+  assembly comments inside their C string. The structural suite and scoped lint passed; all six end-to-end
+  replacement regressions preserved executable code. A post-change, 30-second `FuzzLex` run completed 649,116
+  executions without failure, and scoped lint passed again. This does not claim compiler-level macro interpretation.
+- Definition extraction and outlines reject confirmed C/C++ prototypes and initializers, retain one-line bodies,
+  and recognize trailing implementation attributes. Full symbol tests and scoped lint passed. Unicode fuzzy names
+  and workspace symbols share simple case folding; 255 oracle queries, ten fuzzy cases and 18 existing ripgrep
+  parity cases passed. Saved shard format 7 rejects old format 6 and unknown format 8.
+- Replacement plans carry the full-source digest and notebook structure described in ADR 0010. Focused daemon,
+  server and extension checks passed, including 11 real-daemon replacement cases. Ten focused path-guard tests
+  passed for redirected paths, changed identities, removed roots and valid unusual filenames; their host integration
+  and protocol-rejection checks also passed. Capture-prefix and whole-plan budget-failure tests passed. Notebook
+  output eligibility tests and eight shared Go/TypeScript hash vectors passed, including a first searchable output.
+  Focused payload-budget tests passed for JSON escaping, metadata, multiple files and a capture expansion that
+  would otherwise exceed 6 GiB; the request-wide limit is 16 MiB and returns no partial plan. Server reruns are pending.
+  The complete gate remains in progress; no final replacement-safety sign-off is recorded here yet.
+- Focused MCP tests passed, including setup, internal RPC version 2 checks, hard result ceilings, an eight-call
+  per-process limit, cancellation, stalled handshakes and slot release. A query with `count:all` and a limit of one reports
+  three matches while showing one. A real saved-index reader refreshed an edited file and reported index age and
+  changed-file count over pipes. A built binary in a path containing spaces launched from generated configuration,
+  listed four tools, answered syntax and exited cleanly. Scoped CLI/server lint and spelling passed. Unix-socket
+  discovery and detached-process integration remain environment-blocked; pipe tests do not replace that missing
+  coverage. The complete integration gate remains pending.
+- CLI/MCP summary regressions passed for a result ceiling, other incomplete scans, complete counts with smaller
+  pages, and zero matches before a stop. Incomplete counts are lower bounds without an assumed timeout cause;
+  the zero-result case suggests narrowing and retrying. Scoped CLI lint and spelling passed.
+- Shared match enumeration now caps each text scan at 32,768 raw positions across working-tree and history search,
+  multiline and structural matching, previews and replacement. Empty and rejected whole-word candidates consume the
+  same budget. Per-term status prevents incomplete scans from satisfying `NOT` or earning hidden-filter credit;
+  search reports a truncated lower bound, previews reject incomplete highlights and replacement returns no plan.
+  Query, trigram and history tests passed with and without the race detector; focused replacement server tests,
+  `go vet` and whole-daemon `golangci-lint` passed. The complete daemon gate passed every package, including CLI and
+  server Unix-socket integration; all 248 extension tests and 225 Playwright panel tests passed.
+- Canonical wiki pages and all 69 images now live in `docs/wiki/`, including the previously unpublished edits.
+  Offline content validation passes against the mocks, screenshots, links and reference coverage; Markdown lint
+  passes after adding page headings and preserving the existing screenshot layouts. All 12 local publication
+  regressions and scoped static checks passed; [raw test output](evidence/wiki-publication-tests.tap) records the
+  cases. Hosted authentication and the first mirror publication remain unverified until the workflow runs.
+
+The benchmark methodology and comparison are maintained separately in
+[industry-comparison.md](industry-comparison.md). Completed samples, resource failures and unmeasured cases must
+remain distinct. [ADR 0011](../adr/0011-version-wiki-source-with-code.md) supersedes the earlier requirement to push
+the separate wiki before integration: canonical documentation is reviewed and merged with code, and publication
+follows merged `develop` changes. No updated legacy wiki patch or hosted publication is claimed here.

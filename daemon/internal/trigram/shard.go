@@ -17,7 +17,7 @@ import (
 
 // shardFormatVersion changes whenever the saved layout does; an index
 // written by another version is rebuilt rather than migrated.
-const shardFormatVersion = 5
+const shardFormatVersion = 7
 
 // maxDocs bounds a shard's files, so doc ids fit in a uint32.
 const maxDocs int64 = math.MaxUint32
@@ -37,6 +37,12 @@ type Doc struct {
 	// Cells are a Jupyter notebook's cells, whose text Content is (see
 	// notebook.Read); nil for any other file.
 	Cells []notebook.Cell
+	// NotebookOutputs records whether this generation searched cell outputs,
+	// including a notebook that had no outputs yet. Replacement freshness
+	// must use the indexed setting rather than a later workspace setting.
+	NotebookOutputs bool
+	// places is a runtime-only cache owned by this immutable shard generation.
+	places *placesCache
 }
 
 // Shard is the immutable index of one repo's current files.
@@ -47,6 +53,7 @@ type Shard struct {
 	// postings maps a trigram to the ascending ids (indexes into Docs) of
 	// the docs that contain it.
 	postings map[uint32][]uint32
+	places   *placesCache
 }
 
 // foldASCII lowercases ASCII letters and leaves every other byte alone.
@@ -186,7 +193,7 @@ func docOf(path string, content []byte, modTime time.Time, opts BuildOptions) (D
 	if opts.MaxFileBytes > 0 && int64(len(text)) > opts.MaxFileBytes {
 		return Doc{}, false
 	}
-	doc := Doc{Path: path, Lang: language, ModTime: modTime, Content: text, Cells: cells}
+	doc := Doc{Path: path, Lang: language, ModTime: modTime, Content: text, Cells: cells, NotebookOutputs: cells != nil && opts.NotebookOutputs}
 	if opts.Symbols {
 		doc.Symbols = symbolsOf(doc.Lang, text, cells)
 	}
@@ -228,6 +235,7 @@ func NewShard(docs []Doc) *Shard {
 
 // add appends a doc and records its trigrams.
 func (s *Shard) add(doc Doc) {
+	s.attachPlaces(&doc)
 	id := uint32(len(s.Docs)) //nolint:gosec // G115: Build keeps a shard under maxDocs docs
 	s.Docs = append(s.Docs, doc)
 	addTrigrams(s.postings, id, doc.Content)
@@ -328,7 +336,11 @@ func Load(path string) (*Shard, error) {
 	if err := saved.check(); err != nil {
 		return nil, fmt.Errorf("corrupt shard %s: %w", path, err)
 	}
-	return &Shard{Docs: saved.Docs, BuiltAt: saved.BuiltAt, postings: saved.Postings}, nil
+	shard := &Shard{Docs: saved.Docs, BuiltAt: saved.BuiltAt, postings: saved.Postings}
+	for i := range shard.Docs {
+		shard.attachPlaces(&shard.Docs[i])
+	}
+	return shard, nil
 }
 
 // check reports what makes a decoded shard unsafe to search: a doc path

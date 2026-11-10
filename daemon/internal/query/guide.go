@@ -26,7 +26,7 @@ func Guide() string {
 		if o.short != "" {
 			names += " (" + o.short + ":)"
 		}
-		fmt.Fprintf(&b, "  %-22s %s", names, o.summary)
+		_, _ = fmt.Fprintf(&b, "  %-22s %s", names, o.summary)
 		switch o.scope {
 		case scopeHistoryOnly:
 			b.WriteString(" [commits only]")
@@ -40,10 +40,10 @@ func Guide() string {
 		b.WriteString("\n")
 		if values := fixedValues[o.name]; len(values) > 0 {
 			for _, v := range values {
-				fmt.Fprintf(&b, "      %-18s %s\n", o.full+":"+v.value, v.detail)
+				_, _ = fmt.Fprintf(&b, "      %-18s %s\n", o.full+":"+v.value, v.detail)
 			}
 		} else if len(o.examples) > 0 {
-			fmt.Fprintf(&b, "      e.g. %s\n", o.full+":"+strings.Join(o.examples, ", "+o.full+":"))
+			_, _ = fmt.Fprintf(&b, "      e.g. %s\n", o.full+":"+strings.Join(o.examples, ", "+o.full+":"))
 		}
 	}
 	commits := op(protocol.OpNameType) + "commit"

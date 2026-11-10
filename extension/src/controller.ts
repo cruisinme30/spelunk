@@ -19,6 +19,7 @@ import {
   type QueryChangedMessage,
   type ReplaceApplyMessage,
   type ReplacePlan,
+  type ReplaceFile,
   type ReplacePreviewMessage,
   type ResultItem,
   type RpcRequests,
@@ -27,7 +28,7 @@ import {
   type WatchMatchedParams,
 } from "./protocol.gen";
 import { movedTo } from "./openPosition";
-import { checkReplace, type DocumentLines, type LineEdit } from "./replaceEdits";
+import { checkReplace, type DocumentLines, type LineEdit, replacementPlanKey } from "./replaceEdits";
 import { openingState, persisted, type PersistedState, type SavedState, withRecent } from "./savedState";
 import { pinnedEntry } from "./settings";
 import { UnseenWatches, watchMessage } from "./watches";
@@ -96,9 +97,9 @@ export interface Ui {
   /** Says which result is open, `position` of `total` (1-based), once one was opened from search or F4. */
   showOpened(position: number, total: number): void;
   /** Reads a file as the editor has it, unsaved changes included; undefined when it can't. */
-  readDocument(file: string): Promise<DocumentLines | undefined>;
+  readDocument(file: string, planned: readonly ReplaceFile[]): Promise<DocumentLines | undefined>;
   /** Applies edits as one undoable edit, leaving the files unsaved; resolves to whether it was applied. */
-  applyEdits(edits: LineEdit[], label: string): Promise<boolean>;
+  applyEdits(edits: LineEdit[], label: string, isCurrent: () => boolean): Promise<boolean>;
   /** Saves files the editor has open. */
   saveFiles(files: string[]): void;
   /** Pops up what a watch found; resolves to the button clicked, if any. */
@@ -178,6 +179,7 @@ export class SearchController {
   private readonly askRoute: AskRoute;
   /** The files the last replace changed, which Save saves. */
   private replacedFiles: string[] = [];
+  private replacedPathsCurrent: () => boolean = () => true;
   /**
    * Whether each query text searches history (and so can be watched), as
    * the daemon parsed it. Forgotten when the daemon restarts or finishes
@@ -365,7 +367,8 @@ export class SearchController {
         return;
       }
       case "replace.save": {
-        this.ui.saveFiles(this.replacedFiles);
+        if (this.replacedPathsCurrent()) this.ui.saveFiles(this.replacedFiles);
+        else this.ui.showError("A replaced file moved or its path changed. Review it before saving.");
         return;
       }
     }
@@ -711,7 +714,7 @@ export class SearchController {
   private async onReplacePreview({ seq, text, replacement }: ReplacePreviewMessage): Promise<void> {
     try {
       const plan = await this.planReplace(text, replacement);
-      this.previewedReplace = { text, replacement, plan: planKey(plan) };
+      this.previewedReplace = { text, replacement, plan: replacementPlanKey(plan) };
       this.ui.post("replace.plan", { seq, plan });
     } catch (error) {
       this.ui.post("replace.plan", { seq, error: errorMessage(error) });
@@ -730,19 +733,22 @@ export class SearchController {
       const previewed = this.previewedReplace;
       const same =
         plan.matches === matches &&
-        (previewed?.text !== text || previewed.replacement !== replacement || planKey(plan) === previewed.plan);
+        previewed?.text === text &&
+        previewed.replacement === replacement &&
+        replacementPlanKey(plan) === previewed.plan;
       if (plan.truncated || !same) {
-        this.previewedReplace = { text, replacement, plan: planKey(plan) };
+        this.previewedReplace = { text, replacement, plan: replacementPlanKey(plan) };
         this.ui.post("replace.plan", { seq, plan });
         this.ui.post("replace.done", { ...nothing, changed: true });
         return;
       }
-      const checked = await checkReplace(plan, (file) => this.ui.readDocument(file));
+      const checked = await checkReplace(plan, (file, planned) => this.ui.readDocument(file, planned));
       const label = `Replace ${plural(checked.edits.length, "match", "matches")}`;
-      if (checked.edits.length > 0 && !(await this.ui.applyEdits(checked.edits, label))) {
+      if (checked.edits.length > 0 && !(await this.ui.applyEdits(checked.edits, label, checked.isCurrent))) {
         throw new Error("VS Code didn't apply the replace; nothing changed.");
       }
       this.replacedFiles = checked.files;
+      this.replacedPathsCurrent = checked.pathsCurrent;
       this.rememberQuery();
       this.ui.post("replace.done", {
         seq,
@@ -800,9 +806,4 @@ export class SearchController {
       return false;
     }
   }
-}
-
-/** What a replace plan would change, as one string: every file, line, text and edit, in order. */
-function planKey(plan: ReplacePlan): string {
-  return JSON.stringify(plan.files.map((file) => [file.repoId, file.path, file.lines]));
 }

@@ -48,11 +48,11 @@ func (s *Server) preview(ctx context.Context, raw json.RawMessage) (any, error) 
 		if readErr != nil {
 			return nil, staleAsRPCError(readErr)
 		}
-		preview, previewErr := trigram.PreviewText(repo, ref, plan, params.ContextLines, doc)
+		preview, previewErr := trigram.PreviewTextContext(ctx, repo, ref, plan, params.ContextLines, doc)
 		return preview, staleAsRPCError(previewErr)
 	}
 	maxBytes := int64(s.Settings().MaxFileSizeKB) * 1024
-	preview, err := trigram.Preview(repo, ref, plan, params.ContextLines, maxBytes)
+	preview, err := trigram.PreviewContext(ctx, repo, ref, plan, params.ContextLines, maxBytes)
 	return preview, staleAsRPCError(err)
 }
 

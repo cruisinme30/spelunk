@@ -22,10 +22,11 @@ const (
 )
 
 // cFunction is a C or C++ function definition at the left margin: a return
-// type, the name and the opening parenthesis, without a ";" after it (that
-// would be a declaration). An attribute macro with arguments may come
+// type, the name and the opening parenthesis. A semicolon is allowed only
+// after an opening brace, for a one-line body. Multiline declarations are
+// distinguished from definitions by cHeaders. An attribute macro may come
 // first, as Linux's __printf(2, 3) does.
-const cFunction = `^(?:[A-Za-z_]\w*\([^()]*\)\s+)?[A-Za-z_][\w\s\*&:<>,]*?[\s\*&]` + `(?P<name>[A-Za-z_][\w:~]*)\s*\([^;]*$`
+const cFunction = `^(?:[A-Za-z_]\w*\([^()]*\)\s+)?[A-Za-z_][\w\s\*&:<>,]*?[\s\*&]` + `(?P<name>[A-Za-z_][\w:~]*)\s*\([^;]*(?:\{.*)?$`
 
 // cFunctionRule finds C and C++ functions by their name past any attribute
 // macros before it.
