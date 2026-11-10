@@ -37,6 +37,18 @@ test("a remote's URL reads as its website, in every form git writes it, never wi
   assert.equal(webRemote("not a url"), undefined);
 });
 
+test("Azure host normalization preserves explicitly configured lookalike hosts", () => {
+  // @covers setting:permalinks.hosts
+  for (const host of ["example-dev.azure.com", "dev.azure.com.example.org", "custom.dev.azure.com"]) {
+    const url = `https://${host}/acme/project/_git/repo`;
+    assert.equal(webRemote(url)?.kind, undefined);
+    assert.equal(webRemote(url, { [host]: "azure" })?.host, host);
+    assert.ok(address(lineLink(url), { [host]: "azure" }).startsWith(`https://${host}/`));
+  }
+  assert.equal(webRemote("git@ssh.dev.azure.com:v3/acme/project/repo")?.host, "dev.azure.com");
+  assert.equal(webRemote("https://dev.azure.com/acme/project/_git/repo")?.host, "dev.azure.com");
+});
+
 test("each kind of host links to a line, a range and a commit in its own format", () => {
   // @covers setting:permalinks.hosts
   const cases: [string, string, string, string][] = [
