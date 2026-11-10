@@ -107,6 +107,9 @@ func (s *Server) searchOn(ctx context.Context, raw json.RawMessage, conn *rpc.Co
 	if err := decode(raw, &params); err != nil {
 		return nil, err
 	}
+	if params.ResultLimit < 0 || params.ResultLimit > query.MaxResults {
+		return nil, rpc.Errorf(rpc.CodeInvalidParams, "resultLimit must be between 0 and %d", query.MaxResults)
+	}
 	started := time.Now() // wall clock: Options.Now may be frozen
 	if s.reader {
 		// No editor tells the reader what changed: it looks for itself.
@@ -118,6 +121,9 @@ func (s *Server) searchOn(ctx context.Context, raw json.RawMessage, conn *rpc.Co
 	plan, _, err := query.NewPlan(parsed, s.searchSettings(params, guest), s.now(), params.Cursor)
 	if err != nil {
 		return nil, rpc.Errorf(protocol.CodeQueryInvalid, "%v", err)
+	}
+	if params.ResultLimit > 0 {
+		plan.Limit = min(plan.Limit, params.ResultLimit)
 	}
 	planID := s.plans.remember(plan)
 	batch := &batcher{conn: conn, searchID: params.SearchID}

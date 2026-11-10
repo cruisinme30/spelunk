@@ -33,7 +33,8 @@ Usage:
   spelunk search [options] QUERY...   search the repo that holds this folder
   spelunk status                      say which index answers here, and how fresh it is
   spelunk help query                  the query language, with examples
-  spelunk mcp                         serve AI agents (Model Context Protocol, stdin/stdout)
+  spelunk mcp [--in DIR]              serve AI agents (Model Context Protocol, stdin/stdout)
+  spelunk mcp config [--in DIR]       print MCP client configuration
   spelunk mcp add claude              add Spelunk to Claude Code for every project
   spelunk --version
 
@@ -91,10 +92,7 @@ func Main(ctx context.Context, env Env) int {
 		}
 		return exitFound
 	case "mcp":
-		if len(env.Args) > 1 && env.Args[1] == "add" {
-			return runMCPAdd(ctx, env, env.Args[2:])
-		}
-		return ServeMCP(ctx, env)
+		return runMCP(ctx, env, env.Args[1:])
 	default:
 		_, _ = fmt.Fprintf(env.Stderr, "spelunk: unknown command %q. Run spelunk help.\n", env.Args[0])
 		return exitError

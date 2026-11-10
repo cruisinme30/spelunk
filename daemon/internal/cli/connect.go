@@ -67,11 +67,14 @@ type Options struct {
 // window with it open, or else the background reader, which it starts if
 // it isn't running.
 func Connect(ctx context.Context, folder string, opts Options) (*Session, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	if opts.RunDir == "" {
 		opts.RunDir = server.RunDir()
 	}
-	if session := connectWindow(ctx, folder, opts.RunDir); session != nil {
-		return session, nil
+	if session, err := connectWindow(ctx, folder, opts.RunDir); session != nil || err != nil {
+		return session, err
 	}
 	return connectReader(ctx, folder, opts)
 }
@@ -79,9 +82,9 @@ func Connect(ctx context.Context, folder string, opts Options) (*Session, error)
 // connectWindow asks every window's socket for the innermost open root
 // that holds folder. Sockets nothing answers are left by daemons that
 // crashed, and removed.
-func connectWindow(ctx context.Context, folder, runDir string) *Session {
+func connectWindow(ctx context.Context, folder, runDir string) (*Session, error) {
 	sockets, _ := filepath.Glob(filepath.Join(runDir, "w-*.sock"))
-	var best *Session
+	var selection windowSelection
 	for _, socket := range sockets {
 		session, err := dial(ctx, socket)
 		if err != nil {
@@ -90,22 +93,96 @@ func connectWindow(ctx context.Context, folder, runDir string) *Session {
 			}
 			continue
 		}
-		var hello protocol.ShareHelloResult
-		if session.call(ctx, protocol.MethodShareHello, protocol.Empty{}, &hello) != nil {
+		hello, helloErr := session.hello(ctx)
+		if helloErr != nil {
 			session.Close()
 			continue
 		}
-		repo, ok := innermost(hello.Repos, folder)
-		if !ok || (best != nil && len(repo.Root) <= len(best.Repo.Root)) {
-			session.Close()
-			continue
-		}
-		if best != nil {
-			best.Close()
-		}
-		session.Repo, session.Live, best = repo, true, session
+		selection.consider(session, hello, folder)
 	}
-	return best
+	return selection.result()
+}
+
+// connectionTimeout bounds socket setup; handshakes get the same budget.
+const connectionTimeout = 2 * time.Second
+
+// handshakeWait can be shortened by tests of a peer that never responds.
+var handshakeWait = connectionTimeout
+
+// hello bounds the whole handshake, including a blocked request write or a
+// peer that ignores cancellation. Closing this unusable connection releases
+// the RPC call and its MCP admission slot when the deadline expires.
+func (s *Session) hello(ctx context.Context) (protocol.ShareHelloResult, error) {
+	handshakeCtx, cancel := context.WithTimeout(ctx, handshakeWait)
+	defer cancel()
+	closed := make(chan struct{})
+	stop := context.AfterFunc(handshakeCtx, func() {
+		s.Close()
+		close(closed)
+	})
+	var hello protocol.ShareHelloResult
+	err := s.call(handshakeCtx, protocol.MethodShareHello, protocol.Empty{}, &hello)
+	if !stop() {
+		<-closed
+	}
+	if ctx.Err() != nil {
+		return hello, ctx.Err()
+	}
+	if handshakeCtx.Err() != nil {
+		return hello, fmt.Errorf("daemon did not answer share/hello within %s; restart it and retry: %w", handshakeWait, handshakeCtx.Err())
+	}
+	return hello, err
+}
+
+// windowSelection prefers the innermost root, allowing another compatible
+// window of the same root but never silently searching an outer root when
+// the innermost daemon needs an update.
+type windowSelection struct {
+	best              *Session
+	incompatible      error
+	incompatibleDepth int
+}
+
+func (s *windowSelection) consider(session *Session, hello protocol.ShareHelloResult, folder string) {
+	repo, ok := innermost(hello.Repos, folder)
+	if !ok {
+		session.Close()
+		return
+	}
+	if err := checkDaemonProtocol(hello); err != nil {
+		if len(repo.Root) > s.incompatibleDepth {
+			s.incompatible, s.incompatibleDepth = err, len(repo.Root)
+		}
+		session.Close()
+		return
+	}
+	if s.best != nil && len(repo.Root) <= len(s.best.Repo.Root) {
+		session.Close()
+		return
+	}
+	if s.best != nil {
+		s.best.Close()
+	}
+	session.Repo, session.Live, s.best = repo, true, session
+}
+
+func (s *windowSelection) result() (*Session, error) {
+	if s.incompatible != nil && (s.best == nil || s.incompatibleDepth > len(s.best.Repo.Root)) {
+		if s.best != nil {
+			s.best.Close()
+		}
+		return nil, s.incompatible
+	}
+	return s.best, nil
+}
+
+// checkDaemonProtocol refuses a peer that cannot honor this command's
+// contracts, before any search or index-open request reaches it.
+func checkDaemonProtocol(hello protocol.ShareHelloResult) error {
+	if hello.Protocol == protocol.Version {
+		return nil
+	}
+	return fmt.Errorf("spelunk daemon %s uses protocol %d, but this command requires %d. Update Spelunk and restart VS Code windows and any older Spelunk background reader, then retry", hello.DaemonVersion, hello.Protocol, protocol.Version)
 }
 
 // innermost is the repo whose root is folder or holds it, the deepest one
@@ -134,23 +211,54 @@ func connectReader(ctx context.Context, folder string, opts Options) (*Session, 
 	socket := server.ReaderSocket(opts.RunDir)
 	session, err := dial(ctx, socket)
 	if err != nil {
-		if opts.Progress != nil {
-			opts.Progress("Starting Spelunk's background reader…")
+		session, err = startAndConnectReader(ctx, socket, opts)
+		if err != nil {
+			return nil, err
 		}
-		if startErr := startReader(ctx, opts); startErr != nil {
-			return nil, fmt.Errorf("start the background reader: %w", startErr)
+	}
+	return openReader(ctx, session, folder, opts)
+}
+
+// startAndConnectReader waits for a new detached reader to listen, while
+// respecting cancellation before launch and throughout the startup wait.
+func startAndConnectReader(ctx context.Context, socket string, opts Options) (*Session, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if opts.Progress != nil {
+		opts.Progress("Starting Spelunk's background reader…")
+	}
+	if err := startReader(ctx, opts); err != nil {
+		return nil, fmt.Errorf("start the background reader: %w", err)
+	}
+	deadline := time.Now().Add(readerWait)
+	for {
+		session, err := dial(ctx, socket)
+		if err == nil {
+			return session, nil
 		}
-		deadline := time.Now().Add(readerWait)
-		for session, err = dial(ctx, socket); err != nil; session, err = dial(ctx, socket) {
-			if time.Now().After(deadline) {
-				return nil, fmt.Errorf("the background reader didn't start: %w", err)
-			}
-			select {
-			case <-ctx.Done():
-				return nil, ctx.Err()
-			case <-time.After(50 * time.Millisecond):
-			}
+		if time.Now().After(deadline) {
+			return nil, fmt.Errorf("the background reader didn't start: %w", err)
 		}
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(50 * time.Millisecond):
+		}
+	}
+}
+
+// openReader checks the wire contract before asking a reader to load an
+// index, so an older process cannot silently ignore a caller's result cap.
+func openReader(ctx context.Context, session *Session, folder string, opts Options) (*Session, error) {
+	hello, err := session.hello(ctx)
+	if err != nil {
+		session.Close()
+		return nil, err
+	}
+	if err = checkDaemonProtocol(hello); err != nil {
+		session.Close()
+		return nil, err
 	}
 	loading := time.AfterFunc(time.Second, func() {
 		if opts.Progress != nil {
@@ -203,7 +311,7 @@ func startReader(ctx context.Context, opts Options) error {
 
 // dial connects to the daemon socket at path.
 func dial(ctx context.Context, path string) (*Session, error) {
-	dialCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	dialCtx, cancel := context.WithTimeout(ctx, connectionTimeout)
 	defer cancel()
 	var dialer net.Dialer
 	socket, err := dialer.DialContext(dialCtx, "unix", path)
@@ -251,6 +359,9 @@ func (s *Session) refresh(ctx context.Context) {
 type SearchOptions struct {
 	// Count is how many results to return when the query has no count:.
 	Count int
+	// ResultLimit caps returned results even when the query has count:all.
+	// Zero leaves the query's count unchanged.
+	ResultLimit int
 	// TimeLimitMs, when set, replaces the daemon's agent time limit.
 	TimeLimitMs int
 }
@@ -262,7 +373,7 @@ func (s *Session) Search(ctx context.Context, text string, opts SearchOptions) (
 	s.next++
 	id := fmt.Sprintf("cli-%d", s.next)
 	s.mu.Unlock()
-	params := protocol.SearchStartParams{SearchID: id, Text: text, Roots: []string{s.Repo.Root}, Count: opts.Count, TimeLimitMs: opts.TimeLimitMs}
+	params := protocol.SearchStartParams{SearchID: id, Text: text, Roots: []string{s.Repo.Root}, Count: opts.Count, ResultLimit: opts.ResultLimit, TimeLimitMs: opts.TimeLimitMs}
 	var result protocol.SearchResult
 	err := s.call(ctx, protocol.MethodSearchStart, params, &result)
 	s.mu.Lock()

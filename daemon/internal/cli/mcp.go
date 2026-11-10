@@ -23,17 +23,23 @@ import (
 // descriptions are all an agent knows about it, and agents reach for grep
 // unless told when Spelunk does better.
 const mcpInstructions = `Spelunk searches this repo's code and Git history from a local index built by VS Code or spelunk index.
-Prefer spelunk_search over grep, find or git log for: definitions by name, references, commits and the lines
-they added or removed, a past revision, and any search in a large repo, where it answers in milliseconds.
+Use spelunk_search for definitions by name, references, commits and the lines they added or removed,
+past revisions, and repeated selective searches. Broad regexes can reach the search time limit.
+Check the answer's shown/total counts, incomplete search notice and index freshness before treating it as complete.
 Call spelunk_syntax once if you are unsure of the query language. Every tool only reads.`
 
 // mcpDefaultLimit is how many results a search returns unless the agent asks.
 const mcpDefaultLimit = 50
 
+// mcpConcurrentCalls bounds work started by one agent process. Eight calls
+// allow parallel exploration while preventing an unbounded connection and
+// search burst from consuming the local indexer's CPU and memory.
+const mcpConcurrentCalls = 8
+
 // SearchInput is spelunk_search's arguments.
 type SearchInput struct {
 	Query string `json:"query" jsonschema:"a Spelunk query, such as: retry lang:go, symbol:ParseQuery, type:commit author:jane since:2w timeout"`
-	Limit int    `json:"limit,omitempty" jsonschema:"the most results to return (default 50)"`
+	Limit int    `json:"limit,omitempty" jsonschema:"the most results to return, even with count:all (default 50; maximum 50000)"`
 	Path  string `json:"path,omitempty" jsonschema:"an absolute folder in the repo to search; default: the folder the agent runs in"`
 }
 
@@ -49,30 +55,29 @@ type FolderInput struct {
 	Path string `json:"path,omitempty" jsonschema:"an absolute folder in the repo; default: the folder the agent runs in"`
 }
 
+// sessionConnector isolates daemon discovery from MCP transport and tool handling.
+type sessionConnector func(context.Context, string, Options) (*Session, error)
+
 // NewMCPServer is Spelunk's MCP server for agents in folder cwd.
 func NewMCPServer(env Env) *mcp.Server {
+	return mcpServerWithConnector(env, Connect)
+}
+
+func mcpServerWithConnector(env Env, connect sessionConnector) *mcp.Server {
+	if env.Now == nil {
+		env.Now = time.Now
+	}
+	handlers := &mcpTools{env: env, connect: connect, backendSlots: make(chan struct{}, mcpConcurrentCalls)}
 	srv := mcp.NewServer(&mcp.Implementation{Name: "spelunk", Version: server.DaemonVersion}, &mcp.ServerOptions{Instructions: mcpInstructions})
 	readOnly := &mcp.ToolAnnotations{ReadOnlyHint: true, OpenWorldHint: new(bool)}
 	mcp.AddTool(srv, &mcp.Tool{
 		Name: "spelunk_search",
-		Description: "Search this repo's code and Git history with Spelunk's index. Prefer it over grep or git log for " +
+		Description: "Search this repo's code and Git history with Spelunk's index. Use it for " +
 			"definitions (symbol:), references (ref:), commits and diffs (type:commit, type:added, type:removed, author:, since:), " +
-			"past revisions (at:) and any search in a large repo. Returns path:line:text lines, or sha date author subject for " +
-			"commits, each with a ref for spelunk_preview, and says when results stopped at the time limit or come from a saved index.",
+			"past revisions (at:) and repeated selective queries. Broad regexes can reach the search time limit. Returns path:line:text lines, or sha date author subject for " +
+			"commits, each with a ref for spelunk_preview. Indicates incomplete searches and saved-index freshness.",
 		Annotations: readOnly,
-	}, func(ctx context.Context, _ *mcp.CallToolRequest, in SearchInput) (*mcp.CallToolResult, any, error) {
-		return withSession(ctx, env, in.Path, func(session *Session) (string, error) {
-			limit := in.Limit
-			if limit <= 0 {
-				limit = mcpDefaultLimit
-			}
-			results, summary, err := search(ctx, session, in.Query, SearchOptions{Count: limit})
-			if err != nil {
-				return "", err
-			}
-			return searchText(session, results, &summary, env.Now()), nil
-		})
-	})
+	}, handlers.search)
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "spelunk_syntax",
 		Description: "The Spelunk query language: words, phrases, regexes, OR, NOT, groups, and every operator, with examples.",
@@ -84,73 +89,45 @@ func NewMCPServer(env Env) *mcp.Server {
 		Name:        "spelunk_preview",
 		Description: "The code around a spelunk_search result, or a commit's message and changed lines, by the result's ref.",
 		Annotations: readOnly,
-	}, func(ctx context.Context, _ *mcp.CallToolRequest, in PreviewInput) (*mcp.CallToolResult, any, error) {
-		return withSession(ctx, env, in.Path, func(session *Session) (string, error) {
-			lines := in.ContextLines
-			if lines <= 0 {
-				lines = 10
-			}
-			preview, err := session.Preview(ctx, in.Ref, lines)
-			if err != nil {
-				return "", err
-			}
-			return previewText(&preview), nil
-		})
-	})
+	}, handlers.preview)
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "spelunk_status",
 		Description: "Which repo Spelunk searches here, whether a VS Code window answers live or a saved index does, and how fresh it is.",
 		Annotations: readOnly,
-	}, func(ctx context.Context, _ *mcp.CallToolRequest, in FolderInput) (*mcp.CallToolResult, any, error) {
-		return withSession(ctx, env, in.Path, func(session *Session) (string, error) {
-			repo := session.Repo
-			text := fmt.Sprintf("Repo %s at %s. Files: %s. History: %s. ", repo.Name, repo.Root, repo.Tree, repo.History)
-			if session.Live {
-				text += "A VS Code window answers, live."
-			} else {
-				text += "The background reader answers from the " + sourceText("saved", repo.SavedAt, repo.Reread, env.Now()) + "."
-			}
-			return text, nil
-		})
-	})
+	}, handlers.status)
 	return srv
 }
 
 // ServeMCP serves agents on standard input and output until they leave.
 func ServeMCP(ctx context.Context, env Env) int {
-	if err := NewMCPServer(env).Run(ctx, &mcp.StdioTransport{}); err != nil && !errors.Is(err, context.Canceled) && !errors.Is(err, io.EOF) {
+	if env.Stderr == nil {
+		env.Stderr = os.Stderr
+	}
+	input := env.Stdin
+	if input == nil {
+		input = os.Stdin
+	}
+	output := env.Stdout
+	if output == nil {
+		output = os.Stdout
+	}
+	reader, ok := input.(io.ReadCloser)
+	if !ok {
+		reader = io.NopCloser(input)
+	}
+	transport := &mcp.IOTransport{Reader: reader, Writer: keepOpenWriter{output}}
+	if err := NewMCPServer(env).Run(ctx, transport); err != nil && !errors.Is(err, context.Canceled) && !errors.Is(err, io.EOF) {
 		_, _ = fmt.Fprintln(env.Stderr, "spelunk mcp:", err)
 		return exitError
 	}
 	return exitFound
 }
 
-// withSession connects for folder (the agent's folder when empty) and runs
-// do, turning failures into tool errors the agent can read and act on.
-func withSession(ctx context.Context, env Env, folder string, do func(*Session) (string, error)) (*mcp.CallToolResult, any, error) {
-	if folder == "" {
-		folder = env.Cwd
-	}
-	if !filepath.IsAbs(folder) {
-		return textResult("path must be an absolute folder, not "+folder, true), nil, nil
-	}
-	session, err := Connect(ctx, filepath.Clean(folder), env.Options)
-	switch {
-	case errors.Is(err, ErrNotIndexed):
-		return textResult(notIndexedText(err)+" Ask the user to; use other tools meanwhile.", true), nil, nil
-	case err != nil:
-		return textResult("Spelunk couldn't answer: "+err.Error(), true), nil, nil
-	}
-	defer session.Close()
-	text, err := do(session)
-	if message, ok := QueryError(err); ok {
-		return textResult("Query error: "+message+". Fix the query and try again; spelunk_syntax lists the operators.", true), nil, nil
-	}
-	if err != nil {
-		return textResult("Spelunk couldn't answer: "+err.Error(), true), nil, nil
-	}
-	return textResult(text, false), nil, nil
-}
+// keepOpenWriter lets the MCP transport finish without closing the caller's output.
+type keepOpenWriter struct{ io.Writer }
+
+// Close leaves the stream owned by the caller open.
+func (keepOpenWriter) Close() error { return nil }
 
 // textResult is a tool result of one text.
 func textResult(text string, isError bool) *mcp.CallToolResult {
@@ -173,7 +150,11 @@ func searchText(session *Session, results []Result, summary *Summary, now time.T
 		fmt.Fprintf(&b, "%s  [ref %s]\n", text, results[i].Ref)
 	}
 	if summary.Total == 0 {
-		b.WriteString("No results. Check the query with spelunk_syntax, or widen it.\n")
+		if summary.Truncated {
+			b.WriteString("No results found before the search stopped. Narrow the query and retry.\n")
+		} else {
+			b.WriteString("No results. Check the query with spelunk_syntax, or widen it.\n")
+		}
 	}
 	return b.String()
 }
