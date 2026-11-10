@@ -317,3 +317,31 @@ func TestNoPositiveTermSaysWhyNothingIsSearchedFor(t *testing.T) {
 		}
 	}
 }
+
+// TestGlobalFixesMakeProgressWithIncompleteGroups covers a fix that used
+// to move one error while creating another by nesting an existing global.
+func TestGlobalFixesMakeProgressWithIncompleteGroups(t *testing.T) {
+	// @covers diag:global_misplaced
+	for _, text := range []string{
+		"(case:yes 0000000000000000 -case:yes",
+		"(word:yes x -case:yes",
+		"(case:yes x NOT count:5",
+		"(case:yes x -case:yes)",
+	} {
+		q := Parse(text, testResolver)
+		for _, d := range q.Diagnostics {
+			if d.Code != DiagGlobalMisplaced {
+				continue
+			}
+			if len(d.Fixes) == 0 {
+				t.Fatalf("Parse(%q) offers no repair for %s", text, d.Code)
+			}
+			for _, fix := range d.Fixes {
+				fixed := ApplyFix(text, fix)
+				if count(Parse(fixed, testResolver).Diagnostics, d.Code) >= count(q.Diagnostics, d.Code) {
+					t.Errorf("fix %q on %q gives %q without reducing %s", fix.Title, text, fixed, d.Code)
+				}
+			}
+		}
+	}
+}
