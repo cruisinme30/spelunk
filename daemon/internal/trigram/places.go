@@ -39,10 +39,16 @@ type inText struct {
 // inRegions reads the matcher's text for in:, once.
 func (m *lineMatcher) inRegions() *inText {
 	if !m.inRead.read {
-		text := m.lfContent()
-		m.inRead.starts = lineStarts(text)
-		m.inRead.regions = regionsOf(text, m.lang, m.cells, m.inRead.starts)
-		m.inRead.read = true
+		read := func() *inText {
+			text := m.lfContent()
+			starts := lineStarts(text)
+			return &inText{read: true, starts: starts, regions: regionsOf(text, m.lang, m.cells, starts)}
+		}
+		if m.file != nil && m.file.places != nil {
+			m.inRead = *m.file.places.forDoc(m.file, read)
+		} else {
+			m.inRead = *read()
+		}
 	}
 	return &m.inRead
 }

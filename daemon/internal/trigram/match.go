@@ -41,6 +41,7 @@ type matchedLine struct {
 // lineMatcher finds, and remembers, which lines each term matches in one file.
 type lineMatcher struct {
 	content []byte
+	file    *Doc // immutable indexed generation; nil for standalone text
 	terms   termCache
 	cache   map[*query.Content][]matchedLine
 	// lf is content with each "\r\n" as "\n", made the first time a term
@@ -108,6 +109,7 @@ func newLineMatcher(content []byte, terms termCache) *lineMatcher {
 // symbols aren't indexed), the ones found the first time a ref: term asks.
 func newFileMatcher(doc *Doc, terms termCache) *lineMatcher {
 	m := newLineMatcher(doc.Content, terms)
+	m.file = doc
 	m.lang = doc.Lang
 	m.cells = doc.Cells
 	found, done := doc.Symbols, doc.Symbols != nil
