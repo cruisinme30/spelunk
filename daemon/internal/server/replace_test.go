@@ -1,6 +1,7 @@
 package server
 
 import (
+	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -137,5 +138,106 @@ func TestReplacePlanRefusesQueriesItCannotReplace(t *testing.T) {
 	// A term inside NOT only filters, so it isn't replaced.
 	if plan := planReplace(t, client, "retry -backoff2", "x"); plan.Matches != 1 {
 		t.Fatalf("retry -backoff2: %d matches, want 1", plan.Matches)
+	}
+}
+
+func TestReplacePlanRejectsFilesRedirectedSinceIndexing(t *testing.T) {
+	// @covers rpc:replace/plan
+	for _, kind := range []string{"outside file", "inside file", "parent folder", "directory", "deleted"} {
+		t.Run(kind, func(t *testing.T) {
+			client, root := replaceClient(t, map[string]string{"src/a.py": "retry()\n", "other.py": "retry()\n"})
+			path := filepath.Join(root, "src", "a.py")
+			if err := os.Remove(path); err != nil {
+				t.Fatal(err)
+			}
+			switch kind {
+			case "outside file":
+				outside := testutil.WriteTree(t, map[string]string{"a.py": "retry()\n"})
+				if err := os.Symlink(filepath.Join(outside, "a.py"), path); err != nil {
+					t.Fatal(err)
+				}
+			case "inside file":
+				if err := os.Symlink(filepath.Join(root, "other.py"), path); err != nil {
+					t.Fatal(err)
+				}
+			case "parent folder":
+				outside := testutil.WriteTree(t, map[string]string{"a.py": "retry()\n"})
+				if err := os.Remove(filepath.Dir(path)); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Symlink(outside, filepath.Dir(path)); err != nil {
+					t.Fatal(err)
+				}
+			case "directory":
+				if err := os.Mkdir(path, 0o700); err != nil {
+					t.Fatal(err)
+				}
+			}
+			var out protocol.ReplacePlan
+			err := client.call(protocol.MethodReplacePlan, protocol.ReplacePlanParams{Text: "retry f:src/", Replacement: "next"}, &out)
+			wantRPCCode(t, "replacement with redirected path", err, protocol.CodeRefStale)
+			if len(out.Files) != 0 {
+				t.Fatalf("redirected file produced edits: %+v", out)
+			}
+		})
+	}
+}
+
+func TestReplacePlanCaptureBudgetReturnsOverloadedWithoutEdits(t *testing.T) {
+	// @covers rpc:replace/plan
+	client, _ := replaceClient(t, map[string]string{"dense.txt": strings.Repeat("a", 2000)})
+	var out protocol.ReplacePlan
+	err := client.call(protocol.MethodReplacePlan, protocol.ReplacePlanParams{Text: "/" + strings.Repeat("()", 64) + "(a)/", Replacement: "$65"}, &out)
+	wantRPCCode(t, "replacement capture budget", err, protocol.CodeOverloaded)
+	if len(out.Files) != 0 || out.Matches != 0 {
+		t.Fatalf("capture budget returned partial edits: %+v", out)
+	}
+}
+
+func TestReplacePlanRefusesUndefinedRegexCaptures(t *testing.T) {
+	// @covers rpc:replace/plan syntax:regex
+	client, _ := replaceClient(t, map[string]string{"a.txt": "retry\n"})
+	for _, replacement := range []string{"$99", "${missing}", "$1_suffix", "$01", "$١"} {
+		var plan protocol.ReplacePlan
+		err := client.call(protocol.MethodReplacePlan, protocol.ReplacePlanParams{Text: `/(retry)/`, Replacement: replacement}, &plan)
+		wantRPCCode(t, "undefined replacement capture", err, protocol.CodeQueryInvalid)
+		if len(plan.Files) != 0 || plan.Matches != 0 || !strings.Contains(err.Error(), replacement) || !strings.Contains(err.Error(), "${1}") {
+			t.Errorf("replacement %q = %+v, %v; want no edits and specific capture/braces guidance", replacement, plan, err)
+		}
+	}
+}
+
+func TestReplacePlanValidatesCapturesWithGoExpansionRules(t *testing.T) {
+	// @covers rpc:replace/plan syntax:regex
+	client, _ := replaceClient(t, map[string]string{"a.txt": "retry\n"})
+	cases := []struct{ query, replacement, want string }{
+		{`/(retry)/`, "${1}_suffix", "retry_suffix"},
+		{`/(retry)/`, "$0 $$ $${missing}", "retry $ ${missing}"},
+		{`/(missing)?(retry)/`, "$1/$2", "/retry"},
+		{`/(?P<what>retry)/`, "${what}_suffix", "retry_suffix"},
+		{`/(?P<x>missing)|(?P<x>retry)/`, "${x}", "retry"},
+		{`/(?P<01>missing)|(?P<01>retry)/`, "$01", "retry"},
+		{`/(?P<1>missing)|(?P<1>retry)/`, "$1", ""},
+		{`/(?P<01>retry)/`, "$01", "retry"},
+		{`/(?P<1000000000>retry)/`, "$1000000000", "retry"},
+		{`/(retry)/`, "${broken $ / ${}", "${broken $ / ${}"},
+		{"retry", "$99/${missing}/$1_suffix", "$99/${missing}/$1_suffix"},
+	}
+	for _, tt := range cases {
+		plan := planReplace(t, client, tt.query, tt.replacement)
+		if plan.Matches != 1 || len(plan.Files) != 1 || plan.Files[0].Lines[0].Edits[0].NewText != tt.want {
+			t.Errorf("replace %q with %q = %+v, want %q", tt.query, tt.replacement, plan, tt.want)
+		}
+	}
+}
+
+func TestReplacePlanPayloadBudgetReturnsOverloadedWithoutEdits(t *testing.T) {
+	// @covers rpc:replace/plan
+	client, _ := replaceClient(t, map[string]string{"dense.txt": strings.Repeat("retry ", 300)})
+	var out protocol.ReplacePlan
+	err := client.call(protocol.MethodReplacePlan, protocol.ReplacePlanParams{Text: "retry", Replacement: strings.Repeat("x", 64<<10)}, &out)
+	wantRPCCode(t, "replacement payload budget", err, protocol.CodeOverloaded)
+	if len(out.Files) != 0 || out.Matches != 0 {
+		t.Fatalf("payload budget returned partial edits: %+v", out)
 	}
 }

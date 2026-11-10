@@ -62,7 +62,7 @@ func TestUnusableSettingsFallBackToDefaults(t *testing.T) {
 func TestInitializeWithoutSettingsKeepsTheDefaults(t *testing.T) {
 	// @covers rpc:initialize
 	client := newTestClient(t)
-	if err := client.call(protocol.MethodInitialize, json.RawMessage(`{"protocol":1,"roots":[]}`), nil); err != nil {
+	if err := client.call(protocol.MethodInitialize, map[string]any{"protocol": protocol.Version, "roots": []protocol.Root{}}, nil); err != nil {
 		t.Fatal(err)
 	}
 	got, want := client.server.Settings(), DefaultSettings()
@@ -98,5 +98,20 @@ func TestRootsARefCannotNameAreDropped(t *testing.T) {
 	}
 	if err := client.call(protocol.MethodPreviewGet, protocol.PreviewParams{Ref: items[0].Ref, ContextLines: 1}, nil); err != nil {
 		t.Fatalf("preview of the only result: %v", err)
+	}
+}
+
+func TestInitializeRejectsOldProtocolBeforeApplyingRootsOrSettings(t *testing.T) {
+	// @covers rpc:initialize
+	client := newTestClient(t)
+	old := protocol.InitializeParams{
+		Protocol: protocol.Version - 1,
+		Roots:    []protocol.Root{{ID: "old", Path: t.TempDir(), Name: "old"}},
+		Settings: protocol.Settings{Location: t.TempDir(), DefaultCount: 1},
+	}
+	err := client.call(protocol.MethodInitialize, old, nil)
+	wantRPCCode(t, "old protocol initialize", err, rpc.CodeInvalidParams)
+	if len(client.server.Roots()) != 0 || client.server.Settings().Location == old.Settings.Location {
+		t.Fatalf("mismatched initialize changed roots/settings: %+v %+v", client.server.Roots(), client.server.Settings())
 	}
 }

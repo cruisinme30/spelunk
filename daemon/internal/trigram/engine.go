@@ -228,6 +228,7 @@ type searcher struct {
 	// may hide matches there; the search goes on, but its results are
 	// marked truncated.
 	incomplete bool
+	matchErr   error
 	// facets count the results by repo, language, owner and top folder.
 	facets *engine.Facets
 	// hidden counts, per filter index, results that only that filter removed.
