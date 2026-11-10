@@ -80,7 +80,7 @@ jobs:
           SPELUNK_BENCH_ROOT: ${{ runner.temp }}/bench
           SPELUNK_BENCH_REPO: ${{ runner.temp }}/bench
         run: |
-          go test -run '^$' -bench 'LargeRepo|LargeHistory' -benchtime 10x -timeout 40m -v \
+          go test -run '^$' -bench 'LargeRepo|LargeHistory' -benchtime 20x -timeout 40m -v \
             ./internal/trigram ./internal/history | tee "$RUNNER_TEMP/bench.txt"
 
       - name: Check the budgets
