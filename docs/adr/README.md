@@ -15,3 +15,5 @@ Start from [template.md](template.md) (a short form of [MADR](https://adr.github
 | [0007](0007-agents-search-through-the-daemon.md) | Agents and the terminal search through the daemon, over MCP with the official SDK | Accepted |
 | [0008](0008-explicit-cli-indexing.md) | Explicit terminal indexing shares the existing writer lock; search and MCP remain read-only | Accepted |
 | [0009](0009-cache-lexical-regions-per-snapshot.md) | Bound lexical-region reuse to immutable snapshots | Accepted |
+| [0010](0010-bind-replacement-to-complete-source.md) | Bind replacement plans to complete source and notebook structure | Accepted |
+| [0011](0011-version-wiki-source-with-code.md) | Review wiki source with code and publish a separate trusted mirror | Accepted |

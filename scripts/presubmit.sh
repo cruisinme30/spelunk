@@ -7,7 +7,7 @@
 #   2. Go at the version daemon/go.mod names (GOTOOLCHAIN), as setup-go does
 #   3. CI's "test" job: scripts/test-all.sh with CI=1, so a missing linter fails
 #   4. CI's "e2e" job: build the daemon and extension, run scripts/e2e.mjs
-#   5. the wiki matches the mocks and is pushed (scripts/checkWikiSync.mjs)
+#   5. the canonical wiki source matches code and mocks (scripts/checkWikiSync.mjs)
 #   6. with --tag vX.Y.Z, the Release workflow's checks: the tag is the
 #      extension's version, every spec id has a test, every platform packages
 #

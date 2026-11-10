@@ -176,14 +176,27 @@ work, whichever side it starts from:
 | What a screen looks like | Its mock on the design canvas, the wiki's `images/mocks/` export and `docs/dev/proof/` screenshot |
 | A mock, or a screen added or removed | The code and its `@covers screen:` tests, the `docs/dev/mocks.md` row, the screen's block on the wiki page that documents it, and its row on the wiki's Screens page |
 
-The wiki is its own repo (`spelunk.wiki.git`); commit and push its change alongside the code's. The presubmit
-runs `scripts/checkWikiSync.mjs`, which fails when a clone next to this one disagrees with `docs/dev/mocks.md` (screen
-numbers, ids, milestones, screen blocks, images, canvas link), when a screen the panel draws has no `docs/dev/proof/`
-screenshot in its `<!-- screen:<id> -->` block, when a page shows an image that isn't committed under that exact
-name, when a wiki link goes to a page or heading that doesn't exist or a page is missing from the sidebar, when an
-operator, diagnostic code, setting or command the code defines isn't on its wiki page, or when the wiki has changes
-that aren't pushed. `specCoverage.mjs` reads the screen ids from `docs/dev/mocks.md`, so a new
+The canonical wiki source is `docs/wiki/`, including its `images/` assets. Commit code, tests, wiki source and mocks
+in the same PR. Do not edit the deployed wiki directly. `scripts/checkWikiSync.mjs` is mandatory in both CI and
+presubmit; it needs no wiki clone or network and fails if the source is missing. It checks screen numbers, ids,
+milestones, screen blocks, images, canvas links, built screenshots, page links and headings, the sidebar, and
+operator/diagnostic/setting/command coverage. `specCoverage.mjs` reads screen ids from `docs/dev/mocks.md`, so a new
 mock needs a test.
+
+The `Publish wiki` workflow runs only on `develop` pushes that change wiki source or publication tooling. A
+read-only job validates that exact commit and publication regressions; a separate job gets the ephemeral `contents:
+write` token to publish the existing `spelunk.wiki.git` master branch. It copies regular Markdown pages and PNG
+images, rejects symlinks and metadata, checks that `develop` still has the same wiki and publication-tool
+identities, serializes runs, and uses a normal push without rewriting history. It does not run PR code with write
+credentials or repeat the application suite. Main promotion does not republish documentation.
+
+After merging, verify the workflow and published content. Publication is a deployment step: a failed deployment
+leaves the tested source intact and must be reported, then rerun after the cause is fixed. A run superseded by newer
+wiki or publication-tool content is skipped; the newest relevant push supplies the mirror. Unrelated code commits do
+not strand a queued publication. To compare a freshly fetched wiki clone explicitly, run `node
+scripts/checkWikiDeployment.mjs /path/to/spelunk.wiki`. This optional deployment check never substitutes for source
+validation. The first hosted publication must verify this repository's token policy; no personal token is required
+by the design and no authentication fallback silently broadens access.
 
 ## Docs
 
@@ -198,14 +211,16 @@ local or in a draft PR; mark the PR ready when the change, tests, docs, and chan
 Draft PRs do not consume CI runs. CI runs when the PR becomes ready and whenever that ready PR changes.
 
 - **Into develop:** run all static quality checks and the behavioral dependency closure selected by
-  `scripts/test-changed.sh --base BASE --head HEAD`. A daemon change tests the daemon and both consumers; an extension change
+  `scripts/test-changed.sh --base BASE --head HEAD`. A daemon change tests the daemon and both consumers; an extension
+  change
   tests extension and webview; a webview-only change tests the webview. Shared configuration, protocol, fixtures,
   unknown paths, and the test infrastructure fall back to the full suite.
 - **Into main:** promote a coherent batch of completed iterations through a `develop` to `main` PR. Run the
   entire suite and real VS Code end-to-end tests. Do not promote merely because an arbitrary commit count passed.
   Promote when the batch has a clear user outcome, current docs, passing checks, and no unresolved blocking defects.
-- Feature and develop pushes do not trigger duplicate Actions runs. Main pushes retain a full safety run, including
-  direct changes. Main promotions are intentionally less frequent.
+- Feature and develop pushes do not repeat the application test suite. A develop push changing wiki source or
+  publishing tooling runs only documentation validation and deployment. Main pushes retain a full safety run,
+  including direct changes. Main promotions are intentionally less frequent.
 - Never weaken lint rules, skip failing assertions, or bypass checks to make a merge green. Report an environmental
   blocker accurately and rely on a successful equivalent CI run before merging if the local environment cannot run it.
 - Before fixing a bug, identify the failing invariant and whether it belongs in shared infrastructure. Prefer a
@@ -218,6 +233,12 @@ Every new changelog entry uses **Issue → Example → Fix**. Always include a c
 understandable. Do not publish implementation-only bullet points or say a change is released while it is only on
 `develop`. Keep the website's architecture, benchmark methodology, fix status, and changelog aligned with the code.
 Benchmark improvements must identify the baseline, corpus, measurement method, and relevant limitations.
+
+Maintain one note per improvement in `docs/dev/improvements/`, covering the issue and a concrete example, root
+cause, change and mechanism, actual tests and benchmark results with links to raw evidence and provenance,
+limitations and tradeoffs, and current status. Distinguish micro benchmarks from end-to-end measurements; never
+invent results or imply that a local test proves hosted deployment. Update standalone reports, slide artifacts and
+the website with the final evidence, including superseded measurements and unresolved deployment steps.
 
 Example:
 

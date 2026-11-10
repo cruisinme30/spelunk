@@ -1,0 +1,65 @@
+# The versioned source merges with code. Publication is a separate deploy step.
+name: Publish wiki
+
+on:
+  push:
+    branches: [develop]
+    paths:
+      - docs/wiki/**
+      - scripts/wiki*.mjs
+      - scripts/publishWiki.mjs
+      - scripts/checkWikiSync.mjs
+      - scripts/checkWikiDeployment.mjs
+      - scripts/mockTable.mjs
+      - scripts/specIds.mjs
+      - .github/workflows/wiki.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wiki-publication
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: 22
+      - name: Validate canonical source and publication safety
+        run: |
+          node scripts/checkWikiSync.mjs
+          node --test scripts/wiki*.test.mjs
+
+  publish:
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: ${{ github.sha }}
+          path: source
+          persist-credentials: false
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          repository: ${{ github.repository }}.wiki
+          ref: master
+          path: wiki
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: 22
+      - name: Publish current develop source without rewriting history
+        env:
+          SOURCE_SHA: ${{ github.sha }}
+          SOURCE_REMOTE: ${{ github.server_url }}/${{ github.repository }}.git
+        run: node source/scripts/publishWiki.mjs source wiki "$SOURCE_SHA" "$SOURCE_REMOTE"

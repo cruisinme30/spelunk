@@ -81,7 +81,10 @@ if command -v "$markdownlint" >/dev/null; then "$markdownlint"; else missing mar
 workspace_lint cspell --no-progress --gitignore .
 workspace_lint knip
 
-step "benchmark gate: required workloads, latency and heap checks"
+step "wiki: canonical content matches code and mocks"
+node scripts/checkWikiSync.mjs
+
+step "scripts: benchmark gates, wiki publication and tooling regressions"
 node --test scripts/*.test.mjs
 
 if has_layer daemon; then
