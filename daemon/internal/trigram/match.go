@@ -299,8 +299,14 @@ func (m *lineMatcher) scanForLines(term *query.Content) []matchedLine {
 // file quadratic in its lines ([^;]*zz over a file without semicolons).
 func (m *lineMatcher) finder(term *query.Content) func(from int) (at, read int) {
 	if facts := m.terms.facts(term); facts.hasLiteral && facts.literal.usableOn(m.content) {
+		positions := foldedPositions{lower: -1, upper: -1}
 		return func(from int) (int, int) {
-			at := facts.literal.index(m.content, from)
+			var at int
+			if facts.literal.folded {
+				at = positions.index(m.content, facts.literal.needle, from)
+			} else {
+				at = facts.literal.index(m.content, from)
+			}
 			if at < 0 {
 				return -1, len(m.content) - from
 			}
